@@ -10,12 +10,15 @@ function Caja({ data, setData, user }) {
   const [cobroActivo, setCobroActivo] = useState(null);
   const [copiedCLABE, setCopiedCLABE] = useState(false);
   const [speiStatus, setSpeiStatus] = useState('esperando'); // esperando | verificando | confirmado
+  const [speiError, setSpeiError] = useState(null);
   const [codiStatus, setCodiStatus] = useState('esperando'); // esperando | escaneado | pagado | expirado
   const [codiTimer, setCodiTimer] = useState(300); // 5 minutos
-  const [tcForm, setTcForm] = useState({ numero:'', expiry:'', cvv:'', nombre:'' });
-  const [tcProcessing, setTcProcessing] = useState(false);
+  const [tcInfo, setTcInfo] = useState(null); // { url, qr_url, referencia }
+  const [tcLoading, setTcLoading] = useState(false);
+  const [tcError, setTcError] = useState(null);
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
+  const speiPollRef = useRef(null);
 
   const productosFiltrados = data.productos.filter(p =>
     p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
@@ -36,86 +39,128 @@ function Caja({ data, setData, user }) {
   const removeItem = id => setCarrito(prev => prev.filter(i => i.id !== id));
 
   /* ── INICIAR COBRO ── */
-  const cobrar = () => {
+  const cobrar = async () => {
     if (!carrito.length) return;
     const { data: newData, cobro } = CobroController.iniciarCobro(data, { carrito, cliente: clienteSel, metodo });
     setCobroActivo(cobro);
 
     if (metodo === 'SPEI') {
-      setSpeiStatus('esperando');
+      setSpeiStatus('generando');
+      setSpeiError(null);
       setData(newData);
       setModal('spei');
-      // Simular webhook STP: 4-10 segundos
-      intervalRef.current = CobroController.simularWebhookSPEI(newData, cobro.id, (updatedData) => {
-        setData(updatedData);
-        setSpeiStatus('confirmado');
-        AppModel.save(updatedData);
-      });
+
+      try {
+        // Llamada real a Pagadetodo para generar CLABE dinámica
+        const spei = await CobroController.iniciarSPEI(cobro);
+        // Guardar CLABE en el cobro
+        const cobrosActualizados = newData.cobros.map(c =>
+          c.id === cobro.id ? { ...c, clabe: spei.clabe, referencia_spei: spei.referencia, spei_expira: spei.expira } : c
+        );
+        const dataConClabe = { ...newData, cobros: cobrosActualizados };
+        setData(dataConClabe);
+        setCobroActivo(prev => ({ ...prev, clabe: spei.clabe }));
+        setSpeiStatus('esperando');
+        AppModel.save(dataConClabe);
+
+        // Polling automático: verificar cada 10 segundos
+        speiPollRef.current = setInterval(async () => {
+          try {
+            const ver = await CobroController.verificarSPEI(spei.clabe);
+            if (ver.pagado) {
+              clearInterval(speiPollRef.current);
+              setData(prev => {
+                const updated = CobroController.confirmarPago(prev, cobro.id, { transaccion: ver.transaccion });
+                AppModel.save(updated);
+                return updated;
+              });
+              setSpeiStatus('confirmado');
+            }
+          } catch(e) { /* continuar polling */ }
+        }, 10000);
+
+      } catch(err) {
+        setSpeiError(err.message);
+        setSpeiStatus('error');
+      }
+
     } else if (metodo === 'CoDi') {
+      // CoDi: se mantiene igual (no hay API real disponible)
       setCodiStatus('esperando');
       setCodiTimer(300);
       setData(newData);
       setModal('codi');
-      // Polling CoDi
       let t = 300;
       timerRef.current = setInterval(() => {
         t--;
         setCodiTimer(t);
-        if (t <= 0) {
-          clearInterval(timerRef.current);
-          setCodiStatus('expirado');
-        }
+        if (t <= 0) { clearInterval(timerRef.current); setCodiStatus('expirado'); }
       }, 1000);
-      // Simular escaneo + pago
-      setTimeout(() => setCodiStatus('escaneado'), 4000 + Math.random() * 6000);
-      setTimeout(() => {
-        clearInterval(timerRef.current);
-        const updatedData = CobroController.confirmarPago(newData, cobro.id);
-        setData(updatedData);
-        setCodiStatus('pagado');
-        AppModel.save(updatedData);
-      }, 10000 + Math.random() * 10000);
+
     } else if (metodo === 'TC') {
+      // TC: generar liga de pago real con Pagadetodo
+      setTcLoading(true);
+      setTcError(null);
+      setTcInfo(null);
       setData(newData);
       setModal('tc');
+
+      try {
+        const liga = await CobroController.iniciarTC(cobro);
+        setTcInfo(liga);
+      } catch(err) {
+        setTcError(err.message);
+      } finally {
+        setTcLoading(false);
+      }
+
     } else {
       // Efectivo: cobro inmediato
       setData(newData);
       AppModel.save(newData);
-      setCobroActivo(cobro);
       setModal('ticket');
       resetCarrito();
     }
   };
 
-  /* ── PROCESAR TARJETA ── */
-  const procesarTC = () => {
-    if (!tcForm.numero || !tcForm.expiry || !tcForm.cvv || !tcForm.nombre) return;
-    setTcProcessing(true);
-    setTimeout(() => {
-      setTcProcessing(false);
-      const updatedData = CobroController.confirmarPago(data, cobroActivo.id);
-      setData(updatedData);
-      AppModel.save(updatedData);
-      setModal('ticket');
-      resetCarrito();
-    }, 2500);
+  /* ── CONFIRMAR TC MANUALMENTE (cliente ya pagó en el link) ── */
+  const confirmarTC = () => {
+    const updatedData = CobroController.confirmarPago(data, cobroActivo.id, { auth_code: tcInfo?.referencia });
+    setData(updatedData);
+    AppModel.save(updatedData);
+    setModal('ticket');
+    resetCarrito();
   };
 
-  /* ── CONFIRMAR SPEI MANUAL ── */
-  const confirmarSPEI = () => {
-    if (speiStatus === 'confirmado') {
-      setModal('ticket');
-      resetCarrito();
-      return;
-    }
+  /* ── CONFIRMAR SPEI MANUAL (botón de "ya pagué") ── */
+  const confirmarSPEI = async () => {
+    if (speiStatus === 'confirmado') { setModal('ticket'); resetCarrito(); return; }
     setSpeiStatus('verificando');
-    setTimeout(() => {
+    try {
+      const clabe = cobroActivo?.clabe;
+      if (clabe) {
+        const ver = await CobroController.verificarSPEI(clabe);
+        if (ver.pagado) {
+          clearInterval(speiPollRef.current);
+          const updatedData = CobroController.confirmarPago(data, cobroActivo.id, { transaccion: ver.transaccion });
+          setData(updatedData);
+          AppModel.save(updatedData);
+          setSpeiStatus('confirmado');
+          return;
+        }
+      }
+      // Si no se verificó, confirmar manualmente de todas formas
       const updatedData = CobroController.confirmarPago(data, cobroActivo.id);
       setData(updatedData);
       AppModel.save(updatedData);
       setSpeiStatus('confirmado');
-    }, 2000);
+    } catch(e) {
+      // Confirmar manualmente si falla la API
+      const updatedData = CobroController.confirmarPago(data, cobroActivo.id);
+      setData(updatedData);
+      AppModel.save(updatedData);
+      setSpeiStatus('confirmado');
+    }
   };
 
   /* ── CONFIRMAR CODI MANUAL ── */
@@ -129,12 +174,13 @@ function Caja({ data, setData, user }) {
   };
 
   const resetCarrito = () => {
-    setCarrito([]); setClienteSel(null); setTcForm({ numero:'', expiry:'', cvv:'', nombre:'' });
+    setCarrito([]); setClienteSel(null); setTcInfo(null); setTcError(null);
   };
 
   const cerrarModal = () => {
     if (intervalRef.current) clearTimeout(intervalRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
+    if (speiPollRef.current) clearInterval(speiPollRef.current);
     setModal(null);
   };
 
@@ -326,11 +372,22 @@ function Caja({ data, setData, user }) {
             <div className="modal-body">
               {speiStatus !== 'confirmado' && (
                 <>
-                  <p style={{fontSize:13,color:'var(--ink-3)',marginBottom:14}}>
-                    El alumno/tutor debe realizar una transferencia a la siguiente CLABE interbancaria:
-                  </p>
+                  {speiStatus === 'generando' && (
+                    <div className="verif-row" style={{justifyContent:'center',padding:'20px 0'}}>
+                      <span className="spinner" style={{borderTopColor:'var(--accent)'}}></span>
+                      <span style={{fontSize:13,color:'var(--ink-2)',marginLeft:10}}>Generando CLABE dinámica con Pagadetodo…</span>
+                    </div>
+                  )}
 
-                  <div className="spei-box">
+                  {speiStatus === 'error' && (
+                    <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:'var(--radius)',padding:'14px 16px',marginBottom:14}}>
+                      <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}>❌ Error al generar CLABE</div>
+                      <div style={{fontSize:12,color:'var(--ink-2)'}}>{speiError}</div>
+                    </div>
+                  )}
+
+                  {(speiStatus === 'esperando' || speiStatus === 'verificando') && (
+                    <div className="spei-box">
                     <div style={{fontSize:11.5,color:'rgba(255,255,255,.6)',marginBottom:6,textAlign:'center'}}>
                       CLABE Interbancaria · Banco Azteca · CLABE Dinámica
                     </div>
@@ -356,22 +413,27 @@ function Caja({ data, setData, user }) {
                     <button className={`copy-btn ${copiedCLABE?'copied':''}`} onClick={copiarCLABE}>
                       {copiedCLABE ? '✓ ¡CLABE copiada!' : '📋 Copiar CLABE al portapapeles'}
                     </button>
-                  </div>
+                    </div>
+                  )}
 
+                  {(speiStatus === 'esperando' || speiStatus === 'verificando') && (
                   <div className="verif-row">
                     <div className="verif-dot pulse" style={{background:speiStatus==='verificando'?'var(--amber)':'var(--accent)'}}></div>
                     <div style={{fontSize:12.5,color:'var(--ink-2)'}}>
                       {speiStatus==='esperando'
-                        ? 'Esperando transferencia… se verificará automáticamente vía webhook STP'
-                        : 'Verificando pago con la red STP…'}
+                        ? 'Esperando transferencia… se verificará automáticamente vía Pagadetodo'
+                        : 'Verificando pago con Pagadetodo…'}
                     </div>
                     {speiStatus==='verificando' && <span className="spinner" style={{marginLeft:'auto'}}></span>}
                   </div>
+                  )}
 
+                  {(speiStatus === 'esperando' || speiStatus === 'verificando') && (
                   <p style={{fontSize:11.5,color:'var(--ink-4)',marginTop:10,lineHeight:1.5}}>
                     ℹ La CLABE es única para este cobro. Una vez recibida la transferencia, 
-                    el sistema marcará el cobro como pagado automáticamente.
+                    el sistema la detectará automáticamente (polling cada 10s).
                   </p>
+                  )}
                 </>
               )}
 
@@ -393,9 +455,12 @@ function Caja({ data, setData, user }) {
                 {speiStatus==='confirmado' ? 'Cerrar' : 'Dejar pendiente'}
               </button>
               {speiStatus!=='confirmado' && (
-                <button className="btn btn-primary" onClick={confirmarSPEI} disabled={speiStatus==='verificando'}>
+                <button className="btn btn-primary" onClick={confirmarSPEI}
+                  disabled={speiStatus==='verificando'||speiStatus==='generando'}>
                   {speiStatus==='verificando'
                     ? <><span className="spinner"></span> Verificando…</>
+                    : speiStatus==='generando'
+                    ? <><span className="spinner"></span> Generando…</>
                     : '✓ Confirmar pago recibido'}
                 </button>
               )}
@@ -491,61 +556,89 @@ function Caja({ data, setData, user }) {
       {/* ══ MODAL: Tarjeta ══ */}
       {modal==='tc' && cobroActivo && (
         <div className="modal-backdrop">
-          <div className="modal">
+          <div className="modal modal-lg">
             <div className="modal-header">
               <div className="modal-title">💳 Cobro con Tarjeta</div>
+              {tcInfo && <span className="badge badge-green">✓ Liga generada</span>}
             </div>
             <div className="modal-body">
+              {/* Resumen del cobro */}
               <div style={{background:'linear-gradient(135deg,#1e3a8a,#4f46e5)',borderRadius:'var(--radius-lg)',padding:'18px 20px',marginBottom:18}}>
                 <div style={{fontSize:11,color:'rgba(255,255,255,.6)',marginBottom:4}}>Total a cobrar</div>
                 <div style={{fontSize:26,fontWeight:800,color:'#fff',fontFamily:'var(--mono)'}}>{fmt(cobroActivo.total)}</div>
                 <div style={{fontSize:12,color:'rgba(255,255,255,.6)',marginTop:4}}>{cobroActivo.folio} · {cobroActivo.cliente}</div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Número de tarjeta</label>
-                <input className="form-input" placeholder="1234 5678 9012 3456" maxLength={19}
-                  value={tcForm.numero} onChange={e=>{
-                    const v=e.target.value.replace(/\D/g,'').slice(0,16);
-                    setTcForm(f=>({...f,numero:v.replace(/(.{4})/g,'$1 ').trim()}));
-                  }} style={{fontFamily:'var(--mono)',letterSpacing:2}}/>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                <div className="form-group">
-                  <label className="form-label">Vencimiento</label>
-                  <input className="form-input" placeholder="MM/AA" maxLength={5}
-                    value={tcForm.expiry} onChange={e=>{
-                      const v=e.target.value.replace(/\D/g,'').slice(0,4);
-                      setTcForm(f=>({...f,expiry:v.length>2?v.slice(0,2)+'/'+v.slice(2):v}));
-                    }} style={{fontFamily:'var(--mono)'}}/>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">CVV</label>
-                  <input className="form-input" placeholder="123" maxLength={4} type="password"
-                    value={tcForm.cvv} onChange={e=>setTcForm(f=>({...f,cvv:e.target.value.replace(/\D/g,'').slice(0,4)}))}
-                    style={{fontFamily:'var(--mono)'}}/>
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nombre en la tarjeta</label>
-                <input className="form-input" placeholder="JUAN PÉREZ GARCÍA"
-                  value={tcForm.nombre} onChange={e=>setTcForm(f=>({...f,nombre:e.target.value.toUpperCase()}))}/>
-              </div>
-
-              {tcProcessing && (
-                <div className="verif-row">
+              {/* Cargando */}
+              {tcLoading && (
+                <div className="verif-row" style={{justifyContent:'center',padding:'20px 0'}}>
                   <span className="spinner" style={{borderTopColor:'var(--accent)'}}></span>
-                  <span style={{fontSize:12.5,color:'var(--ink-2)'}}>Procesando pago con la terminal…</span>
+                  <span style={{fontSize:13,color:'var(--ink-2)',marginLeft:10}}>Generando liga de pago con Pagadetodo…</span>
                 </div>
+              )}
+
+              {/* Error */}
+              {tcError && !tcLoading && (
+                <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:'var(--radius)',padding:'14px 16px',marginBottom:14}}>
+                  <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}>❌ Error al generar liga de pago</div>
+                  <div style={{fontSize:12,color:'var(--ink-2)'}}>{tcError}</div>
+                  <div style={{fontSize:11,color:'var(--ink-3)',marginTop:8}}>
+                    Puedes confirmar el cobro manualmente si el cliente pagó por otro medio.
+                  </div>
+                </div>
+              )}
+
+              {/* Liga de pago lista */}
+              {tcInfo && !tcLoading && (
+                <>
+                  <p style={{fontSize:13,color:'var(--ink-3)',marginBottom:14}}>
+                    Comparte el enlace o muestra el QR al cliente para que complete el pago con su tarjeta de crédito o débito.
+                  </p>
+
+                  {/* QR */}
+                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',marginBottom:18}}>
+                    <img
+                      src={tcInfo.qr_url}
+                      alt="QR de pago"
+                      style={{width:200,height:200,borderRadius:'var(--radius)',border:'1px solid var(--border)',background:'#fff',padding:8}}
+                      onError={e=>e.target.style.display='none'}
+                    />
+                    <div style={{fontSize:11,color:'var(--ink-4)',marginTop:8}}>Escanear con cualquier app de banco</div>
+                  </div>
+
+                  {/* Link */}
+                  <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',padding:'12px 14px',marginBottom:12}}>
+                    <div style={{fontSize:11,color:'var(--ink-4)',marginBottom:4}}>Enlace de pago</div>
+                    <a href={tcInfo.url} target="_blank" rel="noreferrer"
+                       style={{fontSize:12,color:'var(--accent)',wordBreak:'break-all',fontFamily:'var(--mono)'}}>
+                      {tcInfo.url}
+                    </a>
+                  </div>
+
+                  {/* Copiar link */}
+                  <button className="copy-btn" onClick={()=>{
+                    navigator.clipboard.writeText(tcInfo.url).catch(()=>{});
+                  }} style={{width:'100%',marginBottom:10}}>
+                    📋 Copiar enlace de pago
+                  </button>
+
+                  <div className="verif-row">
+                    <div className="verif-dot pulse"></div>
+                    <div style={{fontSize:12,color:'var(--ink-2)'}}>
+                      Esperando confirmación de pago — Ref: {tcInfo.referencia}
+                    </div>
+                  </div>
+
+                  <p style={{fontSize:11,color:'var(--ink-4)',marginTop:10}}>
+                    ℹ Una vez que el cliente complete el pago en el enlace, confirma el cobro con el botón de abajo.
+                  </p>
+                </>
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={cerrarModal} disabled={tcProcessing}>Cancelar</button>
-              <button className="btn btn-primary" onClick={procesarTC}
-                disabled={tcProcessing||!tcForm.numero||!tcForm.expiry||!tcForm.cvv||!tcForm.nombre}>
-                {tcProcessing
-                  ? <><span className="spinner"></span> Procesando…</>
-                  : `💳 Cobrar ${fmt(cobroActivo.total)}`}
+              <button className="btn btn-secondary" onClick={cerrarModal}>Cancelar</button>
+              <button className="btn btn-primary" onClick={confirmarTC}>
+                ✓ Confirmar pago recibido
               </button>
             </div>
           </div>
