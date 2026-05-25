@@ -10,7 +10,7 @@ define('PDT_USER',         'p9E5Vdu5Ya');
 define('PDT_PASS',         'Ak63MKo#1/');
 define('PDT_INT_ID',       '124');
 define('PDT_BUS_ID_SPEI',  '000060');   // Para generar CLABE (transferencias SPEI)
-define('PDT_BUS_ID_TC',    '000002');   // Para ligas de pago con tarjeta
+define('PDT_BUS_ID_TC',    '000060');   // Para ligas de pago con tarjeta (mismo BusinessID)
 
 // ─── URLs de Pagadetodo ───────────────────────────────────────────────────────
 define('PDT_URL_CLABE',    'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');

@@ -91,16 +91,22 @@ check('API SPEI responde', $httpCode === 200, "Código: {$httpCode}");
 check('Genera CLABE real', $tieneClabe, $tieneClabe ? "CLABE: {$clabe}" : "Resp: " . substr($result, 0, 100));
 
 // Probar conexión ligas de pago
+$ts2      = intval(substr(time(), -6));
+$rand2    = rand(100, 999);
+$base2    = $ts2 . $rand2;
+$id2      = str_pad($base2, 9,  '0', STR_PAD_LEFT);
+$ref2     = str_pad($base2, 15, '0', STR_PAD_LEFT);
+
 $testLiga = [
     'User'          => PDT_USER,
     'Password'      => PDT_PASS,
     'IntegrationID' => PDT_INT_ID,
     'BusinessID'    => PDT_BUS_ID_TC,
     'PaymentTypes'  => '401',
-    'Id'            => 'TEST' . time(),
+    'Id'            => $id2,
     'Description'   => 'Test EduPago',
-    'Amount'        => 5000, // $50.00
-    'Reference'     => 'TEST' . time(),
+    'Amount'        => 5000,
+    'Reference'     => $ref2,
     'ExpirationDate'=> date('Y-m-d', strtotime('+1 day')),
 ];
 

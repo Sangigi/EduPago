@@ -168,7 +168,12 @@ switch ($action) {
             respond(['success' => false, 'error' => 'Monto mínimo $10.00']);
         }
 
-        $id_pago = substr(date('YmdHis') . preg_replace('/\D/', '', $folio), 0, 20);
+        // ID: 9 dígitos, Reference: 15 dígitos (formato que acepta Pagadetodo)
+        $ts       = intval(substr(time(), -6));
+        $rand     = rand(100, 999);
+        $base     = $ts . $rand;
+        $id_pago  = str_pad($base, 9,  '0', STR_PAD_LEFT);
+        $ref_pago = str_pad($base, 15, '0', STR_PAD_LEFT);
 
         $payload = [
             'User'          => PDT_USER,
@@ -177,9 +182,9 @@ switch ($action) {
             'BusinessID'    => PDT_BUS_ID_TC,
             'PaymentTypes'  => '401',
             'Id'            => $id_pago,
-            'Description'   => substr($descripcion, 0, 100),
+            'Description'   => substr($descripcion, 0, 40),
             'Amount'        => intval($total * 100),
-            'Reference'     => $id_pago,
+            'Reference'     => $ref_pago,
             'ExpirationDate'=> date('Y-m-d', strtotime('+1 day')),
         ];
 
@@ -211,7 +216,7 @@ switch ($action) {
         respond([
             'success'    => true,
             'url'        => $url_pago,
-            'referencia' => $id_pago,
+            'referencia' => $ref_pago,
             'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
             'expira'     => date('Y-m-d H:i:s', strtotime('+1 day')),
         ]);
