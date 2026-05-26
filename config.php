@@ -14,8 +14,11 @@ define('PDT_BUS_ID_TC',    '000060');   // Para ligas de pago con tarjeta (mismo
 
 // ─── URLs de Pagadetodo ───────────────────────────────────────────────────────
 define('PDT_URL_CLABE',    'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');
-define('PDT_URL_CONSULTA', 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe');
 define('PDT_URL_LIGA',     'https://pagadetodo.mx/Pagadetodo/Service/GenerarLigaIndi');
+
+// ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
+// Registra esta URL en tu cuenta de Cobroscontarjeta/Pagadetodo
+define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php');
 
 // ─── Configuración de la escuela ─────────────────────────────────────────────
 define('ESCUELA_NOMBRE',   'EduPago Escolar');

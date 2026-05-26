@@ -107,7 +107,8 @@ switch ($action) {
 
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 2. VERIFICAR PAGO SPEI (polling)
+    // 2. VERIFICAR PAGO SPEI
+    // Lee pagos_spei.json que llena el webhook cuando Pagadetodo notifica.
     // ══════════════════════════════════════════════════════════════════════════
     case 'verificar_spei':
         $clabe = $input['clabe'] ?? '';
@@ -116,43 +117,31 @@ switch ($action) {
             respond(['success' => false, 'error' => 'CLABE requerida']);
         }
 
-        $params = http_build_query([
-            'User'          => PDT_USER,
-            'Password'      => PDT_PASS,
-            'IntegrationID' => PDT_INT_ID,
-            'BusinessID'    => PDT_BUS_ID_SPEI,
-            'Clabe'         => $clabe,
-        ]);
+        $archivo_pagos = __DIR__ . '/pagos_spei.json';
 
-        $ch = curl_init(PDT_URL_CONSULTA . '?' . $params);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_SSL_VERIFYPEER => false,
-        ]);
-        $result = curl_exec($ch);
-        $err    = curl_error($ch);
-        curl_close($ch);
-
-        log_api("verificar_spei clabe={$clabe} -> " . $result);
-
-        if ($err) {
-            respond(['success' => false, 'error' => $err]);
+        if (!file_exists($archivo_pagos)) {
+            // Aún no ha llegado ningún pago
+            respond(['success' => true, 'pagado' => false]);
         }
 
-        $data = json_decode($result, true);
+        $pagos = json_decode(file_get_contents($archivo_pagos), true) ?? [];
 
-        // codigo=0 y monto>0 = pago recibido
-        $pagado = isset($data['codigo']) && $data['codigo'] == 0
-               && isset($data['monto'])  && floatval($data['monto']) > 0;
+        if (isset($pagos[$clabe]) && $pagos[$clabe]['pagado'] === true) {
+            $pago = $pagos[$clabe];
+            log_api("verificar_spei PAGADO clabe={$clabe} monto={$pago['monto']} transaccion={$pago['transaccion']}");
+            respond([
+                'success'     => true,
+                'pagado'      => true,
+                'monto'       => $pago['monto'],
+                'monto_pesos' => $pago['monto_pesos'],
+                'transaccion' => $pago['transaccion'],
+                'autorizacion'=> $pago['autorizacion'],
+                'fecha'       => $pago['fecha'],
+            ]);
+        }
 
-        respond([
-            'success'     => true,
-            'pagado'      => $pagado,
-            'monto'       => $data['monto']       ?? null,
-            'transaccion' => $data['transaccion'] ?? null,
-            'raw'         => $data,
-        ]);
+        // CLABE existe en el archivo pero aún sin pago, o no está aún
+        respond(['success' => true, 'pagado' => false]);
     break;
 
 

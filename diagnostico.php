@@ -40,6 +40,27 @@ function check($label, $ok, $detail = '') {
 <body>
 <h1>🔍 EduPago — Diagnóstico de entorno</h1>
 
+<h2>Webhook SPEI</h2>
+<table>
+<?php
+// Simular recepción de webhook
+$testWebhookPayload = json_encode([
+    'clabe'       => '646180633000TEST',
+    'monto'       => '10000',
+    'transaccion' => 'TEST123',
+    'fecha'       => date('Y-m-d'),
+]);
+$archivoTest = __DIR__ . '/pagos_spei.json';
+$canWrite = is_writable(__DIR__);
+check('Puede escribir pagos_spei.json', $canWrite, $canWrite ? 'OK' : 'Sin permisos de escritura');
+
+$jsonExists = file_exists($archivoTest);
+$pagosData  = $jsonExists ? json_decode(file_get_contents($archivoTest), true) : [];
+check('pagos_spei.json existe', $jsonExists, $jsonExists ? count($pagosData) . ' pagos registrados' : 'Se creará al primer pago');
+check('URL del webhook', true, WEBHOOK_URL);
+?>
+</table>
+
 <h2>PHP y extensiones</h2>
 <table>
 <?php
