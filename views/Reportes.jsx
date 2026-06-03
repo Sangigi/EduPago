@@ -1,136 +1,173 @@
-/* views/Reportes.jsx */
-function Reportes({ data }) {
-  const stats = CobroController.getEstadisticas(data.cobros);
-  const porConcepto = {};
-  data.cobros.filter(c=>c.estado==='pagado').forEach(c =>
-    c.items.forEach(it => { porConcepto[it.nombre] = (porConcepto[it.nombre]||0) + it.precio * it.qty; })
-  );
-  const conceptos = Object.entries(porConcepto).sort((a,b)=>b[1]-a[1]);
-  const totalConceptos = conceptos.reduce((a,[,v])=>a+v,0)||1;
+/* views/Reportes.jsx v2 — Por escuela */
+function Reportes({ data, escuela }) {
+  const { useState } = React;
+  const [periodo, setPeriodo] = useState('mes');
 
-  // Cobros por mes (últimos 6)
-  const porMes = {};
-  data.cobros.filter(c=>c.estado==='pagado').forEach(c=>{
-    const mes = c.fecha.slice(0,7);
-    porMes[mes] = (porMes[mes]||0) + c.total;
+  const hoy       = new Date();
+  const mesActual = hoy.getMonth();
+  const anioActual = hoy.getFullYear();
+
+  const filtrarPorPeriodo = cobros => {
+    return cobros.filter(c => {
+      if (c.estado !== 'pagado') return false;
+      const d = new Date(c.fecha);
+      if (periodo === 'hoy')    return c.fecha === hoy.toISOString().slice(0,10);
+      if (periodo === 'semana') return (hoy - d) / 86400000 <= 7;
+      if (periodo === 'mes')    return d.getMonth() === mesActual && d.getFullYear() === anioActual;
+      if (periodo === 'anio')   return d.getFullYear() === anioActual;
+      return true;
+    });
+  };
+
+  const cobrosFilt = filtrarPorPeriodo(data.cobros);
+  const totalFilt  = cobrosFilt.reduce((a,c)=>a+c.total,0);
+
+  const metodos = ['TC','SPEI','CoDi','Efectivo'];
+  const metodoIconos = { TC:'💳', SPEI:'🏦', CoDi:'📱', Efectivo:'💵' };
+  const metodoColors = { TC:'var(--accent)', SPEI:'var(--purple)', CoDi:'var(--green)', Efectivo:'var(--amber)' };
+
+  const porMetodo = metodos.map(m => ({
+    metodo: m,
+    total:  cobrosFilt.filter(c=>c.metodo===m).reduce((a,c)=>a+c.total,0),
+    count:  cobrosFilt.filter(c=>c.metodo===m).length,
+  }));
+  const maxMetodo = Math.max(...porMetodo.map(m=>m.total), 1);
+
+  // Top alumnos con más pagos
+  const porAlumno = {};
+  cobrosFilt.forEach(c => {
+    porAlumno[c.cliente] = (porAlumno[c.cliente]||0) + c.total;
   });
-  const meses = Object.entries(porMes).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6);
-  const maxMes = Math.max(...meses.map(([,v])=>v), 1);
+  const topAlumnos = Object.entries(porAlumno)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,5);
+
+  const exportarCSV = () => {
+    const rows = [
+      ['Folio','Fecha','Cliente','Total','Método','Referencia'],
+      ...cobrosFilt.map(c=>[c.folio,c.fecha,`"${c.cliente}"`,c.total,c.metodo,c.referencia||''])
+    ];
+    const csv = rows.map(r=>r.join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+    a.download = `reporte-${escuela?.clave||'esc'}-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  };
 
   return (
     <div>
-      <div className="stats-grid">
-        {[
-          {label:'Total cobrado', val:fmt(stats.totalCobrado), icon:'💰', bg:'var(--accent-glow)', meta:`${data.cobros.filter(c=>c.estado==='pagado').length} cobros`},
-          {label:'Por cobrar', val:fmt(stats.totalPendiente), icon:'⏳', bg:'var(--amber-glow)', meta:`${data.cobros.filter(c=>c.estado==='pendiente').length} pendientes`},
-          {label:'Total cobros', val:data.cobros.length, icon:'📋', bg:'var(--purple-glow)', meta:`${data.cobros.filter(c=>c.estado==='cancelado').length} cancelados`},
-          {label:'CFDI emitidos', val:data.cobros.filter(c=>c.factura).length, icon:'📄', bg:'var(--green-glow)', meta:`de ${data.cobros.filter(c=>c.estado==='pagado').length} facturables`},
-        ].map(s=>(
-          <div key={s.label} className="stat-card">
-            <div className="stat-icon" style={{background:s.bg}}>{s.icon}</div>
-            <div className="stat-label">{s.label}</div>
-            <div className="stat-value">{s.val}</div>
-            <div className="stat-meta">{s.meta}</div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10}}>
+        <div>
+          {escuela && <span style={{color:escuela.color,marginRight:8}}>{escuela.logo_emoji}</span>}
+          <span style={{fontWeight:700, fontSize:16, color:'var(--ink)'}}>
+            Reporte de cobros — {escuela?.nombre || 'Esta escuela'}
+          </span>
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+          <div style={{display:'flex', gap:4}}>
+            {[['hoy','Hoy'],['semana','Semana'],['mes','Mes'],['anio','Año'],['todo','Todo']].map(([val,label])=>(
+              <button key={val}
+                className={periodo===val?'btn btn-primary btn-sm':'btn btn-secondary btn-sm'}
+                onClick={()=>setPeriodo(val)}>{label}</button>
+            ))}
           </div>
-        ))}
+          <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>📥 CSV</button>
+        </div>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-        {/* Cobrado por método */}
-        <div className="card">
-          <div className="card-header"><div className="card-title">Por método de pago</div></div>
-          {[
-            {key:'TC',label:'Tarjeta',icon:'💳',color:'var(--accent)'},
-            {key:'SPEI',label:'SPEI',icon:'🏦',color:'var(--purple)'},
-            {key:'CoDi',label:'CoDi',icon:'📱',color:'var(--green)'},
-            {key:'Efectivo',label:'Efectivo',icon:'💵',color:'var(--amber)'},
-          ].map(m=>{
-            const val = stats.cobradosPorMetodo[m.key]||0;
-            const total = Object.values(stats.cobradosPorMetodo).reduce((a,b)=>a+b,0)||1;
-            const pct = Math.round(val/total*100);
-            return (
-              <div key={m.key} style={{marginBottom:14}}>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
-                  <span style={{fontSize:13,color:'var(--ink-2)'}}>{m.icon} {m.label}</span>
-                  <span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--ink-3)'}}>{fmt(val)} · {pct}%</span>
-                </div>
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{width:pct+'%',background:m.color}}></div>
-                </div>
-              </div>
-            );
-          })}
+      {/* KPIs */}
+      <div className="stats-grid" style={{marginBottom:20}}>
+        <div className="stat-card">
+          <div className="stat-icon" style={{background:'var(--accent-glow)'}}>💰</div>
+          <div className="stat-label">Total cobrado</div>
+          <div className="stat-value" style={{fontSize:20}}>{fmt(totalFilt)}</div>
+          <div className="stat-meta">{cobrosFilt.length} transacciones</div>
         </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{background:'var(--amber-glow)'}}>⏳</div>
+          <div className="stat-label">Pendiente total</div>
+          <div className="stat-value" style={{fontSize:20,color:'var(--amber)'}}>{fmt(data.cobros.filter(c=>c.estado==='pendiente').reduce((a,c)=>a+c.total,0))}</div>
+          <div className="stat-meta">{data.cobros.filter(c=>c.estado==='pendiente').length} cobros</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{background:'var(--purple-glow)'}}>👨‍👩‍👧‍👦</div>
+          <div className="stat-label">Familias activas</div>
+          <div className="stat-value" style={{fontSize:20}}>{data.familias.filter(f=>f.activa).length}</div>
+          <div className="stat-meta">{data.clientes.filter(c=>c.familia_id).length} alumnos agrupados</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{background:'var(--green-glow)'}}>🎒</div>
+          <div className="stat-label">Alumnos activos</div>
+          <div className="stat-value" style={{fontSize:20}}>{data.clientes.filter(c=>c.activo).length}</div>
+          <div className="stat-meta">{data.clientes.filter(c=>c.activo&&c.saldo_pendiente>0).length} con adeudo</div>
+        </div>
+      </div>
 
-        {/* Top conceptos */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20}}>
+        {/* Por método */}
         <div className="card">
-          <div className="card-header"><div className="card-title">Top conceptos cobrados</div></div>
-          {conceptos.length === 0 && <div className="empty-state"><div className="empty-text">Sin datos</div></div>}
-          {conceptos.map(([nombre, val])=>(
-            <div key={nombre} style={{marginBottom:12}}>
+          <div className="card-header">
+            <div className="card-title">Por método de pago</div>
+            <div className="card-sub">{cobrosFilt.length} transacciones</div>
+          </div>
+          {porMetodo.map(m => (
+            <div key={m.metodo} style={{marginBottom:16}}>
               <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
-                <span style={{fontSize:13,color:'var(--ink-2)',maxWidth:'65%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nombre}</span>
-                <span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--ink-3)'}}>{fmt(val)}</span>
+                <span style={{fontSize:13,color:'var(--ink-2)'}}>{metodoIconos[m.metodo]} {m.metodo}</span>
+                <span style={{fontSize:12,color:'var(--ink-3)',fontFamily:'var(--mono)'}}>{fmt(m.total)} · {m.count} cobros</span>
               </div>
               <div className="progress-bar">
-                <div className="progress-fill" style={{width:Math.round(val/totalConceptos*100)+'%'}}></div>
+                <div className="progress-fill" style={{width:Math.round(m.total/maxMetodo*100)+'%',background:metodoColors[m.metodo]}}></div>
               </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Top clientes */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-title">Top por monto</div>
+            <div className="card-sub">Alumnos con más cobros</div>
+          </div>
+          {topAlumnos.length === 0 && <div className="empty-state"><div className="empty-text">Sin datos en este período</div></div>}
+          {topAlumnos.map(([nombre,total],i)=>(
+            <div key={nombre} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:'1px solid var(--glass-light)'}}>
+              <div style={{
+                width:26,height:26,borderRadius:6,background:'var(--glass-hover)',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:11,fontWeight:700,color:i===0?'var(--amber)':'var(--ink-3)',flexShrink:0
+              }}>{i+1}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nombre}</div>
+              </div>
+              <div style={{fontFamily:'var(--mono)',fontSize:13,fontWeight:600,color:'var(--green)',flexShrink:0}}>{fmt(total)}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Cobros por mes */}
-      <div className="card" style={{marginTop:20}}>
-        <div className="card-header"><div className="card-title">Cobros por mes</div></div>
-        {meses.length === 0 && <div className="empty-state"><div className="empty-text">Sin datos</div></div>}
-        <div style={{display:'flex',alignItems:'flex-end',gap:12,height:120,paddingBottom:10}}>
-          {meses.map(([mes, val])=>{
-            const h = Math.round((val/maxMes)*100);
-            const [y,m] = mes.split('-');
-            const label = new Date(parseInt(y),parseInt(m)-1,1).toLocaleDateString('es-MX',{month:'short',year:'2-digit'});
-            return (
-              <div key={mes} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-                <div style={{fontSize:11,fontFamily:'var(--mono)',color:'var(--ink-3)'}}>{fmt(val).replace('MX$','$')}</div>
-                <div style={{
-                  width:'100%',background:'var(--accent-gradient)',borderRadius:'var(--radius-sm) var(--radius-sm) 0 0',
-                  height:h+'%',minHeight:4,transition:'height .5s',position:'relative'
-                }}></div>
-                <div style={{fontSize:11,color:'var(--ink-3)',textTransform:'capitalize'}}>{label}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tabla resumen */}
-      <div className="card" style={{marginTop:20}}>
+      {/* Alumnos con adeudo */}
+      <div className="card">
         <div className="card-header">
-          <div className="card-title">Todos los cobros</div>
-          <button className="btn btn-secondary btn-sm" onClick={()=>{
-            const csv = 'Folio,Cliente,Total,Método,Estado,Fecha\n' +
-              data.cobros.map(c=>`${c.folio},"${c.cliente}",${c.total},${c.metodo},${c.estado},${c.fecha}`).join('\n');
-            const a = document.createElement('a');
-            a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-            a.download = 'edupago-cobros.csv';
-            a.click();
-          }}>📥 Exportar CSV</button>
+          <div className="card-title">Alumnos con saldo pendiente</div>
+          <div className="card-sub">{data.clientes.filter(c=>c.saldo_pendiente>0&&c.activo).length} alumnos</div>
         </div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Método</th><th>Estado</th><th>Factura</th><th>Fecha</th></tr></thead>
+            <thead><tr><th>Alumno</th><th>Matrícula</th><th>Grado</th><th>Familia</th><th>Adeudo</th></tr></thead>
             <tbody>
-              {[...data.cobros].reverse().map(c=>(
+              {data.clientes.filter(c=>c.saldo_pendiente>0&&c.activo).map(c=>(
                 <tr key={c.id}>
-                  <td style={{fontFamily:'var(--mono)',fontSize:12}}>{c.folio}</td>
-                  <td>{c.cliente}</td>
-                  <td style={{fontFamily:'var(--mono)',fontWeight:600}}>{fmt(c.total)}</td>
-                  <td><MetodoBadge metodo={c.metodo}/></td>
-                  <td><EstadoBadge estado={c.estado}/></td>
-                  <td>{c.factura?<span className="badge badge-green">✓</span>:<span className="badge badge-gray">—</span>}</td>
-                  <td style={{fontSize:12,color:'var(--ink-3)'}}>{fmtDate(c.fecha)}</td>
+                  <td style={{fontWeight:500,fontSize:13}}>{c.nombre}</td>
+                  <td><span style={{fontFamily:'var(--mono)',fontSize:11}}>{c.matricula||'—'}</span></td>
+                  <td style={{color:'var(--ink-3)',fontSize:12}}>{c.grado||'—'}</td>
+                  <td style={{fontSize:12,color:'var(--ink-3)'}}>{c.familia_id ? data.familias.find(f=>f.id===c.familia_id)?.nombre : '—'}</td>
+                  <td><span style={{fontFamily:'var(--mono)',fontWeight:700,color:'var(--red)'}}>{fmt(c.saldo_pendiente)}</span></td>
                 </tr>
               ))}
+              {data.clientes.filter(c=>c.saldo_pendiente>0&&c.activo).length===0 && (
+                <tr><td colSpan={5}><div className="empty-state"><div className="empty-icon">✅</div><div className="empty-text">¡Todos al corriente!</div></div></td></tr>
+              )}
             </tbody>
           </table>
         </div>

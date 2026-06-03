@@ -1,5 +1,5 @@
-/* views/Caja.jsx — Sistema de cobros completo */
-function Caja({ data, setData, user }) {
+/* views/Caja.jsx — Sistema de cobros completo v2 */
+function Caja({ data, setData, user, escuela }) {
   const { useState, useEffect, useRef } = React;
 
   const [carrito, setCarrito] = useState([]);
@@ -41,7 +41,8 @@ function Caja({ data, setData, user }) {
   /* ── INICIAR COBRO ── */
   const cobrar = async () => {
     if (!carrito.length) return;
-    const { data: newData, cobro } = CobroController.iniciarCobro(data, { carrito, cliente: clienteSel, metodo });
+    const escuela_id = escuela?.id ?? (data.escuelas?.[0]?.id ?? 1);
+    const { data: newData, cobro } = CobroController.iniciarCobro(data, { carrito, cliente: clienteSel, metodo, escuela_id });
     setCobroActivo(cobro);
 
     if (metodo === 'SPEI') {
@@ -51,22 +52,22 @@ function Caja({ data, setData, user }) {
       setModal('spei');
 
       try {
-        // Llamada real a Pagadetodo para generar CLABE dinámica
-        const spei = await CobroController.iniciarSPEI(cobro);
-        // Guardar CLABE en el cobro
+        // CLABE FIJA: devuelve la clabe configurada + referencia = matrícula del alumno
+        const spei = await CobroController.iniciarSPEI(cobro, escuela);
+        // Guardar info SPEI en el cobro
         const cobrosActualizados = newData.cobros.map(c =>
-          c.id === cobro.id ? { ...c, clabe: spei.clabe, referencia_spei: spei.referencia, spei_expira: spei.expira } : c
+          c.id === cobro.id ? { ...c, clabe: spei.clabe, banco: spei.banco, beneficiario: spei.beneficiario, referencia_spei: spei.referencia, instruccion: spei.instruccion } : c
         );
         const dataConClabe = { ...newData, cobros: cobrosActualizados };
         setData(dataConClabe);
-        setCobroActivo(prev => ({ ...prev, clabe: spei.clabe }));
+        setCobroActivo(prev => ({ ...prev, clabe: spei.clabe, referencia_spei: spei.referencia, instruccion: spei.instruccion, banco: spei.banco, beneficiario: spei.beneficiario }));
         setSpeiStatus('esperando');
         AppModel.save(dataConClabe);
 
-        // Polling automático: verificar cada 10 segundos
+        // Polling automático: verificar cada 10 segundos por referencia
         speiPollRef.current = setInterval(async () => {
           try {
-            const ver = await CobroController.verificarSPEI(spei.clabe);
+            const ver = await CobroController.verificarSPEI(spei.referencia);
             if (ver.pagado) {
               clearInterval(speiPollRef.current);
               setData(prev => {
@@ -137,9 +138,9 @@ function Caja({ data, setData, user }) {
     if (speiStatus === 'confirmado') { setModal('ticket'); resetCarrito(); return; }
     setSpeiStatus('verificando');
     try {
-      const clabe = cobroActivo?.clabe;
-      if (clabe) {
-        const ver = await CobroController.verificarSPEI(clabe);
+      const refSpei = cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.clabe;
+      if (refSpei) {
+        const ver = await CobroController.verificarSPEI(refSpei);
         if (ver.pagado) {
           clearInterval(speiPollRef.current);
           const updatedData = CobroController.confirmarPago(data, cobroActivo.id, { transaccion: ver.transaccion });
@@ -330,27 +331,32 @@ function Caja({ data, setData, user }) {
               <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
             </div>
             <div className="modal-body" style={{padding:'10px 18px'}}>
-              {data.clientes.filter(c=>c.activo).map(c=>(
-                <div key={c.id} onClick={()=>{setClienteSel(c);setModal(null);}}
-                  style={{display:'flex',alignItems:'center',gap:10,padding:'10px 8px',
-                    borderRadius:'var(--radius-sm)',cursor:'pointer',
-                    borderBottom:'1px solid var(--glass-light)',transition:'background .15s'}}
-                  onMouseEnter={e=>e.currentTarget.style.background='var(--glass-light)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                  <div className={`avatar ${c.tipo==='alumno'?'avatar-admin':'avatar-cajero'}`}>
-                    {c.nombre.charAt(0)}
+              {data.clientes.filter(c=>c.activo).map(c=>{
+                const fam = c.familia_id ? data.familias.find(f=>f.id===c.familia_id) : null;
+                return (
+                  <div key={c.id} onClick={()=>{setClienteSel(c);setModal(null);}}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 8px',
+                      borderRadius:'var(--radius-sm)',cursor:'pointer',
+                      borderBottom:'1px solid var(--glass-light)',transition:'background .15s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--glass-light)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div className="avatar avatar-admin">{c.nombre.charAt(0)}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:500,fontSize:13,color:'var(--ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre}</div>
+                      <div style={{fontSize:11,color:'var(--ink-3)',display:'flex',gap:6,flexWrap:'wrap'}}>
+                        <span>{c.grado}</span>
+                        {c.matricula && <span style={{fontFamily:'var(--mono)'}}>· {c.matricula}</span>}
+                        {fam && <span>· 👨‍👩‍👧 {fam.nombre.split(' ').slice(1,3).join(' ')}</span>}
+                      </div>
+                    </div>
+                    {c.saldo_pendiente>0 && (
+                      <span style={{color:'var(--amber)',fontSize:12,fontFamily:'var(--mono)',fontWeight:600,flexShrink:0}}>
+                        {fmt(c.saldo_pendiente)}
+                      </span>
+                    )}
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:500,fontSize:13,color:'var(--ink)'}}>{c.nombre}</div>
-                    <div style={{fontSize:11.5,color:'var(--ink-3)'}}>{c.tipo} · {c.grado} · {c.email}</div>
-                  </div>
-                  {c.saldo_pendiente>0 && (
-                    <span style={{color:'var(--red)',fontSize:12,fontFamily:'var(--mono)',fontWeight:600}}>
-                      {fmt(c.saldo_pendiente)}
-                    </span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={()=>{setClienteSel(null);setModal(null);}}>
@@ -375,39 +381,37 @@ function Caja({ data, setData, user }) {
                   {speiStatus === 'generando' && (
                     <div className="verif-row" style={{justifyContent:'center',padding:'20px 0'}}>
                       <span className="spinner" style={{borderTopColor:'var(--accent)'}}></span>
-                      <span style={{fontSize:13,color:'var(--ink-2)',marginLeft:10}}>Generando CLABE dinámica con Pagadetodo…</span>
+                      <span style={{fontSize:13,color:'var(--ink-2)',marginLeft:10}}>Cargando CLABE fija…</span>
                     </div>
                   )}
 
                   {speiStatus === 'error' && (
                     <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:'var(--radius)',padding:'14px 16px',marginBottom:14}}>
-                      <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}>❌ Error al generar CLABE</div>
+                      <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}>❌ Error al obtener CLABE</div>
                       <div style={{fontSize:12,color:'var(--ink-2)'}}>{speiError}</div>
                     </div>
                   )}
 
                   {(speiStatus === 'esperando' || speiStatus === 'verificando') && (
                     <div className="spei-box">
-                    <div style={{fontSize:11.5,color:'rgba(255,255,255,.6)',marginBottom:6,textAlign:'center'}}>
-                      CLABE Interbancaria · Banco Azteca · CLABE Dinámica
+                    <div style={{fontSize:11,color:'rgba(255,255,255,.5)',marginBottom:4,textAlign:'center',textTransform:'uppercase',letterSpacing:'.5px'}}>
+                      CLABE Interbancaria Fija · STP
                     </div>
-                    <div className="clabe-display">{fmtCLABE(cobroActivo.clabe)}</div>
+                    <div className="clabe-display">{fmtCLABE(cobroActivo?.clabe)}</div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                       <div className="spei-info-row" style={{flexDirection:'column',gap:2,alignItems:'flex-start'}}>
                         <span className="spei-label">Beneficiario</span>
-                        <span className="spei-value">Escuela EduPago S.C.</span>
+                        <span className="spei-value" style={{fontSize:12}}>{cobroActivo?.beneficiario || escuela?.nombre || 'Escuela'}</span>
                       </div>
                       <div className="spei-info-row" style={{flexDirection:'column',gap:2,alignItems:'flex-start'}}>
                         <span className="spei-label">Monto exacto</span>
-                        <span className="spei-value" style={{fontSize:16}}>{fmt(cobroActivo.total)}</span>
+                        <span className="spei-value" style={{fontSize:16}}>{fmt(cobroActivo?.total)}</span>
                       </div>
-                      <div className="spei-info-row" style={{flexDirection:'column',gap:2,alignItems:'flex-start'}}>
-                        <span className="spei-label">Referencia</span>
-                        <span className="spei-value">{cobroActivo.folio}</span>
-                      </div>
-                      <div className="spei-info-row" style={{flexDirection:'column',gap:2,alignItems:'flex-start'}}>
-                        <span className="spei-label">Vigencia</span>
-                        <span className="spei-value">48 horas</span>
+                      <div className="spei-info-row" style={{flexDirection:'column',gap:2,alignItems:'flex-start',gridColumn:'1/-1'}}>
+                        <span className="spei-label">⚠ Concepto obligatorio (copiar exacto)</span>
+                        <span className="spei-value" style={{fontFamily:'var(--mono)',letterSpacing:1,color:'#fbbf24',fontSize:15}}>
+                          {cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.folio}
+                        </span>
                       </div>
                     </div>
                     <button className={`copy-btn ${copiedCLABE?'copied':''}`} onClick={copiarCLABE}>
@@ -421,8 +425,8 @@ function Caja({ data, setData, user }) {
                     <div className="verif-dot pulse" style={{background:speiStatus==='verificando'?'var(--amber)':'var(--accent)'}}></div>
                     <div style={{fontSize:12.5,color:'var(--ink-2)'}}>
                       {speiStatus==='esperando'
-                        ? 'Esperando transferencia… se verificará automáticamente vía Pagadetodo'
-                        : 'Verificando pago con Pagadetodo…'}
+                        ? 'Esperando transferencia… verificación automática cada 10s'
+                        : 'Verificando pago…'}
                     </div>
                     {speiStatus==='verificando' && <span className="spinner" style={{marginLeft:'auto'}}></span>}
                   </div>
@@ -430,8 +434,8 @@ function Caja({ data, setData, user }) {
 
                   {(speiStatus === 'esperando' || speiStatus === 'verificando') && (
                   <p style={{fontSize:11.5,color:'var(--ink-4)',marginTop:10,lineHeight:1.5}}>
-                    ℹ La CLABE es única para este cobro. Una vez recibida la transferencia, 
-                    el sistema la detectará automáticamente (polling cada 10s).
+                    ℹ La CLABE es fija para esta escuela. El concepto de la transferencia identifica
+                    al alumno. El sistema confirmará el pago automáticamente.
                   </p>
                   )}
                 </>

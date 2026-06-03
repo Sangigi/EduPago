@@ -1,7 +1,7 @@
 <?php
 /**
- * EduPago — Backend API
- * Conecta con Pagadetodo.mx para SPEI y ligas de pago con tarjeta.
+ * EduPago — Backend API v2
+ * Multi-escuela. CLABE fija. Pagadetodo para tarjeta.
  */
 
 require_once __DIR__ . '/config.php';
@@ -13,7 +13,6 @@ header('Access-Control-Allow-Headers: Content-Type');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function respond($data) {
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
@@ -21,8 +20,7 @@ function respond($data) {
 
 function log_api($msg) {
     if (!API_LOG_ENABLED) return;
-    $line = date('Y-m-d H:i:s') . ' | ' . $msg . "\n";
-    file_put_contents(API_LOG_FILE, $line, FILE_APPEND);
+    file_put_contents(API_LOG_FILE, date('Y-m-d H:i:s') . ' | ' . $msg . "\n", FILE_APPEND);
 }
 
 function curl_post($url, $payload) {
@@ -42,93 +40,51 @@ function curl_post($url, $payload) {
     return ['body' => $result, 'http_code' => $code, 'error' => $err];
 }
 
-// ─── Router ──────────────────────────────────────────────────────────────────
 $action = $_GET['action'] ?? '';
 $input  = json_decode(file_get_contents('php://input'), true) ?? [];
 
 switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 1. GENERAR CLABE DINÁMICA PARA SPEI
+    // 1. CLABE FIJA — ya no genera CLABE dinámica, devuelve la fija configurada
+    //    La referencia (concepto de la transferencia) identifica al alumno.
     // ══════════════════════════════════════════════════════════════════════════
-    case 'generar_clabe':
-        $folio  = $input['folio']  ?? 'COB-0000';
-        $total  = $input['total']  ?? 0;
-        $nombre = $input['nombre'] ?? 'Cliente';
-        $email  = $input['email']  ?? '';
+    case 'obtener_clabe':
+        $folio      = $input['folio']      ?? 'COB-0000';
+        $total      = $input['total']      ?? 0;
+        $nombre     = $input['nombre']     ?? 'Cliente';
+        $escuela    = $input['escuela']    ?? 'Escuela';
+        $referencia = $input['referencia'] ?? $folio; // Matrícula o folio corto
 
-        // Referencia numérica de 15 dígitos
-        $num = preg_replace('/\D/', '', $folio);
-        $ref = substr(str_pad($num . time(), 15, '0', STR_PAD_LEFT), -15);
-
-        $payload = [
-            'User'           => PDT_USER,
-            'Password'       => PDT_PASS,
-            'IntegrationID'  => PDT_INT_ID,
-            'BusinessID'     => PDT_BUS_ID_SPEI,
-            'Description'    => ESCUELA_NOMBRE . ' ' . $folio,
-            'Account'        => $ref,
-            'CustomerEmail'  => $email,
-            'CustomerName'   => $nombre,
-            'ExpirationDate' => date('Y-m-d', strtotime('+2 days')),
-        ];
-
-        log_api("generar_clabe -> folio={$folio} total={$total}");
-        $res = curl_post(PDT_URL_CLABE, $payload);
-
-        if ($res['error']) {
-            log_api("generar_clabe ERROR CURL: " . $res['error']);
-            respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
-        }
-
-        $data = json_decode($res['body'], true);
-        log_api("generar_clabe RESP: " . $res['body']);
-
-        $clabe = $data['Clabe']
-              ?? $data['response']['Clabe']
-              ?? $data['data']['Clabe']
-              ?? null;
-
-        if (!$clabe) {
-            respond([
-                'success' => false,
-                'error'   => 'No se pudo obtener CLABE. Respuesta: ' . $res['body'],
-                'raw'     => $data,
-            ]);
-        }
+        log_api("obtener_clabe -> folio={$folio} total={$total} ref={$referencia}");
 
         respond([
-            'success'    => true,
-            'clabe'      => $clabe,
-            'referencia' => $ref,
-            'expira'     => date('Y-m-d H:i:s', strtotime('+48 hours')),
+            'success'      => true,
+            'clabe'        => SPEI_CLABE_FIJA,
+            'banco'        => SPEI_BANCO,
+            'beneficiario' => SPEI_BENEFICIARIO,
+            'referencia'   => $referencia,   // Este es el concepto que el padre escribe
+            'instruccion'  => "Al hacer la transferencia, escribe como concepto: {$referencia}",
         ]);
     break;
 
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 2. VERIFICAR PAGO SPEI
-    // Lee pagos_spei.json que llena el webhook cuando Pagadetodo notifica.
+    // 2. VERIFICAR PAGO SPEI (via webhook que llena pagos_spei.json)
     // ══════════════════════════════════════════════════════════════════════════
     case 'verificar_spei':
-        $clabe = $input['clabe'] ?? '';
+        $referencia = $input['referencia'] ?? '';
 
-        if (!$clabe) {
-            respond(['success' => false, 'error' => 'CLABE requerida']);
-        }
+        if (!$referencia) respond(['success' => false, 'error' => 'Referencia requerida']);
 
         $archivo_pagos = __DIR__ . '/pagos_spei.json';
-
-        if (!file_exists($archivo_pagos)) {
-            // Aún no ha llegado ningún pago
-            respond(['success' => true, 'pagado' => false]);
-        }
+        if (!file_exists($archivo_pagos)) respond(['success' => true, 'pagado' => false]);
 
         $pagos = json_decode(file_get_contents($archivo_pagos), true) ?? [];
 
-        if (isset($pagos[$clabe]) && $pagos[$clabe]['pagado'] === true) {
-            $pago = $pagos[$clabe];
-            log_api("verificar_spei PAGADO clabe={$clabe} monto={$pago['monto']} transaccion={$pago['transaccion']}");
+        if (isset($pagos[$referencia]) && $pagos[$referencia]['pagado'] === true) {
+            $pago = $pagos[$referencia];
+            log_api("verificar_spei PAGADO ref={$referencia} monto={$pago['monto']}");
             respond([
                 'success'     => true,
                 'pagado'      => true,
@@ -140,29 +96,25 @@ switch ($action) {
             ]);
         }
 
-        // CLABE existe en el archivo pero aún sin pago, o no está aún
         respond(['success' => true, 'pagado' => false]);
     break;
 
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 3. GENERAR LIGA DE PAGO CON TARJETA
+    // 3. GENERAR LIGA DE PAGO CON TARJETA (sin cambios)
     // ══════════════════════════════════════════════════════════════════════════
     case 'generar_liga':
         $folio       = $input['folio']       ?? 'COB-0000';
         $total       = floatval($input['total'] ?? 0);
-        $descripcion = $input['descripcion'] ?? ESCUELA_NOMBRE . ' ' . $folio;
+        $descripcion = $input['descripcion'] ?? 'Pago escolar ' . $folio;
 
-        if ($total < 10) {
-            respond(['success' => false, 'error' => 'Monto mínimo $10.00']);
-        }
+        if ($total < 10) respond(['success' => false, 'error' => 'Monto mínimo $10.00']);
 
-        // ID: 9 dígitos, Reference: 15 dígitos (formato que acepta Pagadetodo)
-        $ts       = intval(substr(time(), -6));
-        $rand     = rand(100, 999);
-        $base     = $ts . $rand;
-        $id_pago  = str_pad($base, 9,  '0', STR_PAD_LEFT);
-        $ref_pago = str_pad($base, 15, '0', STR_PAD_LEFT);
+        $ts      = intval(substr(time(), -6));
+        $rand    = rand(100, 999);
+        $base    = $ts . $rand;
+        $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
+        $ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
 
         $payload = [
             'User'          => PDT_USER,
@@ -173,53 +125,37 @@ switch ($action) {
             'Id'            => $id_pago,
             'Description'   => substr($descripcion, 0, 40),
             'Amount'        => intval($total * 100),
-            'Reference'     => $ref_pago,
+            'Reference'     => $ref,
             'ExpirationDate'=> date('Y-m-d', strtotime('+1 day')),
         ];
 
         log_api("generar_liga -> folio={$folio} total={$total}");
         $res = curl_post(PDT_URL_LIGA, $payload);
 
-        if ($res['error']) {
-            log_api("generar_liga ERROR CURL: " . $res['error']);
-            respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
-        }
+        if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
 
         log_api("generar_liga RESP: " . $res['body']);
-
-        // Limpiar espacios en claves (bug conocido de Pagadetodo)
         $raw = json_decode($res['body'], true) ?? [];
         $data = [];
         foreach ($raw as $k => $v) { $data[trim($k)] = $v; }
 
         $url_pago = $data['url'] ?? $data['Url'] ?? $data['URL'] ?? null;
-
         if (!$url_pago) {
-            respond([
-                'success' => false,
-                'error'   => 'No se recibió URL de pago. Respuesta: ' . $res['body'],
-                'raw'     => $data,
-            ]);
+            respond(['success' => false, 'error' => 'No se recibió URL de pago. Resp: ' . $res['body'], 'raw' => $data]);
         }
 
         respond([
             'success'    => true,
             'url'        => $url_pago,
-            'referencia' => $ref_pago,
+            'referencia' => $ref,
             'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
             'expira'     => date('Y-m-d H:i:s', strtotime('+1 day')),
         ]);
     break;
 
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // DEFAULT
-    // ══════════════════════════════════════════════════════════════════════════
     default:
-        respond([
-            'success'  => false,
-            'error'    => 'Acción no reconocida: ' . htmlspecialchars($action),
-            'acciones' => ['generar_clabe', 'verificar_spei', 'generar_liga'],
-        ]);
+        respond(['success' => false, 'error' => 'Acción no reconocida: ' . htmlspecialchars($action),
+            'acciones' => ['obtener_clabe', 'verificar_spei', 'generar_liga']]);
 }
 ?>

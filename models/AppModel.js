@@ -1,45 +1,138 @@
 /**
- * MODEL — AppModel
- * Estado central de la aplicación con persistencia en localStorage.
- * Sigue el patrón MVC: el modelo maneja solo datos, sin lógica de UI.
+ * MODEL — AppModel v2
+ * Multi-escuela. Familias con hijos. CLABE fija.
+ * 
+ * Estructura de datos:
+ *   escuelas[]    → cada escuela tiene su propio contexto
+ *   escuela_activa → ID de la escuela en la que opera el cajero/admin
+ *   superadmin    → puede ver TODAS las escuelas y sus métricas
+ *   clientes[]    → alumnos y familias (con campo escuela_id)
+ *   familias[]    → agrupa alumnos de la misma familia
+ *   productos[]   → conceptos de pago (por escuela)
+ *   cobros[]      → historial de cobros (por escuela)
  */
 const AppModel = (() => {
-  const KEY = 'edupago_data_v2';
+  const KEY = 'edupago_data_v3';
 
   const INITIAL_STATE = {
+    // ── Escuelas ──────────────────────────────────────────────────────────────
+    escuelas: [
+      {
+        id: 1,
+        nombre: 'Instituto Tecnológico Mérida',
+        clave: 'ITM',
+        rfc: 'ITM9301015XA',
+        telefono: '9991234567',
+        email: 'admin@itm.edu.mx',
+        direccion: 'Calle 20 #120, Col. García Ginerés, Mérida, Yuc.',
+        logo_emoji: '🏛️',
+        activa: true,
+        plan: 'pro',       // free | pro | enterprise
+        fecha_alta: '2026-01-15',
+        clabe_fija: '646180633010000055',  // CLABE asignada por STP para esta escuela
+        color: '#3b82f6',
+      },
+      {
+        id: 2,
+        nombre: 'Colegio Español de Cancún',
+        clave: 'CEC',
+        rfc: 'CEC050820AB1',
+        telefono: '9981234567',
+        email: 'pagos@cec.edu.mx',
+        direccion: 'Av. Tulum #55, SM-22, Cancún, Q.Roo.',
+        logo_emoji: '🏫',
+        activa: true,
+        plan: 'pro',
+        fecha_alta: '2026-02-01',
+        clabe_fija: '646180633010000056',
+        color: '#10b981',
+      },
+      {
+        id: 3,
+        nombre: 'Escuela Mexicana de Electricidad',
+        clave: 'EME',
+        rfc: 'EME030610HG5',
+        telefono: '5512349876',
+        email: 'controlescolar@eme.edu.mx',
+        direccion: 'Calzada de los Misterios #43, CDMX.',
+        logo_emoji: '⚡',
+        activa: true,
+        plan: 'free',
+        fecha_alta: '2026-03-11',
+        clabe_fija: '646180633010000057',
+        color: '#f59e0b',
+      },
+    ],
+
+    // ── Familias (agrupan alumnos de la misma unidad familiar) ───────────────
+    familias: [
+      { id: 1, escuela_id: 1, nombre: 'Familia García López',    contacto: 'Roberto García', tel: '9991234500', email: 'garcia.fam@mail.com', activa: true },
+      { id: 2, escuela_id: 1, nombre: 'Familia Hernández Torres', contacto: 'Lucia Hernández', tel: '9997654321', email: 'hernandez.t@mail.com', activa: true },
+      { id: 3, escuela_id: 2, nombre: 'Familia Méndez Ortiz',    contacto: 'Carlos Méndez', tel: '9981112233', email: 'mendez.c@mail.com', activa: true },
+    ],
+
+    // ── Alumnos / Clientes ────────────────────────────────────────────────────
     clientes: [
-      { id:1, tipo:'alumno', nombre:'Ana García López', grado:'3° Primaria', curp:'GALA090315MDFPNB08', email:'familia.garcia@mail.com', tel:'5512345678', saldo_pendiente:2800, activo:true },
-      { id:2, tipo:'alumno', nombre:'Luis Martínez Ramos', grado:'5° Primaria', curp:'MARL050820HDFRMB04', email:'martinez.ramos@mail.com', tel:'5598765432', saldo_pendiente:0, activo:true },
-      { id:3, tipo:'familia', nombre:'Familia Hernández Torres', grado:'—', curp:'', email:'hernandez.t@mail.com', tel:'5567891234', saldo_pendiente:5600, activo:true },
-      { id:4, tipo:'alumno', nombre:'Sofía Ruiz Pérez', grado:'1° Secundaria', curp:'RUPS100201MDFZFB06', email:'sofia.ruiz@mail.com', tel:'5543219876', saldo_pendiente:1200, activo:true },
-      { id:5, tipo:'alumno', nombre:'Diego López Castro', grado:'6° Primaria', curp:'LOCD090930HDFPSD01', email:'lopez.castro@mail.com', tel:'5534567890', saldo_pendiente:0, activo:false },
+      // Escuela 1 — ITM
+      { id:1,  escuela_id:1, familia_id:1, tipo:'alumno', nombre:'Ana García López',       grado:'3° Primaria',  matricula:'ITM-2024-001', curp:'GALA090315MDFPNB08', email:'familia.garcia@mail.com', tel:'9991234567', saldo_pendiente:2800, activo:true  },
+      { id:2,  escuela_id:1, familia_id:1, tipo:'alumno', nombre:'Pedro García López',     grado:'1° Primaria',  matricula:'ITM-2024-002', curp:'GALP100820HDFPNB01', email:'familia.garcia@mail.com', tel:'9991234567', saldo_pendiente:0,    activo:true  },
+      { id:3,  escuela_id:1, familia_id:2, tipo:'alumno', nombre:'Luis Hernández Torres',  grado:'5° Primaria',  matricula:'ITM-2023-018', curp:'HETL050101HMCRNB04', email:'hernandez.t@mail.com',   tel:'9997654321', saldo_pendiente:5600, activo:true  },
+      { id:4,  escuela_id:1, familia_id:2, tipo:'alumno', nombre:'Sofía Hernández Torres', grado:'3° Primaria',  matricula:'ITM-2024-019', curp:'HETS100201MDFZFB06', email:'hernandez.t@mail.com',   tel:'9997654321', saldo_pendiente:2800, activo:true  },
+      { id:5,  escuela_id:1, familia_id:null, tipo:'alumno', nombre:'Diego López Castro', grado:'6° Primaria', matricula:'ITM-2021-044', curp:'LOCD090930HDFPSD01', email:'lopez.castro@mail.com',   tel:'9995678901', saldo_pendiente:0,    activo:false },
+      // Escuela 2 — CEC
+      { id:6,  escuela_id:2, familia_id:3, tipo:'alumno', nombre:'Valentina Méndez Ortiz', grado:'2° Secundaria', matricula:'CEC-2024-007', curp:'MEOV100415MQRNZB02', email:'mendez.c@mail.com',     tel:'9981112233', saldo_pendiente:3200, activo:true  },
+      { id:7,  escuela_id:2, familia_id:3, tipo:'alumno', nombre:'Rodrigo Méndez Ortiz',   grado:'4° Primaria',   matricula:'CEC-2024-008', curp:'MEOR080910HQRNZB01', email:'mendez.c@mail.com',     tel:'9981112233', saldo_pendiente:0,    activo:true  },
+      { id:8,  escuela_id:2, familia_id:null, tipo:'alumno', nombre:'Isabella Torres Reyes', grado:'1° Secundaria', matricula:'CEC-2025-003', curp:'TORI110203MQRRSB04', email:'torres.reyes@mail.com', tel:'9989876543', saldo_pendiente:1500, activo:true },
+      // Escuela 3 — EME
+      { id:9,  escuela_id:3, familia_id:null, tipo:'alumno', nombre:'Enoch Aguirre Aguilera', grado:'Técnico Electricista', matricula:'EME-2025-411', curp:'AUAE900411HMCGRB08', email:'aguirre@mail.com', tel:'5512349876', saldo_pendiente:2619, activo:true },
     ],
+
+    // ── Productos/Conceptos por escuela ───────────────────────────────────────
     productos: [
-      { id:1, nombre:'Colegiatura Mensual', categoria:'colegiatura', precio:2800, descripcion:'Pago mensual de colegiatura', emoji:'📚', activo:true },
-      { id:2, nombre:'Anualidad Primaria', categoria:'anualidad', precio:28000, descripcion:'Pago anual con 2 meses de descuento', emoji:'🎯', activo:true },
-      { id:3, nombre:'Beca Excelencia 25%', categoria:'beca', precio:-700, descripcion:'Descuento 25% en colegiatura', emoji:'🏆', activo:true },
-      { id:4, nombre:'Inscripción', categoria:'inscripcion', precio:3500, descripcion:'Pago único de inscripción', emoji:'✏️', activo:true },
-      { id:5, nombre:'Uniforme Completo', categoria:'uniforme', precio:1800, descripcion:'Juego completo de uniforme escolar', emoji:'👕', activo:true },
-      { id:6, nombre:'Material Didáctico', categoria:'material', precio:950, descripcion:'Paquete de útiles y libros', emoji:'📖', activo:true },
-      { id:7, nombre:'Transporte Mensual', categoria:'transporte', precio:1400, descripcion:'Servicio de transporte escolar', emoji:'🚌', activo:true },
-      { id:8, nombre:'Comedor Mensual', categoria:'comedor', precio:1100, descripcion:'Servicio de comedor escolar', emoji:'🍽️', activo:true },
+      // ITM (escuela_id:1)
+      { id:1,  escuela_id:1, nombre:'Colegiatura Mensual',   categoria:'colegiatura', precio:2800,  emoji:'📚', activo:true },
+      { id:2,  escuela_id:1, nombre:'Anualidad Primaria',    categoria:'anualidad',   precio:28000, emoji:'🎯', activo:true },
+      { id:3,  escuela_id:1, nombre:'Beca Excelencia 25%',   categoria:'beca',        precio:-700,  emoji:'🏆', activo:true },
+      { id:4,  escuela_id:1, nombre:'Inscripción',           categoria:'inscripcion', precio:3500,  emoji:'✏️', activo:true },
+      { id:5,  escuela_id:1, nombre:'Uniforme Completo',     categoria:'uniforme',    precio:1800,  emoji:'👕', activo:true },
+      { id:6,  escuela_id:1, nombre:'Material Didáctico',    categoria:'material',    precio:950,   emoji:'📖', activo:true },
+      { id:7,  escuela_id:1, nombre:'Transporte Mensual',    categoria:'transporte',  precio:1400,  emoji:'🚌', activo:true },
+      { id:8,  escuela_id:1, nombre:'Comedor Mensual',       categoria:'comedor',     precio:1100,  emoji:'🍽️', activo:true },
+      // CEC (escuela_id:2)
+      { id:9,  escuela_id:2, nombre:'Colegiatura Mensual',   categoria:'colegiatura', precio:3200,  emoji:'📚', activo:true },
+      { id:10, escuela_id:2, nombre:'Inscripción Anual',     categoria:'inscripcion', precio:4500,  emoji:'✏️', activo:true },
+      { id:11, escuela_id:2, nombre:'Taller de Idiomas',     categoria:'extracurricular', precio:800, emoji:'🌍', activo:true },
+      // EME (escuela_id:3)
+      { id:12, escuela_id:3, nombre:'Colegiatura Mensual',   categoria:'colegiatura', precio:2619,  emoji:'📚', activo:true },
+      { id:13, escuela_id:3, nombre:'Material de Taller',    categoria:'material',    precio:1200,  emoji:'🔧', activo:true },
+      { id:14, escuela_id:3, nombre:'Examen de Certificación', categoria:'examen',   precio:1500,  emoji:'📋', activo:true },
     ],
+
+    // ── Cobros ────────────────────────────────────────────────────────────────
     cobros: [
-      { id:1, folio:'COB-0001', cliente_id:1, cliente:'Ana García López', items:[{nombre:'Colegiatura Mensual',qty:1,precio:2800}], total:2800, metodo:'TC', estado:'pagado', fecha:'2026-05-01', factura:true, referencia:'REF-001' },
-      { id:2, folio:'COB-0002', cliente_id:3, cliente:'Familia Hernández Torres', items:[{nombre:'Colegiatura Mensual',qty:2,precio:2800}], total:5600, metodo:'SPEI', estado:'pendiente', fecha:'2026-05-03', factura:false, referencia:'CLABE-7100700000000042', clabe:'710070000000004200' },
-      { id:3, folio:'COB-0003', cliente_id:2, cliente:'Luis Martínez Ramos', items:[{nombre:'Inscripción',qty:1,precio:3500},{nombre:'Uniforme Completo',qty:1,precio:1800}], total:5300, metodo:'TC', estado:'pagado', fecha:'2026-05-05', factura:true, referencia:'REF-003' },
-      { id:4, folio:'COB-0004', cliente_id:4, cliente:'Sofía Ruiz Pérez', items:[{nombre:'Material Didáctico',qty:1,precio:950},{nombre:'Transporte Mensual',qty:1,precio:1400}], total:2350, metodo:'CoDi', estado:'pagado', fecha:'2026-05-10', factura:false, referencia:'CODI-004' },
-      { id:5, folio:'COB-0005', cliente_id:1, cliente:'Ana García López', items:[{nombre:'Comedor Mensual',qty:1,precio:1100}], total:1100, metodo:'Efectivo', estado:'pendiente', fecha:'2026-05-12', factura:false, referencia:'EFE-005' },
+      // ITM
+      { id:1,  escuela_id:1, folio:'ITM-0001', cliente_id:1,  cliente:'Ana García López',        items:[{nombre:'Colegiatura Mensual',qty:1,precio:2800}],              total:2800, metodo:'TC',       estado:'pagado',   fecha:'2026-04-01', factura:true,  referencia:'ITM-2024-001', auth_code:'TC-441231' },
+      { id:2,  escuela_id:1, folio:'ITM-0002', cliente_id:3,  cliente:'Luis Hernández Torres',   items:[{nombre:'Colegiatura Mensual',qty:1,precio:2800}],              total:2800, metodo:'SPEI',     estado:'pendiente', fecha:'2026-05-03', factura:false, referencia:'ITM-2023-018' },
+      { id:3,  escuela_id:1, folio:'ITM-0003', cliente_id:4,  cliente:'Sofía Hernández Torres',  items:[{nombre:'Colegiatura Mensual',qty:1,precio:2800}],              total:2800, metodo:'SPEI',     estado:'pendiente', fecha:'2026-05-03', factura:false, referencia:'ITM-2024-019' },
+      { id:4,  escuela_id:1, folio:'ITM-0004', cliente_id:2,  cliente:'Pedro García López',      items:[{nombre:'Colegiatura Mensual',qty:1,precio:2800},{nombre:'Inscripción',qty:1,precio:3500}], total:6300, metodo:'TC', estado:'pagado', fecha:'2026-05-05', factura:true, referencia:'ITM-2024-002', auth_code:'TC-551122' },
+      { id:5,  escuela_id:1, folio:'ITM-0005', cliente_id:1,  cliente:'Ana García López',        items:[{nombre:'Comedor Mensual',qty:1,precio:1100}],                 total:1100, metodo:'Efectivo', estado:'pagado',   fecha:'2026-05-12', factura:false, referencia:'EFE-001' },
+      // CEC
+      { id:6,  escuela_id:2, folio:'CEC-0001', cliente_id:6,  cliente:'Valentina Méndez Ortiz',  items:[{nombre:'Colegiatura Mensual',qty:1,precio:3200}],              total:3200, metodo:'TC',       estado:'pagado',   fecha:'2026-05-01', factura:true,  referencia:'CEC-2024-007', auth_code:'TC-661233' },
+      { id:7,  escuela_id:2, folio:'CEC-0002', cliente_id:7,  cliente:'Rodrigo Méndez Ortiz',    items:[{nombre:'Colegiatura Mensual',qty:1,precio:3200}],              total:3200, metodo:'SPEI',     estado:'pagado',   fecha:'2026-05-02', factura:false, referencia:'CEC-2024-008', auth_code:'SPEI-77712' },
+      { id:8,  escuela_id:2, folio:'CEC-0003', cliente_id:8,  cliente:'Isabella Torres Reyes',   items:[{nombre:'Colegiatura Mensual',qty:1,precio:3200},{nombre:'Taller de Idiomas',qty:1,precio:800}], total:4000, metodo:'SPEI', estado:'pendiente', fecha:'2026-05-10', factura:false, referencia:'CEC-2025-003' },
+      // EME
+      { id:9,  escuela_id:3, folio:'EME-0001', cliente_id:9,  cliente:'Enoch Aguirre Aguilera',  items:[{nombre:'Colegiatura Mensual',qty:1,precio:2619}],              total:2619, metodo:'TC',       estado:'pagado',   fecha:'2026-05-01', factura:false, referencia:'EME-2025-411', auth_code:'TC-281906' },
     ],
+
+    // ── Emails ────────────────────────────────────────────────────────────────
     emails: [
-      { id:1, tipo:'enviado', asunto:'Recordatorio de pago — Colegiatura Mayo', para:'familia.garcia@mail.com', fecha:'2026-05-14', estado:'entregado' },
-      { id:2, tipo:'enviado', asunto:'Comprobante de pago COB-0003', para:'martinez.ramos@mail.com', fecha:'2026-05-05', estado:'entregado' },
-      { id:3, tipo:'recibido', asunto:'Consulta sobre beca', de:'hernandez.t@mail.com', fecha:'2026-05-13', leido:false },
-      { id:4, tipo:'recibido', asunto:'Solicitud de factura', de:'sofia.ruiz@mail.com', fecha:'2026-05-11', leido:true },
+      { id:1, escuela_id:1, tipo:'enviado',  asunto:'Recordatorio de pago — Mayo 2026',         para:'familia.garcia@mail.com',   fecha:'2026-05-14', estado:'entregado' },
+      { id:2, escuela_id:1, tipo:'enviado',  asunto:'Comprobante de pago ITM-0004',              para:'familia.garcia@mail.com',   fecha:'2026-05-05', estado:'entregado' },
+      { id:3, escuela_id:1, tipo:'recibido', asunto:'Consulta sobre beca de excelencia',        de:'hernandez.t@mail.com',        fecha:'2026-05-13', leido:false },
+      { id:4, escuela_id:2, tipo:'enviado',  asunto:'Comprobante de pago CEC-0001',              para:'mendez.c@mail.com',         fecha:'2026-05-01', estado:'entregado' },
     ],
   };
 
-  /** Carga datos desde localStorage o devuelve el estado inicial */
   function load() {
     try {
       const saved = localStorage.getItem(KEY);
@@ -48,44 +141,65 @@ const AppModel = (() => {
     return JSON.parse(JSON.stringify(INITIAL_STATE));
   }
 
-  /** Guarda datos en localStorage */
   function save(data) {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(data));
-    } catch(e) {}
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch(e) {}
   }
 
-  /** Helpers de ID y folio */
   function nextId(arr) {
     return arr.length === 0 ? 1 : Math.max(...arr.map(x => x.id)) + 1;
   }
 
-  function nextFolio(cobros) {
-    const n = nextId(cobros);
-    return 'COB-' + String(n).padStart(4, '0');
+  function nextFolio(cobros, clave) {
+    const propios = cobros.filter(c => c.folio && c.folio.startsWith(clave + '-'));
+    const n = propios.length + 1;
+    return clave + '-' + String(n).padStart(4, '0');
   }
 
-  /** Genera una CLABE interbancaria única de 18 dígitos */
-  function generarCLABE(importe, referencia) {
-    // Simulación de CLABE dinámica tipo STP/Pagadetodo
-    const base = '710070000000'; // banco Azteca + ciudad
-    const ref = String(referencia).padStart(4, '0').slice(-4);
-    const rand = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
-    const clabe16 = base + ref + rand;
-    // Dígito verificador CLABE (algoritmo oficial)
-    const pesos = [3,7,1,3,7,1,3,7,1,3,7,1,3,7,1,3,7];
-    let suma = 0;
-    for(let i = 0; i < 17; i++) {
-      suma += parseInt(clabe16[i]) * pesos[i];
-    }
-    const dv = (10 - (suma % 10)) % 10;
-    return clabe16 + String(dv);
+  // Estadísticas globales (super-admin)
+  function getEstadisticasGlobales(data) {
+    const { escuelas, cobros, clientes } = data;
+    return escuelas.map(esc => {
+      const cobroEsc  = cobros.filter(c => c.escuela_id === esc.id);
+      const alumnosEsc = clientes.filter(c => c.escuela_id === esc.id && c.activo);
+      const pagados   = cobroEsc.filter(c => c.estado === 'pagado');
+      const pendientes = cobroEsc.filter(c => c.estado === 'pendiente');
+      return {
+        escuela_id:     esc.id,
+        nombre:         esc.nombre,
+        clave:          esc.clave,
+        emoji:          esc.logo_emoji,
+        color:          esc.color,
+        plan:           esc.plan,
+        totalCobrado:   pagados.reduce((a,c)=>a+c.total,0),
+        totalPendiente: pendientes.reduce((a,c)=>a+c.total,0),
+        numCobros:      cobroEsc.length,
+        numAlumnos:     alumnosEsc.length,
+        porMetodo: {
+          TC:       pagados.filter(c=>c.metodo==='TC').reduce((a,c)=>a+c.total,0),
+          SPEI:     pagados.filter(c=>c.metodo==='SPEI').reduce((a,c)=>a+c.total,0),
+          CoDi:     pagados.filter(c=>c.metodo==='CoDi').reduce((a,c)=>a+c.total,0),
+          Efectivo: pagados.filter(c=>c.metodo==='Efectivo').reduce((a,c)=>a+c.total,0),
+        },
+      };
+    });
   }
 
-  /** Genera QR CoDi (URL de string que representa el pago) */
-  function generarCodiPayload(cobro) {
-    return `CODI|${cobro.folio}|${cobro.total}|${cobro.cliente}|EDUPAGO|${Date.now()}`;
+  // Estadísticas de una sola escuela
+  function getEstadisticas(cobros) {
+    const hoy = new Date().toISOString().slice(0, 10);
+    return {
+      totalCobrado:   cobros.filter(c=>c.estado==='pagado').reduce((a,c)=>a+c.total,0),
+      totalPendiente: cobros.filter(c=>c.estado==='pendiente').reduce((a,c)=>a+c.total,0),
+      cobrosHoy:      cobros.filter(c=>c.fecha===hoy&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
+      totalCobros:    cobros.length,
+      cobradosPorMetodo: {
+        TC:       cobros.filter(c=>c.metodo==='TC'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
+        SPEI:     cobros.filter(c=>c.metodo==='SPEI'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
+        CoDi:     cobros.filter(c=>c.metodo==='CoDi'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
+        Efectivo: cobros.filter(c=>c.metodo==='Efectivo'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
+      },
+    };
   }
 
-  return { load, save, nextId, nextFolio, generarCLABE, generarCodiPayload, INITIAL_STATE };
+  return { load, save, nextId, nextFolio, getEstadisticas, getEstadisticasGlobales, INITIAL_STATE };
 })();
