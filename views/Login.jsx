@@ -16,13 +16,7 @@ function Login({ onLogin }) {
     }, 500);
   };
 
-  const demos = [
-    { label:'👑 Super Admin',   email:'superadmin@pagalaescuela.mx', pass:'SuperAdmin2026!' },
-    { label:'🏛️ Admin ITM',     email:'admin@itm.edu.mx',            pass:'admin123' },
-    { label:'🧾 Cajero ITM',    email:'cajero@itm.edu.mx',           pass:'cajero123' },
-    { label:'🏫 Admin CEC',     email:'admin@cec.edu.mx',            pass:'admin123' },
-    { label:'⚡ Admin EME',     email:'admin@eme.edu.mx',            pass:'admin123' },
-  ];
+  const demos = AuthController.DEMO_USERS;
 
   return (
     <div className="login-screen">

@@ -552,3 +552,14 @@ tr:hover td { background: var(--glass-light); }
 
 /* Topbar actions */
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+/* ── btn-danger ─────────────────────────────────────────── */
+.btn-danger {
+  background: var(--red-glow);
+  color: var(--red);
+  border: 1px solid rgba(239,68,68,.3);
+}
+.btn-danger:hover { background: rgba(239,68,68,.25); }
+
+/* ── red-glow variable (por si no está) ─────────────────── */
+:root { --red-glow: rgba(239,68,68,.12); }

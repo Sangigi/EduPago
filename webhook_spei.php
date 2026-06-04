@@ -1,109 +1,139 @@
 <?php
 /**
- * EduPago — Webhook SPEI
+ * EduPago — Webhook SPEI v2 (CLABE Fija)
  *
- * Pagadetodo/Cobroscontarjeta llama a esta URL cuando recibe
- * una transferencia SPEI en cualquiera de tus CLABEs dinámicas.
+ * Con CLABE fija, el campo que identifica AL ALUMNO es el CONCEPTO
+ * de la transferencia (lo que el padre escribe: su matrícula).
+ *
+ * Pagadetodo/STP llama a esta URL con un POST cuando llega dinero.
+ * Campos típicos del payload de STP:
+ *   - clabe_destino   : la CLABE fija de la escuela
+ *   - concepto_pago   : lo que escribió el padre (matrícula / referencia)
+ *   - monto           : en centavos (ej: "280000" = $2,800)
+ *   - clave_rastreo   : ID único de la transferencia en SPEI
+ *   - nombre_ordenante: nombre del banco/titular que transfirió
+ *   - fecha           : fecha de la transferencia
+ *
+ * Nota: Pagadetodo puede llamar estos campos diferente en su API real.
+ *   Revisar su documentación y ajustar los alias al fondo de este archivo.
  *
  * Flujo:
- *   1. Pagadetodo POST → { clabe, monto, transaccion, fecha }
- *   2. Este archivo guarda el pago en pagos_spei.json
- *   3. Responde { codigo:0, autorizacion, mensaje, transaccion, fecha }
- *   4. EduPago lee pagos_spei.json en el siguiente polling (api.php?action=verificar_spei)
- *
- * URL a registrar en Pagadetodo:
- *   https://test.grupoideasmx.com/webhook_spei.php
+ *   1. STP/Pagadetodo POST → webhook_spei.php
+ *   2. Se extrae el CONCEPTO (= matrícula del alumno)
+ *   3. Se guarda en pagos_spei.json indexado por CONCEPTO
+ *   4. api.php?action=verificar_spei&referencia=MATRICULA lo consulta
+ *   5. Frontend confirma automáticamente el cobro
  */
 
 require_once __DIR__ . '/config.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
-// ── Guardar raw para debug ────────────────────────────────────────────────────
-$raw = file_get_contents('php://input');
 $ts  = date('Y-m-d H:i:s');
+$raw = file_get_contents('php://input');
 
+// Log siempre para debug (especialmente en primeras pruebas)
 if (API_LOG_ENABLED) {
     file_put_contents(
         __DIR__ . '/webhook_log.txt',
-        "\n[{$ts}] RAW:\n{$raw}\n" . str_repeat('-', 50) . "\n",
+        "\n[{$ts}] ══ WEBHOOK SPEI ══\nRAW:\n{$raw}\n" . str_repeat('─', 60) . "\n",
         FILE_APPEND
     );
 }
 
-// ── Parsear JSON de Pagadetodo ────────────────────────────────────────────────
 $data = json_decode($raw, true);
 
-if (!$data || !is_array($data)) {
+// ── Respuesta de error estándar (Pagadetodo debe recibir codigo:0 para no reintentar) ──
+function responder($codigo, $msg, $transaccion = '0') {
     echo json_encode([
-        'codigo'       => 50,
-        'autorizacion' => '',
-        'mensaje'      => 'JSON inválido',
-        'transaccion'  => '0',
-        'fecha'        => date('Y-m-d'),
-    ]);
-    exit;
-}
-
-$clabe       = $data['clabe']       ?? '';
-$monto       = $data['monto']       ?? '0';   // en centavos: "15000" = $150.00
-$transaccion = $data['transaccion'] ?? '0';
-$fecha       = $data['fecha']       ?? date('Y-m-d');
-
-// ── Validar campos mínimos ────────────────────────────────────────────────────
-if (!$clabe || !$monto || $monto === '0') {
-    echo json_encode([
-        'codigo'       => 15,
-        'autorizacion' => '',
-        'mensaje'      => 'Datos incompletos',
+        'codigo'       => $codigo,
+        'autorizacion' => $codigo === 0 ? rand(10000000, 99999999) : '',
+        'mensaje'      => $msg,
         'transaccion'  => $transaccion,
         'fecha'        => date('Y-m-d'),
-    ]);
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-// ── Guardar pago en pagos_spei.json ──────────────────────────────────────────
-// Este archivo es la "base de datos" ligera que lee api.php?action=verificar_spei
+if (!$data || !is_array($data)) {
+    responder(50, 'JSON inválido o body vacío');
+}
+
+// ── Normalizar campos (Pagadetodo puede usar distintos nombres) ───────────────
+// Ajusta estos alias según la documentación real de Pagadetodo / STP
+$clabe_destino   = $data['clabe_destino']   ?? $data['clabe']       ?? $data['cuentaDestino']    ?? '';
+$concepto        = $data['concepto_pago']   ?? $data['concepto']    ?? $data['referencia']        ?? $data['descripcion'] ?? '';
+$clave_rastreo   = $data['clave_rastreo']   ?? $data['transaccion'] ?? $data['idTransaccion']     ?? uniqid('spei_');
+$monto_centavos  = $data['monto']           ?? $data['importe']     ?? '0';
+$nombre_emisor   = $data['nombre_ordenante']?? $data['nombreOrd']   ?? 'Transferencia SPEI';
+$fecha           = $data['fecha']           ?? date('Y-m-d');
+
+// Limpiar y normalizar el concepto (quitar espacios, mayúsculas)
+$concepto_limpio = strtoupper(trim(preg_replace('/\s+/', '-', $concepto)));
+
+// ── Validaciones mínimas ──────────────────────────────────────────────────────
+if (!$monto_centavos || $monto_centavos === '0' || intval($monto_centavos) <= 0) {
+    responder(15, 'Monto inválido o cero');
+}
+
+if (!$concepto_limpio) {
+    // Pago sin concepto: guardar igual pero marcado para revisión manual
+    $concepto_limpio = 'SIN-CONCEPTO-' . date('YmdHis');
+    if (API_LOG_ENABLED) {
+        file_put_contents(API_LOG_FILE,
+            "{$ts} | ⚠ SPEI SIN CONCEPTO | monto:{$monto_centavos} rastreo:{$clave_rastreo}\n",
+            FILE_APPEND);
+    }
+}
+
+// ── Guardar en pagos_spei.json ────────────────────────────────────────────────
+// Indexado por CONCEPTO (matrícula), NO por CLABE.
+// Con CLABE fija, todos los pagos llegan a la misma CLABE — el concepto los diferencia.
 $archivo_pagos = __DIR__ . '/pagos_spei.json';
 
-$pagos = [];
-if (file_exists($archivo_pagos)) {
-    $pagos = json_decode(file_get_contents($archivo_pagos), true) ?? [];
-}
+// Usar flock para evitar race conditions si llegan dos webhooks simultáneos
+$fp = fopen($archivo_pagos, 'c+');
+if (!$fp) responder(99, 'Error de escritura en servidor');
+
+flock($fp, LOCK_EX);
+$contenido = stream_get_contents($fp);
+$pagos = $contenido ? (json_decode($contenido, true) ?? []) : [];
 
 $autorizacion = rand(10000000, 99999999);
+$monto_pesos  = number_format(intval($monto_centavos) / 100, 2);
 
-// Indexado por CLABE para búsqueda O(1)
-$pagos[$clabe] = [
-    'clabe'        => $clabe,
-    'monto'        => $monto,                        // centavos
-    'monto_pesos'  => number_format($monto / 100, 2),
-    'transaccion'  => $transaccion,
-    'autorizacion' => $autorizacion,
-    'fecha'        => $fecha,
-    'recibido_en'  => $ts,
-    'pagado'       => true,
+// Si ya existía un pago con esta referencia, acumular (pago parcial o duplicado)
+$ya_existia = isset($pagos[$concepto_limpio]) && $pagos[$concepto_limpio]['pagado'];
+
+$pagos[$concepto_limpio] = [
+    'concepto'       => $concepto_limpio,
+    'concepto_raw'   => $concepto,          // Guardar original para debug
+    'clabe_destino'  => $clabe_destino,
+    'monto'          => intval($monto_centavos),
+    'monto_pesos'    => $monto_pesos,
+    'clave_rastreo'  => $clave_rastreo,
+    'autorizacion'   => $autorizacion,
+    'nombre_emisor'  => $nombre_emisor,
+    'fecha'          => $fecha,
+    'recibido_en'    => $ts,
+    'pagado'         => true,
+    'requiere_revision' => !$concepto || $ya_existia, // Marcar para revisión si repetido
 ];
 
-file_put_contents(
-    $archivo_pagos,
-    json_encode($pagos, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-);
+rewind($fp);
+ftruncate($fp, 0);
+fwrite($fp, json_encode($pagos, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+flock($fp, LOCK_UN);
+fclose($fp);
 
+// Log resumen
 if (API_LOG_ENABLED) {
-    file_put_contents(
-        API_LOG_FILE,
-        "{$ts} | WEBHOOK SPEI recibido | CLABE:{$clabe} monto:{$monto} transaccion:{$transaccion}\n",
-        FILE_APPEND
-    );
+    file_put_contents(API_LOG_FILE,
+        "{$ts} | ✓ SPEI RECIBIDO | concepto:{$concepto_limpio} monto:\${$monto_pesos} rastreo:{$clave_rastreo}\n",
+        FILE_APPEND);
 }
 
-// ── Responder a Pagadetodo (OBLIGATORIO para que no reintente) ────────────────
-echo json_encode([
-    'codigo'       => 0,
-    'autorizacion' => $autorizacion,
-    'mensaje'      => 'Operación exitosa',
-    'transaccion'  => $transaccion,
-    'fecha'        => date('Y-m-d'),
-]);
+// ── Responder éxito a Pagadetodo ──────────────────────────────────────────────
+// CRÍTICO: si no respondes código 0, Pagadetodo reintentará el webhook.
+responder(0, 'Operación exitosa', $clave_rastreo);
 ?>

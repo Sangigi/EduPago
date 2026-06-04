@@ -11,6 +11,8 @@ const NAV_ITEMS = [
   { id:'emails',    label:'Correos',           icon:'✉',  section:'configuración', roles:['admin','superadmin'] },
   { id:'reportes',  label:'Reportes',          icon:'📈', section:'configuración', roles:['admin','superadmin'] },
   { id:'escuelas',  label:'Escuelas',          icon:'🏫', section:'superadmin',    roles:['superadmin'] },
+  { id:'usuarios',  label:'Usuarios',          icon:'👤', section:'superadmin',    roles:['superadmin'] },
+  { id:'miequipo',  label:'Mi equipo',         icon:'👥', section:'configuración', roles:['admin'] },
   { id:'superreportes', label:'Reportes globales', icon:'🌐', section:'superadmin', roles:['superadmin'] },
 ];
 
@@ -18,7 +20,7 @@ const TITLES = {
   dashboard:'Dashboard', caja:'Caja de cobros', cobros:'Historial de cobros',
   alumnos:'Alumnos', familias:'Familias', productos:'Conceptos de pago',
   facturacion:'Facturación CFDI', emails:'Correos', reportes:'Reportes',
-  escuelas:'Gestión de Escuelas', superreportes:'Reportes Globales',
+  escuelas:'Gestión de Escuelas', superreportes:'Reportes Globales', usuarios:'Gestión de Usuarios', miequipo:'Mi Equipo',
 };
 
 function App() {
@@ -96,11 +98,13 @@ function App() {
       case 'alumnos':       return <Alumnos data={dataScopeed} setData={d=>setData(mergeScoped(data,d,escuelaActiva))} escuela_id={escuelaActiva}/>;
       case 'familias':      return <Familias data={dataScopeed} setData={d=>setData(mergeScoped(data,d,escuelaActiva))} escuela_id={escuelaActiva}/>;
       case 'productos':     return <Productos data={dataScopeed} setData={d=>setData(mergeScoped(data,d,escuelaActiva))} escuela_id={escuelaActiva}/>;
-      case 'facturacion':   return <Facturacion data={dataScopeed} setData={d=>setData(mergeScoped(data,d,escuelaActiva))}/>;
+      case 'facturacion':   return <Facturacion data={dataScopeed} setData={d=>setData(mergeScoped(data,d,escuelaActiva))} escuela={escuela}/>;
       case 'emails':        return <Emails data={dataScopeed} setData={d=>setData(mergeScoped(data,d,escuelaActiva))}/>;
       case 'reportes':      return <Reportes data={dataScopeed} escuela={escuela}/>;
       case 'escuelas':      return <Escuelas data={data} setData={setData} onSeleccionar={id=>{setEscuelaActiva(id);setView('dashboard');}}/>;
       case 'superreportes': return <SuperReportes data={data}/>;
+      case 'usuarios':      return <Usuarios user={user} data={data}/>;
+      case 'miequipo':      return <Usuarios user={user} data={data}/>;
       default:              return <Dashboard data={dataScopeed} user={user} escuela={escuela} allData={data}/>;
     }
   };
