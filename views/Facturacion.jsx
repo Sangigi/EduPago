@@ -375,11 +375,21 @@ function Facturacion({ data, setData, escuela }) {
               </div>
             )}
 
-            <button className="btn btn-primary" onClick={simularSPEI} disabled={simLoading || !simRef || !simMonto}>
-              {simLoading
-                ? <><span className="spinner" style={{ borderTopColor: '#fff', marginRight: 8 }}></span>Enviando…</>
-                : '🚀 Simular transferencia SPEI'}
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={simularSPEI} disabled={simLoading || !simRef || !simMonto}>
+                {simLoading
+                  ? <><span className="spinner" style={{ borderTopColor: '#fff', marginRight: 8 }}></span>Enviando…</>
+                  : '🚀 Simular transferencia SPEI'}
+              </button>
+              {simStatus === 'ok' && (
+                <button className="btn btn-secondary" onClick={() => {
+                  SpeiPoller.verificarAhora();
+                  setSimMsg(prev => prev + ' (verificando ahora…)');
+                }}>
+                  🔄 Verificar ahora
+                </button>
+              )}
+            </div>
 
             {/* Explicación del flujo */}
             <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--glass-light)', borderRadius: 'var(--radius-sm)' }}>

@@ -563,3 +563,9 @@ tr:hover td { background: var(--glass-light); }
 
 /* ── red-glow variable (por si no está) ─────────────────── */
 :root { --red-glow: rgba(239,68,68,.12); }
+
+/* Toast notification animation */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px) translateX(10px); }
+  to   { opacity: 1; transform: translateY(0) translateX(0); }
+}
