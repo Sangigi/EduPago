@@ -35,3 +35,9 @@ define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
 
 // ─── Zona horaria ────────────────────────────────────────────────────────────
 date_default_timezone_set('America/Mexico_City');
+
+// ─── Credenciales del PAC (Ej. Facturama) ────────────────────────────────────
+// Usa las credenciales de Sandbox para desarrollo y las reales para producción.
+define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
+define('PAC_USER',    'tu_usuario_pac');
+define('PAC_PASS',    'tu_password_pac');

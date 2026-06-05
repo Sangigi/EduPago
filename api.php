@@ -207,128 +207,125 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'generar_cfdi':
         $cobro_id    = $input['cobro_id']    ?? '';
-        $rfc         = $input['rfc']         ?? '';
-        $razon       = $input['razon_social']?? '';
-        $uso         = $input['uso_cfdi']    ?? 'G03';
+        $rfc         = strtoupper(trim($input['rfc'] ?? ''));
+        $razon       = strtoupper(trim($input['razon_social'] ?? ''));
+        $uso         = $input['uso_cfdi']    ?? 'D10';
         $regimen     = $input['regimen']     ?? '616';
         $email       = $input['email']       ?? '';
         $total       = floatval($input['total']   ?? 0);
         $subtotal    = round($total / 1.16, 2);
         $iva         = round($total - $subtotal, 2);
         $descripcion = $input['descripcion'] ?? 'Servicios educativos';
-        $escuela_rfc = $input['escuela_rfc'] ?? 'EDU000101AAA';
-        $escuela_nom = $input['escuela_nombre'] ?? 'EduPago S.C.';
+        
+        // En CFDI 4.0 el CP del receptor es obligatorio. 
+        // Idealmente lo pedirías en el frontend, aquí lo dejamos estático por ahora.
+        $cp_receptor = $input['cp_receptor'] ?? '97000'; 
 
         if (!$rfc || !$razon || $total <= 0) {
             respond(['success' => false, 'error' => 'RFC, razón social y total son requeridos']);
         }
 
-        // UUID de folio fiscal (en producción lo asigna el PAC/SAT)
-        $uuid         = strtoupper(sprintf('%s-%s-%s-%s-%s',
-            bin2hex(random_bytes(4)), bin2hex(random_bytes(2)),
-            bin2hex(random_bytes(2)), bin2hex(random_bytes(2)),
-            bin2hex(random_bytes(6))
-        ));
-        $folio_fiscal = $uuid;
-        $fecha_timbrado = date('Y-m-d') . 'T' . date('H:i:s');
-        $serie = 'A';
-        $folio = str_pad(rand(1, 9999), 6, '0', STR_PAD_LEFT);
-        $no_certificado = '20001000000300022323';
-        $no_cert_sat    = '20001000000300023223';
+        // 1. Estructuramos el payload JSON que pide el PAC (Modelo Facturama)
+        $payload_pac = [
+            "Receiver" => [
+                "Rfc" => $rfc,
+                "Name" => $razon,
+                "CfdiUse" => $uso,
+                "FiscalRegime" => $regimen,
+                "TaxZipCode" => $cp_receptor 
+            ],
+            "CfdiType" => "I",
+            "PaymentForm" => "03", // 03 = Transferencia electrónica de fondos
+            "PaymentMethod" => "PUE",
+            "ExpeditionPlace" => "97130", // Código postal de la escuela emisora
+            "Items" => [
+                [
+                    "ProductCode" => "86101800", // Servicios educativos
+                    "UnitCode" => "ACT",         // Actividad
+                    "Description" => $descripcion,
+                    "Quantity" => 1,
+                    "UnitPrice" => $subtotal,
+                    "Subtotal" => $subtotal,
+                    "Taxes" => [
+                        [
+                            "Total" => $iva,
+                            "Name" => "IVA",
+                            "Base" => $subtotal,
+                            "Rate" => 0.16,
+                            "IsRetention" => false
+                        ]
+                    ]
+                ]
+            ]
+        ];
 
-        // XML CFDI 4.0 completo (estructura válida para enviar a PAC)
-        $xml = <<<XML
-<?xml version="1.0" encoding="UTF-8"?>
-<cfdi:Comprobante
-  xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
-  Version="4.0"
-  Serie="{$serie}"
-  Folio="{$folio}"
-  Fecha="{$fecha_timbrado}"
-  Sello="[SELLO_EMISOR_BASE64_PAC]"
-  FormaPago="03"
-  NoCertificado="{$no_certificado}"
-  Certificado="[CERTIFICADO_EMISOR_BASE64_PAC]"
-  SubTotal="{$subtotal}"
-  Moneda="MXN"
-  Total="{$total}"
-  TipoDeComprobante="I"
-  Exportacion="01"
-  MetodoPago="PUE"
-  LugarExpedicion="97130">
-  <cfdi:Emisor
-    Rfc="{$escuela_rfc}"
-    Nombre="{$escuela_nom}"
-    RegimenFiscal="601"/>
-  <cfdi:Receptor
-    Rfc="{$rfc}"
-    Nombre="{$razon}"
-    DomicilioFiscalReceptor="97000"
-    RegimenFiscalReceptor="{$regimen}"
-    UsoCFDI="{$uso}"/>
-  <cfdi:Conceptos>
-    <cfdi:Concepto
-      ClaveProdServ="86101800"
-      ClaveUnidad="ACT"
-      Cantidad="1"
-      Descripcion="{$descripcion}"
-      ValorUnitario="{$subtotal}"
-      Importe="{$subtotal}"
-      ObjetoImp="02">
-      <cfdi:Impuestos>
-        <cfdi:Traslados>
-          <cfdi:Traslado
-            Base="{$subtotal}"
-            Impuesto="002"
-            TipoFactor="Tasa"
-            TasaOCuota="0.160000"
-            Importe="{$iva}"/>
-        </cfdi:Traslados>
-      </cfdi:Impuestos>
-    </cfdi:Concepto>
-  </cfdi:Conceptos>
-  <cfdi:Impuestos TotalImpuestosTrasladados="{$iva}">
-    <cfdi:Traslados>
-      <cfdi:Traslado
-        Base="{$subtotal}"
-        Impuesto="002"
-        TipoFactor="Tasa"
-        TasaOCuota="0.160000"
-        Importe="{$iva}"/>
-    </cfdi:Traslados>
-  </cfdi:Impuestos>
-  <cfdi:Complemento>
-    <tfd:TimbreFiscalDigital
-      xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
-      Version="1.1"
-      UUID="{$uuid}"
-      FechaTimbrado="{$fecha_timbrado}"
-      RfcProvCertif="SAT970701NN3"
-      NoCertificadoSAT="{$no_cert_sat}"
-      SelloSAT="[SELLO_SAT_BASE64_PAC]"
-      SelloCFD="[SELLO_CFD_BASE64_PAC]"/>
-  </cfdi:Complemento>
-</cfdi:Comprobante>
-XML;
-
-        log_api("generar_cfdi -> cobro:{$cobro_id} rfc:{$rfc} total:{$total} uuid:{$uuid}");
-
-        respond([
-            'success'        => true,
-            'uuid'           => $uuid,
-            'folio_fiscal'   => $folio_fiscal,
-            'serie'          => $serie,
-            'folio'          => $folio,
-            'fecha_timbrado' => $fecha_timbrado,
-            'subtotal'       => $subtotal,
-            'iva'            => $iva,
-            'total'          => $total,
-            'xml'            => $xml,
-            'qr_url'         => 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode("https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id={$uuid}"),
-            'nota'           => 'Mock CFDI. En producción conectar a PAC (Facturama/SW SAPiens) para timbrado real con sello del SAT.',
+        // 2. Ejecutamos la petición cURL al PAC
+        $ch = curl_init(PAC_API_URL);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'Authorization: Basic ' . base64_encode(PAC_USER . ':' . PAC_PASS)
+            ],
+            CURLOPT_POSTFIELDS     => json_encode($payload_pac),
+            CURLOPT_TIMEOUT        => 45,
+            CURLOPT_SSL_VERIFYPEER => false,
         ]);
+
+        $result = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($err) {
+            log_api("ERROR cURL PAC: " . $err);
+            respond(['success' => false, 'error' => 'Error de conexión con el proveedor de facturación.']);
+        }
+
+        $response_data = json_decode($result, true);
+
+        // 3. Manejo de la respuesta del PAC
+        if ($http_code >= 200 && $http_code < 300 && isset($response_data['Id'])) {
+            
+            // El PAC nos devuelve el nodo firmado. 
+            // Para obtener el XML real, usualmente se hace una segunda petición rápida 
+            // o el PAC lo envía codificado en base64 en la misma respuesta.
+            // Asumiendo que obtenemos los datos principales:
+            
+            $uuid = $response_data['Complement']['TaxStamp']['Uuid'] ?? 'PENDIENTE';
+            $fecha_timbrado = $response_data['Complement']['TaxStamp']['Date'] ?? date('Y-m-d\TH:i:s');
+            
+            log_api("generar_cfdi -> EXITOSO cobro:{$cobro_id} uuid:{$uuid}");
+
+            respond([
+                'success'        => true,
+                'uuid'           => $uuid,
+                'folio_fiscal'   => $uuid,
+                'serie'          => $response_data['Serie'] ?? 'A',
+                'folio'          => $response_data['Folio'] ?? '',
+                'fecha_timbrado' => $fecha_timbrado,
+                'subtotal'       => $subtotal,
+                'iva'            => $iva,
+                'total'          => $total,
+                // El frontend espera el string XML. Facturama permite descargarlo mediante un endpoint aparte, 
+                // o puedes guardarlo en tu servidor. Aquí enviamos un placeholder o el base64 decodificado si el PAC lo provee.
+                'xml'            => base64_decode($response_data['Xml'] ?? ''), 
+                'qr_url'         => 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode("https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id={$uuid}"),
+            ]);
+
+        } else {
+            // El PAC rechazó el timbrado (Ej. RFC inválido, régimen incompatible)
+            $mensaje_error = $response_data['Message'] ?? 'Error desconocido al timbrar';
+            if (isset($response_data['ModelState'])) {
+                // Facturama devuelve detalles exactos en ModelState
+                $errores_detalle = implode(" | ", array_map(function($e) { return implode(", ", $e); }, $response_data['ModelState']));
+                $mensaje_error .= " - " . $errores_detalle;
+            }
+            
+            log_api("ERROR PAC: " . $result);
+            respond(['success' => false, 'error' => $mensaje_error]);
+        }
     break;
 
     default:
