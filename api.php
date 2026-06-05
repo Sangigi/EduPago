@@ -328,8 +328,68 @@ switch ($action) {
         }
     break;
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // 6. DESCARGAR CFDI (XML o PDF) DESDE FACTURAPI
+    //    Hace proxy del binario para que el navegador lo descargue directamente.
+    //    Uso: GET api.php?action=descargar_cfdi&id={facturapi_id}&tipo=xml|pdf
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'descargar_cfdi':
+        $facturapi_id = trim($_GET['id'] ?? '');
+        $tipo         = strtolower(trim($_GET['tipo'] ?? 'pdf'));
+
+        if (!$facturapi_id) {
+            respond(['success' => false, 'error' => 'ID de Facturapi requerido']);
+        }
+        if (!in_array($tipo, ['xml', 'pdf'])) {
+            respond(['success' => false, 'error' => 'tipo debe ser xml o pdf']);
+        }
+
+        $url_facturapi = "https://www.facturapi.io/v2/invoices/{$facturapi_id}/{$tipo}";
+
+        $ch = curl_init($url_facturapi);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . FACTURAPI_KEY
+            ],
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_FOLLOWLOCATION => true,
+        ]);
+
+        $binary   = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err       = curl_error($ch);
+        curl_close($ch);
+
+        if ($err) {
+            respond(['success' => false, 'error' => 'Error de red: ' . $err]);
+        }
+
+        if ($http_code !== 200) {
+            // Facturapi devolvió un error JSON — lo relay como JSON
+            header('Content-Type: application/json; charset=UTF-8');
+            $decoded = json_decode($binary, true);
+            $msg = $decoded['message'] ?? "Facturapi respondió HTTP {$http_code}";
+            respond(['success' => false, 'error' => $msg]);
+        }
+
+        // Éxito: stream the file to the browser
+        // Reemplaza el Content-Type JSON que se mandó al inicio del archivo
+        header_remove('Content-Type');
+        $mime     = ($tipo === 'pdf') ? 'application/pdf' : 'application/xml; charset=UTF-8';
+        $filename = "cfdi-{$facturapi_id}.{$tipo}";
+        header("Content-Type: {$mime}");
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        header('Content-Length: ' . strlen($binary));
+        header('Cache-Control: no-cache, must-revalidate');
+
+        log_api("descargar_cfdi -> id={$facturapi_id} tipo={$tipo} http={$http_code}");
+        echo $binary;
+        exit;
+
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}",
-            'acciones' => ['obtener_clabe','verificar_spei','simular_spei','generar_liga','generar_cfdi']]);
+            'acciones' => ['obtener_clabe','verificar_spei','simular_spei','generar_liga','generar_cfdi','descargar_cfdi']]);
 }
 ?>
