@@ -145,7 +145,7 @@ function Facturacion({ data, setData, escuela }) {
     // Lo más sencillo es descargar directamente desde la URL de descarga de Facturapi (si la tienes configurada en tu dashboard)
     // O puedes crear un pequeño endpoint en api.php?action=descargar_cfdi&id=...&tipo=xml que haga el curl a Facturapi y devuelva el archivo
     // Para simplificar aquí, asumo que tienes habilitada la URL pública (verifica tu dashboard de Facturapi).
-    // Si no, Facturapi te pide hacer un request a: https://www.facturapi.io/v1/invoices/{id}/xml
+    // Si no, Facturapi te pide hacer un request a: https://www.facturapi.io/v2/invoices/{id}/xml
     
     // Una implementación simple que abre en nueva pestaña un hipotético endpoint tuyo
     window.open(`api.php?action=descargar_cfdi&id=${cfdi.facturapi_id}&tipo=${tipo}`, '_blank');
