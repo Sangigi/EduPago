@@ -229,13 +229,24 @@ switch ($action) {
         // Aquí enviamos el subtotal y le decimos que agregue el IVA del 16%.
         $subtotal = round($total / 1.16, 2);
 
+        // Domicilio fiscal: Facturapi CFDI 4.0 requiere customer.address.zip
+        // Poner "zip" en el root del customer produce "customer.address is required"
+        $domicilio = $input['domicilio'] ?? '';
+        $customer_address = [
+            "zip"     => $cp_receptor,
+            "country" => "MEX"
+        ];
+        if ($domicilio) {
+            $customer_address["street"] = $domicilio;
+        }
+
         $payload_facturapi = [
             "customer" => [
                 "legal_name" => $razon,
                 "tax_id"     => $rfc,
                 "tax_system" => $regimen,
-                "zip"        => $cp_receptor,
-                "email"      => $email
+                "address"    => $customer_address,
+                "email"      => $email ?: null
             ],
             "items" => [
                 [

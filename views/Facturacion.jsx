@@ -39,17 +39,34 @@ function Facturacion({ data, setData, escuela }) {
   };
 
   const abrirSolicitar = cobro => {
-    const cli = data.clientes.find(c => c.id === cobro.cliente_id);
-    // Pre-llenar con datos fiscales guardados en el perfil del cliente
+    // Bug fix: buscar cliente por cliente_id; si es null (cobro sin cliente),
+    // intentar por nombre como fallback, y si tampoco, dejar form vacío.
+    let cli = cobro.cliente_id
+      ? data.clientes.find(c => c.id === cobro.cliente_id)
+      : data.clientes.find(c => c.nombre === cobro.cliente);
+
+    // Si el cobro es de tipo familia, buscar también los datos fiscales
+    // en la familia vinculada al alumno
+    if (!cli?.rfc_factura && cli?.familia_id) {
+      const fam = data.familias?.find(f => f.id === cli.familia_id);
+      if (fam?.rfc_factura) {
+        // Mezclar datos fiscales de la familia sobre el cliente
+        cli = { ...cli, ...fam };
+      }
+    }
+
+    const tieneDatos = !!(cli?.rfc_factura && cli?.razon_social_factura && cli?.cp_factura);
+
     setCobroSel(cobro);
     setFormFact({
-      rfc:          cli?.rfc_factura          || '',
-      razon_social: cli?.razon_social_factura || '',
-      cp_receptor:  cli?.cp_factura           || '',
-      domicilio:    cli?.domicilio_factura     || '',
-      regimen:      cli?.regimen_factura       || '616',
-      uso_cfdi:     cli?.uso_cfdi_defecto      || 'D10',
-      email:        cli?.email                || '',
+      rfc:          cli?.rfc_factura           || '',
+      razon_social: cli?.razon_social_factura  || '',
+      cp_receptor:  cli?.cp_factura            || '',
+      domicilio:    cli?.domicilio_factura      || '',
+      regimen:      cli?.regimen_factura        || '616',
+      uso_cfdi:     cli?.uso_cfdi_defecto       || 'D10',
+      email:        cli?.email                  || '',
+      _preLlenado:  tieneDatos,   // bandera interna para mostrar/ocultar el banner
     });
     setErrMsg('');
     setModal('solicitar');
@@ -465,10 +482,16 @@ function Facturacion({ data, setData, escuela }) {
                   ⚠ {errMsg}
                 </div>
               )}
-              {/* Banner: datos pre-llenados desde perfil */}
-              {(formFact.rfc || formFact.razon_social) && (
+              {/* Banner: datos pre-llenados desde perfil (solo si realmente hay datos) */}
+              {formFact._preLlenado && (
                 <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--green-glow)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--green)', display:'flex', alignItems:'center', gap:8 }}>
                   ✓ Datos fiscales pre-llenados desde el perfil del cliente. Verifica antes de generar.
+                </div>
+              )}
+              {/* Banner: sin datos fiscales registrados */}
+              {!formFact._preLlenado && cobroSel && (
+                <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--amber-glow)', border: '1px solid rgba(245,158,11,.25)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--amber)', display:'flex', alignItems:'center', gap:8 }}>
+                  ⚠ Este cliente no tiene datos fiscales guardados en su perfil. Llena el formulario o registra sus datos en Clientes → 📄.
                 </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

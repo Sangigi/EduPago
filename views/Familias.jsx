@@ -1,7 +1,12 @@
 /* views/Familias.jsx — Gestión de familias con hijos agrupados */
 function Familias({ data, setData, escuela_id }) {
   const { useState } = React;
-  const EMPTY_FAM = { nombre:'', contacto:'', tel:'', email:'' };
+  const EMPTY_FAM = {
+    nombre:'', contacto:'', tel:'', email:'',
+    // Datos fiscales de la familia (pre-llenan CFDI de todos sus hijos)
+    rfc_factura:'', razon_social_factura:'', cp_factura:'',
+    domicilio_factura:'', regimen_factura:'616', uso_cfdi_defecto:'D10'
+  };
   const EMPTY_ALU = { tipo:'alumno', nombre:'', grado:'', matricula:'', curp:'', email:'', tel:'', familia_id:null };
 
   const [modal, setModal]         = useState(null); // null | 'familia' | 'alumno'
@@ -225,6 +230,63 @@ function Familias({ data, setData, escuela_id }) {
                 <div className="form-group">
                   <label className="form-label">Correo electrónico</label>
                   <input className="form-input" type="email" placeholder="familia@mail.com" value={formFam.email} onChange={e=>setFormFam(f=>({...f,email:e.target.value}))}/>
+                </div>
+              </div>
+
+              {/* ── Datos fiscales de la familia ── */}
+              <div style={{marginTop:18, paddingTop:16, borderTop:'1px solid var(--border-glow)'}}>
+                <div style={{fontSize:11, color:'var(--ink-4)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:12}}>
+                  📄 Datos fiscales (para facturación CFDI)
+                </div>
+                <div style={{marginBottom:10, padding:'8px 12px', background:'var(--accent-glow)', borderRadius:'var(--radius-sm)', fontSize:11.5, color:'var(--ink-2)', lineHeight:1.6}}>
+                  Al registrar estos datos, el formulario de CFDI se pre-llenará automáticamente para todos los hijos de esta familia.
+                </div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                  <div className="form-group">
+                    <label className="form-label">RFC del receptor</label>
+                    <input className="form-input" placeholder="XAXX010101000"
+                      value={formFam.rfc_factura||''}
+                      onChange={e=>setFormFam(f=>({...f,rfc_factura:e.target.value.toUpperCase().replace(/\s/g,'')}))}
+                      style={{fontFamily:'var(--mono)',letterSpacing:1}}/>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Código Postal fiscal</label>
+                    <input className="form-input" placeholder="Ej. 97000"
+                      value={formFam.cp_factura||''}
+                      onChange={e=>setFormFam(f=>({...f,cp_factura:e.target.value}))}
+                      style={{fontFamily:'var(--mono)'}}/>
+                  </div>
+                  <div className="form-group" style={{gridColumn:'1/-1'}}>
+                    <label className="form-label">Razón social</label>
+                    <input className="form-input" placeholder="NOMBRE COMPLETO EN MAYÚSCULAS"
+                      value={formFam.razon_social_factura||''}
+                      onChange={e=>setFormFam(f=>({...f,razon_social_factura:e.target.value.toUpperCase()}))}/>
+                  </div>
+                  <div className="form-group" style={{gridColumn:'1/-1'}}>
+                    <label className="form-label">Domicilio fiscal</label>
+                    <input className="form-input" placeholder="Calle, Número, Colonia, Ciudad, Estado, CP"
+                      value={formFam.domicilio_factura||''}
+                      onChange={e=>setFormFam(f=>({...f,domicilio_factura:e.target.value}))}/>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Régimen fiscal</label>
+                    <select className="form-select" value={formFam.regimen_factura||'616'}
+                      onChange={e=>setFormFam(f=>({...f,regimen_factura:e.target.value}))}>
+                      <option value="616">616 — Sin obligaciones fiscales</option>
+                      <option value="601">601 — General Personas Morales</option>
+                      <option value="612">612 — Personas Físicas con Actividades Empresariales</option>
+                      <option value="626">626 — RESICO</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Uso del CFDI por defecto</label>
+                    <select className="form-select" value={formFam.uso_cfdi_defecto||'D10'}
+                      onChange={e=>setFormFam(f=>({...f,uso_cfdi_defecto:e.target.value}))}>
+                      <option value="D10">D10 — Servicios educativos</option>
+                      <option value="G03">G03 — Gastos en general</option>
+                      <option value="S01">S01 — Sin efectos fiscales</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
