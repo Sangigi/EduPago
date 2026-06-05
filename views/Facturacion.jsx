@@ -10,7 +10,7 @@ function Facturacion({ data, setData, escuela }) {
   const [loading, setLoading]       = useState(false);
   const [errMsg, setErrMsg]         = useState('');
   const [formFact, setFormFact]     = useState({
-    rfc: '', razon_social: '', uso_cfdi: 'D10', regimen: '616', email: '', cp_receptor: '' // <-- CP AÑADIDO
+    rfc: '', razon_social: '', uso_cfdi: 'D10', regimen: '616', email: '', cp_receptor: '', domicilio: ''
   });
   const [simRef, setSimRef]         = useState('');
   const [simMonto, setSimMonto]     = useState('');
@@ -40,14 +40,23 @@ function Facturacion({ data, setData, escuela }) {
 
   const abrirSolicitar = cobro => {
     const cli = data.clientes.find(c => c.id === cobro.cliente_id);
+    // Pre-llenar con datos fiscales guardados en el perfil del cliente
     setCobroSel(cobro);
-    setFormFact({ rfc: '', razon_social: '', uso_cfdi: 'D10', regimen: '616', email: cli?.email || '', cp_receptor: '' }); // <-- CP AÑADIDO AL REINICIAR
+    setFormFact({
+      rfc:          cli?.rfc_factura          || '',
+      razon_social: cli?.razon_social_factura || '',
+      cp_receptor:  cli?.cp_factura           || '',
+      domicilio:    cli?.domicilio_factura     || '',
+      regimen:      cli?.regimen_factura       || '616',
+      uso_cfdi:     cli?.uso_cfdi_defecto      || 'D10',
+      email:        cli?.email                || '',
+    });
     setErrMsg('');
     setModal('solicitar');
   };
 
   const generarCFDI = async () => {
-    if (!formFact.rfc || !formFact.razon_social || !formFact.cp_receptor) { // <-- VALIDACIÓN DE CP
+    if (!formFact.rfc || !formFact.razon_social || !formFact.cp_receptor) {
       setErrMsg('RFC, Razón Social y Código Postal son obligatorios'); return;
     }
     const rfcReg = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
@@ -63,7 +72,8 @@ function Facturacion({ data, setData, escuela }) {
           cobro_id:       cobroSel.id,
           rfc:            formFact.rfc,
           razon_social:   formFact.razon_social,
-          cp_receptor:    formFact.cp_receptor, // <-- SE ENVÍA EL CP AL API
+          cp_receptor:    formFact.cp_receptor,
+          domicilio:      formFact.domicilio,       // <-- domicilio fiscal
           uso_cfdi:       formFact.uso_cfdi,
           regimen:        formFact.regimen,
           email:          formFact.email,
@@ -455,6 +465,12 @@ function Facturacion({ data, setData, escuela }) {
                   ⚠ {errMsg}
                 </div>
               )}
+              {/* Banner: datos pre-llenados desde perfil */}
+              {(formFact.rfc || formFact.razon_social) && (
+                <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--green-glow)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--green)', display:'flex', alignItems:'center', gap:8 }}>
+                  ✓ Datos fiscales pre-llenados desde el perfil del cliente. Verifica antes de generar.
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="form-group">
                   <label className="form-label">RFC del receptor *</label>
@@ -479,6 +495,16 @@ function Facturacion({ data, setData, escuela }) {
                   <input className="form-input" placeholder="NOMBRE COMPLETO O RAZÓN SOCIAL"
                     value={formFact.razon_social}
                     onChange={e => setFormFact(f => ({ ...f, razon_social: e.target.value.toUpperCase() }))} />
+                </div>
+                {/* NUEVO: Campo de domicilio fiscal */}
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label className="form-label">Domicilio fiscal</label>
+                  <input className="form-input" placeholder="Calle, Número, Colonia, Ciudad, Estado, CP"
+                    value={formFact.domicilio}
+                    onChange={e => setFormFact(f => ({ ...f, domicilio: e.target.value }))} />
+                  <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 3 }}>
+                    Opcional — se imprime en el comprobante
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Correo para envío</label>
@@ -580,14 +606,15 @@ function Facturacion({ data, setData, escuela }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 {[
                   { l: 'RFC Receptor', v: cfdiVisor.rfc_receptor },
-                  { l: 'Código Postal', v: cfdiVisor.cp_receptor }, // <-- SE MUESTRA EL CP
+                  { l: 'Código Postal', v: cfdiVisor.cp_receptor },
+                  { l: 'Domicilio fiscal', v: cfdiVisor.domicilio || '—', col: '1/-1' },
                   { l: 'Uso CFDI',     v: cfdiVisor.uso_cfdi },
                   { l: 'Subtotal',     v: fmt(cfdiVisor.subtotal) },
                   { l: 'IVA 16%',      v: fmt(cfdiVisor.iva) },
                   { l: 'Total',        v: fmt(cfdiVisor.total), bold: true, color: 'var(--green)' },
                   { l: 'Correo envío', v: cfdiVisor.email || '—' },
                 ].map(s => (
-                  <div key={s.l}>
+                  <div key={s.l} style={s.col ? {gridColumn: s.col} : {}}>
                     <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginBottom: 2 }}>{s.l}</div>
                     <div style={{ fontSize: 13, fontWeight: s.bold ? 700 : 400, color: s.color || 'var(--ink)', fontFamily: s.bold ? 'var(--mono)' : undefined }}>
                       {s.v}

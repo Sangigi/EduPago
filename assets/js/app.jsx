@@ -84,6 +84,16 @@ function App() {
   };
 
   if (!user) return <Login onLogin={handleLogin}/>;
+
+  // Si el usuario es de tipo familia, mostrar el portal de padres en lugar del admin
+  if (user.rol === 'familia') {
+    const escuela = data ? data.escuelas.find(e => e.id === user.escuela_id) || null : null;
+    return data
+      ? <PortalFamilia data={data} setData={setData} user={user} escuela={escuela}
+          onLogout={handleLogout}/>
+      : <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'#6b7280'}}>Cargando…</div>;
+  }
+
   if (!data) return (
     <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--ink-3)'}}>
       Cargando…
