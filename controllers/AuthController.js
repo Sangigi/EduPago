@@ -130,7 +130,7 @@ const AuthController = (() => {
   function isAdmin(user)      { return user?.rol === 'admin' || isSuperAdmin(user); }
 
   // Qué roles puede crear cada rol
-  function rolesQueПuedeCriar(user) {
+  function rolesQuePuedeCriar(user) {
     if (!user) return [];
     if (user.rol === 'superadmin') return ['admin', 'cajero'];
     if (user.rol === 'admin')      return ['cajero'];
@@ -146,7 +146,7 @@ const AuthController = (() => {
 
   // ── CRUD de usuarios ──────────────────────────────────────────────────────
   function crearUsuario(creador, form, todasEscuelas) {
-    const rolesPermitidos = rolesQueПuedeCriar(creador);
+    const rolesPermitidos = rolesQuePuedeCriar(creador);
     if (!rolesPermitidos.includes(form.rol)) {
       return { ok: false, error: `No tienes permiso para crear rol "${form.rol}"` };
     }
@@ -252,7 +252,7 @@ const AuthController = (() => {
   return {
     login, logout, getSession,
     isSuperAdmin, isAdmin,
-    rolesQueПuedeCriar, escuelasDisponibles,
+    rolesQuePuedeCriar, escuelasDisponibles,
     crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario,
     getUsuarios,
     DEMO_USERS,
