@@ -259,7 +259,7 @@ switch ($action) {
         ];
 
         // 2. Ejecutamos la petición cURL a Facturapi
-        $ch = curl_init('https://www.facturapi.io/v1/invoices');
+        $ch = curl_init('https://www.facturapi.io/v2/invoices');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
