@@ -10,7 +10,7 @@ function Facturacion({ data, setData, escuela }) {
   const [loading, setLoading]       = useState(false);
   const [errMsg, setErrMsg]         = useState('');
   const [formFact, setFormFact]     = useState({
-    rfc: '', razon_social: '', uso_cfdi: 'D10', regimen: '616', email: ''
+    rfc: '', razon_social: '', uso_cfdi: 'D10', regimen: '616', email: '', cp_receptor: '' // <-- CP AÑADIDO
   });
   const [simRef, setSimRef]         = useState('');
   const [simMonto, setSimMonto]     = useState('');
@@ -41,14 +41,14 @@ function Facturacion({ data, setData, escuela }) {
   const abrirSolicitar = cobro => {
     const cli = data.clientes.find(c => c.id === cobro.cliente_id);
     setCobroSel(cobro);
-    setFormFact({ rfc: '', razon_social: '', uso_cfdi: 'D10', regimen: '616', email: cli?.email || '' });
+    setFormFact({ rfc: '', razon_social: '', uso_cfdi: 'D10', regimen: '616', email: cli?.email || '', cp_receptor: '' }); // <-- CP AÑADIDO AL REINICIAR
     setErrMsg('');
     setModal('solicitar');
   };
 
   const generarCFDI = async () => {
-    if (!formFact.rfc || !formFact.razon_social) {
-      setErrMsg('RFC y razón social son obligatorios'); return;
+    if (!formFact.rfc || !formFact.razon_social || !formFact.cp_receptor) { // <-- VALIDACIÓN DE CP
+      setErrMsg('RFC, Razón Social y Código Postal son obligatorios'); return;
     }
     const rfcReg = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
     if (!rfcReg.test(formFact.rfc)) {
@@ -63,6 +63,7 @@ function Facturacion({ data, setData, escuela }) {
           cobro_id:       cobroSel.id,
           rfc:            formFact.rfc,
           razon_social:   formFact.razon_social,
+          cp_receptor:    formFact.cp_receptor, // <-- SE ENVÍA EL CP AL API
           uso_cfdi:       formFact.uso_cfdi,
           regimen:        formFact.regimen,
           email:          formFact.email,
@@ -90,9 +91,11 @@ function Facturacion({ data, setData, escuela }) {
             rfc_receptor:  formFact.rfc,
             razon:         formFact.razon_social,
             uso_cfdi:      formFact.uso_cfdi,
+            cp_receptor:   formFact.cp_receptor, // <-- GUARDAR EN EL ESTADO
             email:         formFact.email,
-            xml:           cfdi.xml,
+            xml:           cfdi.xml, // Facturapi no devuelve el XML en crudo en la respuesta inicial. Te sugiero ignorar esto o cambiar el flujo de descarga (ver más abajo)
             qr_url:        cfdi.qr_url,
+            facturapi_id:  cfdi.facturapi_id // <-- GUARDAR EL ID DE FACTURAPI
           }
         } : c
       );
@@ -129,12 +132,23 @@ function Facturacion({ data, setData, escuela }) {
     } finally { setSimLoading(false); }
   };
 
-  const descargarXML = (cfdi, nombre) => {
-    const blob = new Blob([cfdi.xml], { type: 'application/xml' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = nombre || ('CFDI-' + cfdi.uuid + '.xml');
-    a.click();
+  // ─── NUEVO: DESCAGAR XML Y PDF DESDE FACTURAPI ───
+  // Facturapi no te da el string del XML cuando lo creas. Te da URLs públicas 
+  // para descargar el XML y PDF, o debes hacer un GET a su API para obtener el binario.
+  const descargarDocumento = async (cfdi, tipo) => {
+    // tipo = 'xml' o 'pdf'
+    if(!cfdi.facturapi_id) {
+        alert("Este CFDI es simulado o antiguo y no tiene ID de Facturapi");
+        return;
+    }
+    
+    // Lo más sencillo es descargar directamente desde la URL de descarga de Facturapi (si la tienes configurada en tu dashboard)
+    // O puedes crear un pequeño endpoint en api.php?action=descargar_cfdi&id=...&tipo=xml que haga el curl a Facturapi y devuelva el archivo
+    // Para simplificar aquí, asumo que tienes habilitada la URL pública (verifica tu dashboard de Facturapi).
+    // Si no, Facturapi te pide hacer un request a: https://www.facturapi.io/v1/invoices/{id}/xml
+    
+    // Una implementación simple que abre en nueva pestaña un hipotético endpoint tuyo
+    window.open(`api.php?action=descargar_cfdi&id=${cfdi.facturapi_id}&tipo=${tipo}`, '_blank');
   };
 
   const filtrar = lista => !q ? lista :
@@ -273,9 +287,14 @@ function Facturacion({ data, setData, escuela }) {
                           onClick={() => { setCfdiVisor({ ...c.factura_cfdi, cobro: c }); setModal('visor'); }}>
                           👁 Ver
                         </button>
+                         {/* CAMBIO: Se usa la función para descargar de Facturapi */}
                         <button className="btn btn-ghost btn-sm"
-                          onClick={() => descargarXML(c.factura_cfdi, 'CFDI-' + c.folio + '.xml')}>
+                          onClick={() => descargarDocumento(c.factura_cfdi, 'xml')}>
                           ⬇ XML
+                        </button>
+                        <button className="btn btn-ghost btn-sm"
+                          onClick={() => descargarDocumento(c.factura_cfdi, 'pdf')}>
+                          ⬇ PDF
                         </button>
                       </div>
                     </td>
@@ -447,11 +466,13 @@ function Facturacion({ data, setData, escuela }) {
                     Público en general: XAXX010101000
                   </div>
                 </div>
+                {/* CAMBIO: Se agrega el campo Código Postal */}
                 <div className="form-group">
-                  <label className="form-label">Correo para envío</label>
-                  <input className="form-input" type="email" placeholder="padre@mail.com"
-                    value={formFact.email}
-                    onChange={e => setFormFact(f => ({ ...f, email: e.target.value }))} />
+                  <label className="form-label">Código Postal *</label>
+                  <input className="form-input" placeholder="Ej. 97000"
+                    value={formFact.cp_receptor}
+                    onChange={e => setFormFact(f => ({ ...f, cp_receptor: e.target.value }))}
+                    style={{ fontFamily: 'var(--mono)' }} />
                 </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>
                   <label className="form-label">Razón social *</label>
@@ -459,6 +480,13 @@ function Facturacion({ data, setData, escuela }) {
                     value={formFact.razon_social}
                     onChange={e => setFormFact(f => ({ ...f, razon_social: e.target.value.toUpperCase() }))} />
                 </div>
+                <div className="form-group">
+                  <label className="form-label">Correo para envío</label>
+                  <input className="form-input" type="email" placeholder="padre@mail.com"
+                    value={formFact.email}
+                    onChange={e => setFormFact(f => ({ ...f, email: e.target.value }))} />
+                </div>
+                
                 <div className="form-group">
                   <label className="form-label">Uso del CFDI</label>
                   <select className="form-select" value={formFact.uso_cfdi}
@@ -500,7 +528,7 @@ function Facturacion({ data, setData, escuela }) {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={generarCFDI}
-                disabled={loading || !formFact.rfc || !formFact.razon_social}>
+                disabled={loading || !formFact.rfc || !formFact.razon_social || !formFact.cp_receptor}>
                 {loading
                   ? <><span className="spinner" style={{ borderTopColor: '#fff', marginRight: 8 }}></span>Generando…</>
                   : '📄 Generar CFDI'}
@@ -552,6 +580,7 @@ function Facturacion({ data, setData, escuela }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 {[
                   { l: 'RFC Receptor', v: cfdiVisor.rfc_receptor },
+                  { l: 'Código Postal', v: cfdiVisor.cp_receptor }, // <-- SE MUESTRA EL CP
                   { l: 'Uso CFDI',     v: cfdiVisor.uso_cfdi },
                   { l: 'Subtotal',     v: fmt(cfdiVisor.subtotal) },
                   { l: 'IVA 16%',      v: fmt(cfdiVisor.iva) },
@@ -578,15 +607,11 @@ function Facturacion({ data, setData, escuela }) {
 
               <div style={{ background: 'var(--amber-glow)', border: '1px solid rgba(245,158,11,.2)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 12, color: 'var(--ink-2)' }}>
                 <strong style={{ color: 'var(--amber)' }}>📝 Nota:</strong> XML con estructura CFDI 4.0 válida.
-                Para timbrado real, envíalo a tu PAC (Facturama, SW SAPiens) quien añade los sellos del SAT.
+                El archivo XML no se descarga automáticamente desde Facturapi de esta forma. Descargalo desde la pestaña de "Emitidas"
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModal(null)}>Cerrar</button>
-              <button className="btn btn-primary"
-                onClick={() => descargarXML(cfdiVisor, 'CFDI-' + (cfdiVisor.folio_fiscal || 'nuevo') + '.xml')}>
-                ⬇ Descargar XML
-              </button>
+              <button className="btn className=btn-secondary" onClick={() => setModal(null)}>Cerrar</button>
             </div>
           </div>
         </div>

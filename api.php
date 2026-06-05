@@ -213,64 +213,63 @@ switch ($action) {
         $regimen     = $input['regimen']     ?? '616';
         $email       = $input['email']       ?? '';
         $total       = floatval($input['total']   ?? 0);
-        $subtotal    = round($total / 1.16, 2);
-        $iva         = round($total - $subtotal, 2);
         $descripcion = $input['descripcion'] ?? 'Servicios educativos';
         
-        // En CFDI 4.0 el CP del receptor es obligatorio. 
-        // Idealmente lo pedirías en el frontend, aquí lo dejamos estático por ahora.
+        // CFDI 4.0 exige el Código Postal del receptor. 
+        // Si no lo pides en el frontend, Facturapi arrojará error si no coincide con el RFC.
         $cp_receptor = $input['cp_receptor'] ?? '97000'; 
 
         if (!$rfc || !$razon || $total <= 0) {
             respond(['success' => false, 'error' => 'RFC, razón social y total son requeridos']);
         }
 
-        // 1. Estructuramos el payload JSON que pide el PAC (Modelo Facturama)
-        $payload_pac = [
-            "Receiver" => [
-                "Rfc" => $rfc,
-                "Name" => $razon,
-                "CfdiUse" => $uso,
-                "FiscalRegime" => $regimen,
-                "TaxZipCode" => $cp_receptor 
+        // 1. Estructuramos el payload para Facturapi
+        // Facturapi calcula automáticamente el subtotal e IVA a partir del precio final
+        // si le indicas que el precio incluye impuestos, o puedes enviarlo desglosado.
+        // Aquí enviamos el subtotal y le decimos que agregue el IVA del 16%.
+        $subtotal = round($total / 1.16, 2);
+
+        $payload_facturapi = [
+            "customer" => [
+                "legal_name" => $razon,
+                "tax_id"     => $rfc,
+                "tax_system" => $regimen,
+                "zip"        => $cp_receptor,
+                "email"      => $email
             ],
-            "CfdiType" => "I",
-            "PaymentForm" => "03", // 03 = Transferencia electrónica de fondos
-            "PaymentMethod" => "PUE",
-            "ExpeditionPlace" => "97130", // Código postal de la escuela emisora
-            "Items" => [
+            "items" => [
                 [
-                    "ProductCode" => "86101800", // Servicios educativos
-                    "UnitCode" => "ACT",         // Actividad
-                    "Description" => $descripcion,
-                    "Quantity" => 1,
-                    "UnitPrice" => $subtotal,
-                    "Subtotal" => $subtotal,
-                    "Taxes" => [
-                        [
-                            "Total" => $iva,
-                            "Name" => "IVA",
-                            "Base" => $subtotal,
-                            "Rate" => 0.16,
-                            "IsRetention" => false
+                    "quantity" => 1,
+                    "product" => [
+                        "description" => $descripcion,
+                        "product_key" => "86101800", // Servicios educativos
+                        "price"       => $subtotal,
+                        "taxes"       => [
+                            [
+                                "type" => "IVA",
+                                "rate" => 0.16
+                            ]
                         ]
                     ]
                 ]
-            ]
+            ],
+            "use"          => $uso,
+            "payment_form" => "03", // Transferencia electrónica
+            "payment_method" => "PUE"
         ];
 
-        // 2. Ejecutamos la petición cURL al PAC
-        $ch = curl_init(PAC_API_URL);
+        // 2. Ejecutamos la petición cURL a Facturapi
+        $ch = curl_init('https://www.facturapi.io/v1/invoices');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
-                'Authorization: Basic ' . base64_encode(PAC_USER . ':' . PAC_PASS)
+                'Authorization: Bearer ' . FACTURAPI_KEY
             ],
-            CURLOPT_POSTFIELDS     => json_encode($payload_pac),
-            CURLOPT_TIMEOUT        => 45,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_POSTFIELDS     => json_encode($payload_facturapi),
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false, // Cambiar a true en producción estricta
         ]);
 
         $result = curl_exec($ch);
@@ -279,51 +278,41 @@ switch ($action) {
         curl_close($ch);
 
         if ($err) {
-            log_api("ERROR cURL PAC: " . $err);
-            respond(['success' => false, 'error' => 'Error de conexión con el proveedor de facturación.']);
+            log_api("ERROR cURL Facturapi: " . $err);
+            respond(['success' => false, 'error' => 'Error de red al contactar al PAC.']);
         }
 
         $response_data = json_decode($result, true);
 
-        // 3. Manejo de la respuesta del PAC
-        if ($http_code >= 200 && $http_code < 300 && isset($response_data['Id'])) {
+        // 3. Manejo de la respuesta
+        if ($http_code >= 200 && $http_code < 300 && isset($response_data['id'])) {
             
-            // El PAC nos devuelve el nodo firmado. 
-            // Para obtener el XML real, usualmente se hace una segunda petición rápida 
-            // o el PAC lo envía codificado en base64 en la misma respuesta.
-            // Asumiendo que obtenemos los datos principales:
-            
-            $uuid = $response_data['Complement']['TaxStamp']['Uuid'] ?? 'PENDIENTE';
-            $fecha_timbrado = $response_data['Complement']['TaxStamp']['Date'] ?? date('Y-m-d\TH:i:s');
+            $uuid = $response_data['uuid'] ?? 'PENDIENTE';
             
             log_api("generar_cfdi -> EXITOSO cobro:{$cobro_id} uuid:{$uuid}");
 
             respond([
                 'success'        => true,
+                'facturapi_id'   => $response_data['id'],
                 'uuid'           => $uuid,
                 'folio_fiscal'   => $uuid,
-                'serie'          => $response_data['Serie'] ?? 'A',
-                'folio'          => $response_data['Folio'] ?? '',
-                'fecha_timbrado' => $fecha_timbrado,
+                'serie'          => 'F',
+                'folio'          => $response_data['folio_number'] ?? '',
+                'fecha_timbrado' => $response_data['created_at'] ?? date('Y-m-d\TH:i:s'),
                 'subtotal'       => $subtotal,
-                'iva'            => $iva,
+                'iva'            => round($total - $subtotal, 2),
                 'total'          => $total,
-                // El frontend espera el string XML. Facturama permite descargarlo mediante un endpoint aparte, 
-                // o puedes guardarlo en tu servidor. Aquí enviamos un placeholder o el base64 decodificado si el PAC lo provee.
-                'xml'            => base64_decode($response_data['Xml'] ?? ''), 
-                'qr_url'         => 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode("https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id={$uuid}"),
+                // Facturapi permite descargar el XML con una URL pública si configuras tu cuenta,
+                // o haciendo un GET a https://www.facturapi.io/v1/invoices/{id}/xml
+                'xml'            => '',
+                'qr_url'         => 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($response_data['verification_url'] ?? ''),
+                'nota'           => 'Timbrado exitoso con Facturapi.',
             ]);
 
         } else {
-            // El PAC rechazó el timbrado (Ej. RFC inválido, régimen incompatible)
-            $mensaje_error = $response_data['Message'] ?? 'Error desconocido al timbrar';
-            if (isset($response_data['ModelState'])) {
-                // Facturama devuelve detalles exactos en ModelState
-                $errores_detalle = implode(" | ", array_map(function($e) { return implode(", ", $e); }, $response_data['ModelState']));
-                $mensaje_error .= " - " . $errores_detalle;
-            }
-            
-            log_api("ERROR PAC: " . $result);
+            // Error devuelto por Facturapi (ej. CP no coincide con RFC)
+            $mensaje_error = $response_data['message'] ?? 'Error desconocido al timbrar';
+            log_api("ERROR Facturapi: " . $result);
             respond(['success' => false, 'error' => $mensaje_error]);
         }
     break;

@@ -41,3 +41,6 @@ date_default_timezone_set('America/Mexico_City');
 define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
 define('PAC_USER',    'tu_usuario_pac');
 define('PAC_PASS',    'tu_password_pac');
+
+// ─── Credenciales de Facturapi ───────────────────────────────────────────────
+define('FACTURAPI_KEY', 'sk_test_oC5ZzoaR5Hvmig4maAfxbcevwPoMPNDbZHQg8s3zEr');
