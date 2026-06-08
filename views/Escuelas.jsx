@@ -1,7 +1,7 @@
 /* views/Escuelas.jsx — Super Admin: gestión de escuelas */
 function Escuelas({ data, setData, onSeleccionar }) {
   const { useState } = React;
-  const EMPTY = { nombre:'', clave:'', rfc:'', telefono:'', email:'', direccion:'', logo_emoji:'🏫', plan:'pro', clabe_fija:'', color:'#3b82f6' };
+  const EMPTY = { nombre:'', clave:'', rfc:'', telefono:'', email:'', direccion:'', logo_emoji:'🏫', plan:'pro', clabe_fija:'', color:'#282d65' };
   const [modal, setModal]  = useState(null);
   const [form, setForm]    = useState(EMPTY);
 

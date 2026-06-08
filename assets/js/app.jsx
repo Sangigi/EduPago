@@ -61,8 +61,8 @@ function App() {
       onConfirm: (cobro, json) => {
         // Notificación visual cuando se confirma un pago SPEI
         const div = document.createElement('div');
-        div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;background:#064e3b;border:1px solid #10b981;border-radius:12px;padding:14px 18px;color:#fff;font-family:inherit;font-size:13px;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.4);animation:slideIn .3s ease';
-        div.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:#34d399">✓ Pago SPEI confirmado</div><div style="opacity:.85">' + cobro.cliente + '</div><div style="font-family:monospace;font-size:15px;margin-top:4px;color:#6ee7b7">' + (json.monto_pesos ? '$' + parseFloat(json.monto_pesos).toLocaleString('es-MX') : '') + '</div>';
+        div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;background:#1c2050;border:1px solid #bdcf00;border-radius:12px;padding:14px 18px;color:#fff;font-family:inherit;font-size:13px;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.4);animation:slideIn .3s ease';
+        div.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:#bdcf00">✓ Pago SPEI confirmado</div><div style="opacity:.85">' + cobro.cliente + '</div><div style="font-family:monospace;font-size:15px;margin-top:4px;color:#49af54">' + (json.monto_pesos ? '$' + parseFloat(json.monto_pesos).toLocaleString('es-MX') : '') + '</div>';
         document.body.appendChild(div);
         setTimeout(() => div.remove(), 5000);
       },

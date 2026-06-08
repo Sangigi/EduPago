@@ -30,7 +30,7 @@ const AppModel = (() => {
         plan: 'pro',       // free | pro | enterprise
         fecha_alta: '2026-01-15',
         clabe_fija: '646180633010000055',  // CLABE asignada por STP para esta escuela
-        color: '#3b82f6',
+        color: '#282d65',
       },
       {
         id: 2,

@@ -51,6 +51,28 @@ const AuthController = (() => {
       avatar: 'IV', escuela_id: 3, activo: true,
       fecha_alta: '2026-03-11', creado_por: 1, es_semilla: true,
     },
+    // ── Usuarios de portal de familias (padres) ────────────────────────────
+    {
+      id: 6, email: 'garcia.fam@mail.com',
+      pass: hashPass('familia123'),
+      nombre: 'Roberto García', rol: 'familia',
+      avatar: 'RG', escuela_id: 1, familia_id: 1, activo: true,
+      fecha_alta: '2026-01-20', creado_por: 2, es_semilla: true,
+    },
+    {
+      id: 7, email: 'hernandez.t@mail.com',
+      pass: hashPass('familia123'),
+      nombre: 'Lucía Hernández', rol: 'familia',
+      avatar: 'LH', escuela_id: 1, familia_id: 2, activo: true,
+      fecha_alta: '2026-01-20', creado_por: 2, es_semilla: true,
+    },
+    {
+      id: 8, email: 'mendez.c@mail.com',
+      pass: hashPass('familia123'),
+      nombre: 'Carlos Méndez', rol: 'familia',
+      avatar: 'CM', escuela_id: 2, familia_id: 3, activo: true,
+      fecha_alta: '2026-02-05', creado_por: 4, es_semilla: true,
+    },
   ];
 
   // Hash simple (no criptográfico — en producción usar bcrypt en PHP)
@@ -132,8 +154,8 @@ const AuthController = (() => {
   // Qué roles puede crear cada rol
   function rolesQuePuedeCriar(user) {
     if (!user) return [];
-    if (user.rol === 'superadmin') return ['admin', 'cajero'];
-    if (user.rol === 'admin')      return ['cajero'];
+    if (user.rol === 'superadmin') return ['admin', 'cajero', 'familia'];
+    if (user.rol === 'admin')      return ['cajero', 'familia'];
     return [];
   }
 
@@ -242,11 +264,12 @@ const AuthController = (() => {
 
   // Accesos rápidos demo para pantalla de login
   const DEMO_USERS = [
-    { label:'👑 Super Admin', email:'superadmin@pagalaescuela.mx', pass:'SuperAdmin2026!' },
-    { label:'🏛️ Admin ITM',   email:'admin@itm.edu.mx',            pass:'admin123' },
-    { label:'🧾 Cajero ITM',  email:'cajero@itm.edu.mx',           pass:'cajero123' },
-    { label:'🏫 Admin CEC',   email:'admin@cec.edu.mx',            pass:'admin123' },
-    { label:'⚡ Admin EME',   email:'admin@eme.edu.mx',            pass:'admin123' },
+    { label:'👑 Super Admin',   email:'superadmin@pagalaescuela.mx', pass:'SuperAdmin2026!' },
+    { label:'🏛️ Admin ITM',     email:'admin@itm.edu.mx',            pass:'admin123' },
+    { label:'🧾 Cajero ITM',   email:'cajero@itm.edu.mx',           pass:'cajero123' },
+    { label:'👨‍👩‍👧 Familia García', email:'garcia.fam@mail.com',       pass:'familia123' },
+    { label:'👨‍👩‍👦 Familia Hdez',  email:'hernandez.t@mail.com',       pass:'familia123' },
+    { label:'🏫 Admin CEC',    email:'admin@cec.edu.mx',            pass:'admin123' },
   ];
 
   return {

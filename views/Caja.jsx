@@ -567,7 +567,7 @@ function Caja({ data, setData, user, escuela }) {
             </div>
             <div className="modal-body">
               {/* Resumen del cobro */}
-              <div style={{background:'linear-gradient(135deg,#1e3a8a,#4f46e5)',borderRadius:'var(--radius-lg)',padding:'18px 20px',marginBottom:18}}>
+              <div style={{background:'linear-gradient(135deg,#1c2050,#282d65)',borderRadius:'var(--radius-lg)',padding:'18px 20px',marginBottom:18}}>
                 <div style={{fontSize:11,color:'rgba(255,255,255,.6)',marginBottom:4}}>Total a cobrar</div>
                 <div style={{fontSize:26,fontWeight:800,color:'#fff',fontFamily:'var(--mono)'}}>{fmt(cobroActivo.total)}</div>
                 <div style={{fontSize:12,color:'rgba(255,255,255,.6)',marginTop:4}}>{cobroActivo.folio} · {cobroActivo.cliente}</div>
