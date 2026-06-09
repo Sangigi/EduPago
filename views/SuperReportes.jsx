@@ -19,7 +19,7 @@ function SuperReportes({ data }) {
   });
   const totalMetodos = Object.values(metodoGlobal).reduce((a, b) => a + b, 0) || 1;
 
-  const METODO_ICONS   = { TC:'💳', SPEI:'🏦', CoDi:'📱', Efectivo:'💵' };
+  const METODO_ICONS   = { TC:'card', SPEI:'bank', CoDi:'phone', Efectivo:'pay' };
   const METODO_COLORS  = { TC:'var(--accent)', SPEI:'var(--purple)', CoDi:'var(--green)', Efectivo:'var(--amber)' };
   const PLAN_BADGE     = { free:'badge-gray', pro:'badge-blue', enterprise:'badge-purple' };
 
@@ -44,10 +44,10 @@ function SuperReportes({ data }) {
       {/* KPIs globales */}
       <div className="stats-grid" style={{marginBottom:24}}>
         {[
-          { label:'Total cobrado',   val:fmt(totalGlobal),  icon:'💰', bg:'var(--accent-glow)',  meta:`${data.escuelas.length} escuelas` },
-          { label:'Por cobrar',      val:fmt(pendGlobal),   icon:'⏳', bg:'var(--amber-glow)',   meta:'Pendiente en sistema' },
-          { label:'Total alumnos',   val:alumnosGlobal,     icon:'🎒', bg:'var(--purple-glow)',  meta:'Activos en el sistema' },
-          { label:'Total cobros',    val:cobrosGlobal,      icon:'🧾', bg:'var(--green-glow)',   meta:'Transacciones' },
+          { label:'Total cobrado',   val:fmt(totalGlobal),  icon:'pay', bg:'var(--accent-glow)',  meta:`${data.escuelas.length} escuelas` },
+          { label:'Por cobrar',      val:fmt(pendGlobal),   icon:'history', bg:'var(--amber-glow)',   meta:'Pendiente en sistema' },
+          { label:'Total alumnos',   val:alumnosGlobal,     icon:'alumnos', bg:'var(--purple-glow)',  meta:'Activos en el sistema' },
+          { label:'Total cobros',    val:cobrosGlobal,      icon:'cobros', bg:'var(--green-glow)',   meta:'Transacciones' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-icon" style={{background:s.bg}}>{s.icon}</div>
@@ -117,7 +117,7 @@ function SuperReportes({ data }) {
               <option value="todas">Todas</option>
               {data.escuelas.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
-            <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>📥 Exportar CSV</button>
+            <button className="btn btn-secondary btn-sm" onClick={exportarCSV} style={{display:"flex",alignItems:"center",gap:6}}><Icon name="download" size={14} color="currentColor"/> Exportar CSV</button>
           </div>
         </div>
         <div className="table-wrap">

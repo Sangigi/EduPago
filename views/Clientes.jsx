@@ -64,7 +64,7 @@ function Clientes({ data, setData }) {
 
         <div style={{marginBottom:16}}>
           <div className="search-bar">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"><Icon name="search" size={15} color="currentColor"/></span>
             <input placeholder="Buscar por nombre o correo…" value={q} onChange={e=>setQ(e.target.value)}/>
           </div>
         </div>
@@ -76,7 +76,7 @@ function Clientes({ data, setData }) {
             </thead>
             <tbody>
               {lista.length === 0 && (
-                <tr><td colSpan={9}><div className="empty-state"><div className="empty-icon">👥</div><div className="empty-text">Sin clientes</div></div></td></tr>
+                <tr><td colSpan={9}><div className="empty-state"><div className="empty-icon"><Icon name="familias" size={36} color="currentColor"/></div><div className="empty-text">Sin clientes</div></div></td></tr>
               )}
               {lista.map(c=>(
                 <tr key={c.id} style={{opacity:c.activo?1:.5}}>
@@ -95,7 +95,7 @@ function Clientes({ data, setData }) {
                   <td>
                     {tieneDatosFiscales(c)
                       ? <div>
-                          <span className="badge badge-green" style={{fontSize:10}}>✓ RFC registrado</span>
+                          <span className="badge badge-green" style={{fontSize:10}}><Icon name="check" size={11} color="currentColor"/> RFC registrado</span>
                           <div style={{fontSize:10,color:'var(--ink-4)',fontFamily:'var(--mono)',marginTop:2}}>{c.rfc_factura}</div>
                         </div>
                       : <span className="badge badge-gray" style={{fontSize:10}}>Sin datos</span>
@@ -104,12 +104,12 @@ function Clientes({ data, setData }) {
                   <td>
                     {c.saldo_pendiente > 0
                       ? <span style={{color:'var(--red)',fontFamily:'var(--mono)',fontWeight:600,fontSize:13}}>{fmt(c.saldo_pendiente)}</span>
-                      : <span style={{color:'var(--green)',fontSize:12}}>✓ Al corriente</span>}
+                      : <span style={{color:'var(--green)',fontSize:12}}><Icon name="check" size={11} color="currentColor"/> Al corriente</span>}
                   </td>
                   <td>{c.activo ? <span className="badge badge-green">Activo</span> : <span className="badge badge-gray">Inactivo</span>}</td>
                   <td>
                     <div style={{display:'flex',gap:5}}>
-                      <button className="btn btn-ghost btn-sm" title="Editar datos generales" onClick={()=>{setForm({...c});setModal('form');}}>✏️</button>
+                      <button className="btn btn-ghost btn-sm" title="Editar datos generales" onClick={()=>{setForm({...c});setModal('form');}} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
                       <button className="btn btn-ghost btn-sm" title="Datos fiscales para CFDI"
                         style={{color: tieneDatosFiscales(c) ? 'var(--green)' : 'var(--amber)'}}
                         onClick={()=>{
@@ -125,8 +125,8 @@ function Clientes({ data, setData }) {
                             nombre: c.nombre,
                           });
                           setModal('fiscal');
-                        }}>📄</button>
-                      <button className="btn btn-ghost btn-sm" onClick={()=>toggle(c.id)}>{c.activo?'🔒':'🔓'}</button>
+                        }}><Icon name="cobros" size={14} color="currentColor"/></button>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>toggle(c.id)}>{c.activo ? <Icon name="shield" size={14} color="currentColor"/> : <Icon name="eyeOff" size={14} color="currentColor"/>}</button>
                     </div>
                   </td>
                 </tr>
@@ -142,7 +142,7 @@ function Clientes({ data, setData }) {
           <div className="modal">
             <div className="modal-header">
               <div className="modal-title">{form.id ? 'Editar' : 'Nuevo'} alumno/familia</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -189,12 +189,12 @@ function Clientes({ data, setData }) {
           <div className="modal modal-lg">
             <div className="modal-header">
               <div>
-                <div className="modal-title">📄 Datos fiscales para CFDI</div>
+                <div className="modal-title" style={{display:'flex',alignItems:'center',gap:8}}><Icon name="facturacion2" size={17} color="currentColor"/> Datos fiscales para CFDI</div>
                 <div style={{fontSize:12, color:'var(--ink-3)', marginTop:2}}>
                   {formFiscal.nombre} — Se pre-llenarán automáticamente al generar facturas
                 </div>
               </div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               {/* Aviso informativo */}
@@ -203,7 +203,7 @@ function Clientes({ data, setData }) {
                 background:'var(--accent-glow)', border:'1px solid var(--border-active)',
                 borderRadius:'var(--radius-sm)', fontSize:12, color:'var(--ink-2)', lineHeight:1.6
               }}>
-                💡 Al guardar estos datos, el formulario de facturación los pre-llenará automáticamente
+                Al guardar estos datos, el formulario de facturación los pre-llenará automáticamente
                 cuando generes un CFDI para este cliente. El cajero solo tendrá que confirmar o corregir.
               </div>
 
@@ -273,7 +273,7 @@ function Clientes({ data, setData }) {
               <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={guardarFiscal}
                 disabled={!formFiscal.rfc_factura || !formFiscal.razon_social_factura || !formFiscal.cp_factura}>
-                💾 Guardar datos fiscales
+                Guardar datos fiscales
               </button>
             </div>
           </div>

@@ -70,14 +70,14 @@ function Familias({ data, setData, escuela_id }) {
 
         <div style={{marginBottom:16}}>
           <div className="search-bar">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"><Icon name="search" size={15} color="currentColor"/></span>
             <input placeholder="Buscar familia…" value={q} onChange={e=>setQ(e.target.value)}/>
           </div>
         </div>
 
         {familias.length === 0 && (
           <div className="empty-state">
-            <div className="empty-icon">👨‍👩‍👧‍👦</div>
+            <div className="empty-icon"><Icon name="familias" size={36} color="currentColor"/></div>
             <div className="empty-text">Sin familias registradas</div>
             <div className="empty-sub">Las familias agrupan alumnos del mismo hogar</div>
           </div>
@@ -105,7 +105,7 @@ function Familias({ data, setData, escuela_id }) {
                   width:40, height:40, borderRadius:10,
                   background:'var(--accent-glow)', border:'1px solid var(--border-active)',
                   display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0
-                }}>👨‍👩‍👧‍👦</div>
+                }}><Icon name="familias" size={20} color="currentColor"/></div>
                 <div style={{flex:1, minWidth:0}}>
                   <div style={{fontWeight:600, fontSize:14, color:'var(--ink)'}}>{fam.nombre}</div>
                   <div style={{fontSize:12, color:'var(--ink-3)', marginTop:2}}>
@@ -119,15 +119,15 @@ function Familias({ data, setData, escuela_id }) {
                   </span>
                 )}
                 {saldo === 0 && hijos.length > 0 && (
-                  <span className="badge badge-green" style={{flexShrink:0}}>✓ Al corriente</span>
+                  <span className="badge badge-green" style={{flexShrink:0}}><Icon name="check" size={11} color="currentColor"/> Al corriente</span>
                 )}
                 <div style={{display:'flex', gap:6, flexShrink:0}}>
-                  <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setFormFam({...fam});setModal('familia');}}>✏️</button>
+                  <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setFormFam({...fam});setModal('familia');}} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
                   <button className="btn btn-secondary btn-sm" onClick={e=>{e.stopPropagation();setTargetFamId(fam.id);setFormAlu({...EMPTY_ALU,familia_id:fam.id});setModal('alumno');}}>
                     + Hijo
                   </button>
                 </div>
-                <span style={{color:'var(--ink-4)', fontSize:18, flexShrink:0}}>{isOpen?'▾':'▸'}</span>
+                <span style={{color:'var(--ink-4)', fontSize:18, flexShrink:0}}>{isOpen ? <Icon name="chevronDown" size={18} color="currentColor"/> : <Icon name="arrowRight" size={16} color="currentColor"/>}</span>
               </div>
 
               {/* Hijos de la familia */}
@@ -161,11 +161,11 @@ function Familias({ data, setData, escuela_id }) {
                       </div>
                       {hijo.saldo_pendiente > 0
                         ? <span style={{fontFamily:'var(--mono)', fontSize:12, color:'var(--red)', fontWeight:600}}>{fmt(hijo.saldo_pendiente)}</span>
-                        : <span style={{fontSize:12, color:'var(--green)'}}>✓ Al corriente</span>
+                        : <span style={{fontSize:12, color:'var(--green)', display:'inline-flex', alignItems:'center', gap:4}}><Icon name="check" size={11} color="currentColor"/> Al corriente</span>
                       }
                       <button className="btn btn-ghost btn-sm" onClick={()=>{
                         setFormAlu({...hijo}); setTargetFamId(hijo.familia_id); setModal('alumno');
-                      }}>✏️</button>
+                      }} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
                     </div>
                   ))}
                 </div>
@@ -196,7 +196,7 @@ function Familias({ data, setData, escuela_id }) {
                   </div>
                   {alu.saldo_pendiente > 0
                     ? <span style={{fontFamily:'var(--mono)', fontSize:12, color:'var(--red)'}}>{fmt(alu.saldo_pendiente)}</span>
-                    : <span style={{fontSize:12, color:'var(--green)'}}>✓</span>
+                    : <span style={{fontSize:12, color:'var(--green)'}}><Icon name="check" size={11} color="currentColor"/></span>
                   }
                 </div>
               ))}
@@ -211,7 +211,7 @@ function Familias({ data, setData, escuela_id }) {
           <div className="modal">
             <div className="modal-header">
               <div className="modal-title">{formFam.id ? 'Editar' : 'Nueva'} familia</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -236,7 +236,7 @@ function Familias({ data, setData, escuela_id }) {
               {/* ── Datos fiscales de la familia ── */}
               <div style={{marginTop:18, paddingTop:16, borderTop:'1px solid var(--border-glow)'}}>
                 <div style={{fontSize:11, color:'var(--ink-4)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:12}}>
-                  📄 Datos fiscales (para facturación CFDI)
+                  Datos fiscales (para facturación CFDI)
                 </div>
                 <div style={{marginBottom:10, padding:'8px 12px', background:'var(--accent-glow)', borderRadius:'var(--radius-sm)', fontSize:11.5, color:'var(--ink-2)', lineHeight:1.6}}>
                   Al registrar estos datos, el formulario de CFDI se pre-llenará automáticamente para todos los hijos de esta familia.
@@ -304,12 +304,12 @@ function Familias({ data, setData, escuela_id }) {
           <div className="modal">
             <div className="modal-header">
               <div className="modal-title">{formAlu.id ? 'Editar' : 'Agregar'} alumno</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               {targetFamId && (
                 <div style={{marginBottom:14, padding:'8px 12px', background:'var(--accent-glow)', borderRadius:'var(--radius-sm)', fontSize:12, color:'var(--ink-2)'}}>
-                  👨‍👩‍👧 Familia: <strong>{data.familias.find(f=>f.id===targetFamId)?.nombre}</strong>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:6}}><Icon name="familias" size={14} color="currentColor"/> Familia:</span> <strong>{data.familias.find(f=>f.id===targetFamId)?.nombre}</strong>
                 </div>
               )}
               <div className="form-group">

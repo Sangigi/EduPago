@@ -47,7 +47,7 @@ function Usuarios({ user, data }) {
 
   // Auxiliares de renderizado
   const nombreEscuela = eid => data.escuelas.find(e => e.id === eid)?.nombre || '—';
-  const emojiEscuela  = eid => data.escuelas.find(e => e.id === eid)?.logo_emoji || '🏫';
+  const emojiEscuela  = eid => data.escuelas.find(e => e.id === eid)?.nombre || '';
   const creadorNombre = cid => {
     const u = usuarios.find(u => u.id === cid);
     return u ? u.nombre : cid === null ? 'Sistema' : `#${cid}`;
@@ -71,10 +71,10 @@ function Usuarios({ user, data }) {
 
   // Configuración extendida de Roles con el nuevo Portal de Familias
   const ROL_INFO = {
-    superadmin: { label: 'Super Admin', icon: '👑', color: 'var(--amber)',  bg: 'var(--amber-glow)',  badge: 'badge-amber' },
-    admin:      { label: 'Admin',       icon: '🏫', color: 'var(--accent)', bg: 'var(--accent-glow)', badge: 'badge-blue'  },
-    cajero:     { label: 'Cajero',      icon: '🧾', color: 'var(--green)',  bg: 'var(--green-glow)',  badge: 'badge-green' },
-    familia:    { label: 'Familia',     icon: '🏠', color: '#a855f7',       bg: 'rgba(168, 85, 247, 0.15)', badge: 'badge-purple' },
+    superadmin: { label: 'Super Admin', icon: 'shield', color: 'var(--amber)',  bg: 'var(--amber-glow)',  badge: 'badge-amber' },
+    admin:      { label: 'Admin',       icon: 'escuelas', color: 'var(--accent)', bg: 'var(--accent-glow)', badge: 'badge-blue'  },
+    cajero:     { label: 'Cajero',      icon: 'cobros', color: 'var(--green)',  bg: 'var(--green-glow)',  badge: 'badge-green' },
+    familia:    { label: 'Familia',     icon: 'home', color: '#a855f7',       bg: 'rgba(168, 85, 247, 0.15)', badge: 'badge-purple' },
   };
 
   // ── Crear usuario ──────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ function Usuarios({ user, data }) {
       <div className="modal modal-lg">
         <div className="modal-header">
           <div className="modal-title">{titulo}</div>
-          <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+          <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
         </div>
         <div className="modal-body">
           {errForm && (
@@ -181,7 +181,7 @@ function Usuarios({ user, data }) {
               marginBottom:14, padding:'10px 14px',
               background:'var(--red-glow)', border:'1px solid var(--red)',
               borderRadius:'var(--radius-sm)', fontSize:13, color:'var(--red)'
-            }}>⚠ {errForm}</div>
+            }} style={{display:'flex',alignItems:'center',gap:7}}><Icon name="warning" size={15} color="currentColor"/> {errForm}</div>
           )}
 
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
@@ -231,7 +231,7 @@ function Usuarios({ user, data }) {
                   {familiasUnicas
                     .filter(f => esSuper || f.escuela_id === user.escuela_id)
                     .map(fam=>(
-                      <option key={fam.id} value={fam.id}>🏠 {fam.nombre} (ID Ref: {fam.id})</option>
+                      <option key={fam.id} value={fam.id}>{fam.nombre} (ID Ref: {fam.id})</option>
                     ))
                   }
                 </select>
@@ -301,7 +301,7 @@ function Usuarios({ user, data }) {
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
           <button className="btn btn-primary" onClick={onGuardar}>
-            {modal==='crear' ? '+ Crear usuario' : '💾 Guardar cambios'}
+            {modal==='crear' ? '+ Crear usuario' : 'Guardar cambios'}
           </button>
         </div>
       </div>
@@ -317,7 +317,7 @@ function Usuarios({ user, data }) {
           { rol:'admin',      count: usuarios.filter(u=>u.rol==='admin').length },
           { rol:'cajero',     count: usuarios.filter(u=>u.cajero || u.rol==='cajero').length },
           { rol:'familia',    count: usuarios.filter(u=>u.rol==='familia').length },
-          { label:'Total activos', count: usuarios.filter(u=>u.activo!==false).length, icon:'✅', color:'var(--green)', bg:'var(--green-glow)' },
+          { label:'Total activos', count: usuarios.filter(u=>u.activo!==false).length, icon:'check', color:'var(--green)', bg:'var(--green-glow)' },
         ].map((s,i) => {
           const info = s.rol ? ROL_INFO[s.rol] : null;
           return (
@@ -364,7 +364,7 @@ function Usuarios({ user, data }) {
             </button>
           ))}
           <div className="search-bar" style={{marginLeft:'auto', minWidth:220}}>
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"><Icon name="search" size={15} color="currentColor"/></span>
             <input placeholder="Buscar usuario…" value={q} onChange={e=>setQ(e.target.value)}/>
           </div>
         </div>
@@ -387,7 +387,7 @@ function Usuarios({ user, data }) {
               {lista.length === 0 && (
                 <tr><td colSpan={7}>
                   <div className="empty-state">
-                    <div className="empty-icon">👤</div>
+                    <div className="empty-icon"><Icon name="alumnos" size={36} color="currentColor"/></div>
                     <div className="empty-text">Sin usuarios en este filtro</div>
                   </div>
                 </td></tr>
@@ -425,7 +425,7 @@ function Usuarios({ user, data }) {
                     <td>
                       {u.rol === 'familia' ? (
                         <div style={{fontSize:12, color:'var(--ink-2)'}}>
-                          🏠 <strong style={{color:'var(--purple)'}}>{obtenerNombreFamilia(u.familia_id)}</strong>
+                          <Icon name="home" size={13} color="var(--purple)"/> <strong style={{color:'var(--purple)'}}>{obtenerNombreFamilia(u.familia_id)}</strong>
                           <div style={{fontSize:10, color:'var(--ink-4)', marginTop:2}}>{emojiEscuela(u.escuela_id)} {nombreEscuela(u.escuela_id)}</div>
                         </div>
                       ) : u.escuela_id ? (
@@ -453,18 +453,18 @@ function Usuarios({ user, data }) {
                         {puedeAcc && (
                           <>
                             <button className="btn btn-ghost btn-sm"
-                              onClick={()=>abrirEditar(u)} title="Editar">✏️</button>
+                              onClick={()=>abrirEditar(u)} title="Editar"><Icon name="edit" size={14} color="currentColor"/></button>
                             {!u.es_semilla && (
                               <button className="btn btn-ghost btn-sm"
                                 onClick={()=>setConfirm({tipo:'toggle',userId:u.id})}
                                 title={u.activo===false?'Activar':'Desactivar'}>
-                                {u.activo===false?'🔓':'🔒'}
+                                {u.activo===false ? <Icon name="eyeOff" size={14} color="currentColor"/> : <Icon name="shield" size={14} color="currentColor"/>}
                               </button>
                             )}
                             {!u.es_semilla && (u.creado_por===user.id || esSuper) && (
                               <button className="btn btn-ghost btn-sm"
                                 onClick={()=>setConfirm({tipo:'eliminar',userId:u.id})}
-                                title="Eliminar">🗑</button>
+                                title="Eliminar"><Icon name="trash" size={14} color="currentColor"/></button>
                             )}
                           </>
                         )}
@@ -515,7 +515,7 @@ function Usuarios({ user, data }) {
           <div className="modal" style={{maxWidth:380}}>
             <div className="modal-header">
               <div className="modal-title">
-                {confirm.tipo==='toggle' ? 'Cambiar estado' : '⚠ Eliminar usuario'}
+                {confirm.tipo==='toggle' ? 'Cambiar estado' : 'Eliminar usuario'}
               </div>
             </div>
             <div className="modal-body">

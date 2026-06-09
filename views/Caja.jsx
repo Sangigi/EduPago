@@ -223,10 +223,10 @@ function Caja({ data, setData, user, escuela }) {
   };
 
   const METODOS = [
-    { id:'TC', label:'Tarjeta', icon:'💳' },
-    { id:'SPEI', label:'SPEI', icon:'🏦' },
-    { id:'CoDi', label:'CoDi', icon:'📱' },
-    { id:'Efectivo', label:'Efectivo', icon:'💵' },
+    { id:'TC', label:'Tarjeta', icon:'card' },
+    { id:'SPEI', label:'SPEI', icon:'bank' },
+    { id:'CoDi', label:'CoDi', icon:'phone' },
+    { id:'Efectivo', label:'Efectivo', icon:'pay' },
   ];
 
   return (
@@ -235,16 +235,16 @@ function Caja({ data, setData, user, escuela }) {
       {/* ── Productos ── */}
       <div className="pos-products">
         <div className="pos-header">
-          <span style={{fontWeight:600,fontSize:13.5}}>💡 Conceptos de cobro</span>
+          <span style={{fontWeight:600,fontSize:13.5,display:'flex',alignItems:'center',gap:7}}><Icon name="productos" size={15} color="currentColor"/> Conceptos de cobro</span>
           <div className="search-bar" style={{flex:1,marginLeft:10}}>
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"><Icon name="search" size={15} color="currentColor"/></span>
             <input placeholder="Buscar concepto…" value={q} onChange={e=>setQ(e.target.value)}/>
           </div>
         </div>
         <div className="pos-products-grid">
           {productosFiltrados.length === 0 && (
             <div className="empty-state" style={{gridColumn:'1/-1'}}>
-              <div className="empty-icon">🔍</div>
+              <div className="empty-icon"><Icon name="search" size={36} color="currentColor"/></div>
               <div className="empty-text">Sin resultados</div>
             </div>
           )}
@@ -262,9 +262,9 @@ function Caja({ data, setData, user, escuela }) {
       {/* ── Carrito ── */}
       <div className="pos-cart">
         <div className="cart-header">
-          <div style={{fontWeight:600,fontSize:13.5,marginBottom:8}}>🧾 Cobro en curso</div>
+          <div style={{fontWeight:600,fontSize:13.5,marginBottom:8,display:'flex',alignItems:'center',gap:7}}><Icon name="cobros" size={15} color="currentColor"/> Cobro en curso</div>
           <div className="cart-customer" onClick={()=>setModal('cliente')}>
-            <span style={{fontSize:18}}>{clienteSel ? '👤' : '👥'}</span>
+            <Icon name={clienteSel ? 'alumnos' : 'familias'} size={18} color="var(--ink-3)"/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:500,color:'var(--accent)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                 {clienteSel?.nombre || 'Seleccionar alumno/familia'}
@@ -278,7 +278,7 @@ function Caja({ data, setData, user, escuela }) {
         <div className="cart-items">
           {carrito.length === 0 && (
             <div className="empty-state">
-              <div className="empty-icon">🛒</div>
+              <div className="empty-icon"><Icon name="caja" size={36} color="currentColor"/></div>
               <div className="empty-text">Sin conceptos</div>
               <div className="empty-sub">Selecciona conceptos de la izquierda</div>
             </div>
@@ -296,7 +296,7 @@ function Caja({ data, setData, user, escuela }) {
               </div>
               <div style={{textAlign:'right'}}>
                 <div className="cart-item-price">{fmt(item.precio*item.qty)}</div>
-                <span className="cart-remove" onClick={()=>removeItem(item.id)}>✕</span>
+                <span className="cart-remove" onClick={()=>removeItem(item.id)}><Icon name="close" size={15} color="currentColor"/></span>
               </div>
             </div>
           ))}
@@ -318,7 +318,7 @@ function Caja({ data, setData, user, escuela }) {
         </div>
 
         <button className="checkout-btn" onClick={cobrar} disabled={!carrito.length || total===0}>
-          {metodo==='TC'?'💳':metodo==='SPEI'?'🏦':metodo==='CoDi'?'📱':'💵'} Cobrar {fmt(total)}
+          Cobrar {fmt(total)}
         </button>
       </div>
 
@@ -328,7 +328,7 @@ function Caja({ data, setData, user, escuela }) {
           <div className="modal">
             <div className="modal-header">
               <div className="modal-title">Seleccionar alumno o familia</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body" style={{padding:'10px 18px'}}>
               {data.clientes.filter(c=>c.activo).map(c=>{
@@ -346,7 +346,7 @@ function Caja({ data, setData, user, escuela }) {
                       <div style={{fontSize:11,color:'var(--ink-3)',display:'flex',gap:6,flexWrap:'wrap'}}>
                         <span>{c.grado}</span>
                         {c.matricula && <span style={{fontFamily:'var(--mono)'}}>· {c.matricula}</span>}
-                        {fam && <span>· 👨‍👩‍👧 {fam.nombre.split(' ').slice(1,3).join(' ')}</span>}
+                        {fam && <span style={{display:'inline-flex',alignItems:'center',gap:5}}>· <Icon name="familias" size={13} color="currentColor"/> {fam.nombre.split(' ').slice(1,3).join(' ')}</span>}
                       </div>
                     </div>
                     {c.saldo_pendiente>0 && (
@@ -372,8 +372,8 @@ function Caja({ data, setData, user, escuela }) {
         <div className="modal-backdrop">
           <div className="modal modal-lg">
             <div className="modal-header">
-              <div className="modal-title">🏦 Pago por Transferencia SPEI</div>
-              {speiStatus==='confirmado' && <span className="badge badge-green">✓ Confirmado</span>}
+              <div className="modal-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon name="bank" size={18} color="currentColor"/> Pago por Transferencia SPEI</div>
+              {speiStatus==='confirmado' && <span className="badge badge-green"><Icon name="check" size={11} color="currentColor"/> Confirmado</span>}
             </div>
             <div className="modal-body">
               {speiStatus !== 'confirmado' && (
@@ -387,7 +387,7 @@ function Caja({ data, setData, user, escuela }) {
 
                   {speiStatus === 'error' && (
                     <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:'var(--radius)',padding:'14px 16px',marginBottom:14}}>
-                      <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}>❌ Error al obtener CLABE</div>
+                      <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}><Icon name="warning" size={15} color="var(--red)"/> Error al obtener CLABE</div>
                       <div style={{fontSize:12,color:'var(--ink-2)'}}>{speiError}</div>
                     </div>
                   )}
@@ -408,14 +408,14 @@ function Caja({ data, setData, user, escuela }) {
                         <span className="spei-value" style={{fontSize:16}}>{fmt(cobroActivo?.total)}</span>
                       </div>
                       <div className="spei-info-row" style={{flexDirection:'column',gap:2,alignItems:'flex-start',gridColumn:'1/-1'}}>
-                        <span className="spei-label">⚠ Concepto obligatorio (copiar exacto)</span>
+                        <span className="spei-label" style={{display:'flex',alignItems:'center',gap:5}}><Icon name="warning" size={12} color="currentColor"/> Concepto obligatorio (copiar exacto)</span>
                         <span className="spei-value" style={{fontFamily:'var(--mono)',letterSpacing:1,color:'#fbbf24',fontSize:15}}>
                           {cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.folio}
                         </span>
                       </div>
                     </div>
                     <button className={`copy-btn ${copiedCLABE?'copied':''}`} onClick={copiarCLABE}>
-                      {copiedCLABE ? '✓ ¡CLABE copiada!' : '📋 Copiar CLABE al portapapeles'}
+                      {copiedCLABE ? 'CLABE copiada' : 'Copiar CLABE al portapapeles'}
                     </button>
                     </div>
                   )}
@@ -443,7 +443,7 @@ function Caja({ data, setData, user, escuela }) {
 
               {speiStatus==='confirmado' && (
                 <div style={{textAlign:'center',padding:'10px 0'}}>
-                  <div style={{fontSize:52,marginBottom:12}}>✅</div>
+                  <div style={{display:'flex',justifyContent:'center',marginBottom:12}}><Icon name="check" size={52} color="var(--green)"/></div>
                   <div style={{fontSize:18,fontWeight:700,color:'var(--ink)',marginBottom:6}}>¡Pago recibido!</div>
                   <div style={{fontSize:13.5,color:'var(--ink-3)',marginBottom:4}}>
                     Transferencia verificada · {cobroActivo.folio}
@@ -465,7 +465,7 @@ function Caja({ data, setData, user, escuela }) {
                     ? <><span className="spinner"></span> Verificando…</>
                     : speiStatus==='generando'
                     ? <><span className="spinner"></span> Generando…</>
-                    : '✓ Confirmar pago recibido'}
+                    : 'Confirmar pago recibido'}
                 </button>
               )}
               {speiStatus==='confirmado' && (
@@ -483,8 +483,8 @@ function Caja({ data, setData, user, escuela }) {
         <div className="modal-backdrop">
           <div className="modal">
             <div className="modal-header">
-              <div className="modal-title">📱 Pago con CoDi</div>
-              {codiStatus==='pagado' && <span className="badge badge-green">✓ Pagado</span>}
+              <div className="modal-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon name="phone" size={18} color="currentColor"/> Pago con CoDi</div>
+              {codiStatus==='pagado' && <span className="badge badge-green"><Icon name="check" size={11} color="currentColor"/> Pagado</span>}
               {codiStatus==='expirado' && <span className="badge badge-red">Expirado</span>}
             </div>
             <div className="modal-body" style={{textAlign:'center'}}>
@@ -493,7 +493,7 @@ function Caja({ data, setData, user, escuela }) {
                   <p style={{fontSize:13,color:'var(--ink-3)',marginBottom:14}}>
                     {codiStatus==='esperando'
                       ? 'Muestra este código QR al cliente para pagar desde su app bancaria'
-                      : '📲 ¡Código escaneado! Esperando confirmación del banco…'}
+                      : '¡Código escaneado! Esperando confirmación del banco…'}
                   </p>
                   <div className="codi-qr" style={{opacity:codiStatus==='escaneado'?.6:1,transition:'opacity .3s'}}>
                     <QRSimple value={cobroActivo.codi_payload}/>
@@ -505,7 +505,7 @@ function Caja({ data, setData, user, escuela }) {
 
                   {/* Timer */}
                   <div style={{fontSize:13,color:codiTimer<60?'var(--red)':'var(--ink-3)',fontFamily:'var(--mono)',marginBottom:10}}>
-                    ⏱ Expira en {Math.floor(codiTimer/60)}:{String(codiTimer%60).padStart(2,'0')}
+                    Expira en {Math.floor(codiTimer/60)}:{String(codiTimer%60).padStart(2,'0')}
                   </div>
                   <div className="progress-bar" style={{marginBottom:14}}>
                     <div className="progress-fill" style={{
@@ -526,7 +526,7 @@ function Caja({ data, setData, user, escuela }) {
 
               {codiStatus==='pagado' && (
                 <div style={{padding:'10px 0'}}>
-                  <div style={{fontSize:52,marginBottom:10}}>✅</div>
+                  <div style={{display:'flex',justifyContent:'center',marginBottom:10}}><Icon name="check" size={52} color="var(--green)"/></div>
                   <div style={{fontSize:18,fontWeight:700,color:'var(--ink)',marginBottom:4}}>¡Pago CoDi confirmado!</div>
                   <div style={{fontSize:22,fontWeight:800,color:'var(--green)',fontFamily:'var(--mono)'}}>{fmt(cobroActivo.total)}</div>
                 </div>
@@ -534,7 +534,7 @@ function Caja({ data, setData, user, escuela }) {
 
               {codiStatus==='expirado' && (
                 <div style={{padding:'10px 0'}}>
-                  <div style={{fontSize:46,marginBottom:10}}>⏰</div>
+                  <div style={{display:'flex',justifyContent:'center',marginBottom:10}}><Icon name="history" size={46} color="var(--amber)"/></div>
                   <div style={{fontSize:16,fontWeight:600,color:'var(--red)',marginBottom:6}}>Código expirado</div>
                   <p style={{fontSize:13,color:'var(--ink-3)'}}>El código QR ha vencido. Puedes confirmar manualmente si el cliente ya pagó.</p>
                 </div>
@@ -544,7 +544,7 @@ function Caja({ data, setData, user, escuela }) {
               <button className="btn btn-secondary" onClick={cerrarModal}>Cancelar</button>
               {(codiStatus==='esperando'||codiStatus==='escaneado'||codiStatus==='expirado') && (
                 <button className="btn btn-primary" onClick={confirmarCoDi}>
-                  ✓ Confirmar pago manualmente
+                  Confirmar pago manualmente
                 </button>
               )}
               {codiStatus==='pagado' && (
@@ -562,8 +562,8 @@ function Caja({ data, setData, user, escuela }) {
         <div className="modal-backdrop">
           <div className="modal modal-lg">
             <div className="modal-header">
-              <div className="modal-title">💳 Cobro con Tarjeta</div>
-              {tcInfo && <span className="badge badge-green">✓ Liga generada</span>}
+              <div className="modal-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon name="card" size={18} color="currentColor"/> Cobro con Tarjeta</div>
+              {tcInfo && <span className="badge badge-green"><Icon name="check" size={11} color="currentColor"/> Liga generada</span>}
             </div>
             <div className="modal-body">
               {/* Resumen del cobro */}
@@ -584,7 +584,7 @@ function Caja({ data, setData, user, escuela }) {
               {/* Error */}
               {tcError && !tcLoading && (
                 <div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:'var(--radius)',padding:'14px 16px',marginBottom:14}}>
-                  <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}>❌ Error al generar liga de pago</div>
+                  <div style={{fontWeight:600,color:'var(--red)',marginBottom:4}}><Icon name="warning" size={15} color="var(--red)"/> Error al generar liga de pago</div>
                   <div style={{fontSize:12,color:'var(--ink-2)'}}>{tcError}</div>
                   <div style={{fontSize:11,color:'var(--ink-3)',marginTop:8}}>
                     Puedes confirmar el cobro manualmente si el cliente pagó por otro medio.
@@ -623,7 +623,7 @@ function Caja({ data, setData, user, escuela }) {
                   <button className="copy-btn" onClick={()=>{
                     navigator.clipboard.writeText(tcInfo.url).catch(()=>{});
                   }} style={{width:'100%',marginBottom:10}}>
-                    📋 Copiar enlace de pago
+                    Copiar enlace de pago
                   </button>
 
                   <div className="verif-row">
@@ -642,7 +642,7 @@ function Caja({ data, setData, user, escuela }) {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={cerrarModal}>Cancelar</button>
               <button className="btn btn-primary" onClick={confirmarTC}>
-                ✓ Confirmar pago recibido
+                Confirmar pago recibido
               </button>
             </div>
           </div>
@@ -654,7 +654,7 @@ function Caja({ data, setData, user, escuela }) {
         <div className="modal-backdrop">
           <div className="modal">
             <div className="modal-header">
-              <div className="modal-title">✅ Cobro completado</div>
+              <div className="modal-title" style={{display:'flex',alignItems:'center',gap:8}}><Icon name="check" size={17} color="var(--green)"/> Cobro completado</div>
             </div>
             <div className="modal-body">
               <div className="ticket">
@@ -685,7 +685,7 @@ function Caja({ data, setData, user, escuela }) {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={()=>window.print()}>🖨️ Imprimir</button>
+              <button className="btn btn-secondary" onClick={()=>window.print()}><Icon name="download" size={14} color="currentColor"/> Imprimir</button>
               <button className="btn btn-primary" onClick={()=>{setModal(null);setCobroActivo(null);resetCarrito();}}>
                 Nuevo cobro
               </button>

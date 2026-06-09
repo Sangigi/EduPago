@@ -23,7 +23,7 @@ function Reportes({ data, escuela }) {
   const totalFilt  = cobrosFilt.reduce((a,c)=>a+c.total,0);
 
   const metodos = ['TC','SPEI','CoDi','Efectivo'];
-  const metodoIconos = { TC:'💳', SPEI:'🏦', CoDi:'📱', Efectivo:'💵' };
+  const metodoIconos = { TC:'card', SPEI:'bank', CoDi:'phone', Efectivo:'pay' };
   const metodoColors = { TC:'var(--accent)', SPEI:'var(--purple)', CoDi:'var(--green)', Efectivo:'var(--amber)' };
 
   const porMetodo = metodos.map(m => ({
@@ -71,32 +71,32 @@ function Reportes({ data, escuela }) {
                 onClick={()=>setPeriodo(val)}>{label}</button>
             ))}
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>📥 CSV</button>
+          <button className="btn btn-secondary btn-sm" onClick={exportarCSV} style={{display:"flex",alignItems:"center",gap:6}}><Icon name="download" size={14} color="currentColor"/> CSV</button>
         </div>
       </div>
 
       {/* KPIs */}
       <div className="stats-grid" style={{marginBottom:20}}>
         <div className="stat-card">
-          <div className="stat-icon" style={{background:'var(--accent-glow)'}}>💰</div>
+          <div className="stat-icon" style={{background:'var(--accent-glow)'}}><Icon name="pay" size={19} color="var(--lime)"/></div>
           <div className="stat-label">Total cobrado</div>
           <div className="stat-value" style={{fontSize:20}}>{fmt(totalFilt)}</div>
           <div className="stat-meta">{cobrosFilt.length} transacciones</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon" style={{background:'var(--amber-glow)'}}>⏳</div>
+          <div className="stat-icon" style={{background:'var(--amber-glow)'}}><Icon name="history" size={19} color="var(--amber)"/></div>
           <div className="stat-label">Pendiente total</div>
           <div className="stat-value" style={{fontSize:20,color:'var(--amber)'}}>{fmt(data.cobros.filter(c=>c.estado==='pendiente').reduce((a,c)=>a+c.total,0))}</div>
           <div className="stat-meta">{data.cobros.filter(c=>c.estado==='pendiente').length} cobros</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon" style={{background:'var(--purple-glow)'}}>👨‍👩‍👧‍👦</div>
+          <div className="stat-icon" style={{background:'var(--purple-glow)'}}><Icon name="familias" size={20} color="currentColor"/></div>
           <div className="stat-label">Familias activas</div>
           <div className="stat-value" style={{fontSize:20}}>{data.familias.filter(f=>f.activa).length}</div>
           <div className="stat-meta">{data.clientes.filter(c=>c.familia_id).length} alumnos agrupados</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon" style={{background:'var(--green-glow)'}}>🎒</div>
+          <div className="stat-icon" style={{background:'var(--green-glow)'}}><Icon name="alumnos" size={19} color="var(--green)"/></div>
           <div className="stat-label">Alumnos activos</div>
           <div className="stat-value" style={{fontSize:20}}>{data.clientes.filter(c=>c.activo).length}</div>
           <div className="stat-meta">{data.clientes.filter(c=>c.activo&&c.saldo_pendiente>0).length} con adeudo</div>
@@ -166,7 +166,7 @@ function Reportes({ data, escuela }) {
                 </tr>
               ))}
               {data.clientes.filter(c=>c.saldo_pendiente>0&&c.activo).length===0 && (
-                <tr><td colSpan={5}><div className="empty-state"><div className="empty-icon">✅</div><div className="empty-text">¡Todos al corriente!</div></div></td></tr>
+                <tr><td colSpan={5}><div className="empty-state"><div className="empty-icon"><Icon name="check" size={36} color="currentColor"/></div><div className="empty-text">¡Todos al corriente!</div></div></td></tr>
               )}
             </tbody>
           </table>

@@ -151,7 +151,7 @@ function Facturacion({ data, setData, escuela }) {
       const r = await res.json();
       if (r.success) {
         setSimStatus('ok');
-        setSimMsg('✓ Pago simulado. Auth: ' + r.autorizacion + '. El polling de la Caja lo detectará en ~10s.');
+        setSimMsg('Pago simulado. Auth: ' + r.autorizacion + '. El polling de la Caja lo detectará en ~10s.');
       } else throw new Error(r.error);
     } catch(e) {
       setSimStatus('error');
@@ -198,7 +198,7 @@ function Facturacion({ data, setData, escuela }) {
         justifyContent: 'space-between', flexWrap: 'wrap', gap: 12
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ fontSize: 36 }}>📄</div>
+          <div style={{display:"flex",justifyContent:"center"}}><Icon name="facturacion2" size={36} color="var(--ink-4)"/></div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>Facturación CFDI 4.0</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', marginTop: 2 }}>
@@ -221,13 +221,13 @@ function Facturacion({ data, setData, escuela }) {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border-glow)' }}>
         <button style={tabStyle(tab === 'pendientes')} onClick={() => setTab('pendientes')}>
-          📋 Por facturar ({pendientesFact.length})
+          Por facturar ({pendientesFact.length})
         </button>
         <button style={tabStyle(tab === 'emitidas')} onClick={() => setTab('emitidas')}>
-          ✅ Emitidas ({emitidas.length})
+          Emitidas ({emitidas.length})
         </button>
         <button style={tabStyle(tab === 'spei_sim')} onClick={() => setTab('spei_sim')}>
-          🧪 Simulador SPEI
+          Simulador SPEI
         </button>
       </div>
 
@@ -241,7 +241,7 @@ function Facturacion({ data, setData, escuela }) {
             </div>
           </div>
           <div className="search-bar" style={{ marginBottom: 16 }}>
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"><Icon name="search" size={15} color="currentColor"/></span>
             <input placeholder="Buscar por folio o cliente…" value={q} onChange={e => setQ(e.target.value)} />
           </div>
           <div className="table-wrap">
@@ -252,7 +252,7 @@ function Facturacion({ data, setData, escuela }) {
               <tbody>
                 {filtrar(pendientesFact).length === 0 && (
                   <tr><td colSpan={6}><div className="empty-state">
-                    <div className="empty-icon">🎉</div>
+                    <div className="empty-icon"><Icon name="check" size={36} color="currentColor"/></div>
                     <div className="empty-text">¡Todo facturado!</div>
                   </div></td></tr>
                 )}
@@ -265,7 +265,7 @@ function Facturacion({ data, setData, escuela }) {
                     <td><span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{fmt(c.total)}</span></td>
                     <td>
                       <button className="btn btn-primary btn-sm" onClick={() => abrirSolicitar(c)}>
-                        📄 Generar CFDI
+                        Generar CFDI
                       </button>
                     </td>
                   </tr>
@@ -312,7 +312,7 @@ function Facturacion({ data, setData, escuela }) {
                       <div style={{ display: 'flex', gap: 5 }}>
                         <button className="btn btn-ghost btn-sm"
                           onClick={() => { setCfdiVisor({ ...c.factura_cfdi, cobro: c }); setModal('visor'); }}>
-                          👁 Ver
+                          Ver
                         </button>
                          {/* CAMBIO: Se usa la función para descargar de Facturapi */}
                         <button className="btn btn-ghost btn-sm"
@@ -338,7 +338,7 @@ function Facturacion({ data, setData, escuela }) {
         <div>
           <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid var(--amber)' }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ fontSize: 28, flexShrink: 0 }}>🧪</div>
+              <div style={{ flexShrink: 0 }}><Icon name="settings" size={28} color="var(--amber)"/></div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)', marginBottom: 4 }}>Simulador de pago SPEI</div>
                 <div style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6 }}>
@@ -347,7 +347,7 @@ function Facturacion({ data, setData, escuela }) {
                   lo detecta automáticamente en ~10 segundos.
                 </div>
                 <div style={{ marginTop: 8, fontSize: 12, color: 'var(--amber)', background: 'var(--amber-glow)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', display: 'inline-block' }}>
-                  ⚠ Solo para ambiente de pruebas
+                  Solo para ambiente de pruebas
                 </div>
               </div>
             </div>
@@ -417,7 +417,7 @@ function Facturacion({ data, setData, escuela }) {
             )}
             {simStatus === 'error' && (
               <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--red-glow)', border: '1px solid var(--red)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--red)' }}>
-                ⚠ {simMsg}
+                {simMsg}
               </div>
             )}
 
@@ -425,14 +425,14 @@ function Facturacion({ data, setData, escuela }) {
               <button className="btn btn-primary" onClick={simularSPEI} disabled={simLoading || !simRef || !simMonto}>
                 {simLoading
                   ? <><span className="spinner" style={{ borderTopColor: '#fff', marginRight: 8 }}></span>Enviando…</>
-                  : '🚀 Simular transferencia SPEI'}
+                  : 'Simular transferencia SPEI'}
               </button>
               {simStatus === 'ok' && (
                 <button className="btn btn-secondary" onClick={() => {
                   SpeiPoller.verificarAhora();
                   setSimMsg(prev => prev + ' (verificando ahora…)');
                 }}>
-                  🔄 Verificar ahora
+                  Verificar ahora
                 </button>
               )}
             </div>
@@ -474,24 +474,24 @@ function Facturacion({ data, setData, escuela }) {
                   {cobroSel.folio} · {cobroSel.cliente} · <span style={{ fontFamily: 'var(--mono)' }}>{fmt(cobroSel.total)}</span>
                 </div>
               </div>
-              <button className="btn btn-ghost btn-sm" onClick={() => setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               {errMsg && (
                 <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--red-glow)', border: '1px solid var(--red)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--red)' }}>
-                  ⚠ {errMsg}
+                  {errMsg}
                 </div>
               )}
               {/* Banner: datos pre-llenados desde perfil (solo si realmente hay datos) */}
               {formFact._preLlenado && (
                 <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--green-glow)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--green)', display:'flex', alignItems:'center', gap:8 }}>
-                  ✓ Datos fiscales pre-llenados desde el perfil del cliente. Verifica antes de generar.
+                  Datos fiscales pre-llenados desde el perfil del cliente. Verifica antes de generar.
                 </div>
               )}
               {/* Banner: sin datos fiscales registrados */}
               {!formFact._preLlenado && cobroSel && (
                 <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--amber-glow)', border: '1px solid rgba(245,158,11,.25)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--amber)', display:'flex', alignItems:'center', gap:8 }}>
-                  ⚠ Este cliente no tiene datos fiscales guardados en su perfil. Llena el formulario o registra sus datos en Clientes → 📄.
+                  Este cliente no tiene datos fiscales guardados. Llena el formulario o registra sus datos en Clientes → .
                 </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -580,7 +580,7 @@ function Facturacion({ data, setData, escuela }) {
                 disabled={loading || !formFact.rfc || !formFact.razon_social || !formFact.cp_receptor}>
                 {loading
                   ? <><span className="spinner" style={{ borderTopColor: '#fff', marginRight: 8 }}></span>Generando…</>
-                  : '📄 Generar CFDI'}
+                  : 'Generar CFDI'}
               </button>
             </div>
           </div>
@@ -593,10 +593,10 @@ function Facturacion({ data, setData, escuela }) {
           <div className="modal modal-lg">
             <div className="modal-header">
               <div>
-                <div className="modal-title">✅ CFDI Generado</div>
+                <div className="modal-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon name="check" size={18} color="var(--green)"/> CFDI Generado</div>
                 <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>Listo para timbrado con PAC</div>
               </div>
-              <button className="btn btn-ghost btn-sm" onClick={() => setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               {/* UUID block */}
@@ -656,7 +656,7 @@ function Facturacion({ data, setData, escuela }) {
               )}
 
               <div style={{ background: 'var(--amber-glow)', border: '1px solid rgba(245,158,11,.2)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 12, color: 'var(--ink-2)' }}>
-                <strong style={{ color: 'var(--amber)' }}>📝 Nota:</strong> XML con estructura CFDI 4.0 válida.
+                <strong style={{ color: 'var(--amber)' }}>Nota:</strong> XML con estructura CFDI 4.0 válida.
                 El archivo XML no se descarga automáticamente desde Facturapi de esta forma. Descargalo desde la pestaña de "Emitidas"
               </div>
             </div>

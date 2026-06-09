@@ -1,36 +1,37 @@
-/* assets/js/app.jsx — App principal v2 Multi-escuela */
+/* assets/js/app.jsx — App principal v3 · SVG icons · Pagalaescuela branding */
 
 const NAV_ITEMS = [
-  { id:'dashboard', label:'Dashboard',         icon:'📊', section:'principal',     roles:['cajero','admin','superadmin'] },
-  { id:'caja',      label:'Caja de cobros',    icon:'🏪', section:'principal',     roles:['cajero','admin','superadmin'] },
-  { id:'cobros',    label:'Historial cobros',  icon:'🧾', section:'principal',     roles:['cajero','admin','superadmin'] },
-  { id:'alumnos',   label:'Alumnos',           icon:'🎒', section:'principal',     roles:['cajero','admin','superadmin'] },
-  { id:'familias',  label:'Familias',          icon:'👨‍👩‍👧‍👦', section:'principal',   roles:['cajero','admin','superadmin'] },
-  { id:'productos', label:'Conceptos de pago', icon:'💡', section:'configuración', roles:['admin','superadmin'] },
-  { id:'facturacion',label:'Facturación CFDI', icon:'📄', section:'configuración', roles:['admin','superadmin'] },
-  { id:'emails',    label:'Correos',           icon:'✉',  section:'configuración', roles:['admin','superadmin'] },
-  { id:'reportes',  label:'Reportes',          icon:'📈', section:'configuración', roles:['admin','superadmin'] },
-  { id:'escuelas',  label:'Escuelas',          icon:'🏫', section:'superadmin',    roles:['superadmin'] },
-  { id:'usuarios',  label:'Usuarios',          icon:'👤', section:'superadmin',    roles:['superadmin'] },
-  { id:'miequipo',  label:'Mi equipo',         icon:'👥', section:'configuración', roles:['admin'] },
-  { id:'superreportes', label:'Reportes globales', icon:'🌐', section:'superadmin', roles:['superadmin'] },
+  { id:'dashboard',     label:'Dashboard',         icon:'dashboard',     section:'principal',     roles:['cajero','admin','superadmin'] },
+  { id:'caja',          label:'Caja de cobros',    icon:'caja',          section:'principal',     roles:['cajero','admin','superadmin'] },
+  { id:'cobros',        label:'Historial cobros',  icon:'cobros',        section:'principal',     roles:['cajero','admin','superadmin'] },
+  { id:'alumnos',       label:'Alumnos',           icon:'alumnos',       section:'principal',     roles:['cajero','admin','superadmin'] },
+  { id:'familias',      label:'Familias',          icon:'familias',      section:'principal',     roles:['cajero','admin','superadmin'] },
+  { id:'productos',     label:'Conceptos de pago', icon:'productos',     section:'configuración', roles:['admin','superadmin'] },
+  { id:'facturacion',   label:'Facturación CFDI',  icon:'facturacion2',  section:'configuración', roles:['admin','superadmin'] },
+  { id:'emails',        label:'Correos',           icon:'emails',        section:'configuración', roles:['admin','superadmin'] },
+  { id:'reportes',      label:'Reportes',          icon:'reportes',      section:'configuración', roles:['admin','superadmin'] },
+  { id:'escuelas',      label:'Escuelas',          icon:'escuelas',      section:'superadmin',    roles:['superadmin'] },
+  { id:'usuarios',      label:'Usuarios',          icon:'usuarios',      section:'superadmin',    roles:['superadmin'] },
+  { id:'miequipo',      label:'Mi equipo',         icon:'miequipo',      section:'configuración', roles:['admin'] },
+  { id:'superreportes', label:'Reportes globales', icon:'superreportes', section:'superadmin',    roles:['superadmin'] },
 ];
 
 const TITLES = {
   dashboard:'Dashboard', caja:'Caja de cobros', cobros:'Historial de cobros',
   alumnos:'Alumnos', familias:'Familias', productos:'Conceptos de pago',
   facturacion:'Facturación CFDI', emails:'Correos', reportes:'Reportes',
-  escuelas:'Gestión de Escuelas', superreportes:'Reportes Globales', usuarios:'Gestión de Usuarios', miequipo:'Mi Equipo',
+  escuelas:'Gestión de Escuelas', superreportes:'Reportes Globales',
+  usuarios:'Gestión de Usuarios', miequipo:'Mi Equipo',
 };
 
 function App() {
   const { useState, useEffect, useRef } = React;
   const dataRef = useRef(null);
-  const [user, setUser]         = useState(null);
-  const [data, setData]         = useState(null);
-  const [view, setView]         = useState('dashboard');
-  const [theme, setTheme]       = useState('dark');
-  const [escuelaActiva, setEscuelaActiva] = useState(null); // ID escuela activa
+  const [user, setUser]                 = useState(null);
+  const [data, setData]                 = useState(null);
+  const [view, setView]                 = useState('dashboard');
+  const [theme, setTheme]               = useState('dark');
+  const [escuelaActiva, setEscuelaActiva] = useState(null);
 
   useEffect(() => {
     const session = AuthController.getSession();
@@ -43,7 +44,6 @@ function App() {
     dataRef.current = loaded;
   }, []);
 
-  // Mantener dataRef sincronizado con data para el poller
   useEffect(() => { dataRef.current = data; }, [data]);
 
   const handleLogin = u => {
@@ -54,15 +54,13 @@ function App() {
     setData(loaded);
     dataRef.current = loaded;
     setView('dashboard');
-    // Iniciar poller global SPEI
     SpeiPoller.iniciar({
       getData:   () => dataRef.current,
       setData:   setData,
       onConfirm: (cobro, json) => {
-        // Notificación visual cuando se confirma un pago SPEI
         const div = document.createElement('div');
         div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;background:#1c2050;border:1px solid #bdcf00;border-radius:12px;padding:14px 18px;color:#fff;font-family:inherit;font-size:13px;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.4);animation:slideIn .3s ease';
-        div.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:#bdcf00">✓ Pago SPEI confirmado</div><div style="opacity:.85">' + cobro.cliente + '</div><div style="font-family:monospace;font-size:15px;margin-top:4px;color:#49af54">' + (json.monto_pesos ? '$' + parseFloat(json.monto_pesos).toLocaleString('es-MX') : '') + '</div>';
+        div.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:#bdcf00">Pago SPEI confirmado</div><div style="opacity:.85">' + cobro.cliente + '</div><div style="font-family:monospace;font-size:15px;margin-top:4px;color:#49af54">' + (json.monto_pesos ? '$' + parseFloat(json.monto_pesos).toLocaleString('es-MX') : '') + '</div>';
         document.body.appendChild(div);
         setTimeout(() => div.remove(), 5000);
       },
@@ -85,13 +83,11 @@ function App() {
 
   if (!user) return <Login onLogin={handleLogin}/>;
 
-  // Si el usuario es de tipo familia, mostrar el portal de padres en lugar del admin
   if (user.rol === 'familia') {
     const escuela = data ? data.escuelas.find(e => e.id === user.escuela_id) || null : null;
     return data
-      ? <PortalFamilia data={data} setData={setData} user={user} escuela={escuela}
-          onLogout={handleLogout}/>
-      : <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'#6b7280'}}>Cargando…</div>;
+      ? <PortalFamilia data={data} setData={setData} user={user} escuela={escuela} onLogout={handleLogout}/>
+      : <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--ink-3)'}}>Cargando…</div>;
   }
 
   if (!data) return (
@@ -100,9 +96,8 @@ function App() {
     </div>
   );
 
-  // Filtrar datos por escuela activa (excepto superadmin que puede ver todo)
-  const esSuper = AuthController.isSuperAdmin(user);
-  const escuela = data.escuelas.find(e => e.id === escuelaActiva) || null;
+  const esSuper      = AuthController.isSuperAdmin(user);
+  const escuela      = data.escuelas.find(e => e.id === escuelaActiva) || null;
 
   const dataScopeed = esSuper && !escuelaActiva ? data : {
     ...data,
@@ -115,11 +110,8 @@ function App() {
 
   const pendientes = dataScopeed.cobros.filter(c => c.estado === 'pendiente').length;
 
-  // Nav filtrado por rol
-  const secciones = [...new Set(NAV_ITEMS
-    .filter(n => n.roles.includes(user.rol))
-    .map(n => n.section))];
-  const navItems = NAV_ITEMS.filter(n => n.roles.includes(user.rol));
+  const secciones = [...new Set(NAV_ITEMS.filter(n => n.roles.includes(user.rol)).map(n => n.section))];
+  const navItems  = NAV_ITEMS.filter(n => n.roles.includes(user.rol));
 
   const renderView = () => {
     switch(view) {
@@ -140,7 +132,6 @@ function App() {
     }
   };
 
-  // Fusionar datos scopeados de vuelta al estado global
   function mergeScoped(globalData, newScoped, eid) {
     if (!eid) return newScoped;
     return {
@@ -154,38 +145,68 @@ function App() {
     };
   }
 
+  /* ── Iniciales del usuario para avatar ── */
+  const initials = user.avatar || user.nombre.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const avatarCls = user.rol==='superadmin' ? 'avatar-super' : user.rol==='admin' ? 'avatar-admin' : 'avatar-cajero';
+
+  const roleLabel = { superadmin: 'Super Admin', admin: 'Admin', cajero: 'Cajero' };
+
   return (
     <div className="app">
-      {/* ── SIDEBAR ── */}
+      {/* ══ SIDEBAR ══ */}
       <aside className="sidebar">
+
+        {/* Logo Pagalaescuela */}
         <div className="sidebar-brand">
-          <div className="brand-logo">
-            <div className="brand-icon">{escuela?.logo_emoji || '🎓'}</div>
+          <img
+            src="assets/logo.jpeg"
+            alt="paga la escuela"
+            style={{height:44, width:'100%', objectFit:'contain', objectPosition:'left center', display:'block'}}
+            onError={e => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+          {/* Fallback si falla la imagen */}
+          <div style={{display:'none', alignItems:'center', gap:10}}>
+            <div className="brand-icon">
+              <Icon name="escuelas" size={18} color="var(--navy)"/>
+            </div>
             <div>
               <div className="brand-name">EduPago</div>
-              <div className="brand-sub" style={{color: escuela?.color || 'var(--ink-3)', opacity:.9}}>
-                {escuela ? escuela.clave : (esSuper ? 'Super Admin' : 'Cobros Escolar')}
-              </div>
+              <div className="brand-sub">Pagalaescuela.com</div>
             </div>
           </div>
         </div>
 
-        {/* Selector de escuela para superadmin */}
-        {esSuper && (
-          <div style={{padding:'10px 14px', borderBottom:'1px solid var(--border-glow)'}}>
-            <select
-              style={{width:'100%', background:'var(--bg-surface-2)', border:'1px solid var(--border-glow)', borderRadius:'var(--radius-sm)', color:'var(--ink)', padding:'7px 10px', fontSize:12, fontFamily:'var(--font)', outline:'none'}}
-              value={escuelaActiva || ''}
-              onChange={e => { setEscuelaActiva(e.target.value ? parseInt(e.target.value) : null); setView('dashboard'); }}
-            >
-              <option value="">🌐 Vista global</option>
-              {data.escuelas.map(e => (
-                <option key={e.id} value={e.id}>{e.logo_emoji} {e.nombre}</option>
-              ))}
-            </select>
+        {/* Escuela activa label */}
+        {escuela && (
+          <div style={{padding:'8px 16px 10px', borderBottom:'1px solid var(--border-glow)'}}>
+            <div style={{fontSize:11, color:'var(--ink-4)', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:2}}>Escuela activa</div>
+            <div style={{fontSize:13, fontWeight:600, color:'var(--lime)'}}>{escuela.nombre}</div>
           </div>
         )}
 
+        {/* Selector de escuela para superadmin */}
+        {esSuper && (
+          <div style={{padding:'10px 12px', borderBottom:'1px solid var(--border-glow)'}}>
+            <div style={{position:'relative'}}>
+              <Icon name="globe" size={14} color="var(--ink-4)" style={{position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}/>
+              <select
+                style={{width:'100%', background:'var(--bg-surface-2)', border:'1px solid var(--border-glow)', borderRadius:'var(--radius-sm)', color:'var(--ink)', padding:'7px 10px 7px 28px', fontSize:12, fontFamily:'var(--font)', outline:'none', appearance:'none'}}
+                value={escuelaActiva || ''}
+                onChange={e => { setEscuelaActiva(e.target.value ? parseInt(e.target.value) : null); setView('dashboard'); }}
+              >
+                <option value="">Vista global</option>
+                {data.escuelas.map(e => (
+                  <option key={e.id} value={e.id}>{e.nombre}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Nav */}
         <nav className="sidebar-nav">
           {secciones.map(sec => (
             <div key={sec}>
@@ -195,7 +216,7 @@ function App() {
                   className={`nav-item ${view === n.id ? 'active' : ''}`}
                   onClick={() => setView(n.id)}
                 >
-                  <span className="nav-icon">{n.icon}</span>
+                  <Icon name={n.icon} size={17} color="currentColor"/>
                   {n.label}
                   {n.id === 'cobros' && pendientes > 0 && (
                     <span className="nav-badge">{pendientes}</span>
@@ -206,27 +227,30 @@ function App() {
           ))}
         </nav>
 
+        {/* Footer: user info */}
         <div className="sidebar-footer">
           <div className="user-card">
-            <div className={`avatar ${user.rol==='superadmin'?'avatar-super':user.rol==='admin'?'avatar-admin':'avatar-cajero'}`}>
-              {user.avatar || user.nombre.split(' ').map(w=>w[0]).join('').slice(0,2)}
-            </div>
+            <div className={`avatar ${avatarCls}`}>{initials}</div>
             <div className="user-info">
               <div className="user-name">{user.nombre}</div>
-              <div className="user-role">
-                {user.rol==='superadmin'?'👑 Super Admin':user.rol==='admin'?'🏫 Admin':'🧾 Cajero'}
-              </div>
+              <div className="user-role">{roleLabel[user.rol] || user.rol}</div>
             </div>
-            <button className="logout-btn" onClick={handleLogout} title="Cerrar sesión">⏻</button>
+            <button className="logout-btn" onClick={handleLogout} title="Cerrar sesión">
+              <Icon name="logout" size={17} color="currentColor"/>
+            </button>
           </div>
         </div>
       </aside>
 
-      {/* ── MAIN ── */}
+      {/* ══ MAIN ══ */}
       <main className="main">
         <header className="topbar">
           <div className="topbar-title">
-            {escuela && <span style={{color:escuela.color, marginRight:8}}>{escuela.logo_emoji}</span>}
+            {escuela && (
+              <span style={{marginRight:8, opacity:.6}}>
+                <Icon name="escuelas" size={16} color="var(--lime)"/>
+              </span>
+            )}
             {TITLES[view] || 'EduPago'}
           </div>
           <div className="topbar-actions">
@@ -236,15 +260,17 @@ function App() {
                 background:'var(--amber-glow)', border:'1px solid rgba(245,158,11,.2)',
                 borderRadius:'var(--radius-sm)', cursor:'pointer'
               }}>
-                <span style={{fontSize:14}}>⏳</span>
+                <Icon name="bell" size={14} color="#fbbf24"/>
                 <span style={{fontSize:12, fontWeight:600, color:'#fbbf24'}}>{pendientes} pendiente{pendientes>1?'s':''}</span>
               </div>
             )}
-            <button className="btn btn-primary btn-sm" onClick={() => setView('caja')}>
-              + Nuevo cobro
+            <button className="btn btn-primary btn-sm" onClick={() => setView('caja')}
+              style={{display:'flex',alignItems:'center',gap:6}}>
+              <Icon name="plus" size={14} color="var(--navy)"/>
+              Nuevo cobro
             </button>
-            <button className="theme-toggle" onClick={toggleTheme}>
-              {theme === 'dark' ? '☀️' : '🌙'}
+            <button className="theme-toggle" onClick={toggleTheme} title="Cambiar tema">
+              <Icon name={theme==='dark'?'sun':'moon'} size={16} color="currentColor"/>
             </button>
           </div>
         </header>

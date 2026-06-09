@@ -1,7 +1,7 @@
 /* views/Escuelas.jsx — Super Admin: gestión de escuelas */
 function Escuelas({ data, setData, onSeleccionar }) {
   const { useState } = React;
-  const EMPTY = { nombre:'', clave:'', rfc:'', telefono:'', email:'', direccion:'', logo_emoji:'🏫', plan:'pro', clabe_fija:'', color:'#282d65' };
+  const EMPTY = { nombre:'', clave:'', rfc:'', telefono:'', email:'', direccion:'', logo_emoji:'', plan:'pro', clabe_fija:'', color:'#282d65' };
   const [modal, setModal]  = useState(null);
   const [form, setForm]    = useState(EMPTY);
 
@@ -76,9 +76,9 @@ function Escuelas({ data, setData, onSeleccionar }) {
 
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:16}}>
                 {[
-                  {label:'Alumnos', val:m.alumnos, icon:'🎒'},
-                  {label:'Cobros',  val:m.cobros,  icon:'🧾'},
-                  {label:'Cobrado', val:fmt(m.cobrado).replace('MX$','$'), icon:'💰'},
+                  {label:'Alumnos', val:m.alumnos, icon:'alumnos'},
+                  {label:'Cobros',  val:m.cobros,  icon:'cobros'},
+                  {label:'Cobrado', val:fmt(m.cobrado).replace('MX$','$'), icon:'pay'},
                 ].map(stat => (
                   <div key={stat.label} style={{
                     background:'var(--glass-light)', borderRadius:'var(--radius-sm)',
@@ -92,11 +92,11 @@ function Escuelas({ data, setData, onSeleccionar }) {
               </div>
 
               <div style={{fontSize:12, color:'var(--ink-3)', marginBottom:14}}>
-                <div>📧 {esc.email}</div>
-                <div style={{marginTop:4}}>📍 {esc.direccion}</div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}><Icon name="emails" size={13} color="var(--ink-4)"/> {esc.email}</div>
+                <div style={{marginTop:4,display:'flex',alignItems:'center',gap:6}}><Icon name="globe" size={13} color="var(--ink-4)"/> {esc.direccion}</div>
                 {esc.clabe_fija && (
                   <div style={{marginTop:4, fontFamily:'var(--mono)', fontSize:11}}>
-                    🏦 CLABE: {esc.clabe_fija}
+                    <span style={{display:'inline-flex',alignItems:'center',gap:5}}><Icon name="bank" size={13} color="var(--ink-4)"/> CLABE: {esc.clabe_fija}</span>
                   </div>
                 )}
               </div>
@@ -105,9 +105,9 @@ function Escuelas({ data, setData, onSeleccionar }) {
                 <button className="btn btn-primary btn-sm" style={{flex:1}} onClick={()=>onSeleccionar(esc.id)}>
                   Entrar →
                 </button>
-                <button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...esc});setModal('form');}}>✏️</button>
+                <button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...esc});setModal('form');}} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
                 <button className="btn btn-secondary btn-sm" onClick={()=>toggleActiva(esc.id)}>
-                  {esc.activa?'🔒':'🔓'}
+                  {esc.activa ? <Icon name="shield" size={14} color="currentColor"/> : <Icon name="eyeOff" size={14} color="currentColor"/>}
                 </button>
               </div>
             </div>
@@ -120,7 +120,7 @@ function Escuelas({ data, setData, onSeleccionar }) {
           <div className="modal modal-lg">
             <div className="modal-header">
               <div className="modal-title">{form.id ? 'Editar' : 'Nueva'} escuela</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>

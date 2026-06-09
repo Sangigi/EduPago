@@ -264,12 +264,12 @@ const AuthController = (() => {
 
   // Accesos rápidos demo para pantalla de login
   const DEMO_USERS = [
-    { label:'👑 Super Admin',   email:'superadmin@pagalaescuela.mx', pass:'SuperAdmin2026!' },
-    { label:'🏛️ Admin ITM',     email:'admin@itm.edu.mx',            pass:'admin123' },
-    { label:'🧾 Cajero ITM',   email:'cajero@itm.edu.mx',           pass:'cajero123' },
-    { label:'👨‍👩‍👧 Familia García', email:'garcia.fam@mail.com',       pass:'familia123' },
-    { label:'👨‍👩‍👦 Familia Hdez',  email:'hernandez.t@mail.com',       pass:'familia123' },
-    { label:'🏫 Admin CEC',    email:'admin@cec.edu.mx',            pass:'admin123' },
+    { label:'Super Admin',   email:'superadmin@pagalaescuela.mx', pass:'SuperAdmin2026!' },
+    { label:'Admin ITM',     email:'admin@itm.edu.mx',            pass:'admin123' },
+    { label:'Cajero ITM',   email:'cajero@itm.edu.mx',           pass:'cajero123' },
+    { label:'Familia García', email:'garcia.fam@mail.com',       pass:'familia123' },
+    { label:'Familia Hdez',  email:'hernandez.t@mail.com',       pass:'familia123' },
+    { label:'Admin CEC',    email:'admin@cec.edu.mx',            pass:'admin123' },
   ];
 
   return {

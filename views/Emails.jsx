@@ -2,9 +2,9 @@
 function Emails({ data, setData }) {
   const { useState } = React;
   const TIPOS = [
-    {id:'comprobante', label:'Comprobante de pago', icon:'✅'},
-    {id:'recordatorio', label:'Recordatorio de pago', icon:'⏰'},
-    {id:'bienvenida', label:'Bienvenida a EduPago', icon:'👋'},
+    {id:'comprobante', label:'Comprobante de pago', icon:'check'},
+    {id:'recordatorio', label:'Recordatorio de pago', icon:'bell'},
+    {id:'bienvenida', label:'Bienvenida a EduPago', icon:'home'},
   ];
   const EMPTY = { para:'', asunto:'', cuerpo:'', tipo:'comprobante' };
   const [modal, setModal] = useState(false);
@@ -50,7 +50,7 @@ function Emails({ data, setData }) {
         <div className="card">
           <div className="card-header">
             <div style={{display:'flex',gap:8}}>
-              {[['enviados','📤 Enviados'],['recibidos','📥 Recibidos']].map(([k,l])=>(
+              {[['enviados','Enviados'],['recibidos','Recibidos']].map(([k,l])=>(
                 <button key={k} className={`btn ${tab===k?'btn-primary':'btn-secondary'} btn-sm`} onClick={()=>setTab(k)}>{l}</button>
               ))}
             </div>
@@ -59,10 +59,10 @@ function Emails({ data, setData }) {
 
           {tab==='enviados' && (
             <div>
-              {enviados.length === 0 && <div className="empty-state"><div className="empty-icon">📤</div><div className="empty-text">Sin correos enviados</div></div>}
+              {enviados.length === 0 && <div className="empty-state"><div className="empty-icon"><Icon name="emails" size={36} color="currentColor"/></div><div className="empty-text">Sin correos enviados</div></div>}
               {[...enviados].reverse().map(e=>(
                 <div key={e.id} style={{padding:'12px 0',borderBottom:'1px solid var(--glass-light)',display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{width:36,height:36,background:'var(--accent-glow)',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>✉</div>
+                  <div style={{width:36,height:36,background:'var(--accent-glow)',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}><Icon name="emails" size={18} color="var(--lime)"/></div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:500,color:'var(--ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.asunto}</div>
                     <div style={{fontSize:11.5,color:'var(--ink-3)',marginTop:2}}>Para: {e.para} · {fmtDate(e.fecha)}</div>
@@ -75,13 +75,13 @@ function Emails({ data, setData }) {
 
           {tab==='recibidos' && (
             <div>
-              {recibidos.length === 0 && <div className="empty-state"><div className="empty-icon">📥</div><div className="empty-text">Sin correos recibidos</div></div>}
+              {recibidos.length === 0 && <div className="empty-state"><div className="empty-icon"><Icon name="download" size={36} color="currentColor"/></div><div className="empty-text">Sin correos recibidos</div></div>}
               {[...recibidos].reverse().map(e=>(
                 <div key={e.id} onClick={()=>marcarLeido(e.id)}
                   style={{padding:'12px 0',borderBottom:'1px solid var(--glass-light)',display:'flex',alignItems:'center',gap:12,cursor:'pointer',
                     opacity:e.leido?.85:1}}>
                   <div style={{width:36,height:36,background:e.leido?'var(--glass-light)':'var(--accent-glow)',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>
-                    {e.leido?'📭':'📬'}
+                    {e.leido ? <Icon name="emails" size={14} color="currentColor"/> : <Icon name="bell" size={14} color="currentColor"/>}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:e.leido?400:600,color:'var(--ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.asunto}</div>
@@ -100,7 +100,7 @@ function Emails({ data, setData }) {
             <div className="card-header">
               <div className="card-title">Cobros pendientes</div>
             </div>
-            {pendientes.length === 0 && <div className="empty-state"><div className="empty-text">Sin pendientes 🎉</div></div>}
+            {pendientes.length === 0 && <div className="empty-state"><div className="empty-text">Sin pendientes check</div></div>}
             {pendientes.map(c=>(
               <div key={c.id} style={{padding:'8px 0',borderBottom:'1px solid var(--glass-light)'}}>
                 <div style={{fontSize:12.5,fontWeight:500,color:'var(--ink)'}}>{c.cliente}</div>
@@ -118,7 +118,7 @@ function Emails({ data, setData }) {
                   });
                   setModal(true);
                 }}>
-                  ⏰ Enviar recordatorio
+                  Enviar recordatorio
                 </button>
               </div>
             ))}
@@ -131,8 +131,8 @@ function Emails({ data, setData }) {
         <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
           <div className="modal modal-lg">
             <div className="modal-header">
-              <div className="modal-title">✉ Nuevo correo</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(false)}>✕</button>
+              <div className="modal-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon name="emails" size={17} color="currentColor"/> Nuevo correo</div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(false)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -164,7 +164,7 @@ function Emails({ data, setData }) {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={()=>setModal(false)} disabled={sending}>Cancelar</button>
               <button className="btn btn-primary" onClick={enviar} disabled={sending||!form.para||!form.asunto}>
-                {sending?<><span className="spinner"></span> Enviando…</>:'📤 Enviar'}
+                {sending?<><span className="spinner"></span> Enviando…</>:<><Icon name="upload" size={14} color="currentColor"/> Enviar</>}
               </button>
             </div>
           </div>

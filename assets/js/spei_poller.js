@@ -38,7 +38,7 @@ const SpeiPoller = (() => {
             return updated;
           });
           if (_onConfirm) _onConfirm(cobro, json);
-          console.log('[SpeiPoller] ✓ Confirmado:', ref, cobro.cliente);
+          console.log('[SpeiPoller] Confirmado:', ref, cobro.cliente);
         }
       } catch(e) {
         // Silencioso — next tick

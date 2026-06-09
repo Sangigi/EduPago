@@ -61,7 +61,7 @@ function Cobros({ data, setData }) {
             <div className="card-title">Historial de cobros</div>
             <div className="card-sub">{lista.length} resultados</div>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={exportarCSV}>📥 Exportar CSV</button>
+          <button className="btn btn-secondary btn-sm" onClick={exportarCSV} style={{display:"flex",alignItems:"center",gap:6}}><Icon name="download" size={14} color="currentColor"/> Exportar CSV</button>
         </div>
 
         {/* Filtros rápidos */}
@@ -77,15 +77,15 @@ function Cobros({ data, setData }) {
           <select className="form-select" style={{fontSize:12,padding:'4px 10px',width:'auto',marginLeft:'auto'}}
             value={filtroMetodo} onChange={e=>setFiltroMetodo(e.target.value)}>
             <option value="todos">Todos los métodos</option>
-            <option value="TC">💳 Tarjeta</option>
-            <option value="SPEI">🏦 SPEI</option>
-            <option value="CoDi">📱 CoDi</option>
-            <option value="Efectivo">💵 Efectivo</option>
+            <option value="TC">Tarjeta</option>
+            <option value="SPEI">SPEI</option>
+            <option value="CoDi">CoDi</option>
+            <option value="Efectivo">Efectivo</option>
           </select>
         </div>
 
         <div className="search-bar" style={{marginBottom:16}}>
-          <span className="search-icon">🔍</span>
+          <span className="search-icon"><Icon name="search" size={15} color="currentColor"/></span>
           <input placeholder="Buscar por folio, cliente, matrícula…" value={q} onChange={e=>setQ(e.target.value)}/>
         </div>
 
@@ -99,7 +99,7 @@ function Cobros({ data, setData }) {
             </thead>
             <tbody>
               {lista.length === 0 && (
-                <tr><td colSpan={8}><div className="empty-state"><div className="empty-icon">🧾</div><div className="empty-text">Sin cobros en este filtro</div></div></td></tr>
+                <tr><td colSpan={8}><div className="empty-state"><div className="empty-icon"><Icon name="cobros" size={36} color="currentColor"/></div><div className="empty-text">Sin cobros en este filtro</div></div></td></tr>
               )}
               {lista.map(c => (
                 <tr key={c.id} style={{cursor:'pointer'}} onClick={()=>setDetalle(c)}>
@@ -114,12 +114,12 @@ function Cobros({ data, setData }) {
                     <div style={{display:'flex',gap:4}}>
                       {c.estado==='pendiente' && (
                         <>
-                          <button className="btn btn-primary btn-sm" onClick={()=>confirmarManual(c.id)} title="Confirmar">✓</button>
-                          <button className="btn btn-ghost btn-sm" onClick={()=>cancelar(c.id)} title="Cancelar">✕</button>
+                          <button className="btn btn-primary btn-sm" onClick={()=>confirmarManual(c.id)} title="Confirmar"><Icon name="check" size={14} color="currentColor"/></button>
+                          <button className="btn btn-ghost btn-sm" onClick={()=>cancelar(c.id)} title="Cancelar"><Icon name="close" size={16} color="currentColor"/></button>
                         </>
                       )}
                       {c.estado==='pagado' && (
-                        <button className="btn btn-ghost btn-sm" onClick={()=>setDetalle(c)}>🧾</button>
+                        <button className="btn btn-ghost btn-sm" onClick={()=>setDetalle(c)}><Icon name="cobros" size={15} color="currentColor"/></button>
                       )}
                     </div>
                   </td>
@@ -139,7 +139,7 @@ function Cobros({ data, setData }) {
                 <div className="modal-title">{detalle.folio}</div>
                 <div style={{fontSize:12,color:'var(--ink-3)',marginTop:2}}>{detalle.fecha} · <EstadoBadge estado={detalle.estado}/></div>
               </div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setDetalle(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setDetalle(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
@@ -180,7 +180,7 @@ function Cobros({ data, setData }) {
               {detalle.estado==='pendiente' && (
                 <>
                   <button className="btn btn-secondary" onClick={()=>cancelar(detalle.id)}>Cancelar cobro</button>
-                  <button className="btn btn-primary" onClick={()=>confirmarManual(detalle.id)}>✓ Confirmar pago</button>
+                  <button className="btn btn-primary" onClick={()=>confirmarManual(detalle.id)} style={{display:"flex",alignItems:"center",gap:6}}><Icon name="check" size={15} color="currentColor"/> Confirmar pago</button>
                 </>
               )}
               {detalle.estado!=='pendiente' && (

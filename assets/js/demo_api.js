@@ -225,9 +225,9 @@ const DemoAPI = (() => {
       box-shadow:0 4px 20px rgba(0,0,0,.4);
     `;
     banner.innerHTML = `
-      <div style="font-weight:700;color:#bdcf00;margin-bottom:3px">🧪 Modo Demo Local</div>
+      <div style="font-weight:700;color:#bdcf00;margin-bottom:3px">Modo Demo Local</div>
       <div style="opacity:.8">PHP no detectado. Los pagos SPEI, TC y CFDI funcionan en modo simulado. Sube el proyecto a Hostinger para activar el backend real.</div>
-      <button onclick="this.parentElement.remove()" style="margin-top:6px;background:rgba(255,255,255,.1);border:none;color:#93c5fd;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:11px">Entendido ✓</button>
+      <button onclick="this.parentElement.remove()" style="margin-top:6px;background:rgba(255,255,255,.1);border:none;color:#93c5fd;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:11px">Entendido</button>
     `;
     document.body.appendChild(banner);
   }

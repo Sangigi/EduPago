@@ -2,7 +2,7 @@
 function Productos({ data, setData, escuela_id }) {
   const { useState } = React;
   const CATS = ['colegiatura','anualidad','inscripcion','examen','uniforme','material','transporte','comedor','extracurricular','beca','otro'];
-  const EMPTY = { nombre:'', categoria:'colegiatura', precio:0, emoji:'📚', activo:true };
+  const EMPTY = { nombre:'', categoria:'colegiatura', precio:0, emoji:'', activo:true };
   const [modal, setModal] = useState(null);
   const [form, setForm]   = useState(EMPTY);
   const [q, setQ]         = useState('');
@@ -53,14 +53,14 @@ function Productos({ data, setData, escuela_id }) {
         </div>
 
         <div className="search-bar" style={{marginBottom:16}}>
-          <span className="search-icon">🔍</span>
+          <span className="search-icon"><Icon name="search" size={15} color="currentColor"/></span>
           <input placeholder="Buscar conceptos…" value={q} onChange={e=>setQ(e.target.value)}/>
         </div>
 
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:12}}>
           {lista.length === 0 && (
             <div className="empty-state" style={{gridColumn:'1/-1'}}>
-              <div className="empty-icon">💡</div>
+              <div className="empty-icon"><Icon name="productos" size={36} color="currentColor"/></div>
               <div className="empty-text">Sin conceptos</div>
               <div className="empty-sub">Crea los conceptos de pago de esta escuela</div>
             </div>
@@ -91,8 +91,8 @@ function Productos({ data, setData, escuela_id }) {
                 {p.precio<0 && <span style={{fontSize:12,fontFamily:'var(--font)',color:'var(--ink-4)',marginLeft:4}}>descuento</span>}
               </div>
               <div style={{display:'flex',gap:6}}>
-                <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={()=>{setForm({...p});setModal('form');}}>✏️ Editar</button>
-                <button className="btn btn-ghost btn-sm" onClick={()=>toggleActivo(p.id)}>{p.activo?'🔒':'🔓'}</button>
+                <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={()=>{setForm({...p});setModal('form');}}><Icon name="edit" size={14} color="currentColor"/> Editar</button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>toggleActivo(p.id)}>{p.activo ? <Icon name="shield" size={14} color="currentColor"/> : <Icon name="eyeOff" size={14} color="currentColor"/>}</button>
               </div>
             </div>
           ))}
@@ -104,7 +104,7 @@ function Productos({ data, setData, escuela_id }) {
           <div className="modal">
             <div className="modal-header">
               <div className="modal-title">{form.id?'Editar':'Nuevo'} concepto</div>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
               <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:12,alignItems:'start',marginBottom:12}}>
