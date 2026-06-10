@@ -210,7 +210,7 @@ body::after  { background:var(--lime); bottom:-15%; right:-15%; animation-delay:
 /* ── CARDS ── */
 .card {
   background:var(--bg-surface); backdrop-filter:var(--blur);
-  border:1px solid var(--border-glow); border-radius:var(--radius-lg);
+  border:1px solid var(--border-glow);
   padding:22px; box-shadow:var(--shadow-glass);
 }
 .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; }
