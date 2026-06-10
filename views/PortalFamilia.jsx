@@ -158,7 +158,7 @@ function PortalFamilia({ data, setData, user, escuela, onLogout }) {
         <img
           src="assets/logo.jpeg"
           alt="paga la escuela"
-          style={{height:42, objectFit:'contain', display:'block'}}
+          style={{height:42, objectFit:'contain', display:'block', borderRadius:'10px'}}
           onError={e => {
             e.target.style.display = 'none';
             e.target.nextSibling.style.display = 'flex';
