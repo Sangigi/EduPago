@@ -112,7 +112,7 @@ function Escuelas({ data, setData, onSeleccionar }) {
                     background:'var(--glass-light)', borderRadius:'var(--radius-sm)',
                     padding:'10px 10px', textAlign:'center'
                   }}>
-                    <div style={{fontSize:16, marginBottom:4}}>{stat.icon}</div>
+                    <div style={{marginBottom:4, display:'flex', justifyContent:'center'}}><Icon name={stat.icon} size={16} color="var(--navy)"/></div>
                     <div style={{fontSize:13, fontWeight:700, color:'var(--ink)', fontFamily:stat.label==='Cobrado'?'var(--mono)':undefined}}>{stat.val}</div>
                     <div style={{fontSize:10, color:'var(--ink-4)', textTransform:'uppercase', letterSpacing:'.4px'}}>{stat.label}</div>
                   </div>

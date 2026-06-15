@@ -112,13 +112,13 @@ function Dashboard({ data, user, escuela, allData }) {
 
       <div className="stats-grid">
         {[
-          {label:'Total cobrado',   val:fmt(stats.totalCobrado),   icon:'pay', bg:'var(--accent-glow)',  meta:`${data.cobros.filter(c=>c.estado==='pagado').length} cobros pagados`, color:''},
-          {label:'Por cobrar',      val:fmt(stats.totalPendiente), icon:'history', bg:'var(--amber-glow)',   meta:`${pendientes.length} cobros pendientes`, color:'var(--amber)'},
-          {label:'Cobrado hoy',     val:fmt(stats.cobrosHoy),      icon:'cobros', bg:'var(--green-glow)',   meta:`${data.cobros.filter(c=>c.fecha===new Date().toISOString().slice(0,10)&&c.estado==='pagado').length} transacciones hoy`, color:''},
-          {label:'Alumnos activos', val:data.clientes.filter(c=>c.activo).length, icon:'alumnos', bg:'var(--purple-glow)', meta:`${data.clientes.filter(c=>c.activo&&c.saldo_pendiente>0).length} con saldo pendiente`, color:''},
+          {label:'Total cobrado',   val:fmt(stats.totalCobrado),   icon:'pay', bg:'var(--accent-glow)',  iconColor:'var(--navy)', meta:`${data.cobros.filter(c=>c.estado==='pagado').length} cobros pagados`, color:''},
+          {label:'Por cobrar',      val:fmt(stats.totalPendiente), icon:'history', bg:'var(--amber-glow)',  iconColor:'var(--amber)', meta:`${pendientes.length} cobros pendientes`, color:'var(--amber)'},
+          {label:'Cobrado hoy',     val:fmt(stats.cobrosHoy),      icon:'cobros', bg:'var(--green-glow)',   iconColor:'var(--green)', meta:`${data.cobros.filter(c=>c.fecha===new Date().toISOString().slice(0,10)&&c.estado==='pagado').length} transacciones hoy`, color:''},
+          {label:'Alumnos activos', val:data.clientes.filter(c=>c.activo).length, icon:'alumnos', bg:'var(--lime-glow)', iconColor:'var(--lime-dark)', meta:`${data.clientes.filter(c=>c.activo&&c.saldo_pendiente>0).length} con saldo pendiente`, color:''},
         ].map(s => (
           <div key={s.label} className="stat-card">
-            <div className="stat-icon" style={{background:s.bg}}>{s.icon}</div>
+            <div className="stat-icon" style={{background:s.bg}}><Icon name={s.icon} size={19} color={s.iconColor}/></div>
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{fontSize:20, color:s.color||undefined}}>{s.val}</div>
             <div className="stat-meta">{s.meta}</div>

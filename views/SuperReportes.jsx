@@ -44,13 +44,13 @@ function SuperReportes({ data }) {
       {/* KPIs globales */}
       <div className="stats-grid" style={{marginBottom:24}}>
         {[
-          { label:'Total cobrado',   val:fmt(totalGlobal),  icon:'pay', bg:'var(--accent-glow)',  meta:`${data.escuelas.length} escuelas` },
-          { label:'Por cobrar',      val:fmt(pendGlobal),   icon:'history', bg:'var(--amber-glow)',   meta:'Pendiente en sistema' },
-          { label:'Total alumnos',   val:alumnosGlobal,     icon:'alumnos', bg:'var(--purple-glow)',  meta:'Activos en el sistema' },
-          { label:'Total cobros',    val:cobrosGlobal,      icon:'cobros', bg:'var(--green-glow)',   meta:'Transacciones' },
+          { label:'Total cobrado',   val:fmt(totalGlobal),  icon:'pay', bg:'var(--accent-glow)', iconColor:'var(--navy)',  meta:`${data.escuelas.length} escuelas` },
+          { label:'Por cobrar',      val:fmt(pendGlobal),   icon:'history', bg:'var(--amber-glow)', iconColor:'var(--amber)',  meta:'Pendiente en sistema' },
+          { label:'Total alumnos',   val:alumnosGlobal,     icon:'alumnos', bg:'var(--lime-glow)', iconColor:'var(--lime-dark)',  meta:'Activos en el sistema' },
+          { label:'Total cobros',    val:cobrosGlobal,      icon:'cobros', bg:'var(--green-glow)', iconColor:'var(--green)',   meta:'Transacciones' },
         ].map(s => (
           <div key={s.label} className="stat-card">
-            <div className="stat-icon" style={{background:s.bg}}>{s.icon}</div>
+            <div className="stat-icon" style={{background:s.bg}}><Icon name={s.icon} size={19} color={s.iconColor}/></div>
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{fontSize:20}}>{s.val}</div>
             <div className="stat-meta">{s.meta}</div>
