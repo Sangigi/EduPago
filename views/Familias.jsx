@@ -108,7 +108,7 @@ function Familias({ data, setData, escuela_id }) {
       return;
     }
 
-    // Alta nueva (+ Hijo): registrar y asignar de inmediato su CLABE SPEI individual
+    // Alta nueva (+ Añadir estudiante): registrar y asignar de inmediato su CLABE SPEI individual
     const newData = ClienteController.agregar(data, aluConFam, escuela_id);
     const alumnoNuevo = newData.clientes[newData.clientes.length - 1];
     setData(newData);
@@ -189,7 +189,7 @@ function Familias({ data, setData, escuela_id }) {
                 <div style={{display:'flex', gap:6, flexShrink:0}}>
                   <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setFormFam({...fam});setModal('familia');}} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
                   <button className="btn btn-secondary btn-sm" onClick={e=>{e.stopPropagation();setTargetFamId(fam.id);setFormAlu({...EMPTY_ALU,familia_id:fam.id});setModal('alumno');}}>
-                    + Hijo
+                    + Añadir estudiante
                   </button>
                 </div>
                 <span style={{color:'var(--ink-4)', fontSize:18, flexShrink:0}}>{isOpen ? <Icon name="chevronDown" size={18} color="currentColor"/> : <Icon name="arrowRight" size={16} color="currentColor"/>}</span>
@@ -200,7 +200,7 @@ function Familias({ data, setData, escuela_id }) {
                 <div style={{padding:'0 16px'}}>
                   {hijos.length === 0 && (
                     <div style={{padding:'16px 0', textAlign:'center', color:'var(--ink-4)', fontSize:13}}>
-                      Sin alumnos agregados — haz clic en "+ Hijo"
+                      Sin estudiantes agregados — haz clic en "+ Añadir estudiante"
                     </div>
                   )}
                   {hijos.map((hijo, i) => (

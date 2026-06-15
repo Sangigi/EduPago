@@ -1,11 +1,16 @@
 /* views/Alumnos.jsx — Alumnos con CLABE SPEI individual por alumno */
 function Alumnos({ data, setData, escuela_id }) {
   const { useState } = React;
-  const EMPTY = { tipo:'alumno', nombre:'', grado:'', matricula:'', curp:'', email:'', tel:'', familia_id:null };
+  const EMPTY = {
+    tipo:'alumno', nombre:'', grado:'', matricula:'', curp:'', email:'', tel:'', familia_id:null,
+    // Campos extendidos (reunión jun-10)
+    direccion:'', contacto_emergencia:'', tel_emergencia:'',
+    doc_curp_url:'', doc_acta_url:'', doc_ine_tutor_url:'',
+  };
   const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState(EMPTY);
   const [q, setQ]               = useState('');
-  const [clabeLoadingId, setClabeLoadingId] = useState(null); // id del alumno cuya CLABE se está generando/regenerando
+  const [clabeLoadingId, setClabeLoadingId] = useState(null);
 
   const escuela = data.escuelas.find(e => e.id === escuela_id);
 
@@ -16,8 +21,6 @@ function Alumnos({ data, setData, escuela_id }) {
   );
 
   // ── Genera (o regenera) la CLABE individual de un alumno vía Pagadetodo/STP ──
-  // Se ejecuta justo después del alta y queda asignada hasta que el alumno
-  // se da de baja (sale de la escuela).
   const generarClabe = async (alumnoActual, dataBase) => {
     setClabeLoadingId(alumnoActual.id);
     try {
@@ -44,7 +47,6 @@ function Alumnos({ data, setData, escuela_id }) {
     if (!form.nombre) return;
 
     if (form.id) {
-      // Edición: no se toca la CLABE individual ya asignada
       const newData = ClienteController.editar(data, form);
       setData(newData);
       AppModel.save(newData);
@@ -53,7 +55,7 @@ function Alumnos({ data, setData, escuela_id }) {
       return;
     }
 
-    // Alta nueva: registrar alumno y, de inmediato, asignarle su CLABE SPEI individual
+    // Alta nueva: registrar y asignar CLABE SPEI individual de inmediato
     const newData = ClienteController.agregar(data, form, escuela_id);
     const alumnoNuevo = newData.clientes[newData.clientes.length - 1];
     setData(newData);
@@ -65,9 +67,6 @@ function Alumnos({ data, setData, escuela_id }) {
   };
 
   // ── Activar/Desactivar alumno ──────────────────────────────────────────────
-  // Al desactivar (alumno que sale de la escuela), se libera su CLABE individual
-  // en Pagadetodo/STP. Al reactivar (reingreso), queda pendiente de generar una
-  // CLABE nueva, que se solicita de inmediato.
   const toggle = async (cliente) => {
     const eraActivo = cliente.activo;
     const newData = ClienteController.toggleActivo(data, cliente.id);
@@ -75,26 +74,22 @@ function Alumnos({ data, setData, escuela_id }) {
     AppModel.save(newData);
 
     if (eraActivo) {
-      // Se dio de baja: liberar la CLABE que tenía asignada
       if (cliente.clabe_individual) {
         try {
           await CobroController.liberarClabeIndividual({ alumno_id: cliente.id, clabe: cliente.clabe_individual });
         } catch (e) { /* no bloquear el flujo de baja */ }
       }
     } else {
-      // Reingreso: generar una CLABE nueva para el alumno
       const alumnoActualizado = newData.clientes.find(c => c.id === cliente.id);
       await generarClabe(alumnoActualizado, newData);
     }
   };
 
-  // ── Regenerar CLABE manualmente (ej. tras un error en el alta) ──────────────
   const regenerarClabe = async (cliente) => {
     await generarClabe(cliente, data);
   };
 
   const familiaDeAlumno = fid => fid ? data.familias.find(f=>f.id===fid)?.nombre : null;
-
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
 
   return (
@@ -106,7 +101,7 @@ function Alumnos({ data, setData, escuela_id }) {
             <div className="card-sub">{data.clientes.filter(c=>c.activo).length} activos de {data.clientes.length}</div>
           </div>
           <button className="btn btn-primary" onClick={()=>{setForm(EMPTY);setModal('form');}}>
-            + Nuevo alumno
+            + Alta de alumno
           </button>
         </div>
 
@@ -181,7 +176,7 @@ function Alumnos({ data, setData, escuela_id }) {
                   <td>{c.activo ? <span className="badge badge-green">Activo</span> : <span className="badge badge-gray">Inactivo</span>}</td>
                   <td>
                     <div style={{display:'flex', gap:5}}>
-                      <button className="btn btn-ghost btn-sm" onClick={()=>{setForm({...c});setModal('form');}} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>{setForm({...EMPTY,...c});setModal('form');}} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
                       <button className="btn btn-ghost btn-sm" onClick={()=>toggle(c)} title={c.activo ? 'Dar de baja (libera su CLABE)' : 'Reactivar (genera nueva CLABE)'}>{c.activo ? <Icon name="shield" size={14} color="currentColor"/> : <Icon name="eyeOff" size={14} color="currentColor"/>}</button>
                     </div>
                   </td>
@@ -194,12 +189,17 @@ function Alumnos({ data, setData, escuela_id }) {
 
       {modal === 'form' && (
         <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
-          <div className="modal">
+          <div className="modal modal-lg">
             <div className="modal-header">
-              <div className="modal-title">{form.id ? 'Editar' : 'Nuevo'} alumno</div>
+              <div className="modal-title">{form.id ? 'Editar alumno' : 'Alta de alumno'}</div>
               <button className="btn btn-ghost btn-sm" onClick={()=>setModal(null)}><Icon name="close" size={16} color="currentColor"/></button>
             </div>
             <div className="modal-body">
+
+              {/* ── Datos básicos ── */}
+              <div style={{fontSize:11, color:'var(--ink-4)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:10}}>
+                Datos generales
+              </div>
               <div className="form-group">
                 <label className="form-label">Familia (opcional)</label>
                 <select className="form-select" value={form.familia_id||''} onChange={e=>setForm(f=>({...f,familia_id:e.target.value?parseInt(e.target.value):null}))}>
@@ -225,7 +225,7 @@ function Alumnos({ data, setData, escuela_id }) {
               </div>
               <div className="form-group">
                 <label className="form-label">CURP</label>
-                <input className="form-input" placeholder="CURP" value={form.curp} onChange={e=>setForm(f=>({...f,curp:e.target.value.toUpperCase()}))} style={{fontFamily:'var(--mono)'}}/>
+                <input className="form-input" placeholder="GALA090315MDFPNB08" value={form.curp} onChange={e=>setForm(f=>({...f,curp:e.target.value.toUpperCase()}))} style={{fontFamily:'var(--mono)'}}/>
               </div>
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
                 <div className="form-group">
@@ -237,8 +237,66 @@ function Alumnos({ data, setData, escuela_id }) {
                   <input className="form-input" placeholder="9991234567" value={form.tel} onChange={e=>setForm(f=>({...f,tel:e.target.value}))} style={{fontFamily:'var(--mono)'}}/>
                 </div>
               </div>
+
+              {/* ── Dirección ── */}
+              <div style={{marginTop:18, paddingTop:14, borderTop:'1px solid var(--border-glow)'}}>
+                <div style={{fontSize:11, color:'var(--ink-4)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:10}}>
+                  Dirección
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Domicilio del alumno</label>
+                  <input className="form-input" placeholder="Calle, Número, Colonia, Ciudad, Estado, CP" value={form.direccion||''} onChange={e=>setForm(f=>({...f,direccion:e.target.value}))}/>
+                </div>
+              </div>
+
+              {/* ── Contacto de emergencia ── */}
+              <div style={{marginTop:18, paddingTop:14, borderTop:'1px solid var(--border-glow)'}}>
+                <div style={{fontSize:11, color:'var(--ink-4)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:10}}>
+                  Contacto de emergencia
+                </div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                  <div className="form-group">
+                    <label className="form-label">Nombre del contacto</label>
+                    <input className="form-input" placeholder="Nombre del familiar" value={form.contacto_emergencia||''} onChange={e=>setForm(f=>({...f,contacto_emergencia:e.target.value}))}/>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Teléfono de emergencia</label>
+                    <input className="form-input" placeholder="9991234567" value={form.tel_emergencia||''} onChange={e=>setForm(f=>({...f,tel_emergencia:e.target.value}))} style={{fontFamily:'var(--mono)'}}/>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Documentos oficiales ── */}
+              <div style={{marginTop:18, paddingTop:14, borderTop:'1px solid var(--border-glow)'}}>
+                <div style={{fontSize:11, color:'var(--ink-4)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.4px', marginBottom:6}}>
+                  Digitalización de documentos oficiales
+                </div>
+                <div style={{marginBottom:12, padding:'8px 12px', background:'var(--accent-glow)', borderRadius:'var(--radius-sm)', fontSize:11.5, color:'var(--ink-2)', lineHeight:1.6}}>
+                  <Icon name="bank" size={13} color="currentColor"/> Pega la URL o ruta del documento digitalizado (Google Drive, servidor, etc.)
+                </div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr', gap:10}}>
+                  <div className="form-group">
+                    <label className="form-label">CURP (documento PDF/imagen)</label>
+                    <input className="form-input" placeholder="https://drive.google.com/…" value={form.doc_curp_url||''} onChange={e=>setForm(f=>({...f,doc_curp_url:e.target.value}))} style={{fontFamily:'var(--mono)', fontSize:12}}/>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Acta de nacimiento</label>
+                    <input className="form-input" placeholder="https://drive.google.com/…" value={form.doc_acta_url||''} onChange={e=>setForm(f=>({...f,doc_acta_url:e.target.value}))} style={{fontFamily:'var(--mono)', fontSize:12}}/>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">INE / Identificación oficial del padre/tutor</label>
+                    <input className="form-input" placeholder="https://drive.google.com/…" value={form.doc_ine_tutor_url||''} onChange={e=>setForm(f=>({...f,doc_ine_tutor_url:e.target.value}))} style={{fontFamily:'var(--mono)', fontSize:12}}/>
+                  </div>
+                </div>
+                <div style={{display:'flex', gap:16, marginTop:6, flexWrap:'wrap'}}>
+                  {form.doc_curp_url && <a href={form.doc_curp_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{fontSize:11}}><Icon name="eye" size={12} color="currentColor"/> Ver CURP</a>}
+                  {form.doc_acta_url && <a href={form.doc_acta_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{fontSize:11}}><Icon name="eye" size={12} color="currentColor"/> Ver Acta</a>}
+                  {form.doc_ine_tutor_url && <a href={form.doc_ine_tutor_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{fontSize:11}}><Icon name="eye" size={12} color="currentColor"/> Ver INE</a>}
+                </div>
+              </div>
+
               {!form.id && (
-                <div style={{marginTop:6, padding:'8px 12px', background:'var(--accent-glow)', borderRadius:'var(--radius-sm)', fontSize:11.5, color:'var(--ink-2)', lineHeight:1.6}}>
+                <div style={{marginTop:16, padding:'8px 12px', background:'var(--accent-glow)', borderRadius:'var(--radius-sm)', fontSize:11.5, color:'var(--ink-2)', lineHeight:1.6}}>
                   <Icon name="bank" size={13} color="currentColor"/> Al guardar, se generará automáticamente una CLABE SPEI individual para este alumno.
                 </div>
               )}

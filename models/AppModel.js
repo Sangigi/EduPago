@@ -33,8 +33,9 @@ const AppModel = (() => {
         activa: true,
         plan: 'pro',       // free | pro | enterprise
         fecha_alta: '2026-01-15',
-        clabe_fija: '646180633010000055',  // CLABE asignada por STP para esta escuela
+        clabe_fija: '646180633010000055',
         color: '#282d65',
+        permite_planteles: true,
       },
       {
         id: 2,
@@ -50,6 +51,7 @@ const AppModel = (() => {
         fecha_alta: '2026-02-01',
         clabe_fija: '646180633010000056',
         color: '#10b981',
+        permite_planteles: true,
       },
       {
         id: 3,
@@ -65,7 +67,15 @@ const AppModel = (() => {
         fecha_alta: '2026-03-11',
         clabe_fija: '646180633010000057',
         color: '#f59e0b',
+        permite_planteles: false,
       },
+    ],
+
+    // ── Planteles (sucursales/campus de una misma escuela) ─────────────────────
+    planteles: [
+      { id:1, escuela_id:1, nombre:'Campus Norte',   direccion:'Calle 20 #120, García Ginerés, Mérida, Yuc.', responsable:'Lic. Ramona Castillo', tel:'9991234560', activo:true },
+      { id:2, escuela_id:1, nombre:'Campus Sur',     direccion:'Calle 60 #350, Itzimná, Mérida, Yuc.',        responsable:'Mtro. Ernesto Vargas',  tel:'9991234561', activo:true },
+      { id:3, escuela_id:2, nombre:'Plantel Central',direccion:'Av. Tulum #55, SM-22, Cancún, Q.Roo.',        responsable:'Lic. Carlos Méndez',    tel:'9981112200', activo:true },
     ],
 
     // ── Familias (agrupan alumnos de la misma unidad familiar) ───────────────
@@ -78,10 +88,10 @@ const AppModel = (() => {
     // ── Alumnos / Clientes ────────────────────────────────────────────────────
     clientes: [
       // Escuela 1 — ITM
-      { id:1,  escuela_id:1, familia_id:1, tipo:'alumno', nombre:'Ana García López',       grado:'3° Primaria',  matricula:'ITM-2024-001', curp:'GALA090315MDFPNB08', email:'familia.garcia@mail.com', tel:'9991234567', saldo_pendiente:2800, activo:true  },
-      { id:2,  escuela_id:1, familia_id:1, tipo:'alumno', nombre:'Pedro García López',     grado:'1° Primaria',  matricula:'ITM-2024-002', curp:'GALP100820HDFPNB01', email:'familia.garcia@mail.com', tel:'9991234567', saldo_pendiente:0,    activo:true  },
-      { id:3,  escuela_id:1, familia_id:2, tipo:'alumno', nombre:'Luis Hernández Torres',  grado:'5° Primaria',  matricula:'ITM-2023-018', curp:'HETL050101HMCRNB04', email:'hernandez.t@mail.com',   tel:'9997654321', saldo_pendiente:5600, activo:true  },
-      { id:4,  escuela_id:1, familia_id:2, tipo:'alumno', nombre:'Sofía Hernández Torres', grado:'3° Primaria',  matricula:'ITM-2024-019', curp:'HETS100201MDFZFB06', email:'hernandez.t@mail.com',   tel:'9997654321', saldo_pendiente:2800, activo:true  },
+      { id:1,  escuela_id:1, plantel_id:1, familia_id:1, tipo:'alumno', nombre:'Ana García López',       grado:'3° Primaria',  matricula:'ITM-2024-001', curp:'GALA090315MDFPNB08', email:'familia.garcia@mail.com', tel:'9991234567', saldo_pendiente:2800, activo:true  },
+      { id:2,  escuela_id:1, plantel_id:1, familia_id:1, tipo:'alumno', nombre:'Pedro García López',     grado:'1° Primaria',  matricula:'ITM-2024-002', curp:'GALP100820HDFPNB01', email:'familia.garcia@mail.com', tel:'9991234567', saldo_pendiente:0,    activo:true  },
+      { id:3,  escuela_id:1, plantel_id:2, familia_id:2, tipo:'alumno', nombre:'Luis Hernández Torres',  grado:'5° Primaria',  matricula:'ITM-2023-018', curp:'HETL050101HMCRNB04', email:'hernandez.t@mail.com',   tel:'9997654321', saldo_pendiente:5600, activo:true  },
+      { id:4,  escuela_id:1, plantel_id:2, familia_id:2, tipo:'alumno', nombre:'Sofía Hernández Torres', grado:'3° Primaria',  matricula:'ITM-2024-019', curp:'HETS100201MDFZFB06', email:'hernandez.t@mail.com',   tel:'9997654321', saldo_pendiente:2800, activo:true  },
       { id:5,  escuela_id:1, familia_id:null, tipo:'alumno', nombre:'Diego López Castro', grado:'6° Primaria', matricula:'ITM-2021-044', curp:'LOCD090930HDFPSD01', email:'lopez.castro@mail.com',   tel:'9995678901', saldo_pendiente:0,    activo:false },
       // Escuela 2 — CEC
       { id:6,  escuela_id:2, familia_id:3, tipo:'alumno', nombre:'Valentina Méndez Ortiz', grado:'2° Secundaria', matricula:'CEC-2024-007', curp:'MEOV100415MQRNZB02', email:'mendez.c@mail.com',     tel:'9981112233', saldo_pendiente:3200, activo:true  },

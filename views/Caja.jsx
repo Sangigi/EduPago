@@ -16,6 +16,8 @@ function Caja({ data, setData, user, escuela }) {
   const [tcInfo, setTcInfo] = useState(null); // { url, qr_url, referencia }
   const [tcLoading, setTcLoading] = useState(false);
   const [tcError, setTcError] = useState(null);
+  // Cheque
+  const [chequeInfo, setChequeInfo] = useState({ banco:'', num_cuenta:'', num_cheque:'' });
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
   const speiPollRef = useRef(null);
@@ -116,8 +118,14 @@ function Caja({ data, setData, user, escuela }) {
         setTcLoading(false);
       }
 
+    } else if (metodo === 'Cheque') {
+      // Cheque: mostrar modal para capturar datos del cheque antes de confirmar
+      setData(newData);
+      setChequeInfo({ banco:'', num_cuenta:'', num_cheque:'' });
+      setModal('cheque');
+
     } else {
-      // Efectivo: cobro inmediato
+      // Efectivo referenciado: cobro inmediato
       setData(newData);
       AppModel.save(newData);
       setModal('ticket');
@@ -178,6 +186,7 @@ function Caja({ data, setData, user, escuela }) {
 
   const resetCarrito = () => {
     setCarrito([]); setClienteSel(null); setTcInfo(null); setTcError(null);
+    setChequeInfo({ banco:'', num_cuenta:'', num_cheque:'' });
   };
 
   const cerrarModal = () => {
@@ -225,10 +234,11 @@ function Caja({ data, setData, user, escuela }) {
   };
 
   const METODOS = [
-    { id:'TC', label:'Tarjeta', icon:'card' },
-    { id:'SPEI', label:'SPEI', icon:'bank' },
-    { id:'CoDi', label:'CoDi', icon:'phone' },
-    { id:'Efectivo', label:'Efectivo', icon:'pay' },
+    { id:'TC',        label:'Tarjeta',              icon:'card'  },
+    { id:'SPEI',      label:'SPEI',                 icon:'bank'  },
+    { id:'CoDi',      label:'CoDi',                 icon:'phone' },
+    { id:'Efectivo',  label:'Efectivo referenciado', icon:'pay'   },
+    { id:'Cheque',    label:'Cheque',               icon:'reportes' },
   ];
 
   return (
@@ -696,6 +706,62 @@ function Caja({ data, setData, user, escuela }) {
               <button className="btn btn-secondary" onClick={()=>window.print()}><Icon name="download" size={14} color="currentColor"/> Imprimir</button>
               <button className="btn btn-primary" onClick={()=>{setModal(null);setCobroActivo(null);resetCarrito();}}>
                 Nuevo cobro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ══ MODAL: Cheque ══ */}
+      {modal==='cheque' && cobroActivo && (
+        <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&cerrarModal()}>
+          <div className="modal">
+            <div className="modal-header">
+              <div className="modal-title" style={{display:'flex',alignItems:'center',gap:8}}>
+                <Icon name="reportes" size={17} color="currentColor"/> Pago con cheque
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={cerrarModal}><Icon name="close" size={16} color="currentColor"/></button>
+            </div>
+            <div className="modal-body">
+              <div style={{marginBottom:14,padding:'10px 14px',background:'var(--accent-glow)',borderRadius:'var(--radius-sm)',fontSize:13,display:'flex',justifyContent:'space-between'}}>
+                <span style={{color:'var(--ink-3)'}}>Total a cobrar</span>
+                <span style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:15}}>{fmt(cobroActivo.total)}</span>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Banco emisor *</label>
+                <input className="form-input" placeholder="Ej: BBVA, Santander, Banamex…"
+                  value={chequeInfo.banco}
+                  onChange={e=>setChequeInfo(p=>({...p,banco:e.target.value}))}/>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <div className="form-group">
+                  <label className="form-label">Número de cuenta</label>
+                  <input className="form-input" placeholder="1234567890" style={{fontFamily:'var(--mono)'}}
+                    value={chequeInfo.num_cuenta}
+                    onChange={e=>setChequeInfo(p=>({...p,num_cuenta:e.target.value}))}/>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Número de cheque</label>
+                  <input className="form-input" placeholder="001234" style={{fontFamily:'var(--mono)'}}
+                    value={chequeInfo.num_cheque}
+                    onChange={e=>setChequeInfo(p=>({...p,num_cheque:e.target.value}))}/>
+                </div>
+              </div>
+              <div style={{marginTop:6,padding:'8px 12px',background:'rgba(245,158,11,.08)',borderRadius:'var(--radius-sm)',fontSize:11.5,color:'var(--ink-2)'}}>
+                <Icon name="warning" size={13} color="#f59e0b"/> El cobro quedará pendiente hasta que el cheque sea compensado.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={cerrarModal}>Cancelar</button>
+              <button className="btn btn-primary" disabled={!chequeInfo.banco}
+                onClick={()=>{
+                  const extra = { banco_cheque: chequeInfo.banco, num_cuenta_cheque: chequeInfo.num_cuenta, num_cheque: chequeInfo.num_cheque };
+                  const updatedData = CobroController.confirmarPago(data, cobroActivo.id, extra);
+                  setData(updatedData);
+                  AppModel.save(updatedData);
+                  setModal('ticket');
+                  resetCarrito();
+                }}>
+                Registrar cheque
               </button>
             </div>
           </div>

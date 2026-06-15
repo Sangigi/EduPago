@@ -1,9 +1,13 @@
 /* views/Escuelas.jsx — Super Admin: gestión de escuelas */
 function Escuelas({ data, setData, onSeleccionar }) {
   const { useState } = React;
-  const EMPTY = { nombre:'', clave:'', rfc:'', telefono:'', email:'', direccion:'', logo_emoji:'', plan:'pro', clabe_fija:'', color:'#282d65' };
-  const [modal, setModal]  = useState(null);
-  const [form, setForm]    = useState(EMPTY);
+  const EMPTY = { nombre:'', clave:'', rfc:'', telefono:'', email:'', direccion:'', logo_emoji:'', plan:'pro', clabe_fija:'', color:'#282d65', permite_planteles:false };
+  const EMPTY_PLT = { nombre:'', direccion:'', responsable:'', tel:'' };
+  const [modal, setModal]      = useState(null);
+  const [form, setForm]        = useState(EMPTY);
+  const [escuelaPltId, setEscuelaPltId] = useState(null); // escuela cuyo modal de planteles está abierto
+  const [modalPlt, setModalPlt]         = useState(null); // null | 'list' | 'form'
+  const [formPlt, setFormPlt]           = useState(EMPTY_PLT);
 
   const guardar = () => {
     if (!form.nombre || !form.clave) return;
@@ -19,6 +23,30 @@ function Escuelas({ data, setData, onSeleccionar }) {
     AppModel.save(newData);
     setModal(null);
     setForm(EMPTY);
+  };
+
+  const guardarPlantel = () => {
+    if (!formPlt.nombre) return;
+    const planteles = data.planteles || [];
+    let newPlanteles;
+    if (formPlt.id) {
+      newPlanteles = planteles.map(p => p.id === formPlt.id ? { ...p, ...formPlt } : p);
+    } else {
+      const nuevo = { ...formPlt, id: AppModel.nextId(planteles), escuela_id: escuelaPltId, activo: true };
+      newPlanteles = [...planteles, nuevo];
+    }
+    const newData = { ...data, planteles: newPlanteles };
+    setData(newData);
+    AppModel.save(newData);
+    setFormPlt(EMPTY_PLT);
+    setModalPlt('list');
+  };
+
+  const togglePlantel = pid => {
+    const planteles = (data.planteles || []).map(p => p.id === pid ? { ...p, activo: !p.activo } : p);
+    const newData = { ...data, planteles };
+    setData(newData);
+    AppModel.save(newData);
   };
 
   const toggleActiva = id => {
@@ -105,6 +133,12 @@ function Escuelas({ data, setData, onSeleccionar }) {
                 <button className="btn btn-primary btn-sm" style={{flex:1}} onClick={()=>onSeleccionar(esc.id)}>
                   Entrar →
                 </button>
+                {esc.permite_planteles && (
+                  <button className="btn btn-secondary btn-sm" title="Gestionar planteles"
+                    onClick={()=>{setEscuelaPltId(esc.id);setModalPlt('list');}}>
+                    <Icon name="escuelas" size={14} color="currentColor"/>
+                  </button>
+                )}
                 <button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...esc});setModal('form');}} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
                 <button className="btn btn-secondary btn-sm" onClick={()=>toggleActiva(esc.id)}>
                   {esc.activa ? <Icon name="shield" size={14} color="currentColor"/> : <Icon name="eyeOff" size={14} color="currentColor"/>}
@@ -169,11 +203,101 @@ function Escuelas({ data, setData, onSeleccionar }) {
                   <input type="color" value={form.color} onChange={e=>setForm(f=>({...f,color:e.target.value}))}
                     style={{width:'100%', height:42, border:'1px solid var(--border-glow)', borderRadius:'var(--radius)', cursor:'pointer', background:'transparent'}}/>
                 </div>
+                <div className="form-group" style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:10}}>
+                  <input type="checkbox" id="chk_planteles" checked={!!form.permite_planteles}
+                    onChange={e=>setForm(f=>({...f,permite_planteles:e.target.checked}))}
+                    style={{width:16,height:16,cursor:'pointer'}}/>
+                  <label htmlFor="chk_planteles" className="form-label" style={{margin:0,cursor:'pointer'}}>
+                    Esta escuela tiene múltiples planteles / sucursales
+                  </label>
+                </div>
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={guardar} disabled={!form.nombre||!form.clave}>Guardar escuela</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL: Lista de planteles ══ */}
+      {modalPlt === 'list' && escuelaPltId && (
+        <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&setModalPlt(null)}>
+          <div className="modal modal-lg">
+            <div className="modal-header">
+              <div className="modal-title">
+                <Icon name="escuelas" size={16} color="currentColor"/> Planteles — {data.escuelas.find(e=>e.id===escuelaPltId)?.nombre}
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModalPlt(null)}><Icon name="close" size={16} color="currentColor"/></button>
+            </div>
+            <div className="modal-body">
+              {(data.planteles||[]).filter(p=>p.escuela_id===escuelaPltId).length === 0 && (
+                <div className="empty-state">
+                  <div className="empty-icon"><Icon name="escuelas" size={32} color="currentColor"/></div>
+                  <div className="empty-text">Sin planteles registrados</div>
+                </div>
+              )}
+              {(data.planteles||[]).filter(p=>p.escuela_id===escuelaPltId).map(plt => (
+                <div key={plt.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--glass-light)'}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13,color:'var(--ink)',display:'flex',alignItems:'center',gap:8}}>
+                      {plt.nombre}
+                      {!plt.activo && <span className="badge badge-gray">Inactivo</span>}
+                    </div>
+                    <div style={{fontSize:11.5,color:'var(--ink-3)',marginTop:2}}>{plt.direccion}</div>
+                    {plt.responsable && <div style={{fontSize:11,color:'var(--ink-4)',marginTop:1}}>Resp: {plt.responsable} · {plt.tel}</div>}
+                  </div>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>{setFormPlt({...plt});setModalPlt('form');}}>
+                    <Icon name="edit" size={13} color="currentColor"/>
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>togglePlantel(plt.id)}>
+                    {plt.activo ? <Icon name="shield" size={13} color="currentColor"/> : <Icon name="eyeOff" size={13} color="currentColor"/>}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModalPlt(null)}>Cerrar</button>
+              <button className="btn btn-primary" onClick={()=>{setFormPlt(EMPTY_PLT);setModalPlt('form');}}>
+                + Nuevo plantel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL: Formulario de plantel ══ */}
+      {modalPlt === 'form' && (
+        <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&setModalPlt('list')}>
+          <div className="modal">
+            <div className="modal-header">
+              <div className="modal-title">{formPlt.id ? 'Editar plantel' : 'Nuevo plantel'}</div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModalPlt('list')}><Icon name="close" size={16} color="currentColor"/></button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Nombre del plantel *</label>
+                <input className="form-input" placeholder="Ej: Campus Norte" value={formPlt.nombre} onChange={e=>setFormPlt(p=>({...p,nombre:e.target.value}))}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Dirección</label>
+                <input className="form-input" placeholder="Calle, Número, Colonia, Ciudad" value={formPlt.direccion||''} onChange={e=>setFormPlt(p=>({...p,direccion:e.target.value}))}/>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <div className="form-group">
+                  <label className="form-label">Responsable</label>
+                  <input className="form-input" placeholder="Nombre del director/coordinador" value={formPlt.responsable||''} onChange={e=>setFormPlt(p=>({...p,responsable:e.target.value}))}/>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Teléfono directo</label>
+                  <input className="form-input" placeholder="9991234560" value={formPlt.tel||''} onChange={e=>setFormPlt(p=>({...p,tel:e.target.value}))} style={{fontFamily:'var(--mono)'}}/>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModalPlt('list')}>Cancelar</button>
+              <button className="btn btn-primary" onClick={guardarPlantel} disabled={!formPlt.nombre}>Guardar plantel</button>
             </div>
           </div>
         </div>
