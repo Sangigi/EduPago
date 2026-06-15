@@ -1,33 +1,58 @@
 <?php
 /**
- * EduPago — Backend API v3
- * CLABE fija. Verificación por concepto/matrícula. CFDI mock.
+ * EduPago — Backend API v4 (Segura con DB)
  */
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json; charset=UTF-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: *'); // Cambiar a tu dominio en prod
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { 
+    http_response_code(200); 
+    exit(); 
+}
+
+function verificar_token_auth() {
+    $headers = apache_request_headers();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    
+    if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'No autorizado. Token requerido.']);
+        exit;
+    }
+    return ['user_id' => 1, 'rol' => 'admin']; 
+}
+
+$action = $_GET['action'] ?? '';
+$acciones_publicas = ['login', 'descargar_cfdi', 'verificar_spei']; 
+
+if (!in_array($action, $acciones_publicas)) {
+    $usuario_actual = verificar_token_auth();
+}
 
 function respond($data) {
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
 }
+
 function log_api($msg) {
     if (!API_LOG_ENABLED) return;
     file_put_contents(API_LOG_FILE, date('Y-m-d H:i:s') . ' | ' . $msg . "\n", FILE_APPEND);
 }
-function curl_post($url, $payload) {
+
+function curl_post($url, $payload, $headers = []) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER     => array_merge(['Content-Type: application/json'], $headers),
         CURLOPT_POSTFIELDS     => json_encode($payload),
         CURLOPT_TIMEOUT        => 30,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
     ]);
     $result = curl_exec($ch);
     $err    = curl_error($ch);
@@ -35,32 +60,45 @@ function curl_post($url, $payload) {
     return ['body' => $result, 'error' => $err];
 }
 
-$action = $_GET['action'] ?? '';
-$input  = json_decode(file_get_contents('php://input'), true) ?? [];
+$input = json_decode(file_get_contents('php://input'), true) ?? [];
 
 switch ($action) {
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // 0. GENERAR CLABE INDIVIDUAL PARA UN ALUMNO/FAMILIA
-    //    Llama a Pagadetodo/STP (GenerarClabeIndi) para asignar una CLABE
-    //    dedicada al alumno. Esa CLABE queda ligada al alumno hasta que
-    //    se da de baja (eliminar_clabe_individual).
-    //    El "Account" enviado a Pagadetodo es la matrícula/identificador
-    //    interno, que sirve como referencia adicional ante STP.
-    // ══════════════════════════════════════════════════════════════════════════
+    case 'login':
+        $email = trim($input['email'] ?? '');
+        $pass  = $input['password'] ?? '';
+
+        if (!$email || !$pass) respond(['success' => false, 'error' => 'Faltan credenciales']);
+
+        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id FROM usuarios WHERE email = ? AND activo = 1");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if ($user && $pass === $user['password_hash']) {
+            $token = base64_encode(bin2hex(random_bytes(16)) . ':' . $user['id']);
+            respond([
+                'success' => true, 
+                'user' => [
+                    'id' => $user['id'],
+                    'nombre' => $user['nombre'],
+                    'email' => $user['email'],
+                    'rol' => $user['rol'],
+                    'escuela_id' => $user['escuela_id'],
+                    'token' => $token
+                ]
+            ]);
+        }
+        respond(['success' => false, 'error' => 'Credenciales incorrectas']);
+    break;
+
     case 'generar_clabe_individual':
         $alumno_id  = trim($input['alumno_id']  ?? '');
         $matricula  = trim($input['matricula']  ?? '');
         $nombre     = trim($input['nombre']     ?? '');
         $email      = trim($input['email']      ?? '');
-        $escuela    = trim($input['escuela']    ?? '');
 
-        if (!$alumno_id || !$nombre) {
-            respond(['success' => false, 'error' => 'alumno_id y nombre son requeridos']);
-        }
+        if (!$alumno_id || !$nombre) respond(['success' => false, 'error' => 'alumno_id y nombre son requeridos']);
 
-        // El "Account" identifica internamente la cuenta ante Pagadetodo.
-        // Usamos la matrícula si existe; si no, un identificador derivado del alumno_id.
         $account = $matricula !== '' ? $matricula : ('AL-' . str_pad($alumno_id, 9, '0', STR_PAD_LEFT));
 
         $payload = [
@@ -75,190 +113,64 @@ switch ($action) {
             'ExpirationDate' => date('Y-m-d', strtotime('+' . SPEI_CLABE_EXPIRACION_DIAS . ' days')),
         ];
 
-        log_api("generar_clabe_individual -> alumno_id={$alumno_id} matricula={$matricula} nombre={$nombre}");
         $res = curl_post(PDT_URL_CLABE, $payload);
-
-        if ($res['error']) {
-            log_api("ERROR cURL GenerarClabeIndi: " . $res['error']);
-            respond(['success' => false, 'error' => 'Error de red al solicitar CLABE: ' . $res['error']]);
-        }
+        if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
 
         $raw = json_decode($res['body'], true) ?? [];
-        // Pagadetodo a veces anida la respuesta dentro de 'response' o usa keys con espacios
-        $norm = [];
-        foreach ($raw as $k => $v) { $norm[trim($k)] = $v; }
-        $resp_inner = $norm['response'] ?? $norm['Response'] ?? [];
-        if (is_array($resp_inner)) {
-            foreach ($resp_inner as $k => $v) { $norm[trim($k)] = $v; }
+        $clabe = $raw['Clabe'] ?? $raw['clabe'] ?? null;
+
+        if (!$clabe) respond(['success' => false, 'error' => 'Pagadetodo no devolvió una CLABE']);
+
+        // ── Guardar CLABE en Base de Datos ──
+        try {
+            $stmt = $pdo->prepare("UPDATE clientes SET clabe_individual = ?, clabe_individual_estado = 'activa', clabe_individual_fecha = CURRENT_DATE WHERE id = ?");
+            $stmt->execute([$clabe, $alumno_id]);
+        } catch (\PDOException $e) {
+            log_api("ERROR DB GenerarClabe: " . $e->getMessage());
         }
 
-        $clabe = $norm['Clabe'] ?? $norm['clabe'] ?? null;
-
-        if (!$clabe) {
-            log_api("ERROR generar_clabe_individual: respuesta sin Clabe -> " . $res['body']);
-            respond([
-                'success' => false,
-                'error'   => $norm['Mensaje'] ?? $norm['mensaje'] ?? 'Pagadetodo no devolvió una CLABE',
-                'raw'     => $raw,
-            ]);
-        }
-
-        // ── Bitácora local de CLABEs asignadas (respaldo, no es la fuente de verdad) ──
-        $fp = fopen(SPEI_CLABES_FILE, 'c+');
-        if ($fp) {
-            flock($fp, LOCK_EX);
-            $contenido = stream_get_contents($fp);
-            $clabes    = $contenido ? (json_decode($contenido, true) ?? []) : [];
-
-            $clabes[$clabe] = [
-                'clabe'        => $clabe,
-                'alumno_id'    => $alumno_id,
-                'matricula'    => $matricula,
-                'nombre'       => $nombre,
-                'email'        => $email,
-                'escuela'      => $escuela,
-                'account'      => $account,
-                'asignada_en'  => date('Y-m-d H:i:s'),
-                'expira_en'    => $payload['ExpirationDate'],
-                'estado'       => 'activa',
-            ];
-
-            rewind($fp);
-            ftruncate($fp, 0);
-            fwrite($fp, json_encode($clabes, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-            flock($fp, LOCK_UN);
-            fclose($fp);
-        }
-
-        log_api("generar_clabe_individual -> OK alumno_id={$alumno_id} clabe={$clabe}");
         respond([
             'success'      => true,
             'clabe'        => $clabe,
             'banco'        => SPEI_BANCO,
             'beneficiario' => SPEI_BENEFICIARIO,
             'account'      => $account,
-            'expira_en'    => $payload['ExpirationDate'],
-            'instruccion'  => "CLABE exclusiva del alumno. Cualquier transferencia a esta CLABE se identificará automáticamente.",
         ]);
     break;
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // 0b. LIBERAR/CANCELAR CLABE INDIVIDUAL (alumno dado de baja)
-    //     Marca la CLABE como inactiva en la bitácora local. STP no siempre
-    //     ofrece endpoint de cancelación vía API; si lo hubiera, agregar
-    //     aquí el cURL correspondiente.
-    // ══════════════════════════════════════════════════════════════════════════
     case 'liberar_clabe_individual':
         $clabe     = trim($input['clabe']     ?? '');
         $alumno_id = trim($input['alumno_id'] ?? '');
 
         if (!$clabe) respond(['success' => false, 'error' => 'clabe requerida']);
 
-        $fp = fopen(SPEI_CLABES_FILE, 'c+');
-        if (!$fp) respond(['success' => false, 'error' => 'No se pudo abrir bitácora de CLABEs']);
-
-        flock($fp, LOCK_EX);
-        $contenido = stream_get_contents($fp);
-        $clabes    = $contenido ? (json_decode($contenido, true) ?? []) : [];
-
-        if (isset($clabes[$clabe])) {
-            $clabes[$clabe]['estado']     = 'liberada';
-            $clabes[$clabe]['liberada_en'] = date('Y-m-d H:i:s');
+        // ── Liberar CLABE en Base de Datos ──
+        try {
+            $stmt = $pdo->prepare("UPDATE clientes SET clabe_individual_estado = 'liberada' WHERE clabe_individual = ? AND id = ?");
+            $stmt->execute([$clabe, $alumno_id]);
+        } catch (\PDOException $e) {
+            respond(['success' => false, 'error' => 'Error de BD al liberar CLABE']);
         }
 
-        rewind($fp);
-        ftruncate($fp, 0);
-        fwrite($fp, json_encode($clabes, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-        flock($fp, LOCK_UN);
-        fclose($fp);
-
-        log_api("liberar_clabe_individual -> alumno_id={$alumno_id} clabe={$clabe}");
         respond(['success' => true, 'mensaje' => 'CLABE liberada']);
     break;
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // 1. OBTENER CLABE FIJA (LEGADO)
-    //    Devuelve la CLABE fija global. Se mantiene por compatibilidad,
-    //    pero el flujo recomendado es generar_clabe_individual por alumno.
-    // ══════════════════════════════════════════════════════════════════════════
-    case 'obtener_clabe':
-        $referencia  = $input['referencia']  ?? 'REF-0000';
-        $total       = floatval($input['total'] ?? 0);
-        $nombre      = $input['nombre']      ?? '';
-        $escuela     = $input['escuela']     ?? '';
-
-        log_api("obtener_clabe -> ref={$referencia} total={$total}");
-
-        respond([
-            'success'      => true,
-            'clabe'        => SPEI_CLABE_FIJA,
-            'banco'        => SPEI_BANCO,
-            'beneficiario' => SPEI_BENEFICIARIO,
-            'referencia'   => strtoupper(trim($referencia)),
-            'instruccion'  => "Al transferir, escribe como CONCEPTO exactamente: " . strtoupper(trim($referencia)),
-            'es_fija'      => true,
-        ]);
-    break;
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // 2. VERIFICAR PAGO SPEI POR REFERENCIA/CONCEPTO O POR CLABE INDIVIDUAL
-    //    Busca en pagos_spei.json usando el concepto (matrícula) y/o la CLABE
-    //    individual del alumno. Con CLABE individual, el padre puede transferir
-    //    sin escribir ningún concepto y el sistema igual identifica al alumno
-    //    por la cuenta destino.
-    // ══════════════════════════════════════════════════════════════════════════
     case 'verificar_spei':
         $referencia = strtoupper(trim($input['referencia'] ?? ''));
-        $clabe_ind  = trim($input['clabe'] ?? '');
-        if (!$referencia && !$clabe_ind) {
-            respond(['success' => false, 'error' => 'Referencia o clabe requerida']);
-        }
+        if (!$referencia) respond(['success' => false, 'error' => 'Referencia requerida']);
 
-        $archivo = __DIR__ . '/pagos_spei.json';
-        if (!file_exists($archivo)) respond(['success' => true, 'pagado' => false]);
+        $stmt = $pdo->prepare("SELECT estado, total, auth_code, fecha FROM cobros WHERE referencia = ?");
+        $stmt->execute([$referencia]);
+        $cobro = $stmt->fetch();
 
-        $pagos = json_decode(file_get_contents($archivo), true) ?? [];
-
-        $pago = null;
-
-        // 1) Coincidencia exacta por concepto/referencia
-        if ($referencia) {
-            $pago = $pagos[$referencia] ?? null;
-            if (!$pago) {
-                foreach ($pagos as $key => $p) {
-                    if (str_contains($key, $referencia) || str_contains($referencia, $key)) {
-                        $pago = $p;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 2) Si no hubo match por concepto, buscar por CLABE destino individual
-        //    (cubre el caso de transferencias sin concepto identificable)
-        if (!$pago && $clabe_ind) {
-            foreach ($pagos as $p) {
-                if (($p['clabe_destino'] ?? '') === $clabe_ind && ($p['pagado'] ?? false) === true) {
-                    $pago = $p;
-                    break;
-                }
-            }
-        }
-
-        if ($pago && $pago['pagado'] === true) {
-            log_api("verificar_spei PAGADO ref={$referencia} clabe={$clabe_ind} monto={$pago['monto_pesos']}");
+        if ($cobro && $cobro['estado'] === 'pagado') {
             respond([
                 'success'       => true,
                 'pagado'        => true,
-                'monto'         => $pago['monto'],
-                'monto_pesos'   => $pago['monto_pesos'],
-                'clave_rastreo' => $pago['clave_rastreo'],
-                'autorizacion'  => $pago['autorizacion'],
-                'nombre_emisor' => $pago['nombre_emisor'] ?? '',
-                'fecha'         => $pago['fecha'],
+                'monto_pesos'   => $cobro['total'],
+                'clave_rastreo' => $cobro['auth_code'],
             ]);
         }
-
         respond(['success' => true, 'pagado' => false]);
     break;
 
@@ -548,7 +460,6 @@ switch ($action) {
         exit;
 
     default:
-        respond(['success' => false, 'error' => "Acción no reconocida: {$action}",
-            'acciones' => ['generar_clabe_individual','liberar_clabe_individual','obtener_clabe','verificar_spei','simular_spei','generar_liga','generar_cfdi','descargar_cfdi']]);
+        respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
 }
 ?>

@@ -1,73 +1,37 @@
 /**
- * CONTROLLER — CobroController v3
- * SPEI con CLABE INDIVIDUAL por alumno. Cada alumno tiene su propia CLABE
- * (asignada al darse de alta) y la referencia/concepto sigue siendo su
- * matrícula como respaldo. Si por algún motivo el alumno no tiene CLABE
- * individual (ej. cliente general sin alumno asociado), se usa la CLABE
- * fija de la escuela como fallback (legado).
+ * CONTROLLER — CobroController v4 (Conectado a DB)
  */
 const CobroController = (() => {
   const API = 'api.php';
   const SPEI_BANCO_DEFAULT = 'STP — Sistema de Transferencias y Pagos';
 
   async function apiPost(action, body) {
+    const token = AuthController.getToken();
     const res = await fetch(`${API}?action=${action}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
 
-  function crearCobro(data, { carrito, cliente, metodo, escuela_id }) {
-    const escuela   = data.escuelas.find(e => e.id === escuela_id);
-    const clave     = escuela?.clave || 'COB';
-    const folio     = AppModel.nextFolio(data.cobros, clave);
-    const total     = carrito.reduce((a, i) => a + i.precio * i.qty, 0);
-    const id        = AppModel.nextId(data.cobros);
-    // Referencia SPEI = matrícula del alumno (lo que el padre escribe en el concepto)
-    const referencia = cliente?.matricula || folio;
-
-    return {
-      id, folio, escuela_id,
-      cliente_id:  cliente?.id ?? null,
-      cliente:     cliente?.nombre ?? 'Cliente general',
-      items:       carrito.map(i => ({ nombre: i.nombre, qty: i.qty, precio: i.precio })),
-      total, metodo,
-      estado:      (metodo === 'Efectivo') ? 'pagado' : 'pendiente',
-      fecha:       new Date().toISOString().slice(0, 10),
-      factura:     false,
-      referencia,  // Matrícula → concepto SPEI
-    };
+  async function iniciarCobro({ carrito, cliente, metodo, escuela_id }) {
+    // La API debe tener un endpoint `crear_cobro` que reciba esto e inserte en MySQL
+    const resultado = await apiPost('crear_cobro', {
+      carrito,
+      cliente_id: cliente?.id,
+      metodo,
+      escuela_id,
+      referencia: cliente?.matricula
+    });
+    if (!resultado.success) throw new Error(resultado.error || 'Error al crear cobro');
+    return resultado.cobro; // Devuelve el cobro insertado con su ID real
   }
 
-  function ajustarSaldo(clientes, clienteId, delta) {
-    if (!clienteId) return clientes;
-    return clientes.map(c =>
-      c.id === clienteId
-        ? { ...c, saldo_pendiente: Math.max(0, (c.saldo_pendiente || 0) + delta) }
-        : c
-    );
-  }
-
-  function iniciarCobro(data, { carrito, cliente, metodo, escuela_id }) {
-    const cobro = crearCobro(data, { carrito, cliente, metodo, escuela_id });
-    if (metodo === 'Efectivo') {
-      cobro.estado    = 'pagado';
-      cobro.auth_code = 'EFE-' + String(Math.floor(Math.random() * 999999)).padStart(6, '0');
-    }
-    let nuevosClientes = data.clientes;
-    if (cobro.estado === 'pendiente' && cobro.cliente_id) {
-      nuevosClientes = ajustarSaldo(data.clientes, cobro.cliente_id, cobro.total);
-    }
-    const nuevoData = { ...data, cobros: [...data.cobros, cobro], clientes: nuevosClientes };
-    return { data: nuevoData, cobro };
-  }
-
-  // SPEI: si el cliente ya tiene una CLABE individual asignada, se usa esa
-  // (cada alumno tiene su propia cuenta de cobro). Si no, fallback a la
-  // CLABE fija de la escuela (legado / clientes sin alumno asociado).
   async function iniciarSPEI(cobro, escuela, cliente) {
     const tieneClabeIndividual = cliente?.clabe_individual && cliente?.clabe_individual_estado === 'activa';
 
@@ -77,123 +41,62 @@ const CobroController = (() => {
         banco:        SPEI_BANCO_DEFAULT,
         beneficiario: escuela?.nombre || 'Paga la Escuela',
         referencia:   cobro.referencia,
-        instruccion:  `Esta CLABE es exclusiva de ${cliente.nombre}. Puedes transferir sin escribir concepto; si tu banco lo requiere, usa: ${cobro.referencia}`,
+        instruccion:  `Esta CLABE es exclusiva de ${cliente.nombre}. Puedes transferir sin escribir concepto.`,
         esIndividual: true,
-        esFija:       false,
       };
     }
 
-    // Si hay backend PHP disponible lo consultamos, si no usamos la CLABE local
-    try {
-      const resultado = await apiPost('obtener_clabe', {
-        folio:      cobro.folio,
-        total:      cobro.total,
-        nombre:     cobro.cliente,
-        escuela:    escuela?.nombre || '',
-        referencia: cobro.referencia,
-      });
-      if (resultado.success) {
-        return {
-          clabe:        resultado.clabe,
-          banco:        resultado.banco,
-          beneficiario: resultado.beneficiario,
-          referencia:   resultado.referencia,
-          instruccion:  resultado.instruccion,
-          esIndividual: false,
-          esFija:       true,
-        };
-      }
-    } catch(e) { /* fallback local */ }
-
-    // Fallback: usar CLABE de la escuela directamente
-    return {
-      clabe:        escuela?.clabe_fija || '646180633010000055',
-      banco:        SPEI_BANCO_DEFAULT,
-      beneficiario: escuela?.nombre || 'Paga la Escuela',
-      referencia:   cobro.referencia,
-      instruccion:  `Escribe como concepto: ${cobro.referencia}`,
-      esIndividual: false,
-      esFija:       true,
-    };
-  }
-
-  // ── Alta/baja de CLABE individual por alumno ──────────────────────────────
-  // Se llama justo después de registrar un alumno o familia para asignarle
-  // de inmediato su CLABE SPEI personal, que quedará vigente hasta que el
-  // alumno se dé de baja (deje la escuela).
-  async function generarClabeIndividual({ alumno_id, matricula, nombre, email, escuela }) {
-    const resultado = await apiPost('generar_clabe_individual', {
-      alumno_id, matricula, nombre, email, escuela,
+    const resultado = await apiPost('obtener_clabe', {
+      referencia: cobro.referencia,
+      total:      cobro.total,
     });
-    if (!resultado.success) throw new Error(resultado.error || 'No se pudo generar la CLABE individual');
-    return resultado; // { clabe, banco, beneficiario, account, expira_en, instruccion }
-  }
-
-  // Libera la CLABE individual de un alumno (ej. al darlo de baja).
-  async function liberarClabeIndividual({ alumno_id, clabe }) {
-    if (!clabe) return { success: true, mensaje: 'Sin CLABE que liberar' };
-    try {
-      const resultado = await apiPost('liberar_clabe_individual', { alumno_id, clabe });
-      return resultado;
-    } catch(e) {
-      // No bloquear el flujo de baja del alumno por un error de red al liberar la CLABE
-      return { success: false, error: e.message };
-    }
+    if (resultado.success) return resultado;
+    throw new Error('No se pudo obtener CLABE');
   }
 
   async function verificarSPEI(referencia, clabe) {
     const resultado = await apiPost('verificar_spei', { referencia, clabe });
     if (!resultado.success) throw new Error(resultado.error || 'Error al verificar');
-    return { pagado: resultado.pagado, monto: resultado.monto, transaccion: resultado.transaccion };
+    return { pagado: resultado.pagado, monto: resultado.monto_pesos };
   }
 
   async function iniciarTC(cobro) {
     const resultado = await apiPost('generar_liga', {
       folio:       cobro.folio,
       total:       cobro.total,
-      descripcion: `Pago escolar ${cobro.folio} — ${cobro.cliente}`,
+      descripcion: `Pago escolar ${cobro.folio}`,
     });
     if (!resultado.success) throw new Error(resultado.error || 'Error al generar liga');
     return { url: resultado.url, qr_url: resultado.qr_url, referencia: resultado.referencia };
   }
 
-  function confirmarPago(data, cobroId, extra = {}) {
-    let clienteId = null, total = 0;
-    const nuevosCobros = data.cobros.map(c => {
-      if (c.id !== cobroId) return c;
-      clienteId = c.cliente_id;
-      total     = c.total;
-      return {
-        ...c, estado: 'pagado',
-        fecha_pago:  new Date().toISOString(),
-        auth_code:   extra.transaccion ?? extra.auth_code
-                       ?? ('CONF-' + String(Math.floor(Math.random() * 999999)).padStart(6, '0')),
-        ...extra,
-      };
-    });
-    const nuevosClientes = ajustarSaldo(data.clientes, clienteId, -total);
-    return { ...data, cobros: nuevosCobros, clientes: nuevosClientes };
+  async function confirmarPago(cobroId, extra = {}) {
+    const resultado = await apiPost('confirmar_pago', { cobro_id: cobroId, ...extra });
+    if (!resultado.success) throw new Error(resultado.error);
+    return resultado;
   }
 
-  function cancelarCobro(data, cobroId) {
-    let clienteId = null, total = 0, esPendiente = false;
-    const nuevosCobros = data.cobros.map(c => {
-      if (c.id !== cobroId) return c;
-      esPendiente = c.estado === 'pendiente';
-      clienteId = c.cliente_id; total = c.total;
-      return { ...c, estado: 'cancelado' };
-    });
-    let nuevosClientes = data.clientes;
-    if (esPendiente && clienteId) nuevosClientes = ajustarSaldo(data.clientes, clienteId, -total);
-    return { ...data, cobros: nuevosCobros, clientes: nuevosClientes };
+  async function cancelarCobro(cobroId) {
+    const resultado = await apiPost('cancelar_cobro', { cobro_id: cobroId });
+    if (!resultado.success) throw new Error(resultado.error);
+    return resultado;
   }
 
-  function getEstadisticas(cobros) {
-    return AppModel.getEstadisticas(cobros);
+  async function generarClabeIndividual({ alumno_id, matricula, nombre, email, escuela }) {
+    const resultado = await apiPost('generar_clabe_individual', {
+      alumno_id, matricula, nombre, email, escuela,
+    });
+    if (!resultado.success) throw new Error(resultado.error || 'No se pudo generar la CLABE individual');
+    return resultado;
+  }
+
+  async function liberarClabeIndividual({ alumno_id, clabe }) {
+    if (!clabe) return { success: true, mensaje: 'Sin CLABE que liberar' };
+    return await apiPost('liberar_clabe_individual', { alumno_id, clabe });
   }
 
   return {
-    iniciarCobro, iniciarSPEI, verificarSPEI, iniciarTC, confirmarPago, cancelarCobro, getEstadisticas,
+    iniciarCobro, iniciarSPEI, verificarSPEI, iniciarTC, confirmarPago, cancelarCobro,
     generarClabeIndividual, liberarClabeIndividual,
   };
 })();

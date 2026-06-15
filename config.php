@@ -11,6 +11,11 @@ define('PDT_INT_ID',       '124');
 define('PDT_BUS_ID_SPEI',  '000060');
 define('PDT_BUS_ID_TC',    '000060');
 
+define('DB_HOST', 'test.grupoideasmx.com');
+define('DB_NAME', 'grupoide_pagalaescuela');
+define('DB_USER', 'grupoide_leonel');
+define('DB_PASS', 'M4imvdG#O&NQ');
+
 // ─── URLs de Pagadetodo ───────────────────────────────────────────────────────
 define('PDT_URL_CLABE',    'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');
 define('PDT_URL_LIGA',     'https://pagadetodo.mx/Pagadetodo/Service/GenerarLigaIndi');
