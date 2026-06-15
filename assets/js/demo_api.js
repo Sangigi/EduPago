@@ -179,6 +179,20 @@ const DemoAPI = (() => {
       };
     },
 
+    login: (body) => {
+      const USERS = [
+        { email:'super@pagalaescuela.mx',  password:'demo123', nombre:'Super Admin',      rol:'superadmin', escuela_id:null, token:'demo-token-super'  },
+        { email:'admin@itm.edu.mx',        password:'demo123', nombre:'Administrador ITM', rol:'admin',       escuela_id:1,    token:'demo-token-admin1' },
+        { email:'cajero@itm.edu.mx',       password:'demo123', nombre:'Cajero ITM',        rol:'cajero',      escuela_id:1,    token:'demo-token-cajero1'},
+        { email:'admin@cec.edu.mx',        password:'demo123', nombre:'Administrador CEC', rol:'admin',       escuela_id:2,    token:'demo-token-admin2' },
+        { email:'familia@itm.edu.mx',      password:'demo123', nombre:'Familia Demo',      rol:'familia',     escuela_id:1,    token:'demo-token-fam1'   },
+      ];
+      const user = USERS.find(u => u.email === body.email && u.password === body.password);
+      if (!user) return { success: false, error: 'Credenciales incorrectas (demo: usa demo123)' };
+      const { password: _, ...userSafe } = user;
+      return { success: true, user: userSafe, _modo: 'demo' };
+    },
+
     generar_liga: (body) => ({
       success:    true,
       url:        'https://pagadetodo.mx/demo-liga/' + Math.random().toString(36).slice(2),

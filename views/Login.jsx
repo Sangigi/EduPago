@@ -7,17 +7,20 @@ function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
 
-  const submit = e => {
+  const submit = async e => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      const result = AuthController.login(u, p);
+    try {
+      const result = await AuthController.login(u, p);
       if (result.ok) onLogin(result.user);
-      else { setErr(result.error); setLoading(false); }
-    }, 480);
+      else { setErr(result.error || 'Credenciales incorrectas'); setLoading(false); }
+    } catch(ex) {
+      setErr('Error de conexión con el servidor');
+      setLoading(false);
+    }
   };
 
-  const demos = AuthController.DEMO_USERS;
+  const demos = Array.isArray(AuthController.DEMO_USERS) ? AuthController.DEMO_USERS : [];
 
   return (
     <div className="login-screen">
