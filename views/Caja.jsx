@@ -324,7 +324,7 @@ function Caja({ data, setData, user, escuela }) {
         <div className="payment-methods">
           {METODOS.map(m => (
             <div key={m.id} className={`pay-method ${metodo===m.id?'selected':''}`} onClick={()=>setMetodo(m.id)}>
-              <span className="pm-icon">{m.icon}</span>{m.label}
+              <span className="pm-icon"><Icon name={m.icon} size={18} color="currentColor"/></span>{m.label}
             </div>
           ))}
         </div>
