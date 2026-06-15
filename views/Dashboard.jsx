@@ -1,7 +1,7 @@
 /* views/Dashboard.jsx v2 — Multi-escuela */
 function Dashboard({ data, user, escuela, allData }) {
   const esSuper = AuthController.isSuperAdmin(user);
-  const stats   = CobroController.getEstadisticas(data.cobros);
+  const stats   = AppModel.getEstadisticas(data.cobros);
   const pendientes = data.cobros.filter(c => c.estado === 'pendiente');
   const recientes  = [...data.cobros].reverse().slice(0, 6);
   const totalMetodos = Object.values(stats.cobradosPorMetodo).reduce((a,b)=>a+b,0) || 1;
@@ -104,9 +104,9 @@ function Dashboard({ data, user, escuela, allData }) {
           </div>
           <button
             className="copy-btn"
-            style={{width:'auto', padding:'7px 16px'}}
+            style={{width:'auto', padding:'7px 16px', display:'flex', alignItems:'center', gap:6}}
             onClick={()=>navigator.clipboard.writeText(escuela.clabe_fija)}
-           style={{display:'flex',alignItems:'center',gap:6}}><Icon name="copy" size={13} color="currentColor"/> Copiar CLABE</button>
+          ><Icon name="copy" size={13} color="currentColor"/> Copiar CLABE</button>
         </div>
       )}
 
@@ -185,7 +185,7 @@ function Dashboard({ data, user, escuela, allData }) {
           })}
           {pendientes.length > 0 && (
             <div style={{marginTop:16,padding:'10px 12px',background:'var(--amber-glow)',border:'1px solid rgba(245,158,11,.2)',borderRadius:'var(--radius-sm)'}}>
-              <div style={{fontSize:12,fontWeight:600,color:'#fbbf24',marginBottom:4}} style={{display:"flex",alignItems:"center",gap:6}}><Icon name="warning" size={13} color="#fbbf24"/> Cobros pendientes</div>
+              <div style={{fontSize:12,fontWeight:600,color:'#fbbf24',marginBottom:4,display:"flex",alignItems:"center",gap:6}}><Icon name="warning" size={13} color="#fbbf24"/> Cobros pendientes</div>
               {pendientes.slice(0,3).map(c=>(
                 <div key={c.id} style={{fontSize:11.5,color:'var(--ink-3)',marginBottom:2}}>
                   {c.folio} · {c.cliente.split(' ')[0]} · {fmt(c.total)}
