@@ -41,9 +41,145 @@ $input  = json_decode(file_get_contents('php://input'), true) ?? [];
 switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 1. OBTENER CLABE FIJA
-    //    Devuelve la CLABE configurada. El concepto que el padre escribe
-    //    en la transferencia ES la referencia (matrícula del alumno).
+    // 0. GENERAR CLABE INDIVIDUAL PARA UN ALUMNO/FAMILIA
+    //    Llama a Pagadetodo/STP (GenerarClabeIndi) para asignar una CLABE
+    //    dedicada al alumno. Esa CLABE queda ligada al alumno hasta que
+    //    se da de baja (eliminar_clabe_individual).
+    //    El "Account" enviado a Pagadetodo es la matrícula/identificador
+    //    interno, que sirve como referencia adicional ante STP.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'generar_clabe_individual':
+        $alumno_id  = trim($input['alumno_id']  ?? '');
+        $matricula  = trim($input['matricula']  ?? '');
+        $nombre     = trim($input['nombre']     ?? '');
+        $email      = trim($input['email']      ?? '');
+        $escuela    = trim($input['escuela']    ?? '');
+
+        if (!$alumno_id || !$nombre) {
+            respond(['success' => false, 'error' => 'alumno_id y nombre son requeridos']);
+        }
+
+        // El "Account" identifica internamente la cuenta ante Pagadetodo.
+        // Usamos la matrícula si existe; si no, un identificador derivado del alumno_id.
+        $account = $matricula !== '' ? $matricula : ('AL-' . str_pad($alumno_id, 9, '0', STR_PAD_LEFT));
+
+        $payload = [
+            'User'           => PDT_USER,
+            'Password'       => PDT_PASS,
+            'IntegrationID'  => PDT_INT_ID,
+            'BusinessID'     => PDT_BUS_ID_SPEI,
+            'Description'    => substr("EduPago - {$nombre}", 0, 40),
+            'Account'        => $account,
+            'CustomerEmail'  => $email ?: 'sin-correo@edupago.mx',
+            'CustomerName'   => substr($nombre, 0, 60),
+            'ExpirationDate' => date('Y-m-d', strtotime('+' . SPEI_CLABE_EXPIRACION_DIAS . ' days')),
+        ];
+
+        log_api("generar_clabe_individual -> alumno_id={$alumno_id} matricula={$matricula} nombre={$nombre}");
+        $res = curl_post(PDT_URL_CLABE, $payload);
+
+        if ($res['error']) {
+            log_api("ERROR cURL GenerarClabeIndi: " . $res['error']);
+            respond(['success' => false, 'error' => 'Error de red al solicitar CLABE: ' . $res['error']]);
+        }
+
+        $raw = json_decode($res['body'], true) ?? [];
+        // Pagadetodo a veces anida la respuesta dentro de 'response' o usa keys con espacios
+        $norm = [];
+        foreach ($raw as $k => $v) { $norm[trim($k)] = $v; }
+        $resp_inner = $norm['response'] ?? $norm['Response'] ?? [];
+        if (is_array($resp_inner)) {
+            foreach ($resp_inner as $k => $v) { $norm[trim($k)] = $v; }
+        }
+
+        $clabe = $norm['Clabe'] ?? $norm['clabe'] ?? null;
+
+        if (!$clabe) {
+            log_api("ERROR generar_clabe_individual: respuesta sin Clabe -> " . $res['body']);
+            respond([
+                'success' => false,
+                'error'   => $norm['Mensaje'] ?? $norm['mensaje'] ?? 'Pagadetodo no devolvió una CLABE',
+                'raw'     => $raw,
+            ]);
+        }
+
+        // ── Bitácora local de CLABEs asignadas (respaldo, no es la fuente de verdad) ──
+        $fp = fopen(SPEI_CLABES_FILE, 'c+');
+        if ($fp) {
+            flock($fp, LOCK_EX);
+            $contenido = stream_get_contents($fp);
+            $clabes    = $contenido ? (json_decode($contenido, true) ?? []) : [];
+
+            $clabes[$clabe] = [
+                'clabe'        => $clabe,
+                'alumno_id'    => $alumno_id,
+                'matricula'    => $matricula,
+                'nombre'       => $nombre,
+                'email'        => $email,
+                'escuela'      => $escuela,
+                'account'      => $account,
+                'asignada_en'  => date('Y-m-d H:i:s'),
+                'expira_en'    => $payload['ExpirationDate'],
+                'estado'       => 'activa',
+            ];
+
+            rewind($fp);
+            ftruncate($fp, 0);
+            fwrite($fp, json_encode($clabes, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            flock($fp, LOCK_UN);
+            fclose($fp);
+        }
+
+        log_api("generar_clabe_individual -> OK alumno_id={$alumno_id} clabe={$clabe}");
+        respond([
+            'success'      => true,
+            'clabe'        => $clabe,
+            'banco'        => SPEI_BANCO,
+            'beneficiario' => SPEI_BENEFICIARIO,
+            'account'      => $account,
+            'expira_en'    => $payload['ExpirationDate'],
+            'instruccion'  => "CLABE exclusiva del alumno. Cualquier transferencia a esta CLABE se identificará automáticamente.",
+        ]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 0b. LIBERAR/CANCELAR CLABE INDIVIDUAL (alumno dado de baja)
+    //     Marca la CLABE como inactiva en la bitácora local. STP no siempre
+    //     ofrece endpoint de cancelación vía API; si lo hubiera, agregar
+    //     aquí el cURL correspondiente.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'liberar_clabe_individual':
+        $clabe     = trim($input['clabe']     ?? '');
+        $alumno_id = trim($input['alumno_id'] ?? '');
+
+        if (!$clabe) respond(['success' => false, 'error' => 'clabe requerida']);
+
+        $fp = fopen(SPEI_CLABES_FILE, 'c+');
+        if (!$fp) respond(['success' => false, 'error' => 'No se pudo abrir bitácora de CLABEs']);
+
+        flock($fp, LOCK_EX);
+        $contenido = stream_get_contents($fp);
+        $clabes    = $contenido ? (json_decode($contenido, true) ?? []) : [];
+
+        if (isset($clabes[$clabe])) {
+            $clabes[$clabe]['estado']     = 'liberada';
+            $clabes[$clabe]['liberada_en'] = date('Y-m-d H:i:s');
+        }
+
+        rewind($fp);
+        ftruncate($fp, 0);
+        fwrite($fp, json_encode($clabes, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        flock($fp, LOCK_UN);
+        fclose($fp);
+
+        log_api("liberar_clabe_individual -> alumno_id={$alumno_id} clabe={$clabe}");
+        respond(['success' => true, 'mensaje' => 'CLABE liberada']);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 1. OBTENER CLABE FIJA (LEGADO)
+    //    Devuelve la CLABE fija global. Se mantiene por compatibilidad,
+    //    pero el flujo recomendado es generar_clabe_individual por alumno.
     // ══════════════════════════════════════════════════════════════════════════
     case 'obtener_clabe':
         $referencia  = $input['referencia']  ?? 'REF-0000';
@@ -65,23 +201,44 @@ switch ($action) {
     break;
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 2. VERIFICAR PAGO SPEI POR REFERENCIA/CONCEPTO
-    //    Busca en pagos_spei.json usando el concepto (matrícula), no la CLABE.
+    // 2. VERIFICAR PAGO SPEI POR REFERENCIA/CONCEPTO O POR CLABE INDIVIDUAL
+    //    Busca en pagos_spei.json usando el concepto (matrícula) y/o la CLABE
+    //    individual del alumno. Con CLABE individual, el padre puede transferir
+    //    sin escribir ningún concepto y el sistema igual identifica al alumno
+    //    por la cuenta destino.
     // ══════════════════════════════════════════════════════════════════════════
     case 'verificar_spei':
         $referencia = strtoupper(trim($input['referencia'] ?? ''));
-        if (!$referencia) respond(['success' => false, 'error' => 'Referencia requerida']);
+        $clabe_ind  = trim($input['clabe'] ?? '');
+        if (!$referencia && !$clabe_ind) {
+            respond(['success' => false, 'error' => 'Referencia o clabe requerida']);
+        }
 
         $archivo = __DIR__ . '/pagos_spei.json';
         if (!file_exists($archivo)) respond(['success' => true, 'pagado' => false]);
 
         $pagos = json_decode(file_get_contents($archivo), true) ?? [];
 
-        // Busca exacto primero, luego busca que el concepto CONTENGA la referencia
-        $pago = $pagos[$referencia] ?? null;
-        if (!$pago) {
-            foreach ($pagos as $key => $p) {
-                if (str_contains($key, $referencia) || str_contains($referencia, $key)) {
+        $pago = null;
+
+        // 1) Coincidencia exacta por concepto/referencia
+        if ($referencia) {
+            $pago = $pagos[$referencia] ?? null;
+            if (!$pago) {
+                foreach ($pagos as $key => $p) {
+                    if (str_contains($key, $referencia) || str_contains($referencia, $key)) {
+                        $pago = $p;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 2) Si no hubo match por concepto, buscar por CLABE destino individual
+        //    (cubre el caso de transferencias sin concepto identificable)
+        if (!$pago && $clabe_ind) {
+            foreach ($pagos as $p) {
+                if (($p['clabe_destino'] ?? '') === $clabe_ind && ($p['pagado'] ?? false) === true) {
                     $pago = $p;
                     break;
                 }
@@ -89,7 +246,7 @@ switch ($action) {
         }
 
         if ($pago && $pago['pagado'] === true) {
-            log_api("verificar_spei PAGADO ref={$referencia} monto={$pago['monto_pesos']}");
+            log_api("verificar_spei PAGADO ref={$referencia} clabe={$clabe_ind} monto={$pago['monto_pesos']}");
             respond([
                 'success'       => true,
                 'pagado'        => true,
@@ -107,12 +264,14 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     // 3. SIMULAR PAGO SPEI (para testing sin webhook real)
-    //    Llama internamente a la lógica del webhook.
+    //    Acepta clabe_destino opcional para simular un depósito a la CLABE
+    //    individual del alumno (si no se manda, usa la CLABE fija legado).
     // ══════════════════════════════════════════════════════════════════════════
     case 'simular_spei':
-        $referencia = strtoupper(trim($input['referencia'] ?? ''));
-        $monto      = intval(floatval($input['monto'] ?? 0) * 100);
-        $emisor     = $input['emisor'] ?? 'PADRE DE FAMILIA DEMO';
+        $referencia    = strtoupper(trim($input['referencia'] ?? ''));
+        $monto         = intval(floatval($input['monto'] ?? 0) * 100);
+        $emisor        = $input['emisor'] ?? 'PADRE DE FAMILIA DEMO';
+        $clabe_destino = trim($input['clabe_destino'] ?? '') ?: SPEI_CLABE_FIJA;
 
         if (!$referencia || $monto <= 0) {
             respond(['success' => false, 'error' => 'referencia y monto requeridos']);
@@ -128,7 +287,7 @@ switch ($action) {
         $pagos[$referencia] = [
             'concepto'       => $referencia,
             'concepto_raw'   => $referencia,
-            'clabe_destino'  => SPEI_CLABE_FIJA,
+            'clabe_destino'  => $clabe_destino,
             'monto'          => $monto,
             'monto_pesos'    => number_format($monto / 100, 2),
             'clave_rastreo'  => 'SIM-' . date('YmdHis'),
@@ -146,7 +305,7 @@ switch ($action) {
         flock($fp, LOCK_UN);
         fclose($fp);
 
-        log_api("simular_spei -> ref={$referencia} monto=" . number_format($monto/100,2));
+        log_api("simular_spei -> ref={$referencia} clabe={$clabe_destino} monto=" . number_format($monto/100,2));
         respond(['success' => true, 'autorizacion' => $autorizacion, 'mensaje' => 'Pago simulado OK']);
     break;
 
@@ -390,6 +549,6 @@ switch ($action) {
 
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}",
-            'acciones' => ['obtener_clabe','verificar_spei','simular_spei','generar_liga','generar_cfdi','descargar_cfdi']]);
+            'acciones' => ['generar_clabe_individual','liberar_clabe_individual','obtener_clabe','verificar_spei','simular_spei','generar_liga','generar_cfdi','descargar_cfdi']]);
 }
 ?>

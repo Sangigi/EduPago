@@ -87,8 +87,10 @@ if (!$concepto_limpio) {
 }
 
 // ── Guardar en pagos_spei.json ────────────────────────────────────────────────
-// Indexado por CONCEPTO (matrícula), NO por CLABE.
-// Con CLABE fija, todos los pagos llegan a la misma CLABE — el concepto los diferencia.
+// Indexado primero por CONCEPTO (matrícula/referencia que escribió el padre).
+// Con CLABEs individuales, además se guarda 'clabe_destino' en cada registro
+// para que api.php?action=verificar_spei pueda localizar el pago por CLABE
+// aunque el concepto venga vacío o ilegible.
 $archivo_pagos = __DIR__ . '/pagos_spei.json';
 
 // Usar flock para evitar race conditions si llegan dos webhooks simultáneos
@@ -102,13 +104,22 @@ $pagos = $contenido ? (json_decode($contenido, true) ?? []) : [];
 $autorizacion = rand(10000000, 99999999);
 $monto_pesos  = number_format(intval($monto_centavos) / 100, 2);
 
-// Si ya existía un pago con esta referencia, acumular (pago parcial o duplicado)
-$ya_existia = isset($pagos[$concepto_limpio]) && $pagos[$concepto_limpio]['pagado'];
+// Determinar la clave de indexación principal:
+// - Si hay concepto legible, se usa como antes (compatibilidad con CLABE fija legado).
+// - Si NO hay concepto (transferencia a CLABE individual sin concepto escrito),
+//   se indexa por la CLABE destino + clave de rastreo para no pisar pagos previos.
+$tiene_concepto_legible = $concepto && !str_starts_with($concepto_limpio, 'SIN-CONCEPTO-');
+$clave_indice = $tiene_concepto_legible
+    ? $concepto_limpio
+    : ('CLABE-' . $clabe_destino . '-' . $clave_rastreo);
 
-$pagos[$concepto_limpio] = [
+// Si ya existía un pago con esta referencia, acumular (pago parcial o duplicado)
+$ya_existia = isset($pagos[$clave_indice]) && $pagos[$clave_indice]['pagado'];
+
+$pagos[$clave_indice] = [
     'concepto'       => $concepto_limpio,
     'concepto_raw'   => $concepto,          // Guardar original para debug
-    'clabe_destino'  => $clabe_destino,
+    'clabe_destino'  => $clabe_destino,     // CLABE individual del alumno (o fija, legado)
     'monto'          => intval($monto_centavos),
     'monto_pesos'    => $monto_pesos,
     'clave_rastreo'  => $clave_rastreo,
@@ -120,6 +131,7 @@ $pagos[$concepto_limpio] = [
     'requiere_revision' => !$concepto || $ya_existia, // Marcar para revisión si repetido
 ];
 
+
 rewind($fp);
 ftruncate($fp, 0);
 fwrite($fp, json_encode($pagos, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
@@ -129,7 +141,7 @@ fclose($fp);
 // Log resumen
 if (API_LOG_ENABLED) {
     file_put_contents(API_LOG_FILE,
-        "{$ts} | ✓ SPEI RECIBIDO | concepto:{$concepto_limpio} monto:\${$monto_pesos} rastreo:{$clave_rastreo}\n",
+        "{$ts} | ✓ SPEI RECIBIDO | indice:{$clave_indice} clabe:{$clabe_destino} monto:\${$monto_pesos} rastreo:{$clave_rastreo}\n",
         FILE_APPEND);
 }
 

@@ -15,12 +15,18 @@ define('PDT_BUS_ID_TC',    '000060');
 define('PDT_URL_CLABE',    'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');
 define('PDT_URL_LIGA',     'https://pagadetodo.mx/Pagadetodo/Service/GenerarLigaIndi');
 
-// ─── CLABE FIJA (reemplaza la generación dinámica) ───────────────────────────
-// Solicita esta CLABE a Pagadetodo/STP. Será la misma para todos los pagos SPEI.
-// La referencia del concepto de transferencia identificará al alumno/familia.
+// ─── CLABE FIJA (legado / fallback) ──────────────────────────────────────────
+// Se mantiene como respaldo, pero el sistema ahora genera una CLABE INDIVIDUAL
+// por cada alumno/familia vía PDT_URL_CLABE (GenerarClabeIndi).
 define('SPEI_CLABE_FIJA',  '646180633010000055'); // <-- Reemplazar con la CLABE real de STP
 define('SPEI_BANCO',       'STP — Sistema de Transferencias y Pagos');
 define('SPEI_BENEFICIARIO','Paga la Escuela S.A. de C.V.');
+
+// ─── CLABEs individuales (alta automática por alumno/familia) ────────────────
+// Cada CLABE generada se asigna y permanece ligada al alumno hasta que
+// se da de baja (deja la escuela), momento en que se libera/cancela.
+define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadetodo
+define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local de respaldo
 
 // ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
 define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php');

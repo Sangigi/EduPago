@@ -53,7 +53,10 @@ function PortalFamilia({ data, setData, user, escuela, onLogout }) {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        const r    = await fetch(`api.php?action=verificar_spei&referencia=${cobro.referencia_spei || cobro.referencia}`);
+        const params = new URLSearchParams();
+        if (cobro.referencia_spei || cobro.referencia) params.set('referencia', cobro.referencia_spei || cobro.referencia);
+        if (cobro.clabe) params.set('clabe', cobro.clabe);
+        const r    = await fetch(`api.php?action=verificar_spei&${params.toString()}`);
         const json = await r.json();
         if (json.pagado) {
           clearInterval(pollRef.current);
@@ -81,13 +84,17 @@ function PortalFamilia({ data, setData, user, escuela, onLogout }) {
     });
     if (metodo === 'SPEI') {
       try {
-        const spei = await CobroController.iniciarSPEI(cobro, escuela);
+        // Si la familia tiene un solo hijo activo, su CLABE individual representa
+        // correctamente este pago. Con varios hijos, el saldo es agregado y no
+        // corresponde a una sola CLABE individual → se usa la CLABE fija de la escuela.
+        const hijoUnico = misHijos.length === 1 ? misHijos[0] : null;
+        const spei = await CobroController.iniciarSPEI(cobro, escuela, hijoUnico);
         const cobrosUp = newData.cobros.map(c =>
-          c.id === cobro.id ? { ...c, clabe:spei.clabe, banco:spei.banco, referencia_spei:spei.referencia } : c
+          c.id === cobro.id ? { ...c, clabe:spei.clabe, banco:spei.banco, referencia_spei:spei.referencia, clabe_es_individual: !!spei.esIndividual } : c
         );
         const dataFinal = { ...newData, cobros:cobrosUp };
         setData(dataFinal); AppModel.save(dataFinal);
-        const cobroFinal = { ...cobro, clabe:spei.clabe, referencia_spei:spei.referencia, banco:spei.banco };
+        const cobroFinal = { ...cobro, clabe:spei.clabe, referencia_spei:spei.referencia, banco:spei.banco, clabe_es_individual: !!spei.esIndividual };
         setCobroActivo(cobroFinal);
         setModal('spei');
         iniciarPolling(cobroFinal);
@@ -610,12 +617,16 @@ function PortalFamilia({ data, setData, user, escuela, onLogout }) {
                 <>
                   <div style={{marginBottom:14,padding:'10px 14px',background:`rgba(189,207,0,.09)`,borderRadius:9,fontSize:12.5,color:PLC.navy,border:`1px solid rgba(189,207,0,.3)`,display:'flex',alignItems:'flex-start',gap:8}}>
                     <Icon name="warning" size={16} color={PLC.limeDk} style={{flexShrink:0,marginTop:1}}/>
-                    El <strong>concepto es obligatorio</strong> — sin él tu pago no se confirma automáticamente
+                    {cobroActivo.clabe_es_individual
+                      ? <>Esta CLABE es <strong>exclusiva de tu cuenta</strong> — tu pago se detecta automáticamente aunque no incluyas concepto</>
+                      : <>El <strong>concepto es obligatorio</strong> — sin él tu pago no se confirma automáticamente</>}
                   </div>
 
                   {/* CLABE */}
                   <div style={fieldBox()}>
-                    <div style={{fontSize:10, color:PLC.muted, textTransform:'uppercase', letterSpacing:.4, marginBottom:5}}>CLABE interbancaria</div>
+                    <div style={{fontSize:10, color:PLC.muted, textTransform:'uppercase', letterSpacing:.4, marginBottom:5}}>
+                      {cobroActivo.clabe_es_individual ? 'CLABE individual de tu cuenta' : 'CLABE interbancaria'}
+                    </div>
                     <div style={{display:'flex', alignItems:'center', gap:8}}>
                       <div style={{fontFamily:'monospace', fontSize:15, fontWeight:600, color:PLC.text, letterSpacing:.5, flex:1}}>
                         {cobroActivo.clabe || '646180633010000055'}
@@ -638,7 +649,7 @@ function PortalFamilia({ data, setData, user, escuela, onLogout }) {
                   {/* Referencia — destacada */}
                   <div style={fieldBox(true)}>
                     <div style={{fontSize:10, color:PLC.limeDk, textTransform:'uppercase', letterSpacing:.4, marginBottom:5, fontWeight:700}}>
-                      Concepto / Referencia (obligatorio)
+                      {cobroActivo.clabe_es_individual ? 'Concepto / Referencia (opcional)' : 'Concepto / Referencia (obligatorio)'}
                     </div>
                     <div style={{display:'flex', alignItems:'center', gap:8}}>
                       <div style={{fontFamily:'monospace', fontSize:18, fontWeight:700, color:PLC.navy, flex:1, letterSpacing:.5}}>

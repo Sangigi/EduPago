@@ -1,12 +1,16 @@
 /**
- * MODEL — AppModel v2
- * Multi-escuela. Familias con hijos. CLABE fija.
- * 
+ * MODEL — AppModel v3
+ * Multi-escuela. Familias con hijos. CLABE INDIVIDUAL por alumno.
+ *
  * Estructura de datos:
  *   escuelas[]    → cada escuela tiene su propio contexto
  *   escuela_activa → ID de la escuela en la que opera el cajero/admin
  *   superadmin    → puede ver TODAS las escuelas y sus métricas
- *   clientes[]    → alumnos y familias (con campo escuela_id)
+ *   clientes[]    → alumnos y familias (con campo escuela_id).
+ *                   Cada alumno activo tiene una CLABE individual asignada:
+ *                     - clabe_individual:        CLABE SPEI exclusiva del alumno
+ *                     - clabe_individual_estado: 'activa' | 'liberada' | 'pendiente' | null
+ *                     - clabe_individual_fecha:  fecha de asignación
  *   familias[]    → agrupa alumnos de la misma familia
  *   productos[]   → conceptos de pago (por escuela)
  *   cobros[]      → historial de cobros (por escuela)

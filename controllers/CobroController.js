@@ -1,9 +1,14 @@
 /**
- * CONTROLLER — CobroController v2
- * SPEI con CLABE fija. Referencia = matrícula del alumno.
+ * CONTROLLER — CobroController v3
+ * SPEI con CLABE INDIVIDUAL por alumno. Cada alumno tiene su propia CLABE
+ * (asignada al darse de alta) y la referencia/concepto sigue siendo su
+ * matrícula como respaldo. Si por algún motivo el alumno no tiene CLABE
+ * individual (ej. cliente general sin alumno asociado), se usa la CLABE
+ * fija de la escuela como fallback (legado).
  */
 const CobroController = (() => {
   const API = 'api.php';
+  const SPEI_BANCO_DEFAULT = 'STP — Sistema de Transferencias y Pagos';
 
   async function apiPost(action, body) {
     const res = await fetch(`${API}?action=${action}`, {
@@ -60,8 +65,24 @@ const CobroController = (() => {
     return { data: nuevoData, cobro };
   }
 
-  // SPEI FIJA: devuelve CLABE fija de la escuela (o la global de config)
-  async function iniciarSPEI(cobro, escuela) {
+  // SPEI: si el cliente ya tiene una CLABE individual asignada, se usa esa
+  // (cada alumno tiene su propia cuenta de cobro). Si no, fallback a la
+  // CLABE fija de la escuela (legado / clientes sin alumno asociado).
+  async function iniciarSPEI(cobro, escuela, cliente) {
+    const tieneClabeIndividual = cliente?.clabe_individual && cliente?.clabe_individual_estado === 'activa';
+
+    if (tieneClabeIndividual) {
+      return {
+        clabe:        cliente.clabe_individual,
+        banco:        SPEI_BANCO_DEFAULT,
+        beneficiario: escuela?.nombre || 'Paga la Escuela',
+        referencia:   cobro.referencia,
+        instruccion:  `Esta CLABE es exclusiva de ${cliente.nombre}. Puedes transferir sin escribir concepto; si tu banco lo requiere, usa: ${cobro.referencia}`,
+        esIndividual: true,
+        esFija:       false,
+      };
+    }
+
     // Si hay backend PHP disponible lo consultamos, si no usamos la CLABE local
     try {
       const resultado = await apiPost('obtener_clabe', {
@@ -78,6 +99,7 @@ const CobroController = (() => {
           beneficiario: resultado.beneficiario,
           referencia:   resultado.referencia,
           instruccion:  resultado.instruccion,
+          esIndividual: false,
           esFija:       true,
         };
       }
@@ -86,16 +108,41 @@ const CobroController = (() => {
     // Fallback: usar CLABE de la escuela directamente
     return {
       clabe:        escuela?.clabe_fija || '646180633010000055',
-      banco:        'STP — Sistema de Transferencias y Pagos',
+      banco:        SPEI_BANCO_DEFAULT,
       beneficiario: escuela?.nombre || 'Paga la Escuela',
       referencia:   cobro.referencia,
       instruccion:  `Escribe como concepto: ${cobro.referencia}`,
+      esIndividual: false,
       esFija:       true,
     };
   }
 
-  async function verificarSPEI(referencia) {
-    const resultado = await apiPost('verificar_spei', { referencia });
+  // ── Alta/baja de CLABE individual por alumno ──────────────────────────────
+  // Se llama justo después de registrar un alumno o familia para asignarle
+  // de inmediato su CLABE SPEI personal, que quedará vigente hasta que el
+  // alumno se dé de baja (deje la escuela).
+  async function generarClabeIndividual({ alumno_id, matricula, nombre, email, escuela }) {
+    const resultado = await apiPost('generar_clabe_individual', {
+      alumno_id, matricula, nombre, email, escuela,
+    });
+    if (!resultado.success) throw new Error(resultado.error || 'No se pudo generar la CLABE individual');
+    return resultado; // { clabe, banco, beneficiario, account, expira_en, instruccion }
+  }
+
+  // Libera la CLABE individual de un alumno (ej. al darlo de baja).
+  async function liberarClabeIndividual({ alumno_id, clabe }) {
+    if (!clabe) return { success: true, mensaje: 'Sin CLABE que liberar' };
+    try {
+      const resultado = await apiPost('liberar_clabe_individual', { alumno_id, clabe });
+      return resultado;
+    } catch(e) {
+      // No bloquear el flujo de baja del alumno por un error de red al liberar la CLABE
+      return { success: false, error: e.message };
+    }
+  }
+
+  async function verificarSPEI(referencia, clabe) {
+    const resultado = await apiPost('verificar_spei', { referencia, clabe });
     if (!resultado.success) throw new Error(resultado.error || 'Error al verificar');
     return { pagado: resultado.pagado, monto: resultado.monto, transaccion: resultado.transaccion };
   }
@@ -145,5 +192,8 @@ const CobroController = (() => {
     return AppModel.getEstadisticas(cobros);
   }
 
-  return { iniciarCobro, iniciarSPEI, verificarSPEI, iniciarTC, confirmarPago, cancelarCobro, getEstadisticas };
+  return {
+    iniciarCobro, iniciarSPEI, verificarSPEI, iniciarTC, confirmarPago, cancelarCobro, getEstadisticas,
+    generarClabeIndividual, liberarClabeIndividual,
+  };
 })();

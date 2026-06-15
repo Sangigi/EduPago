@@ -13,6 +13,32 @@ const DemoAPI = (() => {
   // ── Respuestas simuladas por acción ───────────────────────────────────────
   const HANDLERS = {
 
+    // Genera una CLABE individual "falsa" pero con formato válido (18 dígitos,
+    // prefijo STP 646180633) para que el flujo de alta de alumnos funcione
+    // completo en modo demo sin backend PHP.
+    generar_clabe_individual: (body) => {
+      const alumnoId = String(body.alumno_id || Math.floor(Math.random()*100000));
+      // Construir 18 dígitos: prefijo banco STP (646) + plaza (180) + producto (633) + 9 dígitos derivados del alumno
+      const sufijo = alumnoId.padStart(9, '0').slice(-9);
+      const clabe  = `646180633${sufijo}`;
+      return {
+        success:      true,
+        clabe,
+        banco:        'STP — Sistema de Transferencias y Pagos',
+        beneficiario: body.escuela || 'Paga la Escuela S.C.',
+        account:      body.matricula || `AL-${sufijo}`,
+        expira_en:    new Date(Date.now() + 365*24*60*60*1000).toISOString().slice(0,10),
+        instruccion:  'CLABE exclusiva del alumno (modo demo). Cualquier transferencia a esta CLABE se identificará automáticamente.',
+        _modo:        'demo',
+      };
+    },
+
+    liberar_clabe_individual: (body) => ({
+      success: true,
+      mensaje: 'CLABE liberada (modo demo)',
+      _modo:   'demo',
+    }),
+
     obtener_clabe: (body) => ({
       success:      true,
       clabe:        '646180633010000055',
@@ -27,8 +53,9 @@ const DemoAPI = (() => {
     verificar_spei: (body) => {
       // Consulta el estado real del cobro en localStorage (puesto por simular_spei)
       // Busca con la referencia tal cual Y en mayúsculas (por si hay diferencia de case)
-      const ref  = (body.referencia || '').trim();
+      const ref   = (body.referencia || '').trim();
       const refUp = ref.toUpperCase();
+      const clabeBuscada = (body.clabe || '').trim();
 
       // Buscar todas las claves de pagos simulados y comparar sin case
       let pago = null;
@@ -36,10 +63,14 @@ const DemoAPI = (() => {
         const k = localStorage.key(i);
         if (!k || !k.startsWith('edupago_spei_sim_')) continue;
         const storedRef = k.replace('edupago_spei_sim_', '').toUpperCase();
-        if (storedRef === refUp || storedRef.includes(refUp) || refUp.includes(storedRef)) {
-          try { pago = JSON.parse(localStorage.getItem(k)); } catch(e) {}
-          if (pago) break;
-        }
+        let candidato = null;
+        try { candidato = JSON.parse(localStorage.getItem(k)); } catch(e) {}
+        if (!candidato) continue;
+
+        const matchRef   = refUp && (storedRef === refUp || storedRef.includes(refUp) || refUp.includes(storedRef));
+        const matchClabe = clabeBuscada && candidato.clabe_destino === clabeBuscada;
+
+        if (matchRef || matchClabe) { pago = candidato; break; }
       }
 
       if (pago && pago.pagado) {
@@ -68,6 +99,7 @@ const DemoAPI = (() => {
       localStorage.setItem('edupago_spei_sim_' + ref, JSON.stringify({
         pagado: true, monto, autorizacion: auth,
         emisor: (body.emisor || 'DEMO').toUpperCase(),
+        clabe_destino: (body.clabe_destino || '').trim(),
         fecha:  new Date().toISOString().slice(0,10),
       }));
       return {

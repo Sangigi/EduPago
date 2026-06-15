@@ -1,4 +1,4 @@
-/* views/Familias.jsx — Gestión de familias con hijos agrupados */
+/* views/Familias.jsx — Gestión de familias con hijos agrupados y CLABE SPEI individual */
 function Familias({ data, setData, escuela_id }) {
   const { useState } = React;
   const EMPTY_FAM = {
@@ -15,6 +15,9 @@ function Familias({ data, setData, escuela_id }) {
   const [expanded, setExpanded]   = useState({});
   const [q, setQ]                 = useState('');
   const [targetFamId, setTargetFamId] = useState(null);
+  const [clabeLoadingId, setClabeLoadingId] = useState(null); // id del alumno cuya CLABE se está generando
+
+  const escuela = data.escuelas.find(e => e.id === escuela_id);
 
   const familias = data.familias.filter(f =>
     !q || f.nombre.toLowerCase().includes(q.toLowerCase()) || f.contacto.toLowerCase().includes(q.toLowerCase())
@@ -24,6 +27,57 @@ function Familias({ data, setData, escuela_id }) {
   const saldoFamily   = fid => hijosDeFamily(fid).reduce((a,c) => a + (c.saldo_pendiente||0), 0);
 
   const toggleExp = id => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
+
+  // ── Genera (o regenera) la CLABE individual de un alumno vía Pagadetodo/STP ──
+  // Queda asignada al alumno hasta que se dé de baja (salga de la escuela).
+  const generarClabe = async (alumnoActual, dataBase) => {
+    setClabeLoadingId(alumnoActual.id);
+    try {
+      const res = await CobroController.generarClabeIndividual({
+        alumno_id: alumnoActual.id,
+        matricula: alumnoActual.matricula,
+        nombre:    alumnoActual.nombre,
+        email:     alumnoActual.email,
+        escuela:   escuela?.nombre || '',
+      });
+      const conClabe = ClienteController.asignarClabe(dataBase, alumnoActual.id, res.clabe);
+      setData(conClabe);
+      AppModel.save(conClabe);
+    } catch (e) {
+      const conError = ClienteController.marcarClabeError(dataBase, alumnoActual.id);
+      setData(conError);
+      AppModel.save(conError);
+    } finally {
+      setClabeLoadingId(null);
+    }
+  };
+
+  const regenerarClabe = async (cliente) => {
+    await generarClabe(cliente, data);
+  };
+
+  // ── Activar/Desactivar hijo ────────────────────────────────────────────────
+  // Al dar de baja (sale de la escuela) se libera su CLABE individual; al
+  // reactivar (reingreso) se solicita una CLABE nueva de inmediato.
+  const toggleHijo = async (hijo) => {
+    const eraActivo = hijo.activo;
+    const newData = ClienteController.toggleActivo(data, hijo.id);
+    setData(newData);
+    AppModel.save(newData);
+
+    if (eraActivo) {
+      if (hijo.clabe_individual) {
+        try {
+          await CobroController.liberarClabeIndividual({ alumno_id: hijo.id, clabe: hijo.clabe_individual });
+        } catch (e) { /* no bloquear el flujo de baja */ }
+      }
+    } else {
+      const alumnoActualizado = newData.clientes.find(c => c.id === hijo.id);
+      await generarClabe(alumnoActualizado, newData);
+    }
+  };
 
   const guardarFam = () => {
     if (!formFam.nombre) return;
@@ -39,20 +93,31 @@ function Familias({ data, setData, escuela_id }) {
     setFormFam(EMPTY_FAM);
   };
 
-  const guardarAlu = () => {
+  const guardarAlu = async () => {
     if (!formAlu.nombre) return;
     const aluConFam = { ...formAlu, familia_id: targetFamId };
-    let newData;
+
     if (formAlu.id) {
-      newData = ClienteController.editar(data, aluConFam);
-    } else {
-      newData = ClienteController.agregar(data, aluConFam, escuela_id);
+      // Edición: no se toca la CLABE individual ya asignada
+      const newData = ClienteController.editar(data, aluConFam);
+      setData(newData);
+      AppModel.save(newData);
+      setModal(null);
+      setFormAlu(EMPTY_ALU);
+      setTargetFamId(null);
+      return;
     }
+
+    // Alta nueva (+ Hijo): registrar y asignar de inmediato su CLABE SPEI individual
+    const newData = ClienteController.agregar(data, aluConFam, escuela_id);
+    const alumnoNuevo = newData.clientes[newData.clientes.length - 1];
     setData(newData);
     AppModel.save(newData);
     setModal(null);
     setFormAlu(EMPTY_ALU);
     setTargetFamId(null);
+
+    await generarClabe(alumnoNuevo, newData);
   };
 
   return (
@@ -158,6 +223,30 @@ function Familias({ data, setData, escuela_id }) {
                         <div style={{fontSize:11.5, color:'var(--ink-3)', marginTop:2}}>
                           {hijo.grado} · Mat: <span style={{fontFamily:'var(--mono)'}}>{hijo.matricula || '—'}</span>
                         </div>
+                        <div style={{fontSize:11, color:'var(--ink-4)', marginTop:2, display:'flex', alignItems:'center', gap:6}}>
+                          <Icon name="bank" size={11} color="currentColor"/>
+                          {clabeLoadingId === hijo.id ? (
+                            <span style={{display:'inline-flex',alignItems:'center',gap:5}}>
+                              <span className="spinner" style={{width:10,height:10}}></span> Generando CLABE…
+                            </span>
+                          ) : hijo.clabe_individual_estado === 'activa' && hijo.clabe_individual ? (
+                            <span style={{fontFamily:'var(--mono)', letterSpacing:.4}}>{fmtCLABE(hijo.clabe_individual)}</span>
+                          ) : hijo.clabe_individual_estado === 'liberada' ? (
+                            <span>CLABE liberada</span>
+                          ) : hijo.clabe_individual_estado === 'error' ? (
+                            <span style={{display:'inline-flex',alignItems:'center',gap:5,color:'var(--red)'}}>
+                              Error al generar CLABE
+                              <button className="btn btn-ghost btn-sm" style={{padding:'1px 6px', fontSize:10.5}} onClick={()=>regenerarClabe(hijo)}>Reintentar</button>
+                            </span>
+                          ) : hijo.activo ? (
+                            <span style={{display:'inline-flex',alignItems:'center',gap:5}}>
+                              CLABE pendiente
+                              <button className="btn btn-ghost btn-sm" style={{padding:'1px 6px', fontSize:10.5}} onClick={()=>regenerarClabe(hijo)}>Generar</button>
+                            </span>
+                          ) : (
+                            <span>Sin CLABE</span>
+                          )}
+                        </div>
                       </div>
                       {hijo.saldo_pendiente > 0
                         ? <span style={{fontFamily:'var(--mono)', fontSize:12, color:'var(--red)', fontWeight:600}}>{fmt(hijo.saldo_pendiente)}</span>
@@ -166,6 +255,9 @@ function Familias({ data, setData, escuela_id }) {
                       <button className="btn btn-ghost btn-sm" onClick={()=>{
                         setFormAlu({...hijo}); setTargetFamId(hijo.familia_id); setModal('alumno');
                       }} style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="edit" size={14} color="currentColor"/></button>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>toggleHijo(hijo)} title={hijo.activo ? 'Dar de baja (libera su CLABE)' : 'Reactivar (genera nueva CLABE)'} style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {hijo.activo ? <Icon name="shield" size={14} color="currentColor"/> : <Icon name="eyeOff" size={14} color="currentColor"/>}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -340,6 +432,11 @@ function Familias({ data, setData, escuela_id }) {
                   <input className="form-input" value={formAlu.tel} onChange={e=>setFormAlu(f=>({...f,tel:e.target.value}))} style={{fontFamily:'var(--mono)'}}/>
                 </div>
               </div>
+              {!formAlu.id && (
+                <div style={{marginTop:6, padding:'8px 12px', background:'var(--accent-glow)', borderRadius:'var(--radius-sm)', fontSize:11.5, color:'var(--ink-2)', lineHeight:1.6}}>
+                  <Icon name="bank" size={13} color="currentColor"/> Al guardar, se generará automáticamente una CLABE SPEI individual para este alumno.
+                </div>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>

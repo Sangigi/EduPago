@@ -18,13 +18,14 @@ const SpeiPoller = (() => {
     if (!speiPend.length) return;
 
     for (const cobro of speiPend) {
-      const ref = cobro.referencia_spei || cobro.referencia || cobro.folio;
-      if (!ref) continue;
+      const ref   = cobro.referencia_spei || cobro.referencia || cobro.folio;
+      const clabe = cobro.clabe || null;
+      if (!ref && !clabe) continue;
       try {
         const resultado = await fetch('api.php?action=verificar_spei', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ referencia: ref }),
+          body:    JSON.stringify({ referencia: ref, clabe }),
         });
         const json = await resultado.json();
         if (json.success && json.pagado) {

@@ -52,22 +52,23 @@ function Caja({ data, setData, user, escuela }) {
       setModal('spei');
 
       try {
-        // CLABE FIJA: devuelve la clabe configurada + referencia = matrícula del alumno
-        const spei = await CobroController.iniciarSPEI(cobro, escuela);
+        // CLABE INDIVIDUAL: si el alumno tiene CLABE propia asignada, se usa esa;
+        // de lo contrario cae al fallback de CLABE fija (legado).
+        const spei = await CobroController.iniciarSPEI(cobro, escuela, clienteSel);
         // Guardar info SPEI en el cobro
         const cobrosActualizados = newData.cobros.map(c =>
-          c.id === cobro.id ? { ...c, clabe: spei.clabe, banco: spei.banco, beneficiario: spei.beneficiario, referencia_spei: spei.referencia, instruccion: spei.instruccion } : c
+          c.id === cobro.id ? { ...c, clabe: spei.clabe, banco: spei.banco, beneficiario: spei.beneficiario, referencia_spei: spei.referencia, instruccion: spei.instruccion, clabe_es_individual: !!spei.esIndividual } : c
         );
         const dataConClabe = { ...newData, cobros: cobrosActualizados };
         setData(dataConClabe);
-        setCobroActivo(prev => ({ ...prev, clabe: spei.clabe, referencia_spei: spei.referencia, instruccion: spei.instruccion, banco: spei.banco, beneficiario: spei.beneficiario }));
+        setCobroActivo(prev => ({ ...prev, clabe: spei.clabe, referencia_spei: spei.referencia, instruccion: spei.instruccion, banco: spei.banco, beneficiario: spei.beneficiario, clabe_es_individual: !!spei.esIndividual }));
         setSpeiStatus('esperando');
         AppModel.save(dataConClabe);
 
-        // Polling automático: verificar cada 10 segundos por referencia
+        // Polling automático: verificar cada 10 segundos por referencia y/o CLABE individual
         speiPollRef.current = setInterval(async () => {
           try {
-            const ver = await CobroController.verificarSPEI(spei.referencia);
+            const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe);
             if (ver.pagado) {
               clearInterval(speiPollRef.current);
               setData(prev => {
@@ -139,8 +140,9 @@ function Caja({ data, setData, user, escuela }) {
     setSpeiStatus('verificando');
     try {
       const refSpei = cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.clabe;
-      if (refSpei) {
-        const ver = await CobroController.verificarSPEI(refSpei);
+      const clabeActiva = cobroActivo?.clabe;
+      if (refSpei || clabeActiva) {
+        const ver = await CobroController.verificarSPEI(refSpei, clabeActiva);
         if (ver.pagado) {
           clearInterval(speiPollRef.current);
           const updatedData = CobroController.confirmarPago(data, cobroActivo.id, { transaccion: ver.transaccion });
@@ -381,7 +383,7 @@ function Caja({ data, setData, user, escuela }) {
                   {speiStatus === 'generando' && (
                     <div className="verif-row" style={{justifyContent:'center',padding:'20px 0'}}>
                       <span className="spinner" style={{borderTopColor:'var(--accent)'}}></span>
-                      <span style={{fontSize:13,color:'var(--ink-2)',marginLeft:10}}>Cargando CLABE fija…</span>
+                      <span style={{fontSize:13,color:'var(--ink-2)',marginLeft:10}}>Cargando CLABE de pago…</span>
                     </div>
                   )}
 
@@ -395,7 +397,9 @@ function Caja({ data, setData, user, escuela }) {
                   {(speiStatus === 'esperando' || speiStatus === 'verificando') && (
                     <div className="spei-box">
                     <div style={{fontSize:11,color:'rgba(255,255,255,.5)',marginBottom:4,textAlign:'center',textTransform:'uppercase',letterSpacing:'.5px'}}>
-                      CLABE Interbancaria Fija · STP
+                      {cobroActivo?.clabe_es_individual
+                        ? `CLABE Individual · ${cobroActivo?.cliente || 'Alumno'}`
+                        : 'CLABE Interbancaria Fija · STP'}
                     </div>
                     <div className="clabe-display">{fmtCLABE(cobroActivo?.clabe)}</div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
@@ -408,7 +412,10 @@ function Caja({ data, setData, user, escuela }) {
                         <span className="spei-value" style={{fontSize:16}}>{fmt(cobroActivo?.total)}</span>
                       </div>
                       <div className="spei-info-row" style={{flexDirection:'column',gap:2,alignItems:'flex-start',gridColumn:'1/-1'}}>
-                        <span className="spei-label" style={{display:'flex',alignItems:'center',gap:5}}><Icon name="warning" size={12} color="currentColor"/> Concepto obligatorio (copiar exacto)</span>
+                        <span className="spei-label" style={{display:'flex',alignItems:'center',gap:5}}>
+                          <Icon name="warning" size={12} color="currentColor"/>
+                          {cobroActivo?.clabe_es_individual ? 'Concepto (opcional, recomendado)' : 'Concepto obligatorio (copiar exacto)'}
+                        </span>
                         <span className="spei-value" style={{fontFamily:'var(--mono)',letterSpacing:1,color:'#fbbf24',fontSize:15}}>
                           {cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.folio}
                         </span>
@@ -434,8 +441,9 @@ function Caja({ data, setData, user, escuela }) {
 
                   {(speiStatus === 'esperando' || speiStatus === 'verificando') && (
                   <p style={{fontSize:11.5,color:'var(--ink-4)',marginTop:10,lineHeight:1.5}}>
-                    ℹ La CLABE es fija para esta escuela. El concepto de la transferencia identifica
-                    al alumno. El sistema confirmará el pago automáticamente.
+                    {cobroActivo?.clabe_es_individual
+                      ? <>ℹ Esta CLABE pertenece exclusivamente a {cobroActivo?.cliente || 'este alumno'}. Cualquier transferencia recibida aquí se identificará automáticamente, sin importar el concepto.</>
+                      : <>ℹ La CLABE es fija para esta escuela. El concepto de la transferencia identifica al alumno. El sistema confirmará el pago automáticamente.</>}
                   </p>
                   )}
                 </>
