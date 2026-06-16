@@ -32,21 +32,39 @@ function Familias({ data, setData, escuela_id }) {
 
   // ── Genera (o regenera) la CLABE individual de un alumno vía Pagadetodo/STP ──
   // Queda asignada al alumno hasta que se dé de baja (salga de la escuela).
+  const _aplicarClabe = (dataBase, alumnoId, clabe) => ({
+    ...dataBase,
+    clientes: dataBase.clientes.map(c =>
+      c.id === alumnoId
+        ? { ...c, clabe_individual: clabe, clabe_individual_estado: 'activa', clabe_individual_fecha: new Date().toISOString().slice(0,10) }
+        : c
+    ),
+  });
+
+  const _marcarError = (dataBase, alumnoId) => ({
+    ...dataBase,
+    clientes: dataBase.clientes.map(c =>
+      c.id === alumnoId ? { ...c, clabe_individual_estado: 'error' } : c
+    ),
+  });
+
   const generarClabe = async (alumnoActual, dataBase) => {
+    if (!alumnoActual?.id) return;
     setClabeLoadingId(alumnoActual.id);
     try {
       const res = await CobroController.generarClabeIndividual({
         alumno_id: alumnoActual.id,
-        matricula: alumnoActual.matricula,
+        matricula: alumnoActual.matricula || '',
         nombre:    alumnoActual.nombre,
-        email:     alumnoActual.email,
+        email:     alumnoActual.email || '',
         escuela:   escuela?.nombre || '',
       });
-      const conClabe = ClienteController.asignarClabe(dataBase, alumnoActual.id, res.clabe);
+      const conClabe = _aplicarClabe(dataBase, alumnoActual.id, res.clabe);
       setData(conClabe);
       AppModel.save(conClabe);
     } catch (e) {
-      const conError = ClienteController.marcarClabeError(dataBase, alumnoActual.id);
+      alert('Error al generar CLABE: ' + e.message);
+      const conError = _marcarError(dataBase, alumnoActual.id);
       setData(conError);
       AppModel.save(conError);
     } finally {
@@ -63,7 +81,12 @@ function Familias({ data, setData, escuela_id }) {
   // reactivar (reingreso) se solicita una CLABE nueva de inmediato.
   const toggleHijo = async (hijo) => {
     const eraActivo = hijo.activo;
-    const newData = ClienteController.toggleActivo(data, hijo.id);
+    try { await ClienteController.toggleActivo(hijo.id, eraActivo); } catch(e) {}
+
+    const newData = {
+      ...data,
+      clientes: data.clientes.map(c => c.id === hijo.id ? { ...c, activo: !eraActivo } : c),
+    };
     setData(newData);
     AppModel.save(newData);
 
@@ -71,7 +94,13 @@ function Familias({ data, setData, escuela_id }) {
       if (hijo.clabe_individual) {
         try {
           await CobroController.liberarClabeIndividual({ alumno_id: hijo.id, clabe: hijo.clabe_individual });
-        } catch (e) { /* no bloquear el flujo de baja */ }
+          const sinClabe = {
+            ...newData,
+            clientes: newData.clientes.map(c => c.id === hijo.id ? { ...c, clabe_individual_estado: 'liberada' } : c),
+          };
+          setData(sinClabe);
+          AppModel.save(sinClabe);
+        } catch(e) {}
       }
     } else {
       const alumnoActualizado = newData.clientes.find(c => c.id === hijo.id);
@@ -79,16 +108,25 @@ function Familias({ data, setData, escuela_id }) {
     }
   };
 
-  const guardarFam = () => {
+  const guardarFam = async () => {
     if (!formFam.nombre) return;
-    let newData;
-    if (formFam.id) {
-      newData = ClienteController.editarFamilia(data, formFam);
-    } else {
-      newData = ClienteController.agregarFamilia(data, formFam, escuela_id);
+    try {
+      let familia;
+      if (formFam.id) {
+        familia = await ClienteController.editarFamilia(formFam);
+        const newData = {
+          ...data,
+          familias: data.familias.map(f => f.id === familia.id ? { ...f, ...familia } : f),
+        };
+        setData(newData); AppModel.save(newData);
+      } else {
+        familia = await ClienteController.agregarFamilia(formFam, escuela_id);
+        const newData = { ...data, familias: [...data.familias, { ...familia, activa: true }] };
+        setData(newData); AppModel.save(newData);
+      }
+    } catch(e) {
+      alert('Error al guardar familia: ' + e.message);
     }
-    setData(newData);
-    AppModel.save(newData);
     setModal(null);
     setFormFam(EMPTY_FAM);
   };
@@ -99,25 +137,31 @@ function Familias({ data, setData, escuela_id }) {
 
     if (formAlu.id) {
       // Edición: no se toca la CLABE individual ya asignada
-      const newData = ClienteController.editar(data, aluConFam);
-      setData(newData);
-      AppModel.save(newData);
-      setModal(null);
-      setFormAlu(EMPTY_ALU);
-      setTargetFamId(null);
+      try {
+        const clienteActualizado = await ClienteController.editar(aluConFam);
+        const newData = {
+          ...data,
+          clientes: data.clientes.map(c => c.id === clienteActualizado.id ? { ...c, ...clienteActualizado } : c),
+        };
+        setData(newData); AppModel.save(newData);
+      } catch(e) { alert('Error al editar alumno: ' + e.message); }
+      setModal(null); setFormAlu(EMPTY_ALU); setTargetFamId(null);
       return;
     }
 
-    // Alta nueva (+ Añadir estudiante): registrar y asignar de inmediato su CLABE SPEI individual
-    const newData = ClienteController.agregar(data, aluConFam, escuela_id);
-    const alumnoNuevo = newData.clientes[newData.clientes.length - 1];
-    setData(newData);
-    AppModel.save(newData);
-    setModal(null);
-    setFormAlu(EMPTY_ALU);
-    setTargetFamId(null);
-
-    await generarClabe(alumnoNuevo, newData);
+    // Alta nueva: registrar en API, luego generar CLABE SPEI de inmediato
+    try {
+      const alumnoNuevo = await ClienteController.agregar(aluConFam, escuela_id);
+      const newData = {
+        ...data,
+        clientes: [...data.clientes, { ...alumnoNuevo, activo: true, saldo_pendiente: 0, clabe_individual_estado: 'pendiente' }],
+      };
+      setData(newData); AppModel.save(newData);
+      setModal(null); setFormAlu(EMPTY_ALU); setTargetFamId(null);
+      await generarClabe(alumnoNuevo, newData);
+    } catch(e) {
+      alert('Error al dar de alta alumno: ' + e.message);
+    }
   };
 
   return (

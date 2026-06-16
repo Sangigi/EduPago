@@ -33,15 +33,46 @@ function App() {
   const [theme, setTheme]               = useState('dark');
   const [escuelaActiva, setEscuelaActiva] = useState(null);
 
+  // Carga datos desde la API (MySQL) o desde localStorage como fallback (modo demo/offline)
+  const cargarDatosDesdeAPI = async (token) => {
+    try {
+      const res = await fetch('api.php?action=cargar_datos', {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const json = await res.json();
+      if (json.success) {
+        // Mezcla los datos de la DB con la estructura base de AppModel
+        const base = AppModel.load();
+        const merged = {
+          ...base,
+          escuelas:  json.escuelas.length  ? json.escuelas  : base.escuelas,
+          clientes:  json.clientes,
+          familias:  json.familias,
+          productos: json.productos.length ? json.productos : base.productos,
+          cobros:    json.cobros,
+        };
+        AppModel.save(merged);
+        return merged;
+      }
+    } catch(e) { /* sin API: usar localStorage */ }
+    return AppModel.load();
+  };
+
   useEffect(() => {
     const session = AuthController.getSession();
     if (session) {
       setUser(session);
       if (session.escuela_id) setEscuelaActiva(session.escuela_id);
+      // Intentar cargar desde DB
+      cargarDatosDesdeAPI(session.token).then(loaded => {
+        setData(loaded);
+        dataRef.current = loaded;
+      });
+    } else {
+      const loaded = AppModel.load();
+      setData(loaded);
+      dataRef.current = loaded;
     }
-    const loaded = AppModel.load();
-    setData(loaded);
-    dataRef.current = loaded;
   }, []);
 
   useEffect(() => { dataRef.current = data; }, [data]);
@@ -50,9 +81,11 @@ function App() {
     setUser(u);
     if (u.escuela_id) setEscuelaActiva(u.escuela_id);
     else setEscuelaActiva(null);
-    const loaded = AppModel.load();
-    setData(loaded);
-    dataRef.current = loaded;
+    // Cargar datos frescos de la DB después del login
+    cargarDatosDesdeAPI(u.token).then(loaded => {
+      setData(loaded);
+      dataRef.current = loaded;
+    });
     setView('dashboard');
     SpeiPoller.iniciar({
       getData:   () => dataRef.current,

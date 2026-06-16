@@ -21,21 +21,40 @@ function Alumnos({ data, setData, escuela_id }) {
   );
 
   // ── Genera (o regenera) la CLABE individual de un alumno vía Pagadetodo/STP ──
+  // Actualiza el alumno en el state local con la CLABE recibida de la API
+  const _aplicarClabe = (dataBase, alumnoId, clabe) => ({
+    ...dataBase,
+    clientes: dataBase.clientes.map(c =>
+      c.id === alumnoId
+        ? { ...c, clabe_individual: clabe, clabe_individual_estado: 'activa', clabe_individual_fecha: new Date().toISOString().slice(0,10) }
+        : c
+    ),
+  });
+
+  const _marcarError = (dataBase, alumnoId) => ({
+    ...dataBase,
+    clientes: dataBase.clientes.map(c =>
+      c.id === alumnoId ? { ...c, clabe_individual_estado: 'error' } : c
+    ),
+  });
+
   const generarClabe = async (alumnoActual, dataBase) => {
+    if (!alumnoActual?.id) return;
     setClabeLoadingId(alumnoActual.id);
     try {
       const res = await CobroController.generarClabeIndividual({
         alumno_id: alumnoActual.id,
-        matricula: alumnoActual.matricula,
+        matricula: alumnoActual.matricula || '',
         nombre:    alumnoActual.nombre,
-        email:     alumnoActual.email,
+        email:     alumnoActual.email || '',
         escuela:   escuela?.nombre || '',
       });
-      const conClabe = ClienteController.asignarClabe(dataBase, alumnoActual.id, res.clabe);
+      const conClabe = _aplicarClabe(dataBase, alumnoActual.id, res.clabe);
       setData(conClabe);
       AppModel.save(conClabe);
     } catch (e) {
-      const conError = ClienteController.marcarClabeError(dataBase, alumnoActual.id);
+      alert('Error al generar CLABE: ' + e.message);
+      const conError = _marcarError(dataBase, alumnoActual.id);
       setData(conError);
       AppModel.save(conError);
     } finally {
@@ -47,39 +66,70 @@ function Alumnos({ data, setData, escuela_id }) {
     if (!form.nombre) return;
 
     if (form.id) {
-      const newData = ClienteController.editar(data, form);
-      setData(newData);
-      AppModel.save(newData);
+      // Edición: llama API y actualiza estado local
+      try {
+        const clienteActualizado = await ClienteController.editar(form);
+        const newData = {
+          ...data,
+          clientes: data.clientes.map(c => c.id === clienteActualizado.id ? { ...c, ...clienteActualizado } : c),
+        };
+        setData(newData);
+        AppModel.save(newData);
+      } catch(e) {
+        alert('Error al editar alumno: ' + e.message);
+      }
       setModal(null);
       setForm(EMPTY);
       return;
     }
 
-    // Alta nueva: registrar y asignar CLABE SPEI individual de inmediato
-    const newData = ClienteController.agregar(data, form, escuela_id);
-    const alumnoNuevo = newData.clientes[newData.clientes.length - 1];
-    setData(newData);
-    AppModel.save(newData);
-    setModal(null);
-    setForm(EMPTY);
-
-    await generarClabe(alumnoNuevo, newData);
+    // Alta nueva: llama API, recibe cliente con ID real de DB, luego genera CLABE
+    try {
+      const alumnoNuevo = await ClienteController.agregar(form, escuela_id);
+      const newData = {
+        ...data,
+        clientes: [...data.clientes, { ...alumnoNuevo, activo: true, saldo_pendiente: 0, clabe_individual_estado: 'pendiente' }],
+      };
+      setData(newData);
+      AppModel.save(newData);
+      setModal(null);
+      setForm(EMPTY);
+      // Generar CLABE individual de inmediato
+      await generarClabe(alumnoNuevo, newData);
+    } catch(e) {
+      alert('Error al dar de alta alumno: ' + e.message);
+    }
   };
 
   // ── Activar/Desactivar alumno ──────────────────────────────────────────────
   const toggle = async (cliente) => {
     const eraActivo = cliente.activo;
-    const newData = ClienteController.toggleActivo(data, cliente.id);
+    try {
+      await ClienteController.toggleActivo(cliente.id, eraActivo);
+    } catch(e) { /* API puede fallar, seguimos actualizando UI */ }
+
+    const newData = {
+      ...data,
+      clientes: data.clientes.map(c => c.id === cliente.id ? { ...c, activo: !eraActivo } : c),
+    };
     setData(newData);
     AppModel.save(newData);
 
     if (eraActivo) {
+      // Dar de baja: liberar CLABE
       if (cliente.clabe_individual) {
         try {
           await CobroController.liberarClabeIndividual({ alumno_id: cliente.id, clabe: cliente.clabe_individual });
-        } catch (e) { /* no bloquear el flujo de baja */ }
+          const sinClabe = {
+            ...newData,
+            clientes: newData.clientes.map(c => c.id === cliente.id ? { ...c, clabe_individual_estado: 'liberada' } : c),
+          };
+          setData(sinClabe);
+          AppModel.save(sinClabe);
+        } catch(e) { /* no bloquear el flujo de baja */ }
       }
     } else {
+      // Reactivar: generar nueva CLABE
       const alumnoActualizado = newData.clientes.find(c => c.id === cliente.id);
       await generarClabe(alumnoActualizado, newData);
     }

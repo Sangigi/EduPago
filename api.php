@@ -459,6 +459,295 @@ switch ($action) {
         echo $binary;
         exit;
 
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'cargar_datos':
+        // Carga el estado completo del usuario actual desde la DB
+        // Respeta el scope: superadmin ve todo, admin/cajero/familia ven su escuela
+
+        $rol       = $usuario_actual['rol']       ?? 'cajero';
+        $user_id   = $usuario_actual['user_id']   ?? 0;
+        $escuela_id_usuario = null;
+
+        // Obtener escuela_id del usuario en la DB
+        $su = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+        $su->execute([$user_id]);
+        $urow = $su->fetch();
+        if ($urow) {
+            $escuela_id_usuario = $urow['escuela_id'];
+            $rol = $urow['rol'];
+        }
+
+        // ── Escuelas ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM escuelas ORDER BY id");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ?");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $escuelas = $stmt->fetchAll();
+
+        // ── Clientes (alumnos) ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM clientes ORDER BY escuela_id, nombre");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE escuela_id = ? ORDER BY nombre");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $clientes_raw = $stmt->fetchAll();
+        $clientes = array_map(function($c) {
+            $c['activo']          = (bool)$c['activo'];
+            $c['saldo_pendiente'] = floatval($c['saldo_pendiente']);
+            $c['familia_id']      = $c['familia_id'] ? intval($c['familia_id']) : null;
+            return $c;
+        }, $clientes_raw);
+
+        // ── Familias ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM familias ORDER BY escuela_id, nombre");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM familias WHERE escuela_id = ? ORDER BY nombre");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $familias_raw = $stmt->fetchAll();
+        $familias = array_map(function($f) {
+            $f['activa'] = (bool)$f['activa'];
+            return $f;
+        }, $familias_raw);
+
+        // ── Productos ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM productos ORDER BY escuela_id, nombre");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM productos WHERE escuela_id = ? ORDER BY nombre");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $productos_raw = $stmt->fetchAll();
+        $productos = array_map(function($p) {
+            $p['activo'] = (bool)$p['activo'];
+            $p['precio'] = floatval($p['precio']);
+            return $p;
+        }, $productos_raw);
+
+        // ── Cobros (últimos 90 días para no sobrecargar) ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM cobros WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY id DESC");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM cobros WHERE escuela_id = ? AND fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY id DESC");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $cobros_raw = $stmt->fetchAll();
+        $cobros = array_map(function($c) {
+            $c['total']   = floatval($c['total']);
+            $c['factura'] = (bool)$c['factura'];
+            return $c;
+        }, $cobros_raw);
+
+        respond([
+            'success'   => true,
+            'escuelas'  => $escuelas,
+            'clientes'  => $clientes,
+            'familias'  => $familias,
+            'productos' => $productos,
+            'cobros'    => $cobros,
+        ]);
+    break;
+
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_cobro':
+        $escuela_id  = intval($input['escuela_id']  ?? 0);
+        $cliente_id  = intval($input['cliente_id']  ?? 0) ?: null;
+        $metodo      = trim($input['metodo']         ?? '');
+        $referencia  = trim($input['referencia']     ?? '');
+        $carrito     = $input['carrito']             ?? [];
+
+        if (!$escuela_id || !$metodo || empty($carrito)) {
+            respond(['success' => false, 'error' => 'Faltan datos del cobro']);
+        }
+
+        // Calcular total desde el carrito
+        $total = 0;
+        foreach ($carrito as $item) {
+            $total += floatval($item['precio'] ?? 0) * intval($item['qty'] ?? 1);
+        }
+
+        // Generar folio: CLA-ESC{esc_id}-{timestamp}
+        $stmt = $pdo->prepare("SELECT clave FROM escuelas WHERE id = ?");
+        $stmt->execute([$escuela_id]);
+        $esc = $stmt->fetch();
+        $clave = $esc ? $esc['clave'] : 'ESC';
+
+        $stmt = $pdo->prepare("SELECT COUNT(*) as n FROM cobros WHERE escuela_id = ?");
+        $stmt->execute([$escuela_id]);
+        $row = $stmt->fetch();
+        $n = intval($row['n'] ?? 0) + 1;
+        $folio = $clave . '-' . str_pad($n, 4, '0', STR_PAD_LEFT);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO cobros (escuela_id, cliente_id, folio, total, metodo, estado, fecha, referencia)
+             VALUES (?, ?, ?, ?, ?, 'pendiente', CURDATE(), ?)"
+        );
+        $stmt->execute([$escuela_id, $cliente_id, $folio, $total, $metodo, $referencia]);
+        $cobro_id = $pdo->lastInsertId();
+
+        // Obtener nombre del cliente
+        $cliente_nombre = 'Cliente general';
+        if ($cliente_id) {
+            $s2 = $pdo->prepare("SELECT nombre FROM clientes WHERE id = ?");
+            $s2->execute([$cliente_id]);
+            $cl = $s2->fetch();
+            if ($cl) $cliente_nombre = $cl['nombre'];
+        }
+
+        respond([
+            'success' => true,
+            'cobro' => [
+                'id'         => intval($cobro_id),
+                'folio'      => $folio,
+                'escuela_id' => $escuela_id,
+                'cliente_id' => $cliente_id,
+                'cliente'    => $cliente_nombre,
+                'total'      => $total,
+                'metodo'     => $metodo,
+                'estado'     => 'pendiente',
+                'referencia' => $referencia,
+                'fecha'      => date('Y-m-d'),
+                'items'      => $carrito,
+            ]
+        ]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'confirmar_pago':
+        $cobro_id  = intval($input['cobro_id']  ?? 0);
+        $auth_code = trim($input['auth_code']   ?? '');
+        $transaccion = trim($input['transaccion'] ?? '');
+
+        if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+
+        $extra_auth = $auth_code ?: $transaccion ?: null;
+
+        $stmt = $pdo->prepare(
+            "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code) WHERE id = ?"
+        );
+        $stmt->execute([$extra_auth, $cobro_id]);
+
+        respond(['success' => true, 'cobro_id' => $cobro_id, 'estado' => 'pagado']);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'cancelar_cobro':
+        $cobro_id = intval($input['cobro_id'] ?? 0);
+        if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+
+        $stmt = $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?");
+        $stmt->execute([$cobro_id]);
+
+        respond(['success' => true, 'cobro_id' => $cobro_id]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_cliente':
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $nombre     = trim($input['nombre']       ?? '');
+        $matricula  = trim($input['matricula']    ?? '') ?: null;
+        $grado      = trim($input['grado']        ?? '') ?: null;
+        $curp       = trim($input['curp']         ?? '') ?: null;
+        $email      = trim($input['email']        ?? '') ?: null;
+        $tel        = trim($input['tel']          ?? '') ?: null;
+        $familia_id = intval($input['familia_id'] ?? 0) ?: null;
+        $tipo       = in_array($input['tipo'] ?? '', ['alumno','general']) ? $input['tipo'] : 'alumno';
+
+        if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO clientes (escuela_id, familia_id, tipo, nombre, grado, matricula, curp, email, telefono, activo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+        );
+        $stmt->execute([$escuela_id, $familia_id, $tipo, $nombre, $grado, $matricula, $curp, $email, $tel]);
+        $id = intval($pdo->lastInsertId());
+
+        respond(['success' => true, 'cliente' => array_merge($input, ['id' => $id, 'activo' => true, 'saldo_pendiente' => 0])]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_cliente':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id'];
+        $sets = []; $vals = [];
+        foreach ($campos as $c) {
+            if (array_key_exists($c, $input)) {
+                $sets[] = "`$c` = ?";
+                $vals[] = $input[$c] ?: null;
+            }
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+
+        $vals[] = $id;
+        $stmt = $pdo->prepare("UPDATE clientes SET " . implode(', ', $sets) . " WHERE id = ?");
+        $stmt->execute($vals);
+
+        respond(['success' => true, 'cliente' => $input]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_cliente_activo':
+        $id     = intval($input['id']     ?? 0);
+        $activo = $input['activar'] ? 1 : 0;
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $stmt = $pdo->prepare("UPDATE clientes SET activo = ? WHERE id = ?");
+        $stmt->execute([$activo, $id]);
+
+        respond(['success' => true, 'cliente' => ['id' => $id, 'activo' => (bool)$activo]]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_familia':
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $nombre     = trim($input['nombre']       ?? '');
+        $contacto   = trim($input['contacto']     ?? '') ?: null;
+        $email      = trim($input['email']        ?? '') ?: null;
+        $tel        = trim($input['telefono']     ?? '') ?: null;
+
+        if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO familias (escuela_id, nombre, contacto, email, telefono, activa) VALUES (?,?,?,?,?,1)"
+        );
+        $stmt->execute([$escuela_id, $nombre, $contacto, $email, $tel]);
+        $id = intval($pdo->lastInsertId());
+
+        respond(['success' => true, 'familia' => array_merge($input, ['id' => $id, 'activa' => true])]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_familia':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $campos = ['nombre','contacto','email','telefono'];
+        $sets = []; $vals = [];
+        foreach ($campos as $c) {
+            if (array_key_exists($c, $input)) {
+                $sets[] = "`$c` = ?";
+                $vals[] = $input[$c] ?: null;
+            }
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+
+        $vals[] = $id;
+        $stmt = $pdo->prepare("UPDATE familias SET " . implode(', ', $sets) . " WHERE id = ?");
+        $stmt->execute($vals);
+
+        respond(['success' => true, 'familia' => $input]);
+    break;
+
+
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
 }
