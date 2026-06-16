@@ -10,9 +10,8 @@
 </head>
 <body>
 <div id="root"></div>
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
 <!-- Demo API interceptor (auto-desactiva cuando PHP está disponible) -->
 <script src="assets/js/demo_api.js"></script>
@@ -28,27 +27,27 @@
 <script src="controllers/CobroController.js"></script>
 <script src="controllers/ClienteController.js"></script>
 
-<!-- Shared components (Babel) -->
-<script src="views/components/Icons.jsx" type="text/babel"></script>
-<script src="views/components/Badge.jsx" type="text/babel"></script>
+<!-- Shared components (precompilados, sin Babel en navegador) -->
+<script src="views/components/Icons.js"></script>
+<script src="views/components/Badge.js"></script>
 
-<!-- Views (Babel) -->
-<script src="views/Login.jsx"         type="text/babel"></script>
-<script src="views/Dashboard.jsx"     type="text/babel"></script>
-<script src="views/Caja.jsx"          type="text/babel"></script>
-<script src="views/Cobros.jsx"        type="text/babel"></script>
-<script src="views/Alumnos.jsx"       type="text/babel"></script>
-<script src="views/Familias.jsx"      type="text/babel"></script>
-<script src="views/Productos.jsx"     type="text/babel"></script>
-<script src="views/Facturacion.jsx"   type="text/babel"></script>
-<script src="views/Reportes.jsx"      type="text/babel"></script>
-<script src="views/Emails.jsx"        type="text/babel"></script>
-<script src="views/Escuelas.jsx"      type="text/babel"></script>
-<script src="views/Usuarios.jsx"      type="text/babel"></script>
-<script src="views/SuperReportes.jsx" type="text/babel"></script>
-<script src="views/PortalFamilia.jsx" type="text/babel"></script>
+<!-- Views (precompilados) -->
+<script src="views/Login.js"></script>
+<script src="views/Dashboard.js"></script>
+<script src="views/Caja.js"></script>
+<script src="views/Cobros.js"></script>
+<script src="views/Alumnos.js"></script>
+<script src="views/Familias.js"></script>
+<script src="views/Productos.js"></script>
+<script src="views/Facturacion.js"></script>
+<script src="views/Reportes.js"></script>
+<script src="views/Emails.js"></script>
+<script src="views/Escuelas.js"></script>
+<script src="views/Usuarios.js"></script>
+<script src="views/SuperReportes.js"></script>
+<script src="views/PortalFamilia.js"></script>
 
 <!-- App entry -->
-<script src="assets/js/app.jsx" type="text/babel"></script>
+<script src="assets/js/app.js"></script>
 </body>
 </html>
