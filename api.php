@@ -530,16 +530,31 @@ switch ($action) {
         }, $productos_raw);
 
         // ── Cobros (últimos 90 días para no sobrecargar) ──
+        // Se incluye LEFT JOIN con clientes para traer el nombre (alias "cliente"),
+        // ya que el frontend (Dashboard.js, Cobros.js) espera c.cliente como string.
         if ($rol === 'superadmin') {
-            $stmt = $pdo->query("SELECT * FROM cobros WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY id DESC");
+            $stmt = $pdo->query(
+                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+                 FROM cobros co
+                 LEFT JOIN clientes cl ON cl.id = co.cliente_id
+                 WHERE co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                 ORDER BY co.id DESC"
+            );
         } else {
-            $stmt = $pdo->prepare("SELECT * FROM cobros WHERE escuela_id = ? AND fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY id DESC");
+            $stmt = $pdo->prepare(
+                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+                 FROM cobros co
+                 LEFT JOIN clientes cl ON cl.id = co.cliente_id
+                 WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                 ORDER BY co.id DESC"
+            );
             $stmt->execute([$escuela_id_usuario]);
         }
         $cobros_raw = $stmt->fetchAll();
         $cobros = array_map(function($c) {
             $c['total']   = floatval($c['total']);
             $c['factura'] = (bool)$c['factura'];
+            $c['cliente'] = $c['cliente'] ?? 'Cliente general';
             return $c;
         }, $cobros_raw);
 

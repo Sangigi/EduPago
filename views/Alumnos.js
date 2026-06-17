@@ -103,6 +103,10 @@ function Alumnos({
     }
 
     // Alta nueva: llama API, recibe cliente con ID real de DB, luego genera CLABE
+    if (!escuela_id) {
+      alert('No hay una escuela seleccionada. Selecciona una escuela en el selector de arriba antes de continuar.');
+      return;
+    }
     try {
       const alumnoNuevo = await ClienteController.agregar(form, escuela_id);
       const newData = {
@@ -185,13 +189,30 @@ function Alumnos({
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
           className: "btn btn-primary",
+          disabled: !escuela_id,
+          title: !escuela_id ? 'Selecciona una escuela arriba antes de dar de alta un alumno' : undefined,
           onClick: () => {
+            if (!escuela_id) {
+              alert('Selecciona primero una escuela en el selector de arriba (estás en "Vista global").');
+              return;
+            }
             setForm(EMPTY);
             setModal('form');
           },
           children: "+ Alta de alumno"
         }, void 0, false)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), !escuela_id && /*#__PURE__*/_jsxDEV("div", {
+        style: {
+          marginBottom: 16,
+          padding: '10px 12px',
+          background: 'var(--amber-glow)',
+          border: '1px solid rgba(245,158,11,.2)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: 12.5,
+          color: 'var(--ink-2)'
+        },
+        children: "Estás en \"Vista global\": selecciona una escuela en el selector de arriba para poder dar de alta alumnos."
+      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
         style: {
           marginBottom: 16
         },

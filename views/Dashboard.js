@@ -589,7 +589,7 @@ function Dashboard({
               color: 'var(--ink-3)',
               marginBottom: 2
             },
-            children: [c.folio, " · ", c.cliente.split(' ')[0], " · ", fmt(c.total)]
+            children: [c.folio, " · ", (c.cliente || 'Cliente general').split(' ')[0], " · ", fmt(c.total)]
           }, c.id, true))]
         }, void 0, true)]
       }, void 0, true)]
