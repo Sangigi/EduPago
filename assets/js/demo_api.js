@@ -179,6 +179,74 @@ const DemoAPI = (() => {
       };
     },
 
+    crear_cobro: (body) => {
+      const carrito   = body.carrito || [];
+      const total     = carrito.reduce((s, i) => s + parseFloat(i.precio||0) * parseInt(i.qty||1), 0);
+      const escClave  = { 1:'ITM', 2:'CEC', 3:'EME' }[body.escuela_id] || 'ESC';
+      const folio     = escClave + '-' + String(Math.floor(Math.random()*9000)+1000);
+      const cobro_id  = Date.now();
+      return {
+        success: true,
+        cobro: {
+          id:         cobro_id,
+          folio,
+          escuela_id: body.escuela_id,
+          cliente_id: body.cliente_id || null,
+          cliente:    body.cliente?.nombre || 'Cliente demo',
+          total,
+          metodo:     body.metodo || 'Efectivo',
+          estado:     'pendiente',
+          referencia: body.referencia || body.cliente?.matricula || 'REF-DEMO',
+          fecha:      new Date().toISOString().slice(0,10),
+          items:      carrito,
+        },
+        _modo: 'demo',
+      };
+    },
+
+    confirmar_pago: (body) => ({
+      success:   true,
+      cobro_id:  body.cobro_id,
+      estado:    'pagado',
+      _modo:     'demo',
+    }),
+
+    cancelar_cobro: (body) => ({
+      success:  true,
+      cobro_id: body.cobro_id,
+      _modo:    'demo',
+    }),
+
+    crear_cliente: (body) => ({
+      success:  true,
+      cliente:  { ...body, id: Date.now(), activo: true, saldo_pendiente: 0 },
+      _modo:    'demo',
+    }),
+
+    editar_cliente: (body) => ({
+      success:  true,
+      cliente:  body,
+      _modo:    'demo',
+    }),
+
+    toggle_cliente_activo: (body) => ({
+      success:  true,
+      cliente:  { id: body.id, activo: !!body.activar },
+      _modo:    'demo',
+    }),
+
+    crear_familia: (body) => ({
+      success:  true,
+      familia:  { ...body, id: Date.now(), activa: true },
+      _modo:    'demo',
+    }),
+
+    editar_familia: (body) => ({
+      success:  true,
+      familia:  body,
+      _modo:    'demo',
+    }),
+
     login: (body) => {
       const USERS = [
         { email:'super@pagalaescuela.mx',  password:'demo123', nombre:'Super Admin',      rol:'superadmin', escuela_id:null, token:'demo-token-super'  },

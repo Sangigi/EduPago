@@ -1,4 +1,11 @@
-import { jsxDEV as _jsxDEV, Fragment as _Fragment } from "react/jsx-dev-runtime";
+var _jsxDEV = function(type,props,key,_s,_src,_self){
+  var p = Object.assign({key:key||undefined},props);
+  var ch = p.children; delete p.children;
+  return ch===undefined ? React.createElement(type,p)
+       : Array.isArray(ch) ? React.createElement(type,p,...ch)
+       : React.createElement(type,p,ch);
+};
+var _Fragment = React.Fragment;
 /* views/Usuarios.jsx — Gestión dinámica de usuarios con jerarquía de roles e integración de Portal Familiar */
 function Usuarios({
   user,

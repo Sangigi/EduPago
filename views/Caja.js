@@ -1,4 +1,11 @@
-import { jsxDEV as _jsxDEV, Fragment as _Fragment } from "react/jsx-dev-runtime";
+var _jsxDEV = function(type,props,key,_s,_src,_self){
+  var p = Object.assign({key:key||undefined},props);
+  var ch = p.children; delete p.children;
+  return ch===undefined ? React.createElement(type,p)
+       : Array.isArray(ch) ? React.createElement(type,p,...ch)
+       : React.createElement(type,p,ch);
+};
+var _Fragment = React.Fragment;
 /* views/Caja.jsx — Sistema de cobros completo v2 */
 function Caja({
   data,
@@ -61,16 +68,15 @@ function Caja({
   const cobrar = async () => {
     if (!carrito.length) return;
     const escuela_id = escuela?.id ?? data.escuelas?.[0]?.id ?? 1;
-    const {
-      data: newData,
-      cobro
-    } = CobroController.iniciarCobro(data, {
-      carrito,
-      cliente: clienteSel,
-      metodo,
-      escuela_id
-    });
+    let cobro;
+    try {
+      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id });
+    } catch(err) {
+      alert('Error al crear cobro: ' + err.message);
+      return;
+    }
     setCobroActivo(cobro);
+    const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
     if (metodo === 'SPEI') {
       setSpeiStatus('generando');
       setSpeiError(null);
@@ -113,12 +119,11 @@ function Caja({
             const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe);
             if (ver.pagado) {
               clearInterval(speiPollRef.current);
+              CobroController.confirmarPago(cobro.id, { transaccion: ver.transaccion }).catch(()=>{});
               setData(prev => {
-                const updated = CobroController.confirmarPago(prev, cobro.id, {
-                  transaccion: ver.transaccion
-                });
-                AppModel.save(updated);
-                return updated;
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
+                AppModel.save(upd);
+                return upd;
               });
               setSpeiStatus('confirmado');
             }
@@ -177,12 +182,13 @@ function Caja({
   };
 
   /* ── CONFIRMAR TC MANUALMENTE (cliente ya pagó en el link) ── */
-  const confirmarTC = () => {
-    const updatedData = CobroController.confirmarPago(data, cobroActivo.id, {
-      auth_code: tcInfo?.referencia
+  const confirmarTC = async () => {
+    try { await CobroController.confirmarPago(cobroActivo.id, { auth_code: tcInfo?.referencia }); } catch(e) {}
+    setData(prev => {
+      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: tcInfo?.referencia } : c) };
+      AppModel.save(upd);
+      return upd;
     });
-    setData(updatedData);
-    AppModel.save(updatedData);
     setModal('ticket');
     resetCarrito();
   };
@@ -202,35 +208,41 @@ function Caja({
         const ver = await CobroController.verificarSPEI(refSpei, clabeActiva);
         if (ver.pagado) {
           clearInterval(speiPollRef.current);
-          const updatedData = CobroController.confirmarPago(data, cobroActivo.id, {
-            transaccion: ver.transaccion
+          try { await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); } catch(e) {}
+          setData(prev => {
+            const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
+            AppModel.save(upd);
+            return upd;
           });
-          setData(updatedData);
-          AppModel.save(updatedData);
           setSpeiStatus('confirmado');
           return;
         }
       }
       // Si no se verificó, confirmar manualmente de todas formas
-      const updatedData = CobroController.confirmarPago(data, cobroActivo.id);
-      setData(updatedData);
-      AppModel.save(updatedData);
+      try { await CobroController.confirmarPago(cobroActivo.id); } catch(e) {}
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+        AppModel.save(upd); return upd;
+      });
       setSpeiStatus('confirmado');
     } catch (e) {
-      // Confirmar manualmente si falla la API
-      const updatedData = CobroController.confirmarPago(data, cobroActivo.id);
-      setData(updatedData);
-      AppModel.save(updatedData);
+      try { await CobroController.confirmarPago(cobroActivo.id); } catch(e2) {}
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+        AppModel.save(upd); return upd;
+      });
       setSpeiStatus('confirmado');
     }
   };
 
   /* ── CONFIRMAR CODI MANUAL ── */
-  const confirmarCoDi = () => {
+  const confirmarCoDi = async () => {
     clearInterval(timerRef.current);
-    const updatedData = CobroController.confirmarPago(data, cobroActivo.id);
-    setData(updatedData);
-    AppModel.save(updatedData);
+    try { await CobroController.confirmarPago(cobroActivo.id); } catch(e) {}
+    setData(prev => {
+      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+      AppModel.save(upd); return upd;
+    });
     setCodiStatus('pagado');
     setTimeout(() => {
       setModal('ticket');
@@ -1620,15 +1632,17 @@ function Caja({
           }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
             disabled: !chequeInfo.banco,
-            onClick: () => {
+            onClick: async () => {
               const extra = {
                 banco_cheque: chequeInfo.banco,
                 num_cuenta_cheque: chequeInfo.num_cuenta,
                 num_cheque: chequeInfo.num_cheque
               };
-              const updatedData = CobroController.confirmarPago(data, cobroActivo.id, extra);
-              setData(updatedData);
-              AppModel.save(updatedData);
+              CobroController.confirmarPago(cobroActivo.id, extra).catch(()=>{});
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', ...extra } : c) };
+                AppModel.save(upd); return upd;
+              });
               setModal('ticket');
               resetCarrito();
             },

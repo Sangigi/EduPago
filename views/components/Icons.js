@@ -1,4 +1,10 @@
-import { jsxDEV as _jsxDEV } from "react/jsx-dev-runtime";
+var _jsxDEV = function(type,props,key,_s,_src,_self){
+  var p = Object.assign({key:key||undefined},props);
+  var ch = p.children; delete p.children;
+  return ch===undefined ? React.createElement(type,p)
+       : Array.isArray(ch) ? React.createElement(type,p,...ch)
+       : React.createElement(type,p,ch);
+};
 /* views/components/Icons.jsx — Sistema de iconos SVG · EduPago */
 /* Uso: <Icon name="dashboard" size={18} color="currentColor" /> */
 
