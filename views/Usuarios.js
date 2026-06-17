@@ -134,7 +134,7 @@ function Usuarios({
     setErrForm('');
     setModal('crear');
   };
-  const guardarNuevo = () => {
+  const guardarNuevo = async () => {
     setErrForm('');
     if (!form.nombre || !form.email || !form.password || !form.rol) {
       return setErrForm('Completa todos los campos obligatorios.');
@@ -175,7 +175,7 @@ function Usuarios({
     setErrForm('');
     setModal('editar');
   };
-  const guardarEdicion = () => {
+  const guardarEdicion = async () => {
     setErrForm('');
     if (!form.nombre || !form.email) return setErrForm('Nombre y correo son obligatorios.');
     if (form.rol === 'familia' && !form.familia_id) return setErrForm('La vinculación familiar es requerida.');
@@ -194,7 +194,7 @@ function Usuarios({
   };
 
   // ── Toggle / eliminar ──────────────────────────────────────────────────────
-  const confirmarAccion = () => {
+  const confirmarAccion = async () => {
     if (!confirm) return;
     try {
       if (confirm.tipo === 'toggle') await AuthController.toggleUsuario(user, confirm.userId);
