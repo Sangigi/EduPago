@@ -497,3 +497,151 @@ tbody tr:hover td { background:var(--glass-light); color:var(--ink); }
   from { opacity:0; transform:translateY(-10px) translateX(10px); }
   to   { opacity:1; transform:translateY(0) translateX(0); }
 }
+
+/* ══════════════════════════════════════════════════════
+   RESPONSIVE LAYOUT (Adaptabilidad Móvil y Tablets)
+══════════════════════════════════════════════════════ */
+
+/* ── TABLETS Y PANTALLAS MEDIANAS (Hasta 1024px) ── */
+@media (max-width: 1024px) {
+  /* Contraer el sidebar a modo "íconos" para ahorrar espacio */
+  :root {
+    --sidebar-w: 80px;
+  }
+  
+  .brand-name, 
+  .brand-sub, 
+  .nav-item span:not(.nav-icon), 
+  .nav-badge, 
+  .user-info {
+    display: none; 
+  }
+  
+  .sidebar-brand { padding: 20px 0 16px; }
+  .brand-logo { justify-content: center; }
+  
+  .nav-item { 
+    justify-content: center; 
+    padding: 12px; 
+    margin-bottom: 8px;
+  }
+  .nav-item.active::before { display: none; }
+  .nav-icon { margin: 0; width: auto; font-size: 20px; }
+  
+  .user-card { justify-content: center; padding: 12px 0; }
+  .logout-btn { display: none; }
+}
+
+/* ── MÓVILES GRANDES Y TABLETS VERTICALES (Hasta 900px) ── */
+@media (max-width: 900px) {
+  /* Reorganización del Punto de Venta (POS) */
+  .pos-layout { 
+    grid-template-columns: 1fr; 
+    min-height: auto; 
+  }
+  .pos-cart { 
+    max-height: 55vh; 
+  }
+  
+  /* Ajuste de estadísticas */
+  .stats-grid { 
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+  }
+}
+
+/* ── MÓVILES ESTÁNDAR (Hasta 768px) ── */
+@media (max-width: 768px) {
+  /* Estructura Principal */
+  .app {
+    flex-direction: column; 
+  }
+
+  /* Transformar Sidebar en Barra de Navegación Inferior */
+  .sidebar {
+    width: 100%;
+    height: 65px;
+    flex-direction: row;
+    order: 3; /* Envía el sidebar al fondo de la pantalla */
+    border-right: none;
+    border-top: 1px solid var(--side-border);
+    z-index: 100;
+  }
+  
+  .sidebar-brand, 
+  .nav-section, 
+  .sidebar-footer { 
+    display: none; /* Ocultamos logo y footer en la barra inferior móvil */
+  }
+  
+  .sidebar-nav {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 10px;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  
+  .nav-item {
+    padding: 10px;
+    margin: 0;
+  }
+
+  /* Topbar y Contenido */
+  .topbar {
+    padding: 0 16px;
+    height: 60px;
+  }
+  
+  .content {
+    padding: 16px;
+  }
+
+  /* Tarjetas y Contenedores */
+  .card {
+    padding: 16px;
+  }
+  
+  /* Modal responsive */
+  .modal {
+    max-width: 95%;
+    max-height: 85vh;
+  }
+  .modal-header { padding: 14px 16px; }
+  .modal-body { padding: 16px; }
+  .modal-footer { padding: 14px 16px; }
+
+  /* Ajustes en Pantalla de Login */
+  .login-card {
+    width: 90%;
+    padding: 26px 22px;
+  }
+  .login-brand { font-size: 24px; }
+}
+
+/* ── MÓVILES PEQUEÑOS (Hasta 480px) ── */
+@media (max-width: 480px) {
+  .topbar-title { font-size: 14px; }
+  .topbar-actions { gap: 6px; }
+  
+  .btn { 
+    padding: 8px 12px; 
+    font-size: 12.5px; 
+  }
+  
+  .stats-grid { 
+    grid-template-columns: 1fr; /* Una sola columna para números grandes */
+  }
+  
+  .pos-products-grid { 
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
+  }
+  .product-emoji { font-size: 22px; }
+  .product-name { font-size: 11.5px; }
+  
+  .ticket {
+    max-width: 100%;
+  }
+}
