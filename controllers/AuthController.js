@@ -31,11 +31,11 @@ const AuthController = (() => {
   function isAdmin(user)      { return user?.rol === 'admin' || isSuperAdmin(user); }
 
   const DEMO_USERS = [
-    { email:'super@pagalaescuela.mx', pass:'demo123', label:'Super Admin' },
-    { email:'admin@itm.edu.mx',       pass:'demo123', label:'Admin ITM'   },
-    { email:'cajero@itm.edu.mx',      pass:'demo123', label:'Cajero ITM'  },
-    { email:'admin@cec.edu.mx',       pass:'demo123', label:'Admin CEC'   },
-    { email:'familia@itm.edu.mx',     pass:'demo123', label:'Familia'     },
+    { email:'super@pagalaescuela.mx', pass:'Admin2026!', label:'Super Admin' },
+    { email:'admin@itm.edu.mx',       pass:'Admin2026!', label:'Admin ITM'   },
+    { email:'cajero@itm.edu.mx',      pass:'Admin2026!', label:'Cajero ITM'  },
+    { email:'admin@cec.edu.mx',       pass:'Admin2026!', label:'Admin CEC'   },
+    { email:'familia@itm.edu.mx',     pass:'Admin2026!', label:'Familia'     },
   ];
 
   return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, DEMO_USERS };
