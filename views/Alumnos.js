@@ -80,7 +80,9 @@ function Alumnos({
     }
   };
   const guardar = async () => {
-    if (!form.nombre) return;
+    if (!form.nombre) { alert('El nombre del alumno es requerido'); return; }
+    const eid = escuela_id || (data.escuelas && data.escuelas[0]?.id);
+    if (!eid) { alert('Selecciona una escuela antes de dar de alta alumnos'); return; }
     if (form.id) {
       // Edición: llama API y actualiza estado local
       try {
@@ -108,7 +110,7 @@ function Alumnos({
       return;
     }
     try {
-      const alumnoNuevo = await ClienteController.agregar(form, escuela_id);
+      const alumnoNuevo = await ClienteController.agregar(form, eid);
       const newData = {
         ...data,
         clientes: [...data.clientes, {

@@ -38,5 +38,61 @@ const AuthController = (() => {
     { email:'familia@itm.edu.mx',     pass:'Admin2026!', label:'Familia'     },
   ];
 
-  return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, DEMO_USERS };
+
+  // ── Gestión de usuarios (llaman a api.php) ──────────────────────────────
+  async function apiPost(action, body = {}) {
+    const token = getToken();
+    const res = await fetch('api.php?action=' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  // Carga usuarios desde la API (o devuelve [] si falla)
+  async function getUsuarios(user) {
+    try {
+      const res = await apiPost('listar_usuarios');
+      return res.success ? res.usuarios : [];
+    } catch(e) { return []; }
+  }
+
+  // Roles que puede crear según jerarquía
+  function rolesQuePuedeCriar(user) {
+    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia'];
+    if (user?.rol === 'admin')      return ['cajero','familia'];
+    return [];
+  }
+
+  // Escuelas disponibles para asignar al nuevo usuario
+  function escuelasDisponibles(user, escuelas) {
+    if (user?.rol === 'superadmin') return escuelas || [];
+    return (escuelas || []).filter(e => e.id === user?.escuela_id);
+  }
+
+  async function crearUsuario(user, payload, escuelas) {
+    const res = await apiPost('crear_usuario', payload);
+    if (!res.success) throw new Error(res.error);
+    return res.usuario;
+  }
+
+  async function editarUsuario(user, payload) {
+    const res = await apiPost('editar_usuario', payload);
+    if (!res.success) throw new Error(res.error);
+    return res.usuario;
+  }
+
+  async function toggleUsuario(user, userId) {
+    const res = await apiPost('toggle_usuario', { id: userId });
+    if (!res.success) throw new Error(res.error);
+  }
+
+  async function eliminarUsuario(user, userId) {
+    const res = await apiPost('eliminar_usuario', { id: userId });
+    if (!res.success) throw new Error(res.error);
+  }
+
+  return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario };
 })();

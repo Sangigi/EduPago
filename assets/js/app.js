@@ -129,11 +129,12 @@ function App() {
         const base = AppModel.load();
         const merged = {
           ...base,
-          escuelas: json.escuelas.length ? json.escuelas : base.escuelas,
-          clientes: json.clientes,
-          familias: json.familias,
-          productos: json.productos.length ? json.productos : base.productos,
-          cobros: json.cobros
+          escuelas:  (json.escuelas  || []).length ? json.escuelas  : (base.escuelas  || []),
+          clientes:  json.clientes  || [],
+          familias:  json.familias  || [],
+          productos: (json.productos || []).length ? json.productos : (base.productos || []),
+          cobros:    json.cobros    || [],
+          emails:    base.emails    || [],
         };
         AppModel.save(merged);
         return merged;
@@ -229,11 +230,11 @@ function App() {
   const escuela = data.escuelas.find(e => e.id === escuelaActiva) || null;
   const dataScopeed = esSuper && !escuelaActiva ? data : {
     ...data,
-    clientes: data.clientes.filter(c => c.escuela_id === escuelaActiva),
-    familias: data.familias.filter(f => f.escuela_id === escuelaActiva),
-    productos: data.productos.filter(p => p.escuela_id === escuelaActiva),
-    cobros: data.cobros.filter(c => c.escuela_id === escuelaActiva),
-    emails: data.emails.filter(e => e.escuela_id === escuelaActiva)
+    clientes:  (data.clientes  || []).filter(c => c.escuela_id === escuelaActiva),
+    familias:  (data.familias  || []).filter(f => f.escuela_id === escuelaActiva),
+    productos: (data.productos || []).filter(p => p.escuela_id === escuelaActiva),
+    cobros:    (data.cobros    || []).filter(c => c.escuela_id === escuelaActiva),
+    emails:    (data.emails    || []).filter(e => e.escuela_id === escuelaActiva),
   };
   const pendientes = dataScopeed.cobros.filter(c => c.estado === 'pendiente').length;
   const secciones = [...new Set(NAV_ITEMS.filter(n => n.roles.includes(user.rol)).map(n => n.section))];
@@ -326,15 +327,17 @@ function App() {
     }
   };
   function mergeScoped(globalData, newScoped, eid) {
-    if (!eid) return newScoped;
+    if (!eid) return { ...globalData, ...newScoped };
+    const gd = globalData || {};
+    const ns = newScoped   || {};
     return {
-      ...globalData,
-      clientes: [...globalData.clientes.filter(c => c.escuela_id !== eid), ...newScoped.clientes],
-      familias: [...globalData.familias.filter(f => f.escuela_id !== eid), ...newScoped.familias],
-      productos: [...globalData.productos.filter(p => p.escuela_id !== eid), ...newScoped.productos],
-      cobros: [...globalData.cobros.filter(c => c.escuela_id !== eid), ...newScoped.cobros],
-      emails: [...globalData.emails.filter(e => e.escuela_id !== eid), ...newScoped.emails],
-      escuelas: newScoped.escuelas || globalData.escuelas
+      ...gd,
+      clientes:  [...(gd.clientes  || []).filter(c => c.escuela_id !== eid), ...(ns.clientes  || [])],
+      familias:  [...(gd.familias  || []).filter(f => f.escuela_id !== eid), ...(ns.familias  || [])],
+      productos: [...(gd.productos || []).filter(p => p.escuela_id !== eid), ...(ns.productos || [])],
+      cobros:    [...(gd.cobros    || []).filter(c => c.escuela_id !== eid), ...(ns.cobros    || [])],
+      emails:    [...(gd.emails    || []).filter(e => e.escuela_id !== eid), ...(ns.emails    || [])],
+      escuelas:  ns.escuelas || gd.escuelas || [],
     };
   }
 

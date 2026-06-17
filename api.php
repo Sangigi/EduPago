@@ -763,6 +763,111 @@ switch ($action) {
     break;
 
 
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'listar_usuarios':
+        $rol_actual   = $usuario_actual['rol'] ?? '';
+        $esc_actual   = null;
+        $su = $pdo->prepare("SELECT escuela_id FROM usuarios WHERE id = ?");
+        $su->execute([$usuario_actual['user_id'] ?? 0]);
+        $urow = $su->fetch();
+        if ($urow) $esc_actual = $urow['escuela_id'];
+
+        if ($rol_actual === 'superadmin') {
+            $stmt = $pdo->query(
+                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                        e.nombre AS escuela_nombre
+                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                 ORDER BY u.rol, u.nombre"
+            );
+        } else {
+            $stmt = $pdo->prepare(
+                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                        e.nombre AS escuela_nombre
+                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                 WHERE u.escuela_id = ? AND u.rol != 'superadmin'
+                 ORDER BY u.rol, u.nombre"
+            );
+            $stmt->execute([$esc_actual]);
+        }
+        $usuarios = $stmt->fetchAll();
+        respond(['success' => true, 'usuarios' => $usuarios]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_usuario':
+        $nombre    = trim($input['nombre']     ?? '');
+        $email     = trim($input['email']      ?? '');
+        $password  = trim($input['password']   ?? '');
+        $rol       = trim($input['rol']        ?? '');
+        $esc_id    = intval($input['escuela_id'] ?? 0) ?: null;
+        $fam_id    = intval($input['familia_id'] ?? 0) ?: null;
+        $rol_actual = $usuario_actual['rol'] ?? '';
+
+        $roles_validos = ['admin','cajero','familia'];
+        if ($rol_actual === 'superadmin') $roles_validos[] = 'superadmin';
+        if (!$nombre || !$email || !$password || !in_array($rol, $roles_validos)) {
+            respond(['success' => false, 'error' => 'Datos incompletos o rol no permitido']);
+        }
+        // Verificar email único
+        $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chk->execute([$email]);
+        if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta)
+             VALUES (?, ?, ?, ?, ?, 1, CURDATE())"
+        );
+        $stmt->execute([$esc_id, $nombre, $email, $password, $rol]);
+        $id = intval($pdo->lastInsertId());
+        respond(['success' => true, 'usuario' => ['id' => $id, 'nombre' => $nombre, 'email' => $email, 'rol' => $rol, 'escuela_id' => $esc_id, 'activo' => true]]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_usuario':
+        $id       = intval($input['id']    ?? 0);
+        $nombre   = trim($input['nombre']  ?? '');
+        $email    = trim($input['email']   ?? '');
+        $password = trim($input['password'] ?? '');
+        $rol      = trim($input['rol']     ?? '');
+        $esc_id   = intval($input['escuela_id'] ?? 0) ?: null;
+        $fam_id   = intval($input['familia_id'] ?? 0) ?: null;
+
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $sets = []; $vals = [];
+        if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
+        if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }
+        if ($password) { $sets[] = 'password_hash = ?';  $vals[] = $password; }
+        if ($rol)      { $sets[] = 'rol = ?';            $vals[] = $rol; }
+        if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
+        if ($fam_id !== null) { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
+
+        if ($sets) {
+            $vals[] = $id;
+            $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        }
+        respond(['success' => true, 'usuario' => $input]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_usuario':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
+        $stmt->execute([$id]);
+        respond(['success' => true]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'eliminar_usuario':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
+        respond(['success' => true]);
+    break;
+
+
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
 }

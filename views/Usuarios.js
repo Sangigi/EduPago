@@ -33,7 +33,12 @@ function Usuarios({
   const [confirm, setConfirm] = useState(null); // { tipo, userId }
 
   const esSuper = AuthController.isSuperAdmin(user);
-  const cargarUsuarios = () => setUsuarios(AuthController.getUsuarios(user));
+  const cargarUsuarios = async () => {
+    try {
+      const lista = await AuthController.getUsuarios(user);
+      setUsuarios(lista);
+    } catch(e) { setUsuarios([]); }
+  };
   useEffect(() => {
     cargarUsuarios();
   }, []);
@@ -148,9 +153,10 @@ function Usuarios({
       escuela_id: form.escuela_id ? parseInt(form.escuela_id) : null,
       familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null
     };
-    const result = AuthController.crearUsuario(user, payload, data.escuelas);
-    if (!result.ok) return setErrForm(result.error);
-    cargarUsuarios();
+    let result;
+    try { result = await AuthController.crearUsuario(user, payload, data.escuelas); }
+    catch(e) { setErrForm(e.message); return; }
+    await cargarUsuarios();
     setModal(null);
   };
 
@@ -180,18 +186,21 @@ function Usuarios({
       escuela_id: form.escuela_id ? parseInt(form.escuela_id) : null,
       familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null
     };
-    const result = AuthController.editarUsuario(user, payload);
-    if (!result.ok) return setErrForm(result.error);
-    cargarUsuarios();
+    let result;
+    try { result = await AuthController.editarUsuario(user, payload); }
+    catch(e) { setErrForm(e.message); return; }
+    await cargarUsuarios();
     setModal(null);
   };
 
   // ── Toggle / eliminar ──────────────────────────────────────────────────────
   const confirmarAccion = () => {
     if (!confirm) return;
-    if (confirm.tipo === 'toggle') AuthController.toggleUsuario(user, confirm.userId);
-    if (confirm.tipo === 'eliminar') AuthController.eliminarUsuario(user, confirm.userId);
-    cargarUsuarios();
+    try {
+      if (confirm.tipo === 'toggle') await AuthController.toggleUsuario(user, confirm.userId);
+      if (confirm.tipo === 'eliminar') await AuthController.eliminarUsuario(user, confirm.userId);
+    } catch(e) { alert('Error: ' + e.message); }
+    await cargarUsuarios();
     setConfirm(null);
   };
   const puedeEditar = objetivo => {
