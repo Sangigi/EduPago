@@ -1435,7 +1435,7 @@ function Caja({
               }, void 0, false)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("hr", {
               className: "ticket-divider"
-            }, void 0, false), cobroActivo.items.map((it, i) => /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), (cobroActivo.items || []).map((it, i) => /*#__PURE__*/_jsxDEV("div", {
               style: {
                 display: 'flex',
                 justifyContent: 'space-between',

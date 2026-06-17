@@ -33,22 +33,24 @@ function Cobros({
     pendiente: data.cobros.filter(c => c.estado === 'pendiente').length,
     cancelado: data.cobros.filter(c => c.estado === 'cancelado').length
   };
-  const cancelar = id => {
-    const newData = CobroController.cancelarCobro(data, id);
-    setData(newData);
-    AppModel.save(newData);
+  const cancelar = async id => {
+    try { await CobroController.cancelarCobro(id); } catch(e) {}
+    setData(prev => {
+      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c) };
+      AppModel.save(upd);
+      return upd;
+    });
     setDetalle(null);
   };
-  const confirmarManual = id => {
-    const newData = CobroController.confirmarPago(data, id, {
-      auth_code: 'MANUAL-' + Date.now()
+  const confirmarManual = async id => {
+    const auth_code = 'MANUAL-' + Date.now();
+    try { await CobroController.confirmarPago(id, { auth_code }); } catch(e) {}
+    setData(prev => {
+      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c) };
+      AppModel.save(upd);
+      return upd;
     });
-    setData(newData);
-    AppModel.save(newData);
-    setDetalle(prev => prev ? {
-      ...prev,
-      estado: 'pagado'
-    } : null);
+    setDetalle(prev => prev ? { ...prev, estado: 'pagado', auth_code } : null);
   };
   const exportarCSV = () => {
     const rows = [['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Estado', 'Referencia', 'Auth'], ...lista.map(c => [c.folio, c.fecha, `"${c.cliente}"`, c.total, c.metodo, c.estado, c.referencia || '', c.auth_code || ''])];
@@ -402,7 +404,7 @@ function Cobros({
                 marginBottom: 8
               },
               children: "Conceptos"
-            }, void 0, false), detalle.items.map((item, i) => /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), (detalle.items || []).map((item, i) => /*#__PURE__*/_jsxDEV("div", {
               style: {
                 display: 'flex',
                 justifyContent: 'space-between',

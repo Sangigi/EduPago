@@ -115,7 +115,7 @@ function Facturacion({
           regimen: formFact.regimen,
           email: formFact.email,
           total: cobroSel.total,
-          descripcion: cobroSel.items.map(i => i.nombre).join(', '),
+          descripcion: (cobroSel.items || []).map(i => i.nombre).join(', '),
           escuela_rfc: escuela?.rfc || 'EDU000101AAA',
           escuela_nombre: escuela?.nombre || 'EduPago S.C.'
         })
@@ -1139,7 +1139,7 @@ function Facturacion({
                 fontSize: 11.5,
                 color: 'var(--ink-3)'
               },
-              children: ["Conceptos: ", cobroSel.items.map(i => i.nombre).join(', ')]
+              children: ["Conceptos: ", (cobroSel.items || []).map(i => i.nombre).join(', ')]
             }, void 0, true)]
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {

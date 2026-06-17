@@ -93,19 +93,20 @@ function PortalFamilia({
       emoji: ''
     }];
     const escuela_id = escuela?.id ?? 1;
-    const {
-      data: newData,
-      cobro
-    } = CobroController.iniciarCobro(data, {
-      carrito: conceptoTemporal,
-      cliente: {
-        nombre: user.nombre,
-        tipo: 'familia',
-        id: user.familia_id
-      },
-      metodo,
-      escuela_id
-    });
+    let cobro;
+    try {
+      cobro = await CobroController.iniciarCobro({
+        carrito: conceptoTemporal,
+        cliente: { nombre: user.nombre, tipo: 'familia', id: user.familia_id },
+        metodo,
+        escuela_id,
+      });
+    } catch(err) {
+      alert('Error al iniciar cobro: ' + err.message);
+      setLoading(false);
+      return;
+    }
+    const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
     if (metodo === 'SPEI') {
       try {
         // Si la familia tiene un solo hijo activo, su CLABE individual representa
@@ -710,7 +711,7 @@ function PortalFamilia({
                       fontWeight: 500,
                       color: PLC.text
                     },
-                    children: cob.items.map(i => i.nombre).join(', ')
+                    children: cob.items?.map(i => i.nombre).join(', ')
                   }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                     style: {
                       fontSize: 11,
@@ -978,7 +979,7 @@ function PortalFamilia({
                     color: PLC.muted,
                     maxWidth: 180
                   },
-                  children: cob.items.map(i => i.nombre).join(', ')
+                  children: cob.items?.map(i => i.nombre).join(', ')
                 }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
                   style: {
                     padding: '11px 16px'
