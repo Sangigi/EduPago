@@ -868,6 +868,176 @@ switch ($action) {
     break;
 
 
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // POOL DE CLABEs SPEI
+    // ══════════════════════════════════════════════════════════════════════════
+
+    case 'importar_clabes':
+        // Recibe: { escuela_id, clabes: ["646180...", "646180...", ...] }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $clabes     = $input['clabes'] ?? [];
+
+        if (!$escuela_id || empty($clabes)) {
+            respond(['success' => false, 'error' => 'escuela_id y clabes[] son requeridos']);
+        }
+        // Verificar que la escuela existe
+        $chk = $pdo->prepare("SELECT id FROM escuelas WHERE id = ?");
+        $chk->execute([$escuela_id]);
+        if (!$chk->fetch()) respond(['success' => false, 'error' => 'Escuela no encontrada']);
+
+        $insertadas = 0;
+        $duplicadas = 0;
+        $stmt = $pdo->prepare(
+            "INSERT IGNORE INTO clabe_pool (escuela_id, clabe, estado, fecha_alta)
+             VALUES (?, ?, 'libre', CURDATE())"
+        );
+        foreach ($clabes as $clabe) {
+            $clabe = preg_replace('/\s+/', '', trim($clabe)); // quitar espacios
+            if (!preg_match('/^\d{18}$/', $clabe)) continue;  // validar 18 dígitos
+            $stmt->execute([$escuela_id, $clabe]);
+            if ($stmt->rowCount() > 0) $insertadas++;
+            else $duplicadas++;
+        }
+        respond(['success' => true, 'insertadas' => $insertadas, 'duplicadas' => $duplicadas]);
+    break;
+
+    case 'listar_clabes_pool':
+        // Recibe: { escuela_id }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+
+        $stmt = $pdo->prepare(
+            "SELECT cp.id, cp.clabe, cp.estado, cp.fecha_alta, cp.fecha_asign,
+                    c.nombre AS alumno, c.matricula
+             FROM clabe_pool cp
+             LEFT JOIN clientes c ON c.id = cp.cliente_id
+             WHERE cp.escuela_id = ?
+             ORDER BY cp.estado ASC, cp.id ASC"
+        );
+        $stmt->execute([$escuela_id]);
+        $pool = $stmt->fetchAll();
+
+        // Contadores
+        $stmt2 = $pdo->prepare(
+            "SELECT estado, COUNT(*) as n FROM clabe_pool WHERE escuela_id = ? GROUP BY estado"
+        );
+        $stmt2->execute([$escuela_id]);
+        $conteos = [];
+        foreach ($stmt2->fetchAll() as $row) $conteos[$row['estado']] = intval($row['n']);
+
+        respond([
+            'success' => true,
+            'pool'    => $pool,
+            'totales' => [
+                'libre'    => $conteos['libre']    ?? 0,
+                'asignada' => $conteos['asignada'] ?? 0,
+                'liberada' => $conteos['liberada'] ?? 0,
+            ],
+        ]);
+    break;
+
+    case 'asignar_clabe_pool':
+        // Toma la primera CLABE libre del pool de la escuela y la asigna al alumno
+        // Recibe: { escuela_id, cliente_id }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $cliente_id = intval($input['cliente_id'] ?? 0);
+
+        if (!$escuela_id || !$cliente_id) {
+            respond(['success' => false, 'error' => 'escuela_id y cliente_id son requeridos']);
+        }
+
+        // Verificar que el alumno no tenga ya CLABE asignada del pool
+        $chk = $pdo->prepare(
+            "SELECT clabe FROM clabe_pool WHERE cliente_id = ? AND estado = 'asignada'"
+        );
+        $chk->execute([$cliente_id]);
+        if ($row = $chk->fetch()) {
+            respond(['success' => true, 'clabe' => $row['clabe'], 'ya_tenia' => true]);
+        }
+
+        // Tomar la primera CLABE libre (FOR UPDATE para evitar race conditions)
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT id, clabe FROM clabe_pool
+                 WHERE escuela_id = ? AND estado = 'libre'
+                 ORDER BY id ASC LIMIT 1 FOR UPDATE"
+            );
+            $stmt->execute([$escuela_id]);
+            $clabeRow = $stmt->fetch();
+
+            if (!$clabeRow) {
+                $pdo->rollBack();
+                respond(['success' => false, 'error' => 'No hay CLABEs disponibles en el pool. Importa más CLABEs.']);
+            }
+
+            // Marcar como asignada en el pool
+            $upd = $pdo->prepare(
+                "UPDATE clabe_pool SET estado='asignada', cliente_id=?, fecha_asign=CURDATE()
+                 WHERE id = ?"
+            );
+            $upd->execute([$cliente_id, $clabeRow['id']]);
+
+            // Actualizar el alumno en la tabla clientes
+            $upd2 = $pdo->prepare(
+                "UPDATE clientes SET clabe_individual=?, clabe_individual_estado='activa',
+                 clabe_individual_fecha=CURDATE() WHERE id=?"
+            );
+            $upd2->execute([$clabeRow['clabe'], $cliente_id]);
+
+            $pdo->commit();
+            respond(['success' => true, 'clabe' => $clabeRow['clabe']]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Error al asignar CLABE: ' . $e->getMessage()]);
+        }
+    break;
+
+    case 'liberar_clabe_pool':
+        // Libera la CLABE de un alumno y la devuelve al pool como 'liberada'
+        // Recibe: { cliente_id }
+        $cliente_id = intval($input['cliente_id'] ?? 0);
+        if (!$cliente_id) respond(['success' => false, 'error' => 'cliente_id requerido']);
+
+        $pdo->beginTransaction();
+        try {
+            $upd = $pdo->prepare(
+                "UPDATE clabe_pool SET estado='liberada', cliente_id=NULL, fecha_asign=NULL
+                 WHERE cliente_id=? AND estado='asignada'"
+            );
+            $upd->execute([$cliente_id]);
+
+            $upd2 = $pdo->prepare(
+                "UPDATE clientes SET clabe_individual=NULL, clabe_individual_estado='liberada'
+                 WHERE id=?"
+            );
+            $upd2->execute([$cliente_id]);
+
+            $pdo->commit();
+            respond(['success' => true]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => $e->getMessage()]);
+        }
+    break;
+
+    case 'eliminar_clabes_pool':
+        // Elimina CLABEs libres/liberadas del pool (no asignadas)
+        // Recibe: { escuela_id, ids: [1,2,3] }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $ids = array_filter(array_map('intval', $input['ids'] ?? []), fn($i) => $i > 0);
+        if (!$escuela_id || empty($ids)) respond(['success' => false, 'error' => 'Datos insuficientes']);
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare(
+            "DELETE FROM clabe_pool WHERE escuela_id=? AND id IN ($placeholders) AND estado != 'asignada'"
+        );
+        $stmt->execute(array_merge([$escuela_id], $ids));
+        respond(['success' => true, 'eliminadas' => $stmt->rowCount()]);
+    break;
+
+
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
 }

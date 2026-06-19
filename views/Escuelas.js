@@ -134,6 +134,73 @@ function Escuelas({
     pro: 'badge-blue',
     enterprise: 'badge-purple'
   };
+  // ── Pool CLABEs ─────────────────────────────────────────────────────────────
+  const [poolEscId,   setPoolEscId]   = useState(null);  // escuela cuyo pool se gestiona
+  const [modalPool,   setModalPool]   = useState(false);
+  const [poolData,    setPoolData]    = useState(null);   // { pool, totales }
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [poolImportTxt, setPoolImportTxt] = useState('');
+  const [poolImportMsg, setPoolImportMsg] = useState('');
+
+  const tkn = () => AuthController.getToken();
+  const apiPost = async (action, body) => {
+    const r = await fetch('api.php?action=' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tkn() },
+      body: JSON.stringify(body),
+    });
+    return r.json();
+  };
+
+  const abrirPool = async escId => {
+    setPoolEscId(escId);
+    setModalPool(true);
+    setPoolData(null);
+    setPoolImportTxt('');
+    setPoolImportMsg('');
+    setPoolLoading(true);
+    try {
+      const res = await apiPost('listar_clabes_pool', { escuela_id: escId });
+      if (res.success) setPoolData(res);
+    } catch(e) {}
+    setPoolLoading(false);
+  };
+
+  const importarClabes = async () => {
+    if (!poolImportTxt.trim()) return;
+    // Parsear: acepta una CLABE por línea, o separadas por coma/espacio/tab
+    const clabes = poolImportTxt
+      .split(/[\n,;\t ]+/)
+      .map(s => s.replace(/\s/g,'').trim())
+      .filter(s => /^\d{18}$/.test(s));
+    if (!clabes.length) { setPoolImportMsg('⚠ No se encontraron CLABEs válidas (deben ser 18 dígitos)'); return; }
+    setPoolLoading(true);
+    try {
+      const res = await apiPost('importar_clabes', { escuela_id: poolEscId, clabes });
+      if (res.success) {
+        setPoolImportMsg(`✅ ${res.insertadas} importadas, ${res.duplicadas} duplicadas ignoradas`);
+        setPoolImportTxt('');
+        // Recargar pool
+        const res2 = await apiPost('listar_clabes_pool', { escuela_id: poolEscId });
+        if (res2.success) setPoolData(res2);
+      } else {
+        setPoolImportMsg('❌ ' + res.error);
+      }
+    } catch(e) { setPoolImportMsg('❌ Error de red'); }
+    setPoolLoading(false);
+  };
+
+  const eliminarLibres = async ids => {
+    if (!confirm('¿Eliminar ' + ids.length + ' CLABE(s) del pool?')) return;
+    setPoolLoading(true);
+    try {
+      await apiPost('eliminar_clabes_pool', { escuela_id: poolEscId, ids });
+      const res2 = await apiPost('listar_clabes_pool', { escuela_id: poolEscId });
+      if (res2.success) setPoolData(res2);
+    } catch(e) {}
+    setPoolLoading(false);
+  };
+
   return /*#__PURE__*/_jsxDEV("div", {
     children: [/*#__PURE__*/_jsxDEV("div", {
       style: {
@@ -353,6 +420,12 @@ function Escuelas({
               },
               onClick: () => onSeleccionar(esc.id),
               children: "Entrar →"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              className: "btn btn-secondary btn-sm",
+              title: "Pool de CLABEs SPEI",
+              onClick: () => abrirPool(esc.id),
+              style: { display:'flex', alignItems:'center', gap:4, fontSize:11, fontWeight:600 },
+              children: [/*#__PURE__*/_jsxDEV(Icon, { name: "bank", size: 13, color: "currentColor" }, void 0, false), "CLABEs"]
             }, void 0, false), esc.permite_planteles && /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-secondary btn-sm",
               title: "Gestionar planteles",
@@ -869,6 +942,115 @@ function Escuelas({
             children: "Guardar plantel"
           }, void 0, false)]
         }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modalPool && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && setModalPool(false),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal modal-lg",
+        style: { maxWidth: 700 },
+        children: [
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-header",
+            children: [
+              /*#__PURE__*/_jsxDEV("span", { className: "modal-title", children: "Pool de CLABEs SPEI — " + (data.escuelas.find(e=>e.id===poolEscId)?.nombre||'') }, void 0, false),
+              /*#__PURE__*/_jsxDEV("button", { className: "modal-close", onClick: ()=>setModalPool(false), children: "✕" }, void 0, false)
+            ]
+          }, void 0, true),
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-body",
+            children: [
+              /* Contadores */
+              poolData && /*#__PURE__*/_jsxDEV("div", {
+                style: { display:'flex', gap:10, marginBottom:18, flexWrap:'wrap' },
+                children: [
+                  /*#__PURE__*/_jsxDEV("div", { style:{background:'var(--green-glow)',border:'1px solid var(--green)',borderRadius:10,padding:'10px 18px',flex:1,textAlign:'center'},
+                    children: [/*#__PURE__*/_jsxDEV("div", {style:{fontSize:22,fontWeight:700,color:'var(--green)'}, children: poolData.totales.libre}, void 0, false), /*#__PURE__*/_jsxDEV("div", {style:{fontSize:11,color:'var(--ink-3)'}, children:"Libres"}, void 0, false)]
+                  }, void 0, true),
+                  /*#__PURE__*/_jsxDEV("div", { style:{background:'var(--accent-glow)',border:'1px solid var(--accent)',borderRadius:10,padding:'10px 18px',flex:1,textAlign:'center'},
+                    children: [/*#__PURE__*/_jsxDEV("div", {style:{fontSize:22,fontWeight:700,color:'var(--accent)'}, children: poolData.totales.asignada}, void 0, false), /*#__PURE__*/_jsxDEV("div", {style:{fontSize:11,color:'var(--ink-3)'}, children:"Asignadas"}, void 0, false)]
+                  }, void 0, true),
+                  /*#__PURE__*/_jsxDEV("div", { style:{background:'var(--glass)',border:'1px solid var(--glass-light)',borderRadius:10,padding:'10px 18px',flex:1,textAlign:'center'},
+                    children: [/*#__PURE__*/_jsxDEV("div", {style:{fontSize:22,fontWeight:700,color:'var(--ink-3)'}, children: poolData.totales.liberada}, void 0, false), /*#__PURE__*/_jsxDEV("div", {style:{fontSize:11,color:'var(--ink-3)'}, children:"Liberadas"}, void 0, false)]
+                  }, void 0, true)
+                ]
+              }, void 0, true),
+              /* Importar */
+              /*#__PURE__*/_jsxDEV("div", {
+                style:{background:'var(--glass)',border:'1px solid var(--glass-light)',borderRadius:12,padding:16,marginBottom:16},
+                children: [
+                  /*#__PURE__*/_jsxDEV("div", {style:{fontWeight:600,fontSize:13,marginBottom:8,color:'var(--ink-1)'}, children:"Importar CLABEs al pool"}, void 0, false),
+                  /*#__PURE__*/_jsxDEV("div", {style:{fontSize:11,color:'var(--ink-3)',marginBottom:8}, children:"Pega las CLABEs (18 dígitos cada una), una por línea o separadas por coma. Puedes copiarlas desde Excel."}, void 0, false),
+                  /*#__PURE__*/_jsxDEV("textarea", {
+                    className:"form-input", rows:4,
+                    placeholder:"646180633010000100\n646180633010000101\n646180633010000102",
+                    value: poolImportTxt,
+                    onChange: e => setPoolImportTxt(e.target.value),
+                    style:{fontFamily:'monospace',fontSize:12,marginBottom:8}
+                  }, void 0, false),
+                  poolImportMsg && /*#__PURE__*/_jsxDEV("div", {style:{fontSize:12,marginBottom:8,color: poolImportMsg.startsWith('✅') ? 'var(--green)':'var(--red)'}, children: poolImportMsg}, void 0, false),
+                  /*#__PURE__*/_jsxDEV("button", {
+                    className:"btn btn-primary btn-sm",
+                    onClick: importarClabes,
+                    disabled: poolLoading || !poolImportTxt.trim(),
+                    children: poolLoading ? "Importando…" : "Importar CLABEs"
+                  }, void 0, false)
+                ]
+              }, void 0, true),
+              /* Tabla del pool */
+              poolLoading && !poolData && /*#__PURE__*/_jsxDEV("div", {style:{textAlign:'center',padding:24,color:'var(--ink-3)'}, children:"Cargando pool…"}, void 0, false),
+              poolData && poolData.pool.length === 0 && /*#__PURE__*/_jsxDEV("div", {style:{textAlign:'center',padding:24,color:'var(--ink-3)'}, children:"No hay CLABEs en el pool. Importa CLABEs arriba."}, void 0, false),
+              poolData && poolData.pool.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+                style:{maxHeight:280,overflowY:'auto',border:'1px solid var(--glass-light)',borderRadius:10},
+                children: [
+                  /*#__PURE__*/_jsxDEV("table", { style:{width:'100%',borderCollapse:'collapse',fontSize:12},
+                    children: [
+                      /*#__PURE__*/_jsxDEV("thead", {
+                        children: /*#__PURE__*/_jsxDEV("tr", {
+                          style:{background:'var(--glass)',position:'sticky',top:0},
+                          children: ["CLABE","Estado","Alumno","Fecha asign.",""].map((h,i)=>
+                            /*#__PURE__*/_jsxDEV("th", {style:{padding:'8px 12px',textAlign:'left',fontWeight:600,color:'var(--ink-2)',borderBottom:'1px solid var(--glass-light)'}, children:h}, i, false)
+                          )
+                        }, void 0, true)
+                      }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("tbody", {
+                        children: poolData.pool.map((row,i) =>
+                          /*#__PURE__*/_jsxDEV("tr", {
+                            style:{borderBottom:'1px solid var(--glass-light)',background: i%2===0?'transparent':'var(--glass)'},
+                            children: [
+                              /*#__PURE__*/_jsxDEV("td", {style:{padding:'7px 12px',fontFamily:'monospace',letterSpacing:1}, children: row.clabe.match(/.{1,4}/g).join(' ')}, void 0, false),
+                              /*#__PURE__*/_jsxDEV("td", {style:{padding:'7px 12px'}, children:
+                                /*#__PURE__*/_jsxDEV("span", {
+                                  style:{
+                                    padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,
+                                    background: row.estado==='libre'?'var(--green-glow)':row.estado==='asignada'?'var(--accent-glow)':'var(--glass)',
+                                    color: row.estado==='libre'?'var(--green)':row.estado==='asignada'?'var(--accent)':'var(--ink-3)'
+                                  },
+                                  children: row.estado==='libre'?'Libre':row.estado==='asignada'?'Asignada':'Liberada'
+                                }, void 0, false)
+                              }, void 0, false),
+                              /*#__PURE__*/_jsxDEV("td", {style:{padding:'7px 12px',color:'var(--ink-2)'}, children: row.alumno || '—'}, void 0, false),
+                              /*#__PURE__*/_jsxDEV("td", {style:{padding:'7px 12px',color:'var(--ink-3)'}, children: row.fecha_asign || '—'}, void 0, false),
+                              /*#__PURE__*/_jsxDEV("td", {style:{padding:'7px 12px'},
+                                children: row.estado !== 'asignada' && /*#__PURE__*/_jsxDEV("button", {
+                                  style:{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:13},
+                                  title:"Eliminar del pool",
+                                  onClick: () => eliminarLibres([row.id]),
+                                  children: "✕"
+                                }, void 0, false)
+                              }, void 0, false)
+                            ]
+                          }, row.id, true)
+                        )
+                      }, void 0, false)
+                    ]
+                  }, void 0, true)
+                ]
+              }, void 0, true)
+            ]
+          }, void 0, true),
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-footer",
+            children: /*#__PURE__*/_jsxDEV("button", { className:"btn btn-secondary", onClick:()=>setModalPool(false), children:"Cerrar"}, void 0, false)
+          }, void 0, false)
+        ]
       }, void 0, true)
     }, void 0, false)]
   }, void 0, true);

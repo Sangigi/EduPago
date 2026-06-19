@@ -38,8 +38,19 @@ function Alumnos({
   const escuela = data.escuelas.find(e => e.id === escuela_id);
   const lista = data.clientes.filter(c => !q || c.nombre.toLowerCase().includes(q.toLowerCase()) || c.matricula && c.matricula.toLowerCase().includes(q.toLowerCase()) || c.email.toLowerCase().includes(q.toLowerCase()));
 
-  // ── Genera (o regenera) la CLABE individual de un alumno vía Pagadetodo/STP ──
-  // Actualiza el alumno en el state local con la CLABE recibida de la API
+  // ── CLABE Pool: asignar desde pool en lugar de Pagadetodo ──────────────────
+  const token = () => AuthController.getToken();
+
+  const _apiPost = async (action, body) => {
+    const res = await fetch('api.php?action=' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  };
+
+  // Aplica CLABE asignada al state local
   const _aplicarClabe = (dataBase, alumnoId, clabe) => ({
     ...dataBase,
     clientes: dataBase.clientes.map(c => c.id === alumnoId ? {
@@ -49,130 +60,101 @@ function Alumnos({
       clabe_individual_fecha: new Date().toISOString().slice(0, 10)
     } : c)
   });
-  const _marcarError = (dataBase, alumnoId) => ({
-    ...dataBase,
-    clientes: dataBase.clientes.map(c => c.id === alumnoId ? {
-      ...c,
-      clabe_individual_estado: 'error'
-    } : c)
-  });
-  const generarClabe = async (alumnoActual, dataBase) => {
-    if (!alumnoActual?.id) return;
-    setClabeLoadingId(alumnoActual.id);
+
+  // Toma la primera CLABE libre del pool y la asigna al alumno
+  const asignarClabeDesdePool = async (alumno, dataBase) => {
+    const eid = escuela_id || dataBase.escuelas?.[0]?.id;
+    if (!eid || !alumno?.id) return;
+    setClabeLoadingId(alumno.id);
     try {
-      const res = await CobroController.generarClabeIndividual({
-        alumno_id: alumnoActual.id,
-        matricula: alumnoActual.matricula || '',
-        nombre: alumnoActual.nombre,
-        email: alumnoActual.email || '',
-        escuela: escuela?.nombre || ''
-      });
-      const conClabe = _aplicarClabe(dataBase, alumnoActual.id, res.clabe);
+      const res = await _apiPost('asignar_clabe_pool', { escuela_id: eid, cliente_id: alumno.id });
+      if (!res.success) {
+        // Sin CLABEs disponibles — dejar en estado 'pendiente', mostrar aviso suave
+        console.warn('Pool CLABE:', res.error);
+        return;
+      }
+      const conClabe = _aplicarClabe(dataBase, alumno.id, res.clabe);
       setData(conClabe);
       AppModel.save(conClabe);
     } catch (e) {
-      alert('Error al generar CLABE: ' + e.message);
-      const conError = _marcarError(dataBase, alumnoActual.id);
-      setData(conError);
-      AppModel.save(conError);
+      console.error('Error al asignar CLABE del pool:', e.message);
     } finally {
       setClabeLoadingId(null);
     }
   };
+
+  // Libera la CLABE del alumno y la devuelve al pool
+  const liberarClabePool = async (alumno, dataBase) => {
+    try {
+      await _apiPost('liberar_clabe_pool', { cliente_id: alumno.id });
+    } catch(e) { /* no bloquear */ }
+    const upd = {
+      ...dataBase,
+      clientes: dataBase.clientes.map(c => c.id === alumno.id ? {
+        ...c, clabe_individual: null, clabe_individual_estado: 'liberada'
+      } : c)
+    };
+    setData(upd);
+    AppModel.save(upd);
+  };
+
   const guardar = async () => {
     if (!form.nombre) { alert('El nombre del alumno es requerido'); return; }
     const eid = escuela_id || (data.escuelas && data.escuelas[0]?.id);
     if (!eid) { alert('Selecciona una escuela antes de dar de alta alumnos'); return; }
     if (form.id) {
-      // Edición: llama API y actualiza estado local
       try {
         const clienteActualizado = await ClienteController.editar(form);
         const newData = {
           ...data,
-          clientes: data.clientes.map(c => c.id === clienteActualizado.id ? {
-            ...c,
-            ...clienteActualizado
-          } : c)
+          clientes: data.clientes.map(c => c.id === clienteActualizado.id ? { ...c, ...clienteActualizado } : c)
         };
         setData(newData);
         AppModel.save(newData);
-      } catch (e) {
-        alert('Error al editar alumno: ' + e.message);
-      }
+      } catch (e) { alert('Error al editar alumno: ' + e.message); }
       setModal(null);
       setForm(EMPTY);
       return;
     }
-
-    // Alta nueva: llama API, recibe cliente con ID real de DB, luego genera CLABE
-    if (!escuela_id) {
-      alert('No hay una escuela seleccionada. Selecciona una escuela en el selector de arriba antes de continuar.');
-      return;
-    }
+    // Alta nueva: registrar en DB, luego asignar CLABE del pool automáticamente
     try {
       const alumnoNuevo = await ClienteController.agregar(form, eid);
       const newData = {
         ...data,
         clientes: [...data.clientes, {
-          ...alumnoNuevo,
-          activo: true,
-          saldo_pendiente: 0,
-          clabe_individual_estado: 'pendiente'
+          ...alumnoNuevo, activo: true, saldo_pendiente: 0, clabe_individual_estado: 'pendiente'
         }]
       };
       setData(newData);
       AppModel.save(newData);
       setModal(null);
       setForm(EMPTY);
-      // Generar CLABE individual de inmediato
-      await generarClabe(alumnoNuevo, newData);
-    } catch (e) {
-      alert('Error al dar de alta alumno: ' + e.message);
-    }
+      // Asignar CLABE del pool de inmediato
+      await asignarClabeDesdePool(alumnoNuevo, newData);
+    } catch (e) { alert('Error al dar de alta alumno: ' + e.message); }
   };
 
   // ── Activar/Desactivar alumno ──────────────────────────────────────────────
   const toggle = async cliente => {
     const eraActivo = cliente.activo;
-    try {
-      await ClienteController.toggleActivo(cliente.id, eraActivo);
-    } catch (e) {/* API puede fallar, seguimos actualizando UI */}
+    try { await ClienteController.toggleActivo(cliente.id, eraActivo); } catch(e) {}
     const newData = {
       ...data,
-      clientes: data.clientes.map(c => c.id === cliente.id ? {
-        ...c,
-        activo: !eraActivo
-      } : c)
+      clientes: data.clientes.map(c => c.id === cliente.id ? { ...c, activo: !eraActivo } : c)
     };
     setData(newData);
     AppModel.save(newData);
     if (eraActivo) {
-      // Dar de baja: liberar CLABE
-      if (cliente.clabe_individual) {
-        try {
-          await CobroController.liberarClabeIndividual({
-            alumno_id: cliente.id,
-            clabe: cliente.clabe_individual
-          });
-          const sinClabe = {
-            ...newData,
-            clientes: newData.clientes.map(c => c.id === cliente.id ? {
-              ...c,
-              clabe_individual_estado: 'liberada'
-            } : c)
-          };
-          setData(sinClabe);
-          AppModel.save(sinClabe);
-        } catch (e) {/* no bloquear el flujo de baja */}
-      }
+      // Dar de baja: liberar CLABE al pool
+      if (cliente.clabe_individual) await liberarClabePool(cliente, newData);
     } else {
-      // Reactivar: generar nueva CLABE
+      // Reactivar: asignar nueva CLABE del pool
       const alumnoActualizado = newData.clientes.find(c => c.id === cliente.id);
-      await generarClabe(alumnoActualizado, newData);
+      await asignarClabeDesdePool(alumnoActualizado, newData);
     }
   };
   const regenerarClabe = async cliente => {
-    await generarClabe(cliente, data);
+    await asignarClabeDesdePool(cliente, data);
   };
   const familiaDeAlumno = fid => fid ? data.familias.find(f => f.id === fid)?.nombre : null;
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';

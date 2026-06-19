@@ -55,8 +55,16 @@ function Familias({
   }));
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
 
-  // ── Genera (o regenera) la CLABE individual de un alumno vía Pagadetodo/STP ──
-  // Queda asignada al alumno hasta que se dé de baja (salga de la escuela).
+  // ── CLABE Pool: asignar desde pool (igual que Alumnos) ─────────────────────
+  const _tkn = () => AuthController.getToken();
+  const _apiPost = async (action, body) => {
+    const res = await fetch('api.php?action=' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _tkn() },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  };
   const _aplicarClabe = (dataBase, alumnoId, clabe) => ({
     ...dataBase,
     clientes: dataBase.clientes.map(c => c.id === alumnoId ? {
@@ -66,38 +74,31 @@ function Familias({
       clabe_individual_fecha: new Date().toISOString().slice(0, 10)
     } : c)
   });
-  const _marcarError = (dataBase, alumnoId) => ({
-    ...dataBase,
-    clientes: dataBase.clientes.map(c => c.id === alumnoId ? {
-      ...c,
-      clabe_individual_estado: 'error'
-    } : c)
-  });
-  const generarClabe = async (alumnoActual, dataBase) => {
-    if (!alumnoActual?.id) return;
-    setClabeLoadingId(alumnoActual.id);
+  const asignarClabeDesdePool = async (alumno, dataBase) => {
+    const eid = escuela_id || dataBase.escuelas?.[0]?.id;
+    if (!eid || !alumno?.id) return;
+    setClabeLoadingId(alumno.id);
     try {
-      const res = await CobroController.generarClabeIndividual({
-        alumno_id: alumnoActual.id,
-        matricula: alumnoActual.matricula || '',
-        nombre: alumnoActual.nombre,
-        email: alumnoActual.email || '',
-        escuela: escuela?.nombre || ''
-      });
-      const conClabe = _aplicarClabe(dataBase, alumnoActual.id, res.clabe);
+      const res = await _apiPost('asignar_clabe_pool', { escuela_id: eid, cliente_id: alumno.id });
+      if (!res.success) { console.warn('Pool CLABE:', res.error); return; }
+      const conClabe = _aplicarClabe(dataBase, alumno.id, res.clabe);
       setData(conClabe);
       AppModel.save(conClabe);
-    } catch (e) {
-      alert('Error al generar CLABE: ' + e.message);
-      const conError = _marcarError(dataBase, alumnoActual.id);
-      setData(conError);
-      AppModel.save(conError);
-    } finally {
-      setClabeLoadingId(null);
-    }
+    } catch (e) { console.error('Error pool CLABE:', e.message); }
+    finally { setClabeLoadingId(null); }
+  };
+  const liberarClabePool = async (alumno, dataBase) => {
+    try { await _apiPost('liberar_clabe_pool', { cliente_id: alumno.id }); } catch(e) {}
+    const upd = {
+      ...dataBase,
+      clientes: dataBase.clientes.map(c => c.id === alumno.id ? {
+        ...c, clabe_individual: null, clabe_individual_estado: 'liberada'
+      } : c)
+    };
+    setData(upd); AppModel.save(upd);
   };
   const regenerarClabe = async cliente => {
-    await generarClabe(cliente, data);
+    await asignarClabeDesdePool(cliente, data);
   };
 
   // ── Activar/Desactivar hijo ────────────────────────────────────────────────
@@ -119,25 +120,11 @@ function Familias({
     AppModel.save(newData);
     if (eraActivo) {
       if (hijo.clabe_individual) {
-        try {
-          await CobroController.liberarClabeIndividual({
-            alumno_id: hijo.id,
-            clabe: hijo.clabe_individual
-          });
-          const sinClabe = {
-            ...newData,
-            clientes: newData.clientes.map(c => c.id === hijo.id ? {
-              ...c,
-              clabe_individual_estado: 'liberada'
-            } : c)
-          };
-          setData(sinClabe);
-          AppModel.save(sinClabe);
-        } catch (e) {}
+        await liberarClabePool(hijo, newData);
       }
     } else {
       const alumnoActualizado = newData.clientes.find(c => c.id === hijo.id);
-      await generarClabe(alumnoActualizado, newData);
+      await asignarClabeDesdePool(alumnoActualizado, newData);
     }
   };
   const guardarFam = async () => {
@@ -218,7 +205,7 @@ function Familias({
       setModal(null);
       setFormAlu(EMPTY_ALU);
       setTargetFamId(null);
-      await generarClabe(alumnoNuevo, newData);
+      await asignarClabeDesdePool(alumnoNuevo, newData);
     } catch (e) {
       alert('Error al dar de alta alumno: ' + e.message);
     }
