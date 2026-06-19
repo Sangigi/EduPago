@@ -166,13 +166,8 @@ function Escuelas({
     setPoolLoading(false);
   };
 
-  const importarClabes = async () => {
-    if (!poolImportTxt.trim()) return;
-    // Parsear: acepta una CLABE por línea, o separadas por coma/espacio/tab
-    const clabes = poolImportTxt
-      .split(/[\n,;\t ]+/)
-      .map(s => s.replace(/\s/g,'').trim())
-      .filter(s => /^\d{18}$/.test(s));
+  // Envía una lista ya parseada de CLABEs al backend e informa el resultado
+  const _importarLista = async clabes => {
     if (!clabes.length) { setPoolImportMsg('⚠ No se encontraron CLABEs válidas (deben ser 18 dígitos)'); return; }
     setPoolLoading(true);
     try {
@@ -180,7 +175,6 @@ function Escuelas({
       if (res.success) {
         setPoolImportMsg(`✅ ${res.insertadas} importadas, ${res.duplicadas} duplicadas ignoradas`);
         setPoolImportTxt('');
-        // Recargar pool
         const res2 = await apiPost('listar_clabes_pool', { escuela_id: poolEscId });
         if (res2.success) setPoolData(res2);
       } else {
@@ -188,6 +182,54 @@ function Escuelas({
       }
     } catch(e) { setPoolImportMsg('❌ Error de red'); }
     setPoolLoading(false);
+  };
+
+  // Importar desde el textarea (pegado manual)
+  const importarClabes = async () => {
+    if (!poolImportTxt.trim()) return;
+    // Parsear: acepta una CLABE por línea, o separadas por coma/espacio/tab
+    const clabes = poolImportTxt
+      .split(/[\n,;\t ]+/)
+      .map(s => s.replace(/\s/g,'').trim())
+      .filter(s => /^\d{18}$/.test(s));
+    await _importarLista(clabes);
+  };
+
+  // Importar desde archivo Excel (.xlsx, .xls) o CSV usando SheetJS
+  const manejarArchivoExcel = e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (typeof XLSX === 'undefined') {
+      setPoolImportMsg('❌ No se pudo cargar el lector de Excel. Revisa tu conexión e intenta de nuevo.');
+      e.target.value = '';
+      return;
+    }
+    setPoolLoading(true);
+    setPoolImportMsg('');
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const hoja = wb.Sheets[wb.SheetNames[0]];
+        // Convierte a filas de arrays (sin asumir encabezados ni columna fija)
+        const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+        // Junta TODAS las celdas de TODAS las columnas y filas, y extrae secuencias de 18 dígitos
+        const textoCompleto = filas.flat().join(' ');
+        const clabes = (textoCompleto.match(/\d{18}/g) || []);
+        e.target.value = ''; // permitir re-subir el mismo archivo
+        await _importarLista(clabes);
+      } catch (err) {
+        setPoolImportMsg('❌ No se pudo leer el archivo: ' + err.message);
+        setPoolLoading(false);
+        e.target.value = '';
+      }
+    };
+    reader.onerror = () => {
+      setPoolImportMsg('❌ Error al leer el archivo');
+      setPoolLoading(false);
+      e.target.value = '';
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const eliminarLibres = async ids => {
@@ -986,12 +1028,34 @@ function Escuelas({
                     onChange: e => setPoolImportTxt(e.target.value),
                     style:{fontFamily:'monospace',fontSize:12,marginBottom:8}
                   }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("div", {
+                    style:{display:'flex',alignItems:'center',gap:10,margin:'10px 0'},
+                    children: [
+                      /*#__PURE__*/_jsxDEV("div", {style:{flex:1,height:1,background:'var(--glass-light)'}}, void 0, false),
+                      /*#__PURE__*/_jsxDEV("span", {style:{fontSize:11,color:'var(--ink-3)'}, children:"o"}, void 0, false),
+                      /*#__PURE__*/_jsxDEV("div", {style:{flex:1,height:1,background:'var(--glass-light)'}}, void 0, false)
+                    ]
+                  }, void 0, true),
+                  /*#__PURE__*/_jsxDEV("label", {
+                    htmlFor: "input-clabes-excel",
+                    className: "btn btn-secondary btn-sm",
+                    style: { display:'inline-flex', alignItems:'center', gap:6, cursor:'pointer', marginBottom:8 },
+                    children: [/*#__PURE__*/_jsxDEV(Icon, { name: "upload", size: 13, color: "currentColor" }, void 0, false), "Subir archivo Excel (.xlsx, .csv)"]
+                  }, void 0, true),
+                  /*#__PURE__*/_jsxDEV("input", {
+                    id: "input-clabes-excel",
+                    type: "file",
+                    accept: ".xlsx,.xls,.csv",
+                    onChange: manejarArchivoExcel,
+                    style: { display: 'none' }
+                  }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("div", {style:{fontSize:11,color:'var(--ink-3)',marginBottom:8}, children:"El archivo puede tener las CLABEs en cualquier columna o fila; el sistema las detecta automáticamente (18 dígitos)."}, void 0, false),
                   poolImportMsg && /*#__PURE__*/_jsxDEV("div", {style:{fontSize:12,marginBottom:8,color: poolImportMsg.startsWith('✅') ? 'var(--green)':'var(--red)'}, children: poolImportMsg}, void 0, false),
                   /*#__PURE__*/_jsxDEV("button", {
                     className:"btn btn-primary btn-sm",
                     onClick: importarClabes,
                     disabled: poolLoading || !poolImportTxt.trim(),
-                    children: poolLoading ? "Importando…" : "Importar CLABEs"
+                    children: poolLoading ? "Importando…" : "Importar CLABEs pegadas"
                   }, void 0, false)
                 ]
               }, void 0, true),
