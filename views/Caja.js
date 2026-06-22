@@ -1491,7 +1491,7 @@ function Caja({
             }, void 0, false), " Imprimir"]
           }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
-            style: { color: 'currentColor' },
+            style: { color: '#ffffff' },
             onClick: () => {
               setModal(null);
               setCobroActivo(null);
