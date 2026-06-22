@@ -476,6 +476,17 @@ tbody tr:hover td { background:var(--glass-light); color:var(--ink); }
 .theme-toggle { padding:8px 11px; border-radius:var(--radius-sm); border:1px solid var(--border-glow); background:var(--bg-solid); cursor:pointer; font-size:16px; color:var(--ink-3); transition:all .15s; display:flex; align-items:center; }
 .theme-toggle:hover { background:var(--glass-light); color:var(--ink); }
 
+/* ── MOBILE MENU BUTTON + DRAWER BACKDROP (ocultos en escritorio) ── */
+.mobile-menu-btn {
+  display:none; align-items:center; justify-content:center;
+  width:38px; height:38px; flex-shrink:0;
+  border:1px solid var(--border-glow); border-radius:var(--radius-sm);
+  background:var(--bg-solid); color:var(--ink-2); cursor:pointer;
+  transition:all .15s; padding:0; margin-right:2px;
+}
+.mobile-menu-btn:hover { background:var(--glass-light); color:var(--ink); }
+.nav-backdrop { display:none; }
+
 /* ── PROGRESS BAR ── */
 .progress-bar  { height:6px; background:var(--glass-light); border-radius:10px; overflow:hidden; margin-top:8px; }
 .progress-fill { height:100%; border-radius:10px; transition:width 1s ease; background:var(--accent); }
@@ -486,12 +497,6 @@ tbody tr:hover td { background:var(--glass-light); color:var(--ink); }
 .verif-dot.pulse { animation:pulse 1.5s infinite; }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
 
-/* ── RESPONSIVE ── */
-@media (max-width:900px) {
-  .pos-layout { grid-template-columns:1fr; }
-  .pos-cart   { max-height:50vh; }
-}
-
 /* ── Toast animation ── */
 @keyframes slideIn {
   from { opacity:0; transform:translateY(-10px) translateX(10px); }
@@ -499,149 +504,112 @@ tbody tr:hover td { background:var(--glass-light); color:var(--ink); }
 }
 
 /* ══════════════════════════════════════════════════════
-   RESPONSIVE LAYOUT (Adaptabilidad Móvil y Tablets)
+   RESPONSIVE LAYOUT — funciona en cualquier dispositivo
+   · ≥ 1025px  → sidebar fijo completo (256px)
+   · 769–1024  → sidebar fijo (un poco más angosto) + grids fluidos
+   · ≤ 768px   → sidebar como drawer deslizable + botón de menú
 ══════════════════════════════════════════════════════ */
 
-/* ── TABLETS Y PANTALLAS MEDIANAS (Hasta 1024px) ── */
-@media (max-width: 1024px) {
-  /* Contraer el sidebar a modo "íconos" para ahorrar espacio */
-  :root {
-    --sidebar-w: 80px;
-  }
-  
-  .brand-name, 
-  .brand-sub, 
-  .nav-item span:not(.nav-icon), 
-  .nav-badge, 
-  .user-info {
-    display: none; 
-  }
-  
-  .sidebar-brand { padding: 20px 0 16px; }
-  .brand-logo { justify-content: center; }
-  
-  .nav-item { 
-    justify-content: center; 
-    padding: 12px; 
-    margin-bottom: 8px;
-  }
-  .nav-item.active::before { display: none; }
-  .nav-icon { margin: 0; width: auto; font-size: 20px; }
-  
-  .user-card { justify-content: center; padding: 12px 0; }
-  .logout-btn { display: none; }
+/* ── Asegura tablas y bloques anchos con scroll horizontal limpio ── */
+.table-wrap { -webkit-overflow-scrolling: touch; }
+
+/* ── TABLETS / PANTALLAS MEDIANAS (769–1024px) ── */
+@media (max-width: 1024px) and (min-width: 769px) {
+  :root { --sidebar-w: 220px; }
+  .content { padding: 22px; }
+  .pos-layout { grid-template-columns: 1fr 320px; }
 }
 
-/* ── MÓVILES GRANDES Y TABLETS VERTICALES (Hasta 900px) ── */
+/* ── TABLETS GRANDES Y MENORES: POS apilado (≤900px) ── */
 @media (max-width: 900px) {
-  /* Reorganización del Punto de Venta (POS) */
-  .pos-layout { 
-    grid-template-columns: 1fr; 
-    min-height: auto; 
+  .pos-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    height: auto;
   }
-  .pos-cart { 
-    max-height: 55vh; 
-  }
-  
-  /* Ajuste de estadísticas */
-  .stats-grid { 
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
-  }
+  .pos-cart { max-height: 60vh; }
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 }
 
-/* ── MÓVILES ESTÁNDAR (Hasta 768px) ── */
+/* ── MÓVILES Y TABLETS VERTICALES (≤768px): SIDEBAR COMO DRAWER ── */
 @media (max-width: 768px) {
-  /* Estructura Principal */
-  .app {
-    flex-direction: column; 
-  }
+  /* El layout deja de reservar espacio para el sidebar */
+  .app { display: block; height: 100vh; overflow: hidden; }
 
-  /* Transformar Sidebar en Barra de Navegación Inferior */
+  /* Botón hamburguesa visible en la topbar */
+  .mobile-menu-btn { display: flex; }
+
+  /* Sidebar fuera de pantalla, entra al activar el menú */
   .sidebar {
-    width: 100%;
-    height: 65px;
-    flex-direction: row;
-    order: 3; /* Envía el sidebar al fondo de la pantalla */
-    border-right: none;
-    border-top: 1px solid var(--side-border);
-    z-index: 100;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 270px;
+    max-width: 82vw;
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    box-shadow: var(--shadow-lg);
   }
-  
-  .sidebar-brand, 
-  .nav-section, 
-  .sidebar-footer { 
-    display: none; /* Ocultamos logo y footer en la barra inferior móvil */
-  }
-  
-  .sidebar-nav {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
-    padding: 0 10px;
-    width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-  
-  .nav-item {
-    padding: 10px;
-    margin: 0;
-  }
+  .app.nav-open .sidebar { transform: translateX(0); }
 
-  /* Topbar y Contenido */
-  .topbar {
-    padding: 0 16px;
-    height: 60px;
+  /* Fondo oscuro detrás del drawer */
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 19, 40, .5);
+    backdrop-filter: blur(2px);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
   }
-  
-  .content {
-    padding: 16px;
-  }
+  .app.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
 
-  /* Tarjetas y Contenedores */
-  .card {
-    padding: 16px;
-  }
-  
-  /* Modal responsive */
-  .modal {
-    max-width: 95%;
-    max-height: 85vh;
-  }
+  /* La zona principal ocupa todo el ancho */
+  .main { height: 100vh; width: 100%; }
+
+  .topbar { padding: 0 14px; height: 58px; gap: 10px; }
+  .topbar-title { font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .content { padding: 16px; }
+  .card { padding: 16px; }
+
+  /* Modales a ancho casi completo */
+  .modal { max-width: 95%; max-height: 88vh; }
+  .modal-lg { max-width: 95%; }
   .modal-header { padding: 14px 16px; }
   .modal-body { padding: 16px; }
   .modal-footer { padding: 14px 16px; }
 
-  /* Ajustes en Pantalla de Login */
-  .login-card {
-    width: 90%;
-    padding: 26px 22px;
-  }
+  /* Login */
+  .login-card { width: 100%; max-width: 380px; padding: 28px 22px; }
   .login-brand { font-size: 24px; }
 }
 
-/* ── MÓVILES PEQUEÑOS (Hasta 480px) ── */
-@media (max-width: 480px) {
+/* ── MÓVILES ESTÁNDAR (≤560px) ── */
+@media (max-width: 560px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  /* "Nuevo cobro" pasa a botón de ícono para ahorrar espacio */
+  .topbar-actions .btn-primary { font-size: 0 !important; gap: 0 !important; padding: 9px !important; }
+
+  .card-header { flex-wrap: wrap; }
+  .pos-cart { max-height: none; }
+}
+
+/* ── MÓVILES PEQUEÑOS (≤420px) ── */
+@media (max-width: 420px) {
   .topbar-title { font-size: 14px; }
   .topbar-actions { gap: 6px; }
-  
-  .btn { 
-    padding: 8px 12px; 
-    font-size: 12.5px; 
-  }
-  
-  .stats-grid { 
-    grid-template-columns: 1fr; /* Una sola columna para números grandes */
-  }
-  
-  .pos-products-grid { 
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
-  }
+  .content { padding: 12px; }
+
+  .stats-grid { grid-template-columns: 1fr; }
+
+  .pos-products-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
   .product-emoji { font-size: 22px; }
   .product-name { font-size: 11.5px; }
-  
-  .ticket {
-    max-width: 100%;
-  }
+
+  .ticket { max-width: 100%; }
 }

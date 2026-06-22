@@ -113,6 +113,7 @@ function App() {
   const [view, setView] = useState('dashboard');
   const [theme, setTheme] = useState('dark');
   const [escuelaActiva, setEscuelaActiva] = useState(null);
+  const [mobileNav, setMobileNav] = useState(false);
 
   // Carga datos desde la API (MySQL) o desde localStorage como fallback (modo demo/offline)
   const cargarDatosDesdeAPI = async token => {
@@ -350,8 +351,11 @@ function App() {
     cajero: 'Cajero'
   };
   return /*#__PURE__*/_jsxDEV("div", {
-    className: "app",
-    children: [/*#__PURE__*/_jsxDEV("aside", {
+    className: `app${mobileNav ? ' nav-open' : ''}`,
+    children: [/*#__PURE__*/_jsxDEV("div", {
+      className: "nav-backdrop",
+      onClick: () => setMobileNav(false)
+    }, void 0, false), /*#__PURE__*/_jsxDEV("aside", {
       className: "sidebar",
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "sidebar-brand",
@@ -469,7 +473,10 @@ function App() {
             children: sec
           }, void 0, false), navItems.filter(n => n.section === sec).map(n => /*#__PURE__*/_jsxDEV("div", {
             className: `nav-item ${view === n.id ? 'active' : ''}`,
-            onClick: () => setView(n.id),
+            onClick: () => {
+              setView(n.id);
+              setMobileNav(false);
+            },
             children: [/*#__PURE__*/_jsxDEV(Icon, {
               name: n.icon,
               size: 17,
@@ -574,7 +581,16 @@ function App() {
       className: "main",
       children: [/*#__PURE__*/_jsxDEV("header", {
         className: "topbar",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [/*#__PURE__*/_jsxDEV("button", {
+          className: "mobile-menu-btn",
+          onClick: () => setMobileNav(v => !v),
+          "aria-label": "Abrir menú",
+          children: /*#__PURE__*/_jsxDEV(Icon, {
+            name: "menu",
+            size: 20,
+            color: "currentColor"
+          }, void 0, false)
+        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "topbar-title",
           children: [escuela && /*#__PURE__*/_jsxDEV("span", {
             style: {
