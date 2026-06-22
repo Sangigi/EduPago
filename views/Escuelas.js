@@ -382,7 +382,7 @@ function Escuelas({
                 children: /*#__PURE__*/_jsxDEV(Icon, {
                   name: stat.icon,
                   size: 16,
-                  color: "var(--navy)"
+                  color: "currentColor"
                 }, void 0, false)
               }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                 style: {
