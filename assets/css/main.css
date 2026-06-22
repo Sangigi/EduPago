@@ -475,7 +475,7 @@ tbody tr:hover td { background:var(--glass-light); color:var(--ink); }
 /* ── THEME TOGGLE ── */
 .theme-toggle { padding:8px 11px; border-radius:var(--radius-sm); border:1px solid var(--border-glow); background:var(--bg-solid); cursor:pointer; font-size:16px; color:var(--ink-3); transition:all .15s; display:flex; align-items:center; }
 .theme-toggle:hover { background:var(--glass-light); color:var(--ink); }
-
+.theme-toggle {display: none;}
 /* ── MOBILE MENU BUTTON + DRAWER BACKDROP (ocultos en escritorio) ── */
 .mobile-menu-btn {
   display:none; align-items:center; justify-content:center;
