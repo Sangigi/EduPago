@@ -111,7 +111,7 @@ function UsuariosFormModal({
                         _jsxDEV("option", { value: "", children: "Seleccionar rol…" }, void 0, false),
                         rolesCreables.map(r => _jsxDEV("option", {
                           value: r,
-                          children: [ROL_INFO[r]?.icon, " ", ROL_INFO[r]?.label]
+                          children: ROL_INFO[r]?.label
                         }, r, true))
                       ]
                     }, void 0, true)
@@ -242,8 +242,8 @@ function UsuariosFormModal({
                         form.email || 'sin correo', " ·", ' ',
                         form.rol
                           ? _jsxDEV("span", {
-                              style: { color: ROL_INFO[form.rol]?.color },
-                              children: [ROL_INFO[form.rol]?.icon, " ", ROL_INFO[form.rol]?.label]
+                              style: { color: ROL_INFO[form.rol]?.color, display: 'inline-flex', alignItems: 'center', gap: 4 },
+                              children: [_jsxDEV(Icon, { name: ROL_INFO[form.rol]?.icon, size: 12, color: "currentColor" }, void 0, false), " ", ROL_INFO[form.rol]?.label]
                             }, void 0, true)
                           : 'sin rol',
                         " ·", ' ',
@@ -455,7 +455,7 @@ function Usuarios({ user, data }) {
             },
             onClick: () => setFiltroRol(s.rol || 'todos'),
             children: [
-              _jsxDEV("div", { className: "stat-icon", style: { background: info?.bg || s.bg, color: info?.color }, children: info?.icon || s.icon }, void 0, false),
+              _jsxDEV("div", { className: "stat-icon", style: { background: info?.bg || s.bg, color: info?.color }, children: _jsxDEV(Icon, { name: info?.icon || s.icon, size: 24, color: "currentColor" }, void 0, false) }, void 0, false),
               _jsxDEV("div", { className: "stat-label", children: info?.label || s.label }, void 0, false),
               _jsxDEV("div", { className: "stat-value", style: { fontSize: 22 }, children: s.count }, void 0, false)
             ]
@@ -568,7 +568,7 @@ function Usuarios({ user, data }) {
                             }, void 0, true)
                           }, void 0, false),
                           _jsxDEV("td", {
-                            children: _jsxDEV("span", { className: `badge ${info?.badge || 'badge-gray'}`, children: [info?.icon, " ", info?.label] }, void 0, true)
+                            children: _jsxDEV("span", { className: `badge ${info?.badge || 'badge-gray'}`, style: { display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: info?.icon, size: 14, color: "currentColor" }, void 0, false), " ", info?.label] }, void 0, true)
                           }, void 0, false),
                           _jsxDEV("td", {
                             children: u.rol === 'familia'
@@ -643,7 +643,7 @@ function Usuarios({ user, data }) {
               ].map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [
-                  _jsxDEV("span", { className: `badge ${ROL_INFO[item.rol].badge}`, style: { flexShrink: 0 }, children: [ROL_INFO[item.rol].icon, " ", ROL_INFO[item.rol].label] }, void 0, true),
+                  _jsxDEV("span", { className: `badge ${ROL_INFO[item.rol].badge}`, style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: ROL_INFO[item.rol].icon, size: 14, color: "currentColor" }, void 0, false), " ", ROL_INFO[item.rol].label] }, void 0, true),
                   _jsxDEV("span", { style: { fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.5 }, children: item.desc }, void 0, false)
                 ]
               }, item.rol, true))
