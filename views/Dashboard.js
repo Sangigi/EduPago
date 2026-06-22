@@ -335,7 +335,7 @@ function Dashboard({
         val: fmt(stats.totalCobrado),
         icon: 'pay',
         bg: 'var(--accent-glow)',
-        iconColor: 'currentColor',
+        iconColor: 'var(--navy)',
         meta: `${data.cobros.filter(c => c.estado === 'pagado').length} cobros pagados`,
         color: ''
       }, {

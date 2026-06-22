@@ -22,6 +22,7 @@ function Caja({
   const [clienteSel, setClienteSel] = useState(null);
   const [metodo, setMetodo] = useState('TC');
   const [q, setQ] = useState('');
+  const [qCliente, setQCliente] = useState('');
   const [modal, setModal] = useState(null); // null | 'cliente' | 'spei' | 'codi' | 'ticket' | 'tc'
   const [cobroActivo, setCobroActivo] = useState(null);
   const [copiedCLABE, setCopiedCLABE] = useState(false);
@@ -42,6 +43,13 @@ function Caja({
   const timerRef = useRef(null);
   const speiPollRef = useRef(null);
   const productosFiltrados = data.productos.filter(p => p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase())));
+  const clientesFiltrados = data.clientes.filter(c => {
+    if (!c.activo) return false;
+    if (!qCliente) return true;
+    const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
+    const texto = [c.nombre, c.matricula, c.grado, fam?.nombre].filter(Boolean).join(' ').toLowerCase();
+    return texto.includes(qCliente.toLowerCase());
+  });
   const subtotal = carrito.reduce((a, i) => a + i.precio * i.qty, 0);
   const total = subtotal;
 
@@ -434,7 +442,7 @@ function Caja({
           }, void 0, false), " Cobro en curso"]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "cart-customer",
-          onClick: () => setModal('cliente'),
+          onClick: () => { setQCliente(''); setModal('cliente'); },
           children: [/*#__PURE__*/_jsxDEV(Icon, {
             name: clienteSel ? 'alumnos' : 'familias',
             size: 18,
@@ -597,11 +605,35 @@ function Caja({
             }, void 0, false)
           }, void 0, false)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "search-bar",
+          style: {
+            margin: '10px 18px 0'
+          },
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            className: "search-icon",
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "search",
+              size: 15,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+            placeholder: "Buscar por nombre, matrícula, grado o familia…",
+            value: qCliente,
+            onChange: e => setQCliente(e.target.value),
+            autoFocus: true
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-body",
           style: {
             padding: '10px 18px'
           },
-          children: data.clientes.filter(c => c.activo).map(c => {
+          children: [clientesFiltrados.length === 0 && /*#__PURE__*/_jsxDEV("div", {
+            className: "empty-state",
+            children: /*#__PURE__*/_jsxDEV("div", {
+              className: "empty-text",
+              children: "Sin resultados para esa búsqueda"
+            }, void 0, false)
+          }, void 0, false), clientesFiltrados.map(c => {
             const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
             return /*#__PURE__*/_jsxDEV("div", {
               onClick: () => {
@@ -677,7 +709,7 @@ function Caja({
                 children: fmt(c.saldo_pendiente)
               }, void 0, false)]
             }, c.id, true);
-          })
+          })]
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: /*#__PURE__*/_jsxDEV("button", {
@@ -1491,7 +1523,6 @@ function Caja({
             }, void 0, false), " Imprimir"]
           }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
-            style: { color: '#ffffff' },
             onClick: () => {
               setModal(null);
               setCobroActivo(null);

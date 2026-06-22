@@ -43,6 +43,7 @@ function Familias({
   const [expanded, setExpanded] = useState({});
   const [q, setQ] = useState('');
   const [targetFamId, setTargetFamId] = useState(null);
+  const [qVincular, setQVincular] = useState('');
   const [clabeLoadingId, setClabeLoadingId] = useState(null); // id del alumno cuya CLABE se está generando
 
   const escuela = data.escuelas.find(e => e.id === escuela_id);
@@ -209,6 +210,28 @@ function Familias({
     } catch (e) {
       alert('Error al dar de alta alumno: ' + e.message);
     }
+  };
+  const vincularAlumnoExistente = async alumno => {
+    try {
+      await ClienteController.editar({
+        id: alumno.id,
+        familia_id: targetFamId
+      });
+      const newData = {
+        ...data,
+        clientes: data.clientes.map(c => c.id === alumno.id ? {
+          ...c,
+          familia_id: targetFamId
+        } : c)
+      };
+      setData(newData);
+      AppModel.save(newData);
+    } catch (e) {
+      alert('Error al vincular alumno: ' + e.message);
+    }
+    setModal(null);
+    setQVincular('');
+    setTargetFamId(null);
   };
   return /*#__PURE__*/_jsxDEV("div", {
     children: [/*#__PURE__*/_jsxDEV("div", {
@@ -389,6 +412,16 @@ function Familias({
                   setModal('alumno');
                 },
                 children: "+ Añadir estudiante"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-ghost btn-sm",
+                onClick: e => {
+                  e.stopPropagation();
+                  setTargetFamId(fam.id);
+                  setQVincular('');
+                  setModal('vincular');
+                },
+                title: "Vincular un alumno que ya existe en el sistema",
+                children: "🔗 Vincular existente"
               }, void 0, false)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
               style: {
@@ -1118,6 +1151,140 @@ function Familias({
             children: "Guardar"
           }, void 0, false)]
         }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modal === 'vincular' && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && setModal(null),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            children: "Vincular alumno existente"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: () => setModal(null),
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "close",
+              size: 16,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "search-bar",
+          style: {
+            margin: '10px 18px 0'
+          },
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            className: "search-icon",
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "search",
+              size: 15,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+            placeholder: "Buscar por nombre, matrícula o grado…",
+            value: qVincular,
+            onChange: e => setQVincular(e.target.value),
+            autoFocus: true
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          style: {
+            padding: '10px 18px'
+          },
+          children: (() => {
+            const candidatos = data.clientes.filter(c => {
+              if (c.tipo !== 'alumno' || !c.activo) return false;
+              if (c.escuela_id !== escuela_id) return false;
+              if (c.familia_id === targetFamId) return false;
+              if (!qVincular) return true;
+              const texto = [c.nombre, c.matricula, c.grado].filter(Boolean).join(' ').toLowerCase();
+              return texto.includes(qVincular.toLowerCase());
+            });
+            if (candidatos.length === 0) {
+              return /*#__PURE__*/_jsxDEV("div", {
+                className: "empty-state",
+                children: /*#__PURE__*/_jsxDEV("div", {
+                  className: "empty-text",
+                  children: "Sin alumnos disponibles para vincular"
+                }, void 0, false)
+              }, void 0, false);
+            }
+            return candidatos.map(c => {
+              const famActual = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
+              return /*#__PURE__*/_jsxDEV("div", {
+                onClick: () => vincularAlumnoExistente(c),
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid var(--glass-light)',
+                  transition: 'background .15s'
+                },
+                onMouseEnter: e => e.currentTarget.style.background = 'var(--glass-light)',
+                onMouseLeave: e => e.currentTarget.style.background = 'transparent',
+                children: [/*#__PURE__*/_jsxDEV("div", {
+                  className: "avatar avatar-admin",
+                  children: c.nombre.charAt(0)
+                }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                  style: {
+                    flex: 1,
+                    minWidth: 0
+                  },
+                  children: [/*#__PURE__*/_jsxDEV("div", {
+                    style: {
+                      fontWeight: 500,
+                      fontSize: 13,
+                      color: 'var(--ink)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    },
+                    children: c.nombre
+                  }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                    style: {
+                      fontSize: 11,
+                      color: 'var(--ink-3)',
+                      display: 'flex',
+                      gap: 6,
+                      flexWrap: 'wrap'
+                    },
+                    children: [/*#__PURE__*/_jsxDEV("span", {
+                      children: c.grado
+                    }, void 0, false), c.matricula && /*#__PURE__*/_jsxDEV("span", {
+                      style: {
+                        fontFamily: 'var(--mono)'
+                      },
+                      children: ["· ", c.matricula]
+                    }, void 0, true), famActual ? /*#__PURE__*/_jsxDEV("span", {
+                      style: {
+                        color: 'var(--amber)'
+                      },
+                      children: ["· Mover desde ", famActual.nombre]
+                    }, void 0, true) : /*#__PURE__*/_jsxDEV("span", {
+                      style: {
+                        color: 'var(--ink-4)'
+                      },
+                      children: "· Sin familia"
+                    }, void 0, false)]
+                  }, void 0, true)]
+                }, void 0, true)]
+              }, c.id, true);
+            });
+          })()
+        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost",
+            onClick: () => setModal(null),
+            children: "Cancelar"
+          }, void 0, false)
+        }, void 0, false)]
       }, void 0, true)
     }, void 0, false)]
   }, void 0, true);
