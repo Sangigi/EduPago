@@ -15,16 +15,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(); 
 }
 
+function generar_token($user_id) {
+    $exp = time() + APP_TOKEN_TTL;
+    $payload = $user_id . '.' . $exp;
+    $firma = hash_hmac('sha256', $payload, APP_TOKEN_SECRET);
+    return base64_encode($payload . '.' . $firma);
+}
+
 function verificar_token_auth() {
+    global $pdo;
+
     $headers = apache_request_headers();
     $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-    
+
     if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'No autorizado. Token requerido.']);
         exit;
     }
-    return ['user_id' => 1, 'rol' => 'admin']; 
+
+    $decoded = base64_decode($matches[1], true);
+    $partes  = $decoded !== false ? explode('.', $decoded) : [];
+
+    if (count($partes) !== 3) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Token inválido.']);
+        exit;
+    }
+
+    [$user_id, $exp, $firma] = $partes;
+    $firma_esperada = hash_hmac('sha256', $user_id . '.' . $exp, APP_TOKEN_SECRET);
+
+    if (!hash_equals($firma_esperada, $firma) || intval($exp) < time()) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Token inválido o expirado.']);
+        exit;
+    }
+
+    // El rol y estado se leen siempre frescos de la BD (no del token),
+    // así reflejan cualquier cambio (ej. desactivación) inmediatamente.
+    $stmt = $pdo->prepare("SELECT id, rol, escuela_id, activo FROM usuarios WHERE id = ?");
+    $stmt->execute([intval($user_id)]);
+    $usuario = $stmt->fetch();
+
+    if (!$usuario || !$usuario['activo']) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Usuario no encontrado o inactivo.']);
+        exit;
+    }
+
+    return ['user_id' => intval($usuario['id']), 'rol' => $usuario['rol'], 'escuela_id' => $usuario['escuela_id']];
 }
 
 $action = $_GET['action'] ?? '';
@@ -75,7 +115,7 @@ switch ($action) {
         $user = $stmt->fetch();
 
         if ($user && $pass === $user['password_hash']) {
-            $token = base64_encode(bin2hex(random_bytes(16)) . ':' . $user['id']);
+            $token = generar_token($user['id']);
             respond([
                 'success' => true, 
                 'user' => [
@@ -766,12 +806,8 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'listar_usuarios':
-        $rol_actual   = $usuario_actual['rol'] ?? '';
-        $esc_actual   = null;
-        $su = $pdo->prepare("SELECT escuela_id FROM usuarios WHERE id = ?");
-        $su->execute([$usuario_actual['user_id'] ?? 0]);
-        $urow = $su->fetch();
-        if ($urow) $esc_actual = $urow['escuela_id'];
+        $rol_actual = $usuario_actual['rol']       ?? '';
+        $esc_actual = $usuario_actual['escuela_id'] ?? null;
 
         if ($rol_actual === 'superadmin') {
             $stmt = $pdo->query(

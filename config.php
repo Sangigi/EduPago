@@ -44,6 +44,12 @@ define('ADMIN_PASS',     'SuperAdmin2026!');  // Cambiar en producción
 define('API_LOG_ENABLED', true);
 define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
 
+// ─── Clave secreta para firmar tokens de sesión (HMAC) ───────────────────────
+// IMPORTANTE: en producción, cambia este valor por una cadena aleatoria larga
+// y única, y no la subas a un repositorio público.
+define('APP_TOKEN_SECRET', 'CAMBIA_ESTA_CLAVE_POR_UNA_ALEATORIA_Y_LARGA_EN_PRODUCCION_2026');
+define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
+
 // ─── Zona horaria ────────────────────────────────────────────────────────────
 date_default_timezone_set('America/Mexico_City');
 
