@@ -640,7 +640,7 @@ function App() {
             children: [/*#__PURE__*/_jsxDEV(Icon, {
               name: "plus",
               size: 14,
-              color: "var(--navy)"
+              color: "currentColor"
             }, void 0, false), "Nuevo cobro"]
           }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
             className: "theme-toggle",
