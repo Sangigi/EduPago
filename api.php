@@ -737,7 +737,9 @@ switch ($action) {
         foreach ($campos as $c) {
             if (array_key_exists($c, $input)) {
                 $sets[] = "`$c` = ?";
-                $vals[] = $input[$c] ?: null;
+                // Usar array_key_exists + isset para respetar null explícito
+                // (ej: familia_id: null al desvincular un alumno)
+                $vals[] = isset($input[$c]) ? $input[$c] : null;
             }
         }
         if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
@@ -746,7 +748,14 @@ switch ($action) {
         $stmt = $pdo->prepare("UPDATE clientes SET " . implode(', ', $sets) . " WHERE id = ?");
         $stmt->execute($vals);
 
-        respond(['success' => true, 'cliente' => $input]);
+        // Regresar el registro actualizado real de la DB (no $input parcial)
+        $stmt2 = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
+        $stmt2->execute([$id]);
+        $clienteActualizado = $stmt2->fetch(PDO::FETCH_ASSOC);
+        $clienteActualizado['familia_id'] = $clienteActualizado['familia_id'] ? intval($clienteActualizado['familia_id']) : null;
+        $clienteActualizado['activo']     = (bool)$clienteActualizado['activo'];
+
+        respond(['success' => true, 'cliente' => $clienteActualizado]);
     break;
 
     // ══════════════════════════════════════════════════════════════════════════

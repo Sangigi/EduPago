@@ -217,7 +217,7 @@ function Familias({
     const mensaje = famOrigen ? `¿Mover a "${alumno.nombre}" de la familia "${famOrigen.nombre}" a "${famDestino?.nombre || ''}"?` : `¿Vincular a "${alumno.nombre}" a la familia "${famDestino?.nombre || ''}"?`;
     if (!confirm(mensaje)) return;
     try {
-      await ClienteController.editar({
+      const clienteActualizado = await ClienteController.editar({
         id: alumno.id,
         familia_id: targetFamId
       });
@@ -225,7 +225,7 @@ function Familias({
         ...data,
         clientes: data.clientes.map(c => c.id === alumno.id ? {
           ...c,
-          familia_id: targetFamId
+          ...clienteActualizado
         } : c)
       };
       setData(newData);
@@ -241,7 +241,7 @@ function Familias({
     const fam = alumno.familia_id ? data.familias.find(f => f.id === alumno.familia_id) : null;
     if (!confirm(`¿Desvincular a "${alumno.nombre}" de la familia "${fam?.nombre || ''}"? El alumno quedará sin familia asignada, pero seguirá existiendo en el sistema.`)) return;
     try {
-      await ClienteController.editar({
+      const clienteActualizado = await ClienteController.editar({
         id: alumno.id,
         familia_id: null
       });
@@ -249,7 +249,7 @@ function Familias({
         ...data,
         clientes: data.clientes.map(c => c.id === alumno.id ? {
           ...c,
-          familia_id: null
+          ...clienteActualizado
         } : c)
       };
       setData(newData);
