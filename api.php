@@ -25,8 +25,19 @@ function generar_token($user_id) {
 function verificar_token_auth() {
     global $pdo;
 
-    $headers = apache_request_headers();
-    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    // apache_request_headers() no funciona en PHP-FPM/CGI (Hostinger).
+    // Usamos múltiples fuentes para obtener el Authorization header.
+    $authHeader = '';
+    if (function_exists('apache_request_headers')) {
+        $headers    = apache_request_headers();
+        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    }
+    if (empty($authHeader)) {
+        // Fallback para CGI/FPM — requiere RewriteRule en .htaccess
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+                   ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+                   ?? '';
+    }
 
     if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
         http_response_code(401);
