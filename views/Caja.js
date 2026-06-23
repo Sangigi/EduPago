@@ -22,6 +22,7 @@ function Caja({
   const [clienteSel, setClienteSel] = useState(null);
   const [metodo, setMetodo] = useState('TC');
   const [q, setQ] = useState('');
+  const [clasificacion, setClasificacion] = useState('todos');
   const [qCliente, setQCliente] = useState('');
   const [modal, setModal] = useState(null); // null | 'cliente' | 'spei' | 'codi' | 'ticket' | 'tc'
   const [cobroActivo, setCobroActivo] = useState(null);
@@ -42,7 +43,46 @@ function Caja({
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
   const speiPollRef = useRef(null);
-  const productosFiltrados = data.productos.filter(p => p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase())));
+  const CATS_PERIODICAS = ['colegiatura', 'anualidad', 'inscripcion'];
+  const CAT_LABELS_CAJA = {
+    colegiatura: 'Colegiatura', anualidad: 'Anualidad', inscripcion: 'Inscripción',
+    examen: 'Examen', uniforme: 'Uniforme', material: 'Material',
+    transporte: 'Transporte', comedor: 'Comedor', extracurricular: 'Extracurricular',
+    beca: 'Beca / Descuento', otro: 'Otro'
+  };
+  const productosBase = data.productos.filter(p =>
+    p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
+  );
+  // Aplica clasificación seleccionada
+  const productosFiltrados = (() => {
+    switch (clasificacion) {
+      case 'descuentos':
+        return productosBase.filter(p => p.precio < 0 || p.categoria === 'beca');
+      case 'periodicos':
+        return productosBase.filter(p => CATS_PERIODICAS.includes(p.categoria));
+      case 'unicos':
+        return productosBase.filter(p => !CATS_PERIODICAS.includes(p.categoria) && p.precio >= 0 && p.categoria !== 'beca');
+      case 'mayor_precio':
+        return [...productosBase].sort((a, b) => Math.abs(b.precio) - Math.abs(a.precio));
+      case 'menor_precio':
+        return [...productosBase].sort((a, b) => Math.abs(a.precio) - Math.abs(b.precio));
+      case 'alfabetico':
+        return [...productosBase].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+      default:
+        return productosBase;
+    }
+  })();
+  // Para la vista agrupada por categoría
+  const productosPorCategoria = (() => {
+    if (clasificacion !== 'por_categoria') return null;
+    const grupos = {};
+    productosBase.forEach(p => {
+      const cat = p.categoria || 'otro';
+      if (!grupos[cat]) grupos[cat] = [];
+      grupos[cat].push(p);
+    });
+    return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  })();
   const clientesFiltrados = data.clientes.filter(c => {
     if (!c.activo) return false;
     if (!qCliente) return true;
@@ -351,57 +391,73 @@ function Caja({
       className: "pos-products",
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "pos-header",
-        children: [/*#__PURE__*/_jsxDEV("span", {
-          style: {
-            fontWeight: 600,
-            fontSize: 13.5,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7
-          },
-          children: [/*#__PURE__*/_jsxDEV(Icon, {
-            name: "productos",
-            size: 15,
-            color: "currentColor"
-          }, void 0, false), " Conceptos de cobro"]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "search-bar",
-          style: {
-            flex: 1,
-            marginLeft: 10
-          },
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%' },
           children: [/*#__PURE__*/_jsxDEV("span", {
-            className: "search-icon",
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "search",
-              size: 15,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-            placeholder: "Buscar concepto…",
-            value: q,
-            onChange: e => setQ(e.target.value)
-          }, void 0, false)]
+            style: { fontWeight: 600, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 },
+            children: [/*#__PURE__*/_jsxDEV(Icon, { name: "productos", size: 15, color: "currentColor" }, void 0, false), " Conceptos"]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            className: "search-bar",
+            style: { flex: 1, minWidth: 120 },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              className: "search-icon",
+              children: /*#__PURE__*/_jsxDEV(Icon, { name: "search", size: 15, color: "currentColor" }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              placeholder: "Buscar concepto…",
+              value: q,
+              onChange: e => setQ(e.target.value)
+            }, void 0, false)]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', gap: 5, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--glass-light)', marginTop: 4 },
+          children: [
+            { id: 'todos',        label: 'Todos',        icon: 'productos' },
+            { id: 'por_categoria',label: 'Por categoría',icon: 'cobros' },
+            { id: 'descuentos',   label: 'Descuentos',   icon: 'check' },
+            { id: 'periodicos',   label: 'Periódicos',   icon: 'history' },
+            { id: 'unicos',       label: 'Conceptos únicos', icon: 'pay' },
+            { id: 'mayor_precio', label: 'Mayor precio', icon: 'reportes' },
+            { id: 'menor_precio', label: 'Menor precio', icon: 'download' },
+            { id: 'alfabetico',   label: 'A–Z',          icon: 'search' },
+          ].map(tab => /*#__PURE__*/_jsxDEV("button", {
+            onClick: () => setClasificacion(tab.id),
+            style: {
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 11.5,
+              fontFamily: 'var(--font)', cursor: 'pointer', border: '1px solid',
+              transition: 'all .15s',
+              background: clasificacion === tab.id ? 'var(--accent)' : 'var(--bg-surface-2)',
+              borderColor: clasificacion === tab.id ? 'var(--accent)' : 'var(--border-glow)',
+              color: clasificacion === tab.id ? 'var(--navy)' : 'var(--ink-3)',
+              fontWeight: clasificacion === tab.id ? 700 : 400,
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, { name: tab.icon, size: 12, color: "currentColor" }, void 0, false), tab.label]
+          }, tab.id, true))
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         className: "pos-products-grid",
-        children: [productosFiltrados.length === 0 && /*#__PURE__*/_jsxDEV("div", {
-          className: "empty-state",
-          style: {
-            gridColumn: '1/-1'
-          },
+        children: [productosPorCategoria ? productosPorCategoria.map(([cat, prods]) => /*#__PURE__*/_jsxDEV(_Fragment, {
           children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "empty-icon",
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "search",
-              size: 36,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            className: "empty-text",
-            children: "Sin resultados"
-          }, void 0, false)]
-        }, void 0, true), productosFiltrados.map(p => /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              gridColumn: '1/-1', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '.6px', color: 'var(--ink-4)', padding: '8px 2px 4px',
+              borderBottom: '1px solid var(--glass-light)', marginBottom: 2
+            },
+            children: CAT_LABELS_CAJA[cat] || cat
+          }, void 0, false), prods.map(p => /*#__PURE__*/_jsxDEV("div", {
+            className: "product-card",
+            onClick: () => addItem(p),
+            children: [/*#__PURE__*/_jsxDEV("div", { className: "product-emoji", children: p.emoji }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { className: "product-name", children: p.nombre }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { className: "product-type", children: CAT_LABELS_CAJA[p.categoria] || p.categoria }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { className: "product-price", style: { color: p.precio < 0 ? 'var(--green)' : 'var(--accent)' }, children: fmt(p.precio) }, void 0, false)]
+          }, p.id, true))]
+        }, cat, true)) : productosFiltrados.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+          className: "empty-state",
+          style: { gridColumn: '1/-1' },
+          children: [/*#__PURE__*/_jsxDEV("div", { className: "empty-icon", children: /*#__PURE__*/_jsxDEV(Icon, { name: "search", size: 36, color: "currentColor" }, void 0, false) }, void 0, false),
+            /*#__PURE__*/_jsxDEV("div", { className: "empty-text", children: "Sin resultados" }, void 0, false)]
+        }, void 0, true) : productosFiltrados.map(p => /*#__PURE__*/_jsxDEV("div", {
           className: "product-card",
           onClick: () => addItem(p),
           children: [/*#__PURE__*/_jsxDEV("div", {
