@@ -34,6 +34,7 @@ function Caja({
   const [tcInfo, setTcInfo] = useState(null); // { url, qr_url, referencia }
   const [tcLoading, setTcLoading] = useState(false);
   const [tcError, setTcError] = useState(null);
+  const [speiBloqueo, setSpeiBloqueo] = useState(null); // mensaje de error SPEI en pantalla
   // Cheque
   const [chequeInfo, setChequeInfo] = useState({
     banco: '',
@@ -115,6 +116,23 @@ function Caja({
   /* ── INICIAR COBRO ── */
   const cobrar = async () => {
     if (!carrito.length) return;
+
+    // Validar SPEI antes de crear el cobro
+    if (metodo === 'SPEI') {
+      if (!clienteSel) {
+        setSpeiBloqueo({ tipo: 'sin_alumno', msg: 'Selecciona un alumno o familia para cobrar por SPEI.' });
+        return;
+      }
+      const tieneClabe = clienteSel.clabe_individual && clienteSel.clabe_individual_estado === 'activa';
+      if (!tieneClabe) {
+        const motivo = !clienteSel.clabe_individual
+          ? 'no tiene CLABE SPEI asignada'
+          : `su CLABE está ${clienteSel.clabe_individual_estado || 'inactiva'}`;
+        setSpeiBloqueo({ tipo: 'sin_clabe', alumno: clienteSel.nombre, clabe: clienteSel.clabe_individual, estado: clienteSel.clabe_individual_estado, msg: `${clienteSel.nombre} ${motivo}.` });
+        return;
+      }
+      setSpeiBloqueo(null);
+    }
     const escuela_id = escuela?.id ?? data.escuelas?.[0]?.id ?? 1;
     let cobro;
     try {
@@ -625,7 +643,7 @@ function Caja({
         className: "payment-methods",
         children: METODOS.map(m => /*#__PURE__*/_jsxDEV("div", {
           className: `pay-method ${metodo === m.id ? 'selected' : ''}`,
-          onClick: () => setMetodo(m.id),
+          onClick: () => { setMetodo(m.id); setSpeiBloqueo(null); },
           children: [/*#__PURE__*/_jsxDEV("span", {
             className: "pm-icon",
             children: /*#__PURE__*/_jsxDEV(Icon, {
@@ -635,7 +653,29 @@ function Caja({
             }, void 0, false)
           }, void 0, false), m.label]
         }, m.id, true))
-      }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+      }, void 0, false), speiBloqueo && metodo === 'SPEI' && /*#__PURE__*/_jsxDEV("div", {
+        style: {
+          margin: '0 0 10px',
+          padding: '12px 14px',
+          background: 'rgba(239,68,68,.08)',
+          border: '1px solid rgba(239,68,68,.3)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: 12.5,
+          color: 'var(--red)',
+          lineHeight: 1.5,
+        },
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 4 },
+          children: [/*#__PURE__*/_jsxDEV(Icon, { name: "warning", size: 14, color: "currentColor" }, void 0, false),
+            speiBloqueo.tipo === 'sin_alumno' ? 'Alumno requerido' : 'CLABE SPEI no disponible']
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          style: { color: 'var(--ink-2)' },
+          children: speiBloqueo.msg
+        }, void 0, false), speiBloqueo.tipo === 'sin_clabe' && /*#__PURE__*/_jsxDEV("div", {
+          style: { marginTop: 6, fontSize: 11.5, color: 'var(--ink-3)' },
+          children: "Asigna una CLABE individual desde Alumnos → ficha del alumno → sección SPEI."
+        }, void 0, false)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
         className: "checkout-btn",
         onClick: cobrar,
         disabled: !carrito.length || total === 0,
@@ -694,6 +734,7 @@ function Caja({
             return /*#__PURE__*/_jsxDEV("div", {
               onClick: () => {
                 setClienteSel(c);
+                setSpeiBloqueo(null);
                 setModal(null);
               },
               style: {

@@ -47,12 +47,14 @@ const CobroController = (() => {
       };
     }
 
-    const resultado = await apiPost('obtener_clabe', {
-      referencia: cobro.referencia,
-      total:      cobro.total,
-    });
-    if (resultado.success) return resultado;
-    throw new Error('No se pudo obtener CLABE');
+    // Sin CLABE individual activa — no hay fallback
+    const motivo = !cliente
+      ? 'No hay alumno seleccionado.'
+      : !cliente.clabe_individual
+        ? `${cliente.nombre} no tiene CLABE SPEI asignada.`
+        : `La CLABE de ${cliente.nombre} está ${cliente.clabe_individual_estado || 'inactiva'}.`;
+
+    throw new Error(`SPEI no disponible: ${motivo} Asigna una CLABE individual desde la ficha del alumno.`);
   }
 
   async function verificarSPEI(referencia, clabe) {
