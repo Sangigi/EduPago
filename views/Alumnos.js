@@ -69,8 +69,15 @@ function Alumnos({
     try {
       const res = await _apiPost('asignar_clabe_pool', { escuela_id: eid, cliente_id: alumno.id });
       if (!res.success) {
-        // Sin CLABEs disponibles — dejar en estado 'pendiente', mostrar aviso suave
-        console.warn('Pool CLABE:', res.error);
+        // Sin CLABEs disponibles — actualizar estado local a 'error' para mostrarlo en UI
+        const upd = {
+          ...dataBase,
+          clientes: dataBase.clientes.map(c => c.id === alumno.id ? {
+            ...c, clabe_individual_estado: 'error'
+          } : c)
+        };
+        setData(upd);
+        AppModel.save(upd);
         return;
       }
       const conClabe = _aplicarClabe(dataBase, alumno.id, res.clabe);
@@ -340,12 +347,18 @@ function Alumnos({
                   },
                   title: `Asignada: ${c.clabe_individual_fecha || ''}`,
                   children: fmtCLABE(c.clabe_individual)
-                }, void 0, false) : c.clabe_individual_estado === 'liberada' ? /*#__PURE__*/_jsxDEV("span", {
-                  style: {
-                    fontSize: 11.5,
-                    color: 'var(--ink-4)'
-                  },
-                  children: "Liberada"
+                }, void 0, false) : c.clabe_individual_estado === 'liberada' ? /*#__PURE__*/_jsxDEV("div", {
+                  style: { display: 'flex', alignItems: 'center', gap: 6 },
+                  children: [/*#__PURE__*/_jsxDEV("span", {
+                    style: { fontSize: 11.5, color: 'var(--ink-4)' },
+                    children: "Sin CLABE"
+                  }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                    className: "btn btn-primary btn-sm",
+                    style: { fontSize: 10.5, padding: '2px 8px' },
+                    onClick: e => { e.stopPropagation(); asignarClabeDesdePool(c, data); },
+                    title: "Asignar CLABE del pool",
+                    children: "Asignar"
+                  }, void 0, false)]
                 }, void 0, false) : c.clabe_individual_estado === 'error' ? /*#__PURE__*/_jsxDEV("span", {
                   style: {
                     display: 'flex',

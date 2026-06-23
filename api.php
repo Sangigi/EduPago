@@ -1017,7 +1017,7 @@ switch ($action) {
         try {
             $stmt = $pdo->prepare(
                 "SELECT id, clabe FROM clabe_pool
-                 WHERE escuela_id = ? AND estado = 'libre'
+                 WHERE escuela_id = ? AND estado IN ('libre', 'liberada')
                  ORDER BY id ASC LIMIT 1 FOR UPDATE"
             );
             $stmt->execute([$escuela_id]);
