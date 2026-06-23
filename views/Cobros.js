@@ -18,6 +18,7 @@ function Cobros({
   const [filtroMetodo, setFiltroMetodo] = useState('todos');
   const [q, setQ] = useState('');
   const [detalle, setDetalle] = useState(null);
+  const [loadingId, setLoadingId] = useState(null);
   const lista = [...data.cobros].reverse().filter(c => {
     if (filtroEstado !== 'todos' && c.estado !== filtroEstado) return false;
     if (filtroMetodo !== 'todos' && c.metodo !== filtroMetodo) return false;
@@ -34,23 +35,41 @@ function Cobros({
     cancelado: data.cobros.filter(c => c.estado === 'cancelado').length
   };
   const cancelar = async id => {
-    try { await CobroController.cancelarCobro(id); } catch(e) {}
-    setData(prev => {
-      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c) };
-      AppModel.save(upd);
-      return upd;
-    });
-    setDetalle(null);
+    if (loadingId) return;
+    setLoadingId(id);
+    try {
+      const res = await CobroController.cancelarCobro(id);
+      if (res && res.success === false) throw new Error(res.error || 'Error al cancelar');
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c) };
+        AppModel.save(upd);
+        return upd;
+      });
+      setDetalle(null);
+    } catch(e) {
+      alert('Error al cancelar: ' + (e.message || 'Intenta de nuevo'));
+    } finally {
+      setLoadingId(null);
+    }
   };
   const confirmarManual = async id => {
+    if (loadingId) return;
+    setLoadingId(id);
     const auth_code = 'MANUAL-' + Date.now();
-    try { await CobroController.confirmarPago(id, { auth_code }); } catch(e) {}
-    setData(prev => {
-      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c) };
-      AppModel.save(upd);
-      return upd;
-    });
-    setDetalle(prev => prev ? { ...prev, estado: 'pagado', auth_code } : null);
+    try {
+      const res = await CobroController.confirmarPago(id, { auth_code });
+      if (res && res.success === false) throw new Error(res.error || 'Error al confirmar');
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c) };
+        AppModel.save(upd);
+        return upd;
+      });
+      setDetalle(prev => prev ? { ...prev, estado: 'pagado', auth_code } : null);
+    } catch(e) {
+      alert('Error al confirmar: ' + (e.message || 'Intenta de nuevo'));
+    } finally {
+      setLoadingId(null);
+    }
   };
   const exportarCSV = () => {
     const rows = [['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Estado', 'Referencia', 'Auth'], ...lista.map(c => [c.folio, c.fecha, `"${c.cliente}"`, c.total, c.metodo, c.estado, c.referencia || '', c.auth_code || ''])];
@@ -254,8 +273,9 @@ function Cobros({
                     children: [/*#__PURE__*/_jsxDEV("button", {
                       className: "btn btn-primary btn-sm",
                       onClick: () => confirmarManual(c.id),
+                      disabled: loadingId === c.id,
                       title: "Confirmar",
-                      children: /*#__PURE__*/_jsxDEV(Icon, {
+                      children: loadingId === c.id ? '…' : /*#__PURE__*/_jsxDEV(Icon, {
                         name: "check",
                         size: 14,
                         color: "currentColor"
@@ -263,6 +283,7 @@ function Cobros({
                     }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
                       className: "btn btn-ghost btn-sm",
                       onClick: () => cancelar(c.id),
+                      disabled: loadingId === c.id,
                       title: "Cancelar",
                       children: /*#__PURE__*/_jsxDEV(Icon, {
                         name: "close",
@@ -451,16 +472,18 @@ function Cobros({
             children: [/*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-secondary",
               onClick: () => cancelar(detalle.id),
-              children: "Cancelar cobro"
+              disabled: !!loadingId,
+              children: loadingId ? 'Procesando…' : "Cancelar cobro"
             }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-primary",
               onClick: () => confirmarManual(detalle.id),
+              disabled: !!loadingId,
               style: {
                 display: "flex",
                 alignItems: "center",
                 gap: 6
               },
-              children: [/*#__PURE__*/_jsxDEV(Icon, {
+              children: loadingId ? 'Procesando…' : [/*#__PURE__*/_jsxDEV(Icon, {
                 name: "check",
                 size: 15,
                 color: "currentColor"
