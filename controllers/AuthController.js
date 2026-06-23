@@ -47,6 +47,7 @@ const AuthController = (() => {
       headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
       body: JSON.stringify(body),
     });
+    if (res.status === 401) { logout(); window.location.reload(); throw new Error('Sesión expirada. Inicia sesión de nuevo.'); }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return res.json();
   }

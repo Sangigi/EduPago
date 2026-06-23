@@ -15,6 +15,7 @@ const CobroController = (() => {
       },
       body: JSON.stringify(body),
     });
+    if (res.status === 401) { AuthController.logout(); window.location.reload(); throw new Error('Sesión expirada. Inicia sesión de nuevo.'); }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }

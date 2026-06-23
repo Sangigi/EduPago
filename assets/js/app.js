@@ -124,6 +124,7 @@ function App() {
           'Content-Type': 'application/json'
         }
       });
+      if (res.status === 401) { AuthController.logout(); window.location.reload(); return AppModel.load(); }
       const json = await res.json();
       if (json.success) {
         // Mezcla los datos de la DB con la estructura base de AppModel
