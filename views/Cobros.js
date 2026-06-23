@@ -40,11 +40,9 @@ function Cobros({
     try {
       const res = await CobroController.cancelarCobro(id);
       if (res && res.success === false) throw new Error(res.error || 'Error al cancelar');
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c) };
-        AppModel.save(upd);
-        return upd;
-      });
+      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c) };
+      AppModel.save(upd);
+      setData(upd);
       setDetalle(null);
     } catch(e) {
       alert('Error al cancelar: ' + (e.message || 'Intenta de nuevo'));
@@ -59,11 +57,9 @@ function Cobros({
     try {
       const res = await CobroController.confirmarPago(id, { auth_code });
       if (res && res.success === false) throw new Error(res.error || 'Error al confirmar');
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c) };
-        AppModel.save(upd);
-        return upd;
-      });
+      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c) };
+      AppModel.save(upd);
+      setData(upd);
       setDetalle(prev => prev ? { ...prev, estado: 'pagado', auth_code } : null);
     } catch(e) {
       alert('Error al confirmar: ' + (e.message || 'Intenta de nuevo'));
