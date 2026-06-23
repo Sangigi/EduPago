@@ -212,6 +212,10 @@ function Familias({
     }
   };
   const vincularAlumnoExistente = async alumno => {
+    const famDestino = data.familias.find(f => f.id === targetFamId);
+    const famOrigen = alumno.familia_id ? data.familias.find(f => f.id === alumno.familia_id) : null;
+    const mensaje = famOrigen ? `¿Mover a "${alumno.nombre}" de la familia "${famOrigen.nombre}" a "${famDestino?.nombre || ''}"?` : `¿Vincular a "${alumno.nombre}" a la familia "${famDestino?.nombre || ''}"?`;
+    if (!confirm(mensaje)) return;
     try {
       await ClienteController.editar({
         id: alumno.id,
@@ -232,6 +236,27 @@ function Familias({
     setModal(null);
     setQVincular('');
     setTargetFamId(null);
+  };
+  const desvincularAlumno = async alumno => {
+    const fam = alumno.familia_id ? data.familias.find(f => f.id === alumno.familia_id) : null;
+    if (!confirm(`¿Desvincular a "${alumno.nombre}" de la familia "${fam?.nombre || ''}"? El alumno quedará sin familia asignada, pero seguirá existiendo en el sistema.`)) return;
+    try {
+      await ClienteController.editar({
+        id: alumno.id,
+        familia_id: null
+      });
+      const newData = {
+        ...data,
+        clientes: data.clientes.map(c => c.id === alumno.id ? {
+          ...c,
+          familia_id: null
+        } : c)
+      };
+      setData(newData);
+      AppModel.save(newData);
+    } catch (e) {
+      alert('Error al desvincular alumno: ' + e.message);
+    }
   };
   return /*#__PURE__*/_jsxDEV("div", {
     children: [/*#__PURE__*/_jsxDEV("div", {
@@ -629,6 +654,20 @@ function Familias({
                   color: "currentColor"
                 }, void 0, false) : /*#__PURE__*/_jsxDEV(Icon, {
                   name: "eyeOff",
+                  size: 14,
+                  color: "currentColor"
+                }, void 0, false)
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-ghost btn-sm",
+                onClick: () => desvincularAlumno(hijo),
+                title: "Desvincular de esta familia",
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                },
+                children: /*#__PURE__*/_jsxDEV(Icon, {
+                  name: "close",
                   size: 14,
                   color: "currentColor"
                 }, void 0, false)
