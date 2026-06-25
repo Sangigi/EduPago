@@ -23,14 +23,14 @@ function Dashboard({
   // Si superadmin sin escuela seleccionada → mostrar overview global
   if (esSuper && !escuela) {
     const globalStats = AppModel.getEstadisticasGlobales(allData);
-    const totalCobrado = globalStats.reduce((a, s) => a + s.totalCobrado, 0);
-    const totalPend = globalStats.reduce((a, s) => a + s.totalPendiente, 0);
-    const totalAlumnos = globalStats.reduce((a, s) => a + s.numAlumnos, 0);
     const statsFiltrados = globalStats.filter(s =>
       filtroEscEstado === 'todas' ? true :
       filtroEscEstado === 'activas' ? s.activa :
       !s.activa
     );
+    const totalCobrado = statsFiltrados.reduce((a, s) => a + s.totalCobrado, 0);
+    const totalPend = statsFiltrados.reduce((a, s) => a + s.totalPendiente, 0);
+    const totalAlumnos = statsFiltrados.reduce((a, s) => a + s.numAlumnos, 0);
     return /*#__PURE__*/_jsxDEV("div", {
       children: [/*#__PURE__*/_jsxDEV("div", {
         style: {
@@ -73,13 +73,13 @@ function Dashboard({
             }, void 0, false)
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             className: "stat-label",
-            children: "Escuelas activas"
+            children: filtroEscEstado === 'todas' ? 'Escuelas' : filtroEscEstado === 'activas' ? 'Escuelas activas' : 'Escuelas inactivas'
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             className: "stat-value",
             style: {
               fontSize: 20
             },
-            children: allData.escuelas.filter(e => e.activa).length
+            children: statsFiltrados.length
           }, void 0, false)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-card",
