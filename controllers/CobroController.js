@@ -30,7 +30,11 @@ const CobroController = (() => {
       referencia: cliente?.matricula
     });
     if (!resultado.success) throw new Error(resultado.error || 'Error al crear cobro');
-    return resultado.cobro; // Devuelve el cobro insertado con su ID real
+    // Propagar saldo actualizado para que Caja.js pueda actualizarlo en el estado
+    const cobro = resultado.cobro;
+    cobro._cliente_id = resultado.cliente_id ?? null;
+    cobro._nuevo_saldo = resultado.nuevo_saldo ?? null;
+    return cobro; // Devuelve el cobro insertado con su ID real
   }
 
   async function iniciarSPEI(cobro, escuela, cliente) {
