@@ -94,6 +94,18 @@ function Caja({
   const subtotal = carrito.reduce((a, i) => a + i.precio * i.qty, 0);
   const total = subtotal;
 
+  /* ── HELPER: actualizar saldo_pendiente de un cliente en el estado global ── */
+  const actualizarSaldoCliente = (res) => {
+    if (res && res.cliente_id != null) {
+      setData(prev => ({
+        ...prev,
+        clientes: prev.clientes.map(c =>
+          c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c
+        )
+      }));
+    }
+  };
+
   /* ── CARRITO ── */
   const addItem = p => {
     setCarrito(prev => {
@@ -142,6 +154,13 @@ function Caja({
       return;
     }
     setCobroActivo(cobro);
+    // Actualizar saldo_pendiente del cliente si el API lo devolvió
+    if (cobro._nuevo_saldo != null && cobro._cliente_id != null) {
+      setData(prev => ({
+        ...prev,
+        clientes: prev.clientes.map(c => c.id === cobro._cliente_id ? { ...c, saldo_pendiente: cobro._nuevo_saldo } : c)
+      }));
+    }
     const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
     if (metodo === 'SPEI') {
       setSpeiStatus('generando');
@@ -185,7 +204,9 @@ function Caja({
             const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe);
             if (ver.pagado) {
               clearInterval(speiPollRef.current);
-              CobroController.confirmarPago(cobro.id, { transaccion: ver.transaccion }).catch(()=>{});
+              CobroController.confirmarPago(cobro.id, { transaccion: ver.transaccion }).then(res => {
+                actualizarSaldoCliente(res);
+              }).catch(()=>{});
               setData(prev => {
                 const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
                 AppModel.save(upd);
@@ -249,7 +270,7 @@ function Caja({
 
   /* ── CONFIRMAR TC MANUALMENTE (cliente ya pagó en el link) ── */
   const confirmarTC = async () => {
-    try { await CobroController.confirmarPago(cobroActivo.id, { auth_code: tcInfo?.referencia }); } catch(e) {}
+    try { const res = await CobroController.confirmarPago(cobroActivo.id, { auth_code: tcInfo?.referencia }); actualizarSaldoCliente(res); } catch(e) {}
     setData(prev => {
       const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: tcInfo?.referencia } : c) };
       AppModel.save(upd);
@@ -274,7 +295,7 @@ function Caja({
         const ver = await CobroController.verificarSPEI(refSpei, clabeActiva);
         if (ver.pagado) {
           clearInterval(speiPollRef.current);
-          try { await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); } catch(e) {}
+          try { const res = await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); actualizarSaldoCliente(res); } catch(e) {}
           setData(prev => {
             const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
             AppModel.save(upd);
@@ -285,14 +306,14 @@ function Caja({
         }
       }
       // Si no se verificó, confirmar manualmente de todas formas
-      try { await CobroController.confirmarPago(cobroActivo.id); } catch(e) {}
+      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
       setData(prev => {
         const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
         AppModel.save(upd); return upd;
       });
       setSpeiStatus('confirmado');
     } catch (e) {
-      try { await CobroController.confirmarPago(cobroActivo.id); } catch(e2) {}
+      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e2) {}
       setData(prev => {
         const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
         AppModel.save(upd); return upd;
@@ -304,7 +325,7 @@ function Caja({
   /* ── CONFIRMAR CODI MANUAL ── */
   const confirmarCoDi = async () => {
     clearInterval(timerRef.current);
-    try { await CobroController.confirmarPago(cobroActivo.id); } catch(e) {}
+    try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
     setData(prev => {
       const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
       AppModel.save(upd); return upd;
@@ -1767,7 +1788,9 @@ function Caja({
                 num_cuenta_cheque: chequeInfo.num_cuenta,
                 num_cheque: chequeInfo.num_cheque
               };
-              CobroController.confirmarPago(cobroActivo.id, extra).catch(()=>{});
+              CobroController.confirmarPago(cobroActivo.id, extra).then(res => {
+                actualizarSaldoCliente(res);
+              }).catch(()=>{});
               setData(prev => {
                 const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', ...extra } : c) };
                 AppModel.save(upd); return upd;
