@@ -446,7 +446,7 @@ function Caja({
               transition: 'all .15s',
               background: clasificacion === tab.id ? 'var(--accent)' : 'var(--bg-surface-2)',
               borderColor: clasificacion === tab.id ? 'var(--accent)' : 'var(--border-glow)',
-              color: clasificacion === tab.id ? 'var(--navy)' : 'var(--ink-3)',
+              color: clasificacion === tab.id ? 'var(--on-accent)' : 'var(--ink-3)',
               fontWeight: clasificacion === tab.id ? 700 : 400,
             },
             children: [/*#__PURE__*/_jsxDEV(Icon, { name: tab.icon, size: 12, color: "currentColor" }, void 0, false), tab.label]
