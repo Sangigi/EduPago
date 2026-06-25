@@ -23,7 +23,7 @@ function Escuelas({
     direccion: '',
     logo_emoji: '',
     plan: 'pro',
-    clabe_fija: '',
+    clabe_fija: '', // mantenido para compatibilidad con BD existente, no se muestra en UI
     color: '#282d65',
     permite_planteles: false
   };
@@ -431,25 +431,7 @@ function Escuelas({
                 size: 13,
                 color: "var(--ink-4)"
               }, void 0, false), " ", esc.direccion]
-            }, void 0, true), esc.clabe_fija && /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                marginTop: 4,
-                fontFamily: 'var(--mono)',
-                fontSize: 11
-              },
-              children: /*#__PURE__*/_jsxDEV("span", {
-                style: {
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5
-                },
-                children: [/*#__PURE__*/_jsxDEV(Icon, {
-                  name: "bank",
-                  size: 13,
-                  color: "var(--ink-4)"
-                }, void 0, false), " CLABE: ", esc.clabe_fija]
-              }, void 0, true)
-            }, void 0, false)]
+            }, void 0, true)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'flex',
@@ -637,26 +619,6 @@ function Escuelas({
                 onChange: e => setForm(f => ({
                   ...f,
                   telefono: e.target.value
-                })),
-                style: {
-                  fontFamily: 'var(--mono)'
-                }
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              className: "form-group",
-              style: {
-                gridColumn: '1/-1'
-              },
-              children: [/*#__PURE__*/_jsxDEV("label", {
-                className: "form-label",
-                children: "CLABE fija SPEI (asignada por STP)"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                className: "form-input",
-                placeholder: "646180633010000055",
-                value: form.clabe_fija,
-                onChange: e => setForm(f => ({
-                  ...f,
-                  clabe_fija: e.target.value
                 })),
                 style: {
                   fontFamily: 'var(--mono)'

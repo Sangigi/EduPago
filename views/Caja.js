@@ -149,8 +149,8 @@ function Caja({
       setData(newData);
       setModal('spei');
       try {
-        // CLABE INDIVIDUAL: si el alumno tiene CLABE propia asignada, se usa esa;
-        // de lo contrario cae al fallback de CLABE fija (legado).
+        // CLABE INDIVIDUAL: usa la CLABE individual activa del alumno.
+        // Si no tiene CLABE asignada, lanza error y no procede.
         const spei = await CobroController.iniciarSPEI(cobro, escuela, clienteSel);
         // Guardar info SPEI en el cobro
         const cobrosActualizados = newData.cobros.map(c => c.id === cobro.id ? {
@@ -1014,7 +1014,7 @@ function Caja({
               children: cobroActivo?.clabe_es_individual ? /*#__PURE__*/_jsxDEV(_Fragment, {
                 children: ["ℹ Esta CLABE pertenece exclusivamente a ", cobroActivo?.cliente || 'este alumno', ". Cualquier transferencia recibida aquí se identificará automáticamente, sin importar el concepto."]
               }, void 0, true) : /*#__PURE__*/_jsxDEV(_Fragment, {
-                children: "ℹ La CLABE es fija para esta escuela. El concepto de la transferencia identifica al alumno. El sistema confirmará el pago automáticamente."
+                children: "ℹ Transfiere a esta CLABE individual. El pago se confirmará automáticamente."
               }, void 0, false)
             }, void 0, false)]
           }, void 0, true), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("div", {

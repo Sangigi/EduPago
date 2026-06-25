@@ -834,8 +834,8 @@ function Facturacion({
               letterSpacing: '.4px',
               marginBottom: 10
             },
-            children: "¿Cómo funciona la detección con CLABE fija?"
-          }, void 0, false), ['El padre transfiere a la CLABE fija y escribe la matrícula en el CONCEPTO.', 'STP/Pagadetodo recibe el dinero y llama al webhook (webhook_spei.php).', 'El webhook guarda el pago en pagos_spei.json indexado por CONCEPTO (matrícula).', 'La Caja hace polling cada 10s con verificar_spei pasando la referencia/matrícula.', 'El sistema confirma el cobro automáticamente y actualiza el saldo del alumno.'].map((txt, n) => /*#__PURE__*/_jsxDEV("div", {
+            children: "¿Cómo funciona la detección con CLABE individual?"
+          }, void 0, false), ['Cada alumno tiene su propia CLABE SPEI asignada desde el pool de la escuela.', 'El padre transfiere a la CLABE individual — sin necesidad de escribir concepto.', 'STP/Pagadetodo recibe el dinero y llama al webhook (webhook_spei.php).', 'El webhook identifica al alumno por su CLABE y confirma el cobro automáticamente.', 'El sistema actualiza el saldo del alumno y registra el pago.'].map((txt, n) => /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'flex',
               gap: 10,
@@ -846,16 +846,15 @@ function Facturacion({
               style: {
                 width: 22,
                 height: 22,
-                borderRadius: 6,
-                background: 'var(--accent-glow)',
-                color: 'var(--accent)',
+                borderRadius: '50%',
+                background: 'var(--accent)',
+                color: 'var(--navy)',
                 fontSize: 11,
                 fontWeight: 700,
-                flexShrink: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginTop: 1
+                flexShrink: 0
               },
               children: n + 1
             }, void 0, false), /*#__PURE__*/_jsxDEV("div", {

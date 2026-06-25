@@ -109,9 +109,8 @@ function PortalFamilia({
     const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
     if (metodo === 'SPEI') {
       try {
-        // Si la familia tiene un solo hijo activo, su CLABE individual representa
-        // correctamente este pago. Con varios hijos, el saldo es agregado y no
-        // corresponde a una sola CLABE individual → se usa la CLABE fija de la escuela.
+        // Si la familia tiene un solo hijo activo con CLABE individual, se usa esa.
+        // Con varios hijos o sin CLABE, iniciarSPEI lanzará un error descriptivo.
         const hijoUnico = misHijos.length === 1 ? misHijos[0] : null;
         const spei = await CobroController.iniciarSPEI(cobro, escuela, hijoUnico);
         const cobrosUp = newData.cobros.map(c => c.id === cobro.id ? {
@@ -1557,9 +1556,9 @@ function PortalFamilia({
                     letterSpacing: .5,
                     flex: 1
                   },
-                  children: cobroActivo.clabe || '646180633010000055'
-                }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-                  onClick: () => copiar(cobroActivo.clabe || '646180633010000055', 'clabe'),
+                  children: cobroActivo.clabe || '—'
+                }, void 0, false), cobroActivo.clabe && /*#__PURE__*/_jsxDEV("button", {
+                  onClick: () => copiar(cobroActivo.clabe, 'clabe'),
                   style: {
                     display: 'flex',
                     alignItems: 'center',
