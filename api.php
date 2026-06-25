@@ -893,6 +893,7 @@ switch ($action) {
         if ($rol_actual === 'superadmin') {
             $stmt = $pdo->query(
                 "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                        u.familia_id, u.creado_por,
                         e.nombre AS escuela_nombre
                  FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
                  ORDER BY u.rol, u.nombre"
@@ -900,6 +901,7 @@ switch ($action) {
         } else {
             $stmt = $pdo->prepare(
                 "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                        u.familia_id, u.creado_por,
                         e.nombre AS escuela_nombre
                  FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
                  WHERE u.escuela_id = ? AND u.rol != 'superadmin'
@@ -931,13 +933,14 @@ switch ($action) {
         $chk->execute([$email]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
 
+        $creado_por = $usuario_actual["id"] ?? null;
         $stmt = $pdo->prepare(
-            "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta)
-             VALUES (?, ?, ?, ?, ?, 1, CURDATE())"
+            "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, familia_id, creado_por)"
+            . " VALUES (?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
         );
-        $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol]);
+        $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol, $fam_id, $creado_por]);
         $id = intval($pdo->lastInsertId());
-        respond(['success' => true, 'usuario' => ['id' => $id, 'nombre' => $nombre, 'email' => $email, 'rol' => $rol, 'escuela_id' => $esc_id, 'activo' => true]]);
+        respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
     break;
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -948,7 +951,9 @@ switch ($action) {
         $password = trim($input['password'] ?? '');
         $rol      = trim($input['rol']     ?? '');
         $esc_id   = intval($input['escuela_id'] ?? 0) ?: null;
-        $fam_id   = intval($input['familia_id'] ?? 0) ?: null;
+        // familia_id puede enviarse como null explícitamente (limpiar vínculo) o como entero
+        $fam_id_raw = $input['familia_id'] ?? '__NO_ENVIADO__';
+        $fam_id   = ($fam_id_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (intval($fam_id_raw) ?: null);
 
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
 
@@ -958,13 +963,17 @@ switch ($action) {
         if ($password) { $sets[] = 'password_hash = ?';  $vals[] = password_hash($password, PASSWORD_BCRYPT); }
         if ($rol)      { $sets[] = 'rol = ?';            $vals[] = $rol; }
         if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
-        if ($fam_id !== null) { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
+        if ($fam_id !== '__NO_ENVIADO__') { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
 
         if ($sets) {
             $vals[] = $id;
             $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
         }
-        respond(['success' => true, 'usuario' => $input]);
+        // Re-leer el usuario actualizado para devolverlo completo
+        $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por FROM usuarios u WHERE u.id = ?");
+        $stmt->execute([$id]);
+        $usuarioActualizado = $stmt->fetch();
+        respond(['success' => true, 'usuario' => $usuarioActualizado]);
     break;
 
     // ══════════════════════════════════════════════════════════════════════════
