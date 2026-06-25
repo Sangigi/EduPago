@@ -137,7 +137,24 @@ switch ($action) {
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
-        if ($user && $pass === $user['password_hash']) {
+        $credenciales_ok = false;
+        if ($user) {
+            $hash_guardado = $user['password_hash'];
+            $es_hash_real  = strlen($hash_guardado) > 0 && (substr($hash_guardado, 0, 4) === '$2y$' || substr($hash_guardado, 0, 4) === '$2a$');
+
+            if ($es_hash_real) {
+                // Caso normal: contraseña ya migrada a hash bcrypt
+                $credenciales_ok = password_verify($pass, $hash_guardado);
+            } elseif ($pass === $hash_guardado) {
+                // Compatibilidad con cuentas viejas en texto plano:
+                // si coincide, se acepta UNA vez y de inmediato se migra a hash real.
+                $credenciales_ok = true;
+                $nuevo_hash = password_hash($pass, PASSWORD_BCRYPT);
+                $pdo->prepare("UPDATE usuarios SET password_hash = ? WHERE id = ?")->execute([$nuevo_hash, $user['id']]);
+            }
+        }
+
+        if ($credenciales_ok) {
             // Si el usuario pertenece a una escuela, verificar que esté activa.
             // (superadmin no tiene escuela_id, así que nunca se bloquea por esto)
             if ($user['escuela_id']) {
@@ -918,7 +935,7 @@ switch ($action) {
             "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta)
              VALUES (?, ?, ?, ?, ?, 1, CURDATE())"
         );
-        $stmt->execute([$esc_id, $nombre, $email, $password, $rol]);
+        $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol]);
         $id = intval($pdo->lastInsertId());
         respond(['success' => true, 'usuario' => ['id' => $id, 'nombre' => $nombre, 'email' => $email, 'rol' => $rol, 'escuela_id' => $esc_id, 'activo' => true]]);
     break;
@@ -938,7 +955,7 @@ switch ($action) {
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
         if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }
-        if ($password) { $sets[] = 'password_hash = ?';  $vals[] = $password; }
+        if ($password) { $sets[] = 'password_hash = ?';  $vals[] = password_hash($password, PASSWORD_BCRYPT); }
         if ($rol)      { $sets[] = 'rol = ?';            $vals[] = $rol; }
         if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
         if ($fam_id !== null) { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
