@@ -167,6 +167,7 @@ const AppModel = (() => {
         emoji:          esc.logo_emoji,
         color:          esc.color,
         plan:           esc.plan,
+        activa:         !!esc.activa,
         totalCobrado:   pagados.reduce((a,c)=>a+c.total,0),
         totalPendiente: pendientes.reduce((a,c)=>a+c.total,0),
         numCobros:      cobroEsc.length,

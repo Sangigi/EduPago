@@ -12,6 +12,8 @@ function Dashboard({
   escuela,
   allData
 }) {
+  const { useState } = React;
+  const [filtroEscEstado, setFiltroEscEstado] = useState('todas'); // 'todas' | 'activas' | 'inactivas'
   const esSuper = AuthController.isSuperAdmin(user);
   const stats = AppModel.getEstadisticas(data.cobros);
   const pendientes = data.cobros.filter(c => c.estado === 'pendiente');
@@ -24,6 +26,11 @@ function Dashboard({
     const totalCobrado = globalStats.reduce((a, s) => a + s.totalCobrado, 0);
     const totalPend = globalStats.reduce((a, s) => a + s.totalPendiente, 0);
     const totalAlumnos = globalStats.reduce((a, s) => a + s.numAlumnos, 0);
+    const statsFiltrados = globalStats.filter(s =>
+      filtroEscEstado === 'todas' ? true :
+      filtroEscEstado === 'activas' ? s.activa :
+      !s.activa
+    );
     return /*#__PURE__*/_jsxDEV("div", {
       children: [/*#__PURE__*/_jsxDEV("div", {
         style: {
@@ -143,14 +150,38 @@ function Dashboard({
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 14
+        },
+        children: [/*#__PURE__*/_jsxDEV("h3", {
+          style: { fontSize: 14, fontWeight: 700, color: 'var(--ink)' },
+          children: "Escuelas"
+        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', gap: 6 },
+          children: [
+            { id: 'todas',     label: `Todas (${globalStats.length})` },
+            { id: 'activas',   label: `Activas (${globalStats.filter(s => s.activa).length})` },
+            { id: 'inactivas', label: `Inactivas (${globalStats.filter(s => !s.activa).length})` }
+          ].map(f => /*#__PURE__*/_jsxDEV("button", {
+            key: f.id,
+            className: `btn btn-sm ${filtroEscEstado === f.id ? 'btn-primary' : 'btn-secondary'}`,
+            onClick: () => setFiltroEscEstado(f.id),
+            children: f.label
+          }, f.id, false))
+        }, void 0, true)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        style: {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))',
           gap: 16
         },
-        children: globalStats.map(s => /*#__PURE__*/_jsxDEV("div", {
+        children: statsFiltrados.length ? statsFiltrados.map(s => /*#__PURE__*/_jsxDEV("div", {
           className: "card",
           style: {
-            borderLeft: `3px solid ${s.color}`
+            borderLeft: `3px solid ${s.color}`,
+            opacity: s.activa ? 1 : .6
           },
           children: [/*#__PURE__*/_jsxDEV("div", {
             style: {
@@ -165,14 +196,21 @@ function Dashboard({
               },
               children: s.emoji
             }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { flex: 1, minWidth: 0 },
               children: [/*#__PURE__*/_jsxDEV("div", {
                 style: {
                   fontWeight: 600,
                   fontSize: 14,
-                  color: 'var(--ink)'
+                  color: 'var(--ink)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
                 },
-                children: s.nombre
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                children: [s.nombre, !s.activa && /*#__PURE__*/_jsxDEV("span", {
+                  className: "badge badge-red",
+                  children: "Inactiva"
+                }, void 0, false)]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
                 style: {
                   fontSize: 12,
                   color: 'var(--ink-3)'
@@ -226,7 +264,11 @@ function Dashboard({
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true)]
-        }, s.escuela_id, true))
+        }, s.escuela_id, true)) : /*#__PURE__*/_jsxDEV("div", {
+          className: "card",
+          style: { textAlign: 'center', color: 'var(--ink-4)', padding: 24, gridColumn: '1 / -1' },
+          children: "No hay escuelas que coincidan con este filtro."
+        }, void 0, false)
       }, void 0, false)]
     }, void 0, true);
   }
