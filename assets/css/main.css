@@ -57,6 +57,7 @@
   --accent-gradient: linear-gradient(135deg, #282d65 0%, #3a4080 100%);
   --btn-gradient:    var(--navy);
   --accent-glow:     rgba(40,45,101,0.07);
+  --on-accent:       #ffffff; /* texto legible sobre fondo --accent (navy oscuro en modo claro) */
 
   /* ── Semánticos ── */
   --amber:       #d97706;
@@ -111,6 +112,7 @@
   --accent:          var(--lime);
   --btn-gradient:    linear-gradient(135deg, #bdcf00 0%, #2f9e44 100%);
   --accent-glow:     rgba(189,207,0,0.12);
+  --on-accent:       var(--navy); /* texto legible sobre fondo --accent (lime claro en modo oscuro) */
   --amber:       #fbbf24;
   --red:         #f87171;
   --purple:      #a78bfa;
