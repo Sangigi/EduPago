@@ -40,10 +40,7 @@ function Cobros({
     try {
       const res = await CobroController.cancelarCobro(id);
       if (res && res.success === false) throw new Error(res.error || 'Error al cancelar');
-      const clientesUpd = (res && res.cliente_id != null)
-        ? data.clientes.map(c => c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c)
-        : data.clientes;
-      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c), clientes: clientesUpd };
+      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c) };
       AppModel.save(upd);
       setData(upd);
       setDetalle(null);
@@ -60,10 +57,7 @@ function Cobros({
     try {
       const res = await CobroController.confirmarPago(id, { auth_code });
       if (res && res.success === false) throw new Error(res.error || 'Error al confirmar');
-      const clientesUpd = (res && res.cliente_id != null)
-        ? data.clientes.map(c => c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c)
-        : data.clientes;
-      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c), clientes: clientesUpd };
+      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c) };
       AppModel.save(upd);
       setData(upd);
       setDetalle(prev => prev ? { ...prev, estado: 'pagado', auth_code } : null);

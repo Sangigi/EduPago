@@ -719,27 +719,13 @@ switch ($action) {
         $stmt->execute([$escuela_id, $cliente_id, $folio, $total, $metodo, $referencia]);
         $cobro_id = $pdo->lastInsertId();
 
-        // Obtener nombre del cliente y recalcular su saldo_pendiente
+        // Obtener nombre del cliente
         $cliente_nombre = 'Cliente general';
         if ($cliente_id) {
             $s2 = $pdo->prepare("SELECT nombre FROM clientes WHERE id = ?");
             $s2->execute([$cliente_id]);
             $cl = $s2->fetch();
             if ($cl) $cliente_nombre = $cl['nombre'];
-
-            // Recalcular saldo_pendiente desde cobros (fuente de verdad)
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros
-                    WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$cliente_id, $cliente_id]);
-        }
-        $nuevo_saldo_crear = 0;
-        if ($cliente_id) {
-            $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
-            $rs->execute([$cliente_id]);
-            $nuevo_saldo_crear = floatval($rs->fetchColumn());
         }
 
         respond([
@@ -756,9 +742,7 @@ switch ($action) {
                 'referencia' => $referencia,
                 'fecha'      => date('Y-m-d'),
                 'items'      => $carrito,
-            ],
-            'cliente_id'  => $cliente_id,
-            'nuevo_saldo' => $nuevo_saldo_crear,
+            ]
         ]);
     break;
 
@@ -777,25 +761,7 @@ switch ($action) {
         );
         $stmt->execute([$extra_auth, $cobro_id]);
 
-        // Recalcular saldo_pendiente del cliente vinculado
-        $cob = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
-        $cob->execute([$cobro_id]);
-        $cob_row = $cob->fetch();
-        $nuevo_saldo = 0; $cliente_id_afectado = null;
-        if (!empty($cob_row['cliente_id'])) {
-            $cliente_id_afectado = intval($cob_row['cliente_id']);
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros
-                    WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
-            $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
-            $rs->execute([$cliente_id_afectado]);
-            $nuevo_saldo = floatval($rs->fetchColumn());
-        }
-        respond(['success' => true, 'cobro_id' => $cobro_id, 'estado' => 'pagado',
-                 'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
+        respond(['success' => true, 'cobro_id' => $cobro_id, 'estado' => 'pagado']);
     break;
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -806,25 +772,7 @@ switch ($action) {
         $stmt = $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?");
         $stmt->execute([$cobro_id]);
 
-        // Recalcular saldo_pendiente del cliente vinculado
-        $cob = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
-        $cob->execute([$cobro_id]);
-        $cob_row = $cob->fetch();
-        $nuevo_saldo = 0; $cliente_id_afectado = null;
-        if (!empty($cob_row['cliente_id'])) {
-            $cliente_id_afectado = intval($cob_row['cliente_id']);
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros
-                    WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
-            $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
-            $rs->execute([$cliente_id_afectado]);
-            $nuevo_saldo = floatval($rs->fetchColumn());
-        }
-        respond(['success' => true, 'cobro_id' => $cobro_id,
-                 'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
+        respond(['success' => true, 'cobro_id' => $cobro_id]);
     break;
 
     // ══════════════════════════════════════════════════════════════════════════
