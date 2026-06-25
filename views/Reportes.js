@@ -87,7 +87,7 @@ function Reportes({
             fontSize: 16,
             color: 'var(--ink)'
           },
-          children: ["Reporte de cobros — ", escuela?.nombre || 'Esta escuela']
+          children: ["Reporte de cobros — ", escuela?.nombre || 'Esta escuela', escuela && !escuela.activa ? ' (Inactiva)' : '']
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         style: {

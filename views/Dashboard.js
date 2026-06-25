@@ -255,7 +255,11 @@ function Dashboard({
             marginRight: 6
           },
           children: [escuela.logo_emoji, " ", escuela.nombre, " ·"]
-        }, void 0, true), new Date().toLocaleDateString('es-MX', {
+        }, void 0, true), escuela && !escuela.activa && /*#__PURE__*/_jsxDEV("span", {
+          className: "badge badge-red",
+          style: { marginRight: 6 },
+          children: "Inactiva"
+        }, void 0, false), new Date().toLocaleDateString('es-MX', {
           weekday: 'long',
           day: 'numeric',
           month: 'long',

@@ -250,7 +250,7 @@ function SuperReportes({
               children: "Todas"
             }, void 0, false), data.escuelas.map(e => /*#__PURE__*/_jsxDEV("option", {
               value: e.id,
-              children: e.nombre
+              children: e.nombre + (e.activa ? '' : ' (Inactiva)')
             }, e.id, false))]
           }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-secondary btn-sm",

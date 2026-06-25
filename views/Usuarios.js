@@ -162,7 +162,7 @@ function UsuariosFormModal({
                         esSuper && form.rol !== 'superadmin' && _jsxDEV("option", { value: "", children: "Sin escuela" }, void 0, false),
                         escuelasDisp.map(e => _jsxDEV("option", {
                           value: e.id,
-                          children: [e.logo_emoji, " ", e.nombre]
+                          children: [e.logo_emoji, " ", e.nombre, e.activa ? '' : ' (Inactiva)']
                         }, e.id, true))
                       ]
                     }, void 0, true),
@@ -326,7 +326,11 @@ function Usuarios({ user, data }) {
     return lista;
   }, [data.clientes]);
 
-  const nombreEscuela = eid => data.escuelas.find(e => e.id === eid)?.nombre || '—';
+  const nombreEscuela = eid => {
+    const e = data.escuelas.find(e => e.id === eid);
+    if (!e) return '—';
+    return e.nombre + (e.activa ? '' : ' (Inactiva)');
+  };
   const emojiEscuela  = eid => data.escuelas.find(e => e.id === eid)?.nombre || '';
   const creadorNombre = cid => {
     const u = usuarios.find(u => u.id === cid);
