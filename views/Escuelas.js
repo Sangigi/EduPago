@@ -103,7 +103,8 @@ function Escuelas({
     setData(newData);
     AppModel.save(newData);
   };
-  const toggleActiva = id => {
+  const toggleActiva = async id => {
+    // Optimista: refleja el cambio de inmediato en la UI
     const newData = {
       ...data,
       escuelas: data.escuelas.map(e => e.id === id ? {
@@ -112,7 +113,14 @@ function Escuelas({
       } : e)
     };
     setData(newData);
-    AppModel.save(newData);
+    try {
+      await AuthController.toggleEscuela(id);
+      AppModel.save(newData);
+    } catch (e) {
+      // Falló en el servidor: revertir el cambio local y avisar
+      setData(data);
+      alert('No se pudo actualizar el estado de la escuela: ' + e.message);
+    }
   };
   const metricasEscuela = id => {
     const cobros = data.cobros.filter(c => c.escuela_id === id);

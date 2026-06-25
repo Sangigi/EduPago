@@ -850,7 +850,7 @@ function Facturacion({
                 height: 22,
                 borderRadius: '50%',
                 background: 'var(--accent)',
-                color: 'var(--navy)',
+                color: 'var(--on-accent)',
                 fontSize: 11,
                 fontWeight: 700,
                 display: 'flex',

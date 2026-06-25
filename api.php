@@ -75,6 +75,18 @@ function verificar_token_auth() {
         exit;
     }
 
+    // Igual que con el usuario: si su escuela fue desactivada a media sesión, se corta el acceso.
+    if ($usuario['escuela_id']) {
+        $esc = $pdo->prepare("SELECT activa FROM escuelas WHERE id = ?");
+        $esc->execute([$usuario['escuela_id']]);
+        $escuela = $esc->fetch();
+        if ($escuela && !$escuela['activa']) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Esta escuela está inactiva.']);
+            exit;
+        }
+    }
+
     return ['user_id' => intval($usuario['id']), 'rol' => $usuario['rol'], 'escuela_id' => $usuario['escuela_id']];
 }
 
@@ -126,6 +138,17 @@ switch ($action) {
         $user = $stmt->fetch();
 
         if ($user && $pass === $user['password_hash']) {
+            // Si el usuario pertenece a una escuela, verificar que esté activa.
+            // (superadmin no tiene escuela_id, así que nunca se bloquea por esto)
+            if ($user['escuela_id']) {
+                $esc = $pdo->prepare("SELECT activa FROM escuelas WHERE id = ?");
+                $esc->execute([$user['escuela_id']]);
+                $escuela = $esc->fetch();
+                if ($escuela && !$escuela['activa']) {
+                    respond(['success' => false, 'error' => 'Esta escuela está inactiva. Contacta al administrador.']);
+                }
+            }
+
             $token = generar_token($user['id']);
             respond([
                 'success' => true, 
@@ -942,6 +965,27 @@ switch ($action) {
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
         respond(['success' => true]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_escuela':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if ($rol_actual !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede activar/desactivar escuelas.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $stmt = $pdo->prepare("UPDATE escuelas SET activa = NOT activa WHERE id = ?");
+        $stmt->execute([$id]);
+
+        $stmt = $pdo->prepare("SELECT activa FROM escuelas WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if (!$row) respond(['success' => false, 'error' => 'Escuela no encontrada']);
+
+        respond(['success' => true, 'activa' => (bool) $row['activa']]);
     break;
 
 

@@ -95,5 +95,11 @@ const AuthController = (() => {
     if (!res.success) throw new Error(res.error);
   }
 
-  return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario };
+  async function toggleEscuela(escuelaId) {
+    const res = await apiPost('toggle_escuela', { id: escuelaId });
+    if (!res.success) throw new Error(res.error);
+    return res.activa;
+  }
+
+  return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela };
 })();
