@@ -99,10 +99,12 @@ function Facturacion({
     setLoading(true);
     setErrMsg('');
     try {
+      const token = AuthController.getToken ? AuthController.getToken() : '';
       const res = await fetch('api.php?action=generar_cfdi', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({
           cobro_id: cobroSel.id,
@@ -848,7 +850,7 @@ function Facturacion({
                 height: 22,
                 borderRadius: '50%',
                 background: 'var(--accent)',
-                color: 'var(--on-accent)',
+                color: 'var(--navy)',
                 fontSize: 11,
                 fontWeight: 700,
                 display: 'flex',

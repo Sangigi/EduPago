@@ -421,7 +421,28 @@ switch ($action) {
         if ($http_code >= 200 && $http_code < 300 && isset($response_data['id'])) {
             
             $uuid = $response_data['uuid'] ?? 'PENDIENTE';
-            
+
+            // Guardar datos fiscales en el cliente para pre-rellenar en futuros CFDIs
+            if ($cobro_id) {
+                $cobro_row = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
+                $cobro_row->execute([$cobro_id]);
+                $cr = $cobro_row->fetch();
+                if ($cr && $cr['cliente_id']) {
+                    $pdo->prepare(
+                        "UPDATE clientes SET
+                            rfc_factura           = ?,
+                            razon_social_factura  = ?,
+                            cp_factura            = ?,
+                            domicilio_factura     = ?,
+                            regimen_factura       = ?,
+                            uso_cfdi_defecto      = ?
+                         WHERE id = ?"
+                    )->execute([$rfc, $razon, $cp_receptor, $domicilio, $regimen, $uso, $cr['cliente_id']]);
+                }
+                // Marcar cobro como facturado
+                $pdo->prepare("UPDATE cobros SET factura = 1 WHERE id = ?")->execute([$cobro_id]);
+            }
+
             log_api("generar_cfdi -> EXITOSO cobro:{$cobro_id} uuid:{$uuid}");
 
             respond([
