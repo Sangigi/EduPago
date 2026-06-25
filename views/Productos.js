@@ -280,18 +280,13 @@ function Productos({
               children: [/*#__PURE__*/_jsxDEV("label", {
                 className: "form-label",
                 children: "Emoji"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                className: "form-input",
+              }, void 0, false), /*#__PURE__*/_jsxDEV(EmojiPicker, {
                 value: form.emoji,
-                onChange: e => setForm(f => ({
+                onChange: v => setForm(f => ({
                   ...f,
-                  emoji: e.target.value
+                  emoji: v
                 })),
-                style: {
-                  width: 60,
-                  fontSize: 22,
-                  textAlign: 'center'
-                }
+                size: 22
               }, void 0, false)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
               className: "form-group",

@@ -223,6 +223,17 @@ html, body {
 .btn-secondary:hover { background:var(--glass-light); color:var(--ink); border-color:var(--ink-4); }
 .btn-ghost { background:transparent; color:var(--ink-3); padding:8px; border-radius:var(--radius-sm); }
 .btn-ghost:hover { background:var(--glass-light); color:var(--ink); }
+
+.emoji-picker-grid {
+  display:grid; grid-template-columns:repeat(6,1fr); gap:2px;
+  max-height:170px; overflow-y:auto; padding-right:2px;
+}
+.emoji-picker-item {
+  font-size:20px; background:transparent; border:none; cursor:pointer;
+  border-radius:var(--radius-sm); padding:5px 0; line-height:1;
+  transition:background .12s;
+}
+.emoji-picker-item:hover { background:var(--bg-surface-2); }
 .btn-danger { background:var(--red-glow); color:var(--red); border-color:rgba(220,38,38,.2); }
 .btn-danger:hover { background:rgba(220,38,38,.16); }
 .btn-success { background:var(--green-glow); color:var(--green-dark); border-color:rgba(47,158,68,.22); }

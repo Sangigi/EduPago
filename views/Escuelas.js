@@ -654,16 +654,12 @@ function Escuelas({
               children: [/*#__PURE__*/_jsxDEV("label", {
                 className: "form-label",
                 children: "Emoji / Logo"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                className: "form-input",
+              }, void 0, false), /*#__PURE__*/_jsxDEV(EmojiPicker, {
                 value: form.logo_emoji,
-                onChange: e => setForm(f => ({
+                onChange: v => setForm(f => ({
                   ...f,
-                  logo_emoji: e.target.value
-                })),
-                style: {
-                  fontSize: 22
-                }
+                  logo_emoji: v
+                }))
               }, void 0, false)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
               className: "form-group",
