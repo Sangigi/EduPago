@@ -133,7 +133,7 @@ switch ($action) {
 
         if (!$email || !$pass) respond(['success' => false, 'error' => 'Faltan credenciales']);
 
-        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id FROM usuarios WHERE email = ? AND activo = 1");
+        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id, familia_id FROM usuarios WHERE email = ? AND activo = 1");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
@@ -170,12 +170,13 @@ switch ($action) {
             respond([
                 'success' => true, 
                 'user' => [
-                    'id' => $user['id'],
-                    'nombre' => $user['nombre'],
-                    'email' => $user['email'],
-                    'rol' => $user['rol'],
+                    'id'         => $user['id'],
+                    'nombre'     => $user['nombre'],
+                    'email'      => $user['email'],
+                    'rol'        => $user['rol'],
                     'escuela_id' => $user['escuela_id'],
-                    'token' => $token
+                    'familia_id' => $user['familia_id'] ? intval($user['familia_id']) : null,
+                    'token'      => $token
                 ]
             ]);
         }
