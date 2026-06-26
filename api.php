@@ -250,17 +250,26 @@ switch ($action) {
         $referencia = strtoupper(trim($input['referencia'] ?? ''));
         if (!$referencia) respond(['success' => false, 'error' => 'Referencia requerida']);
 
-        $stmt = $pdo->prepare("SELECT estado, total, auth_code, fecha FROM cobros WHERE referencia = ?");
+        // Solo verificar cobros que siguen pendientes — evita falsos positivos del polling
+        // cuando el cobro ya fue marcado como pagado manualmente antes.
+        $stmt = $pdo->prepare("SELECT id, estado, total, auth_code FROM cobros WHERE referencia = ? AND estado = 'pendiente'");
         $stmt->execute([$referencia]);
-        $cobro = $stmt->fetch();
+        $cobro_pendiente = $stmt->fetch();
 
-        if ($cobro && $cobro['estado'] === 'pagado') {
-            respond([
-                'success'       => true,
-                'pagado'        => true,
-                'monto_pesos'   => $cobro['total'],
-                'clave_rastreo' => $cobro['auth_code'],
-            ]);
+        if ($cobro_pendiente) {
+            // Revisar si llegó el pago en pagos_spei.json (webhook/simulacion)
+            $archivo = __DIR__ . '/pagos_spei.json';
+            $pagos   = file_exists($archivo) ? (json_decode(file_get_contents($archivo), true) ?? []) : [];
+            $pago    = $pagos[strtoupper($referencia)] ?? null;
+            if ($pago && !empty($pago['pagado'])) {
+                respond([
+                    'success'       => true,
+                    'pagado'        => true,
+                    'monto_pesos'   => $pago['monto_pesos'] ?? $cobro_pendiente['total'],
+                    'clave_rastreo' => $pago['clave_rastreo'] ?? null,
+                    'autorizacion'  => $pago['autorizacion']  ?? null,
+                ]);
+            }
         }
         respond(['success' => true, 'pagado' => false]);
     break;

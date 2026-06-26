@@ -18,8 +18,10 @@ const SpeiPoller = (() => {
     if (!speiPend.length) return;
 
     for (const cobro of speiPend) {
-      const ref   = cobro.referencia_spei || cobro.referencia || cobro.folio;
-      const clabe = cobro.clabe || null;
+      // Solo usar referencia SPEI real — nunca el folio como fallback para evitar falsos positivos
+      const ref   = cobro.referencia_spei || (cobro.referencia && cobro.referencia !== cobro.folio ? cobro.referencia : null);
+      const clabe = cobro.clabe_individual || cobro.clabe || null;
+      // Sin referencia real ni CLABE individual, no hay forma de verificar — saltar
       if (!ref && !clabe) continue;
       try {
         const resultado = await fetch('api.php?action=verificar_spei', {
