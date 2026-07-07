@@ -45,13 +45,13 @@ const NAV_ITEMS = [{
   roles: ['admin', 'superadmin']
 }, {
   id: 'facturacion',
-  label: 'Facturación CFDI',
+  label: 'Facturación',
   icon: 'facturacion2',
   section: 'configuración',
   roles: ['admin', 'superadmin']
 }, {
-  id: 'emails',
-  label: 'Correos',
+  id: 'recordatorios',
+  label: 'Recordatorios',
   icon: 'emails',
   section: 'configuración',
   roles: ['admin', 'superadmin']
@@ -93,8 +93,8 @@ const TITLES = {
   alumnos: 'Alumnos',
   familias: 'Familias',
   productos: 'Conceptos de pago',
-  facturacion: 'Facturación CFDI',
-  emails: 'Correos',
+  facturacion: 'Facturación',
+  recordatorios: 'Recordatorios',
   reportes: 'Reportes',
   escuelas: 'Gestión de Escuelas',
   superreportes: 'Reportes Globales',
@@ -136,7 +136,7 @@ function App() {
           familias:  json.familias  || [],
           productos: (json.productos || []).length ? json.productos : (base.productos || []),
           cobros:    json.cobros    || [],
-          emails:    base.emails    || [],
+          recordatorios: base.recordatorios || [],
         };
         AppModel.save(merged);
         return merged;
@@ -176,11 +176,9 @@ function App() {
       getData: () => dataRef.current,
       setData: setData,
       onConfirm: (cobro, json) => {
-        const div = document.createElement('div');
-        div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;background:#1c2050;border:1px solid #bdcf00;border-radius:12px;padding:14px 18px;color:#fff;font-family:inherit;font-size:13px;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.4);animation:slideIn .3s ease';
-        div.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:#bdcf00">Pago SPEI confirmado</div><div style="opacity:.85">' + cobro.cliente + '</div><div style="font-family:monospace;font-size:15px;margin-top:4px;color:#49af54">' + (json.monto_pesos ? '$' + parseFloat(json.monto_pesos).toLocaleString('es-MX') : '') + '</div>';
-        document.body.appendChild(div);
-        setTimeout(() => div.remove(), 5000);
+        // Alerta visual removida: causaba pantalla en blanco al aparecer.
+        // El cobro se sigue confirmando en segundo plano (ver CobroController.confirmarPago).
+        console.log('[SpeiPoller] Pago confirmado silenciosamente:', cobro.cliente);
       }
     });
   };
@@ -236,7 +234,7 @@ function App() {
     familias:  (data.familias  || []).filter(f => f.escuela_id === escuelaActiva),
     productos: (data.productos || []).filter(p => p.escuela_id === escuelaActiva),
     cobros:    (data.cobros    || []).filter(c => c.escuela_id === escuelaActiva),
-    emails:    (data.emails    || []).filter(e => e.escuela_id === escuelaActiva),
+    recordatorios: (data.recordatorios || []).filter(r => r.escuela_id === escuelaActiva),
   };
   const pendientes = dataScopeed.cobros.filter(c => c.estado === 'pendiente').length;
   const secciones = [...new Set(NAV_ITEMS.filter(n => n.roles.includes(user.rol)).map(n => n.section))];
@@ -286,10 +284,11 @@ function App() {
           setData: d => setData(mergeScoped(data, d, escuelaActiva)),
           escuela: escuela
         }, void 0, false);
-      case 'emails':
-        return /*#__PURE__*/_jsxDEV(Emails, {
+      case 'recordatorios':
+        return /*#__PURE__*/_jsxDEV(Recordatorios, {
           data: dataScopeed,
-          setData: d => setData(mergeScoped(data, d, escuelaActiva))
+          setData: d => setData(mergeScoped(data, d, escuelaActiva)),
+          escuela: escuela
         }, void 0, false);
       case 'reportes':
         return /*#__PURE__*/_jsxDEV(Reportes, {
@@ -338,7 +337,7 @@ function App() {
       familias:  [...(gd.familias  || []).filter(f => f.escuela_id !== eid), ...(ns.familias  || [])],
       productos: [...(gd.productos || []).filter(p => p.escuela_id !== eid), ...(ns.productos || [])],
       cobros:    [...(gd.cobros    || []).filter(c => c.escuela_id !== eid), ...(ns.cobros    || [])],
-      emails:    [...(gd.emails    || []).filter(e => e.escuela_id !== eid), ...(ns.emails    || [])],
+      recordatorios: [...(gd.recordatorios || []).filter(r => r.escuela_id !== eid), ...(ns.recordatorios || [])],
       escuelas:  ns.escuelas || gd.escuelas || [],
     };
   }
