@@ -33,14 +33,22 @@ const SpeiPoller = (() => {
         if (json.success && json.pagado) {
           // Confirmar el cobro en el estado global
           _setData(prev => {
-            const updated = CobroController.confirmarPago(prev, cobro.id, {
-              transaccion: json.clave_rastreo || json.autorizacion,
-              auth_code:   String(json.autorizacion || ''),
-            });
-            AppModel.save(updated);
-            return updated;
+            try {
+              const updated = CobroController.confirmarPago(prev, cobro.id, {
+                transaccion: json.clave_rastreo || json.autorizacion,
+                auth_code:   String(json.autorizacion || ''),
+              });
+              AppModel.save(updated);
+              return updated;
+            } catch (errConfirm) {
+              // Nunca dejar que un error aquí rompa el render (pantalla en blanco)
+              console.error('[SpeiPoller] Error al confirmar pago:', errConfirm);
+              return prev;
+            }
           });
-          if (_onConfirm) _onConfirm(cobro, json);
+          if (_onConfirm) {
+            try { _onConfirm(cobro, json); } catch (errCb) { console.error('[SpeiPoller] Error en onConfirm:', errCb); }
+          }
           console.log('[SpeiPoller] Confirmado:', ref, cobro.cliente);
         }
       } catch(e) {
