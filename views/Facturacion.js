@@ -6,7 +6,7 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : React.createElement(type,p,ch);
 };
 var _Fragment = React.Fragment;
-/* views/Facturacion.jsx v3 — CFDI 4.0 + Simulador SPEI */
+/* views/Facturacion.jsx v3 — Facturación + Simulador SPEI */
 function Facturacion({
   data,
   setData,
@@ -117,7 +117,7 @@ function Facturacion({
           regimen: formFact.regimen,
           email: formFact.email,
           total: cobroSel.total,
-          descripcion: (cobroSel.items || []).map(i => i.nombre).join(', '),
+          descripcion: ((cobroSel.items || []).map(i => i.nombre).filter(Boolean).join(', ')) || 'Servicios educativos',
           escuela_rfc: escuela?.rfc || 'EDU000101AAA',
           escuela_nombre: escuela?.nombre || 'EduPago S.C.'
         })
@@ -269,14 +269,14 @@ function Facturacion({
               fontSize: 15,
               color: '#fff'
             },
-            children: "Facturación CFDI 4.0"
+            children: "Facturación"
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             style: {
               fontSize: 12,
               color: 'rgba(255,255,255,.6)',
               marginTop: 2
             },
-            children: "Generación de XML timbrable · Listo para conectar a Facturama / SW SAPiens"
+            children: "Genera y administra tus comprobantes fiscales"
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -880,7 +880,7 @@ function Facturacion({
           children: [/*#__PURE__*/_jsxDEV("div", {
             children: [/*#__PURE__*/_jsxDEV("div", {
               className: "modal-title",
-              children: "Generar CFDI 4.0"
+              children: "Generar factura"
             }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
               style: {
                 fontSize: 12,
@@ -1361,7 +1361,7 @@ function Facturacion({
                 color: 'var(--amber)'
               },
               children: "Nota:"
-            }, void 0, false), " XML con estructura CFDI 4.0 válida. El archivo XML no se descarga automáticamente desde Facturapi de esta forma. Descargalo desde la pestaña de \"Emitidas\""]
+            }, void 0, false), " El comprobante no se descarga automáticamente desde aquí. Descárgalo desde la pestaña de \"Emitidas\""]
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
