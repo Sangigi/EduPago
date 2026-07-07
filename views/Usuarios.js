@@ -644,7 +644,7 @@ function Usuarios({ user, data }) {
                 { rol: 'admin',      desc: 'Gestiona cajeros y familias asignados a su mismo plantel escolar.' },
                 { rol: 'cajero',     desc: 'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.' },
                 { rol: 'familia',    desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' }
-              ].map(item => _jsxDEV("div", {
+              ].filter(item => item.rol !== 'superadmin' || user?.rol === 'superadmin').map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [
                   _jsxDEV("span", { className: `badge ${ROL_INFO[item.rol].badge}`, style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: ROL_INFO[item.rol].icon, size: 14, color: "currentColor" }, void 0, false), " ", ROL_INFO[item.rol].label] }, void 0, true),
