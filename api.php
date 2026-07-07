@@ -385,7 +385,13 @@ switch ($action) {
         $regimen     = $input['regimen']     ?? '616';
         $email       = $input['email']       ?? '';
         $total       = floatval($input['total']   ?? 0);
-        $descripcion = $input['descripcion'] ?? 'Servicios educativos';
+        // OJO: usar ?? no basta, porque si el frontend manda "" (cadena vacía),
+        // ?? NO la reemplaza (solo actúa cuando es null/no existe), y Facturapi
+        // rechaza con "items[0].product.description is not allowed to be empty".
+        $descripcion = trim($input['descripcion'] ?? '');
+        if ($descripcion === '') {
+            $descripcion = 'Servicios educativos';
+        }
         
         // CFDI 4.0 exige el Código Postal del receptor. 
         // Si no lo pides en el frontend, Facturapi arrojará error si no coincide con el RFC.
