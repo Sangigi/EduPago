@@ -67,23 +67,57 @@ function Escuelas({
   const guardarPlantel = () => {
     if (!formPlt.nombre) return;
     const planteles = data.planteles || [];
+    const escuelaPadre = (data.escuelas || []).find(e => e.id === escuelaPltId) || null;
     let newPlanteles;
+    let newEscuelas = data.escuelas || [];
     if (formPlt.id) {
       newPlanteles = planteles.map(p => p.id === formPlt.id ? {
         ...p,
         ...formPlt
       } : p);
+      // Si el plantel ya tiene una escuela-cuenta asociada, sincronizamos el nombre
+      if (formPlt.escuela_plantel_id) {
+        newEscuelas = newEscuelas.map(e => e.id === formPlt.escuela_plantel_id ? {
+          ...e,
+          nombre: formPlt.nombre,
+          direccion: formPlt.direccion
+        } : e);
+      }
     } else {
+      const nuevoId = AppModel.nextId(planteles);
+      // Creamos la escuela-cuenta del plantel: es una escuela más (por eso puede
+      // tener sus propios usuarios/login), pero queda ligada a la escuela principal
+      // vía escuela_padre_id, para que sus métricas se contabilicen en conjunto.
+      const nuevaEscuelaPlantel = {
+        id: AppModel.nextId(newEscuelas),
+        nombre: formPlt.nombre,
+        clave: (escuelaPadre?.clave || 'ESC') + '-' + nuevoId,
+        rfc: escuelaPadre?.rfc || '',
+        telefono: formPlt.tel || '',
+        email: escuelaPadre?.email || '',
+        direccion: formPlt.direccion || '',
+        logo_emoji: escuelaPadre?.logo_emoji || '',
+        plan: escuelaPadre?.plan || 'pro',
+        clabe_fija: '',
+        color: escuelaPadre?.color || '#282d65',
+        activa: true,
+        es_plantel: true,
+        escuela_padre_id: escuelaPltId,
+        fecha_alta: new Date().toISOString().slice(0, 10)
+      };
+      newEscuelas = [...newEscuelas, nuevaEscuelaPlantel];
       const nuevo = {
         ...formPlt,
-        id: AppModel.nextId(planteles),
+        id: nuevoId,
         escuela_id: escuelaPltId,
+        escuela_plantel_id: nuevaEscuelaPlantel.id,
         activo: true
       };
       newPlanteles = [...planteles, nuevo];
     }
     const newData = {
       ...data,
+      escuelas: newEscuelas,
       planteles: newPlanteles
     };
     setData(newData);
@@ -289,7 +323,7 @@ function Escuelas({
         gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
         gap: 18
       },
-      children: data.escuelas.map(esc => {
+      children: data.escuelas.filter(esc => !esc.es_plantel).map(esc => {
         const m = metricasEscuela(esc.id);
         return /*#__PURE__*/_jsxDEV("div", {
           className: "card",
@@ -458,7 +492,7 @@ function Escuelas({
               onClick: () => abrirPool(esc.id),
               style: { display:'flex', alignItems:'center', gap:4, fontSize:11, fontWeight:600 },
               children: [/*#__PURE__*/_jsxDEV(Icon, { name: "bank", size: 13, color: "currentColor" }, void 0, false), "CLABEs"]
-            }, void 0, false), esc.permite_planteles && /*#__PURE__*/_jsxDEV("button", {
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-secondary btn-sm",
               title: "Gestionar planteles",
               onClick: () => {
@@ -681,36 +715,6 @@ function Escuelas({
                   cursor: 'pointer',
                   background: 'transparent'
                 }
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              className: "form-group",
-              style: {
-                gridColumn: '1/-1',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10
-              },
-              children: [/*#__PURE__*/_jsxDEV("input", {
-                type: "checkbox",
-                id: "chk_planteles",
-                checked: !!form.permite_planteles,
-                onChange: e => setForm(f => ({
-                  ...f,
-                  permite_planteles: e.target.checked
-                })),
-                style: {
-                  width: 16,
-                  height: 16,
-                  cursor: 'pointer'
-                }
-              }, void 0, false), /*#__PURE__*/_jsxDEV("label", {
-                htmlFor: "chk_planteles",
-                className: "form-label",
-                style: {
-                  margin: 0,
-                  cursor: 'pointer'
-                },
-                children: "Esta escuela tiene múltiples planteles / sucursales"
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true)
