@@ -121,13 +121,10 @@ const AppModel = (() => {
       { id:9,  escuela_id:3, folio:'EME-0001', cliente_id:9,  cliente:'Enoch Aguirre Aguilera',  items:[{nombre:'Colegiatura Mensual',qty:1,precio:2619}],              total:2619, metodo:'TC',       estado:'pagado',   fecha:'2026-05-01', factura:false, referencia:'EME-2025-411', auth_code:'TC-281906' },
     ],
 
-    // ── Emails ────────────────────────────────────────────────────────────────
-    emails: [
-      { id:1, escuela_id:1, tipo:'enviado',  asunto:'Recordatorio de pago — Mayo 2026',         para:'familia.garcia@mail.com',   fecha:'2026-05-14', estado:'entregado' },
-      { id:2, escuela_id:1, tipo:'enviado',  asunto:'Comprobante de pago ITM-0004',              para:'familia.garcia@mail.com',   fecha:'2026-05-05', estado:'entregado' },
-      { id:3, escuela_id:1, tipo:'recibido', asunto:'Consulta sobre beca de excelencia',        de:'hernandez.t@mail.com',        fecha:'2026-05-13', leido:false },
-      { id:4, escuela_id:2, tipo:'enviado',  asunto:'Comprobante de pago CEC-0001',              para:'mendez.c@mail.com',         fecha:'2026-05-01', estado:'entregado' },
-    ],
+    // ── Recordatorios ────────────────────────────────────────────────────────
+    // Reemplaza al antiguo módulo de "Correos": registro de recordatorios de
+    // cobros pendientes/vencidos que se marcan manualmente desde el panel.
+    recordatorios: [],
   };
 
   function load() {
@@ -155,9 +152,14 @@ const AppModel = (() => {
   // Estadísticas globales (super-admin)
   function getEstadisticasGlobales(data) {
     const { escuelas, cobros, clientes } = data;
-    return escuelas.map(esc => {
-      const cobroEsc  = cobros.filter(c => c.escuela_id === esc.id);
-      const alumnosEsc = clientes.filter(c => c.escuela_id === esc.id && c.activo);
+    // Las escuelas-plantel (es_plantel:true) no se listan por separado en las
+    // métricas globales: sus cobros/alumnos se suman dentro de la escuela
+    // principal (escuela_padre_id), para que aparezcan asociadas a ella.
+    const principales = escuelas.filter(e => !e.es_plantel);
+    return principales.map(esc => {
+      const idsGrupo = [esc.id, ...escuelas.filter(e => e.es_plantel && e.escuela_padre_id === esc.id).map(e => e.id)];
+      const cobroEsc  = cobros.filter(c => idsGrupo.includes(c.escuela_id));
+      const alumnosEsc = clientes.filter(c => idsGrupo.includes(c.escuela_id) && c.activo);
       const pagados   = cobroEsc.filter(c => c.estado === 'pagado');
       const pendientes = cobroEsc.filter(c => c.estado === 'pendiente');
       return {
@@ -168,6 +170,7 @@ const AppModel = (() => {
         color:          esc.color,
         plan:           esc.plan,
         activa:         !!esc.activa,
+        numPlanteles:   idsGrupo.length - 1,
         totalCobrado:   pagados.reduce((a,c)=>a+c.total,0),
         totalPendiente: pendientes.reduce((a,c)=>a+c.total,0),
         numCobros:      cobroEsc.length,
