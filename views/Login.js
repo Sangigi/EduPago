@@ -32,7 +32,18 @@ function Login({
       setLoading(false);
     }
   };
-  const demos = Array.isArray(AuthController.DEMO_USERS) ? AuthController.DEMO_USERS : [];
+  // Modo desarrollo: localhost, 127.0.0.1, file:// o ?dev=1 en la URL.
+  // En cualquier otro dominio (producción) el acceso rápido demo se oculta.
+  const esDev = (() => {
+    try {
+      const h = window.location.hostname;
+      if (window.EDUPAGO_ENV === 'production') return false;
+      if (window.EDUPAGO_ENV === 'development') return true;
+      if (new URLSearchParams(window.location.search).get('dev') === '1') return true;
+      return h === 'localhost' || h === '127.0.0.1' || h === '' || window.location.protocol === 'file:';
+    } catch (e) { return false; }
+  })();
+  const demos = esDev && Array.isArray(AuthController.DEMO_USERS) ? AuthController.DEMO_USERS : [];
   return /*#__PURE__*/_jsxDEV("div", {
     className: "login-screen",
     children: /*#__PURE__*/_jsxDEV("div", {
@@ -251,7 +262,7 @@ function Login({
               }, void 0, false)]
             }, void 0, true)
           }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), demos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
           style: {
             display: 'flex',
             alignItems: 'center',
@@ -280,7 +291,7 @@ function Login({
               background: 'var(--border-glow)'
             }
           }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), demos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
           style: {
             display: 'grid',
             gridTemplateColumns: '1fr 1fr 1fr',
