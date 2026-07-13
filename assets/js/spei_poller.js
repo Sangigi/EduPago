@@ -13,7 +13,10 @@ const SpeiPoller = (() => {
 
   async function checkPendientes() {
     if (!_getData || !_setData) return;
-    const data    = _getData();
+    const data = _getData();
+    // Justo después del login, los datos aún pueden no haber llegado de la API.
+    // Sin este guard, el primer chequeo (a 1s) tronaba con "cobros de null".
+    if (!data || !Array.isArray(data.cobros)) return;
     const speiPend = data.cobros.filter(c => c.metodo === 'SPEI' && c.estado === 'pendiente');
     if (!speiPend.length) return;
 
