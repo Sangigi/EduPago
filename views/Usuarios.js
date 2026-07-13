@@ -327,11 +327,11 @@ function Usuarios({ user, data }) {
   }, [data.clientes]);
 
   const nombreEscuela = eid => {
-    const e = data.escuelas.find(e => e.id === eid);
+    const e = (data.escuelas || []).find(e => e.id === eid);
     if (!e) return '—';
     return e.nombre + (e.activa ? '' : ' (Inactiva)');
   };
-  const emojiEscuela  = eid => data.escuelas.find(e => e.id === eid)?.nombre || '';
+  const emojiEscuela  = eid => (data.escuelas || []).find(e => e.id === eid)?.nombre || '';
   const creadorNombre = cid => {
     const u = usuarios.find(u => u.id === cid);
     return u ? u.nombre : cid === null ? 'Sistema' : `#${cid}`;
