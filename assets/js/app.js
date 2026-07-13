@@ -101,6 +101,48 @@ const TITLES = {
   usuarios: 'Gestión de Usuarios',
   miequipo: 'Mi Equipo'
 };
+// Red de seguridad: si algo inesperado revienta el render de <App/>, React
+// desmonta todo el árbol y deja la pantalla en blanco. Este ErrorBoundary
+// evita eso mostrando un mensaje con botón de reintento, y deja el error
+// visible en consola para poder diagnosticarlo.
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[EduPago] Error de render capturado por ErrorBoundary:', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return _jsxDEV("div", {
+        style: {
+          height: '100vh', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 14,
+          background: '#0d1020', color: '#eef1f8', fontFamily: 'system-ui, sans-serif',
+          padding: 24, textAlign: 'center',
+        },
+        children: [
+          _jsxDEV("div", { style: { fontSize: 18, fontWeight: 700 }, children: 'Ocurrió un problema al cargar la sesión' }, void 0, false),
+          _jsxDEV("div", { style: { fontSize: 13, color: '#8b93a7', maxWidth: 420 }, children: 'Esto puede pasar justo después de iniciar sesión mientras se cargan tus datos. Intenta de nuevo.' }, void 0, false),
+          _jsxDEV("button", {
+            onClick: () => window.location.reload(),
+            style: {
+              background: '#bdcf00', color: '#12152a', border: 'none',
+              borderRadius: 8, padding: '10px 20px', fontWeight: 700, cursor: 'pointer',
+            },
+            children: 'Reintentar',
+          }, void 0, false),
+        ],
+      }, void 0, true);
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const {
     useState,
@@ -114,6 +156,14 @@ function App() {
   const [theme, setTheme] = useState('dark');
   const [escuelaActiva, setEscuelaActiva] = useState(null);
   const [mobileNav, setMobileNav] = useState(false);
+
+  // El estado 'theme' inicia en 'dark', pero antes solo se aplicaba el atributo
+  // data-theme al hacer toggle manual — en la carga inicial el <html> se quedaba
+  // sin el atributo y la UI se mostraba con las variables de tema claro por
+  // defecto del CSS, dando una sensación de pantalla "en blanco/clara" al entrar.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
+  }, [theme]);
 
   // Carga datos desde la API (MySQL) o desde localStorage como fallback (modo demo/offline)
   const cargarDatosDesdeAPI = async token => {
@@ -198,7 +248,7 @@ function App() {
     onLogin: handleLogin
   }, void 0, false);
   if (user.rol === 'familia') {
-    const escuela = data ? data.escuelas.find(e => e.id === user.escuela_id) || null : null;
+    const escuela = data ? (data.escuelas || []).find(e => e.id === user.escuela_id) || null : null;
     return data ? /*#__PURE__*/_jsxDEV(PortalFamilia, {
       data: data,
       setData: setData,
@@ -226,17 +276,28 @@ function App() {
     },
     children: "Cargando…"
   }, void 0, false);
-  const esSuper = AuthController.isSuperAdmin(user);
-  const escuela = data.escuelas.find(e => e.id === escuelaActiva) || null;
-  const dataScopeed = esSuper && !escuelaActiva ? data : {
-    ...data,
-    clientes:  (data.clientes  || []).filter(c => c.escuela_id === escuelaActiva),
-    familias:  (data.familias  || []).filter(f => f.escuela_id === escuelaActiva),
-    productos: (data.productos || []).filter(p => p.escuela_id === escuelaActiva),
-    cobros:    (data.cobros    || []).filter(c => c.escuela_id === escuelaActiva),
-    recordatorios: (data.recordatorios || []).filter(r => r.escuela_id === escuelaActiva),
+  // Blindaje: si la API devolvió una forma incompleta (o llegó un objeto parcial
+  // justo después del login), nunca dejamos que falte un array y rompa el render
+  // (eso era lo que causaba la pantalla en blanco la primera vez).
+  const dataSegura = {
+    escuelas: data.escuelas || [],
+    clientes: data.clientes || [],
+    familias: data.familias || [],
+    productos: data.productos || [],
+    cobros: data.cobros || [],
+    recordatorios: data.recordatorios || [],
   };
-  const pendientes = dataScopeed.cobros.filter(c => c.estado === 'pendiente').length;
+  const esSuper = AuthController.isSuperAdmin(user);
+  const escuela = dataSegura.escuelas.find(e => e.id === escuelaActiva) || null;
+  const dataScopeed = esSuper && !escuelaActiva ? dataSegura : {
+    ...dataSegura,
+    clientes:  dataSegura.clientes.filter(c => c.escuela_id === escuelaActiva),
+    familias:  dataSegura.familias.filter(f => f.escuela_id === escuelaActiva),
+    productos: dataSegura.productos.filter(p => p.escuela_id === escuelaActiva),
+    cobros:    dataSegura.cobros.filter(c => c.escuela_id === escuelaActiva),
+    recordatorios: dataSegura.recordatorios.filter(r => r.escuela_id === escuelaActiva),
+  };
+  const pendientes = (dataScopeed.cobros || []).filter(c => c.estado === 'pendiente').length;
   const secciones = [...new Set(NAV_ITEMS.filter(n => n.roles.includes(user.rol)).map(n => n.section))];
   const navItems = NAV_ITEMS.filter(n => n.roles.includes(user.rol));
   const renderView = () => {
@@ -459,7 +520,7 @@ function App() {
             children: [/*#__PURE__*/_jsxDEV("option", {
               value: "",
               children: "Vista global"
-            }, void 0, false), data.escuelas.map(e => /*#__PURE__*/_jsxDEV("option", {
+            }, void 0, false), (data.escuelas || []).map(e => /*#__PURE__*/_jsxDEV("option", {
               value: e.id,
               children: e.nombre + (e.activa ? '' : ' (Inactiva)')
             }, e.id, false))]
@@ -661,4 +722,6 @@ function App() {
   }, void 0, true);
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(/*#__PURE__*/_jsxDEV(App, {}, void 0, false));
+root.render(/*#__PURE__*/_jsxDEV(AppErrorBoundary, {
+  children: /*#__PURE__*/_jsxDEV(App, {}, void 0, false)
+}, void 0, false));
