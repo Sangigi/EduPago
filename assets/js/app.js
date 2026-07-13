@@ -358,7 +358,7 @@ function App() {
         }, void 0, false);
       case 'escuelas':
         return /*#__PURE__*/_jsxDEV(Escuelas, {
-          data: data,
+          data: dataSegura,
           setData: setData,
           onSeleccionar: id => {
             setEscuelaActiva(id);
@@ -367,17 +367,17 @@ function App() {
         }, void 0, false);
       case 'superreportes':
         return /*#__PURE__*/_jsxDEV(SuperReportes, {
-          data: data
+          data: dataSegura
         }, void 0, false);
       case 'usuarios':
         return /*#__PURE__*/_jsxDEV(Usuarios, {
           user: user,
-          data: data
+          data: dataSegura
         }, void 0, false);
       case 'miequipo':
         return /*#__PURE__*/_jsxDEV(Usuarios, {
           user: user,
-          data: data
+          data: dataSegura
         }, void 0, false);
       default:
         return /*#__PURE__*/_jsxDEV(Dashboard, {
