@@ -34,25 +34,45 @@ const SpeiPoller = (() => {
         });
         const json = await resultado.json();
         if (json.success && json.pagado) {
-          // Confirmar el cobro en el estado global
-          _setData(prev => {
-            try {
-              const updated = CobroController.confirmarPago(prev, cobro.id, {
-                transaccion: json.clave_rastreo || json.autorizacion,
-                auth_code:   String(json.autorizacion || ''),
-              });
+          try {
+            // CobroController.confirmarPago(cobroId, extra) es ASYNC y llama a la
+            // API real (case 'confirmar_pago' en api.php) — antes se llamaba mal,
+            // sin await y con (prev, cobro.id, extra), lo que guardaba una Promise
+            // como si fuera el objeto `data` completo y volaba todo el dashboard
+            // a 0 unos segundos después de cargar. Ahora se espera la respuesta y
+            // solo se parchea el cobro/cliente afectado dentro del estado actual.
+            const confirmacion = await CobroController.confirmarPago(cobro.id, {
+              transaccion: json.clave_rastreo || json.autorizacion,
+              auth_code:   String(json.autorizacion || ''),
+            });
+            _setData(prev => {
+              if (!prev) return prev;
+              const updated = {
+                ...prev,
+                cobros: (prev.cobros || []).map(c =>
+                  c.id === cobro.id
+                    ? { ...c, estado: 'pagado', auth_code: confirmacion.estado === 'pagado' ? (String(json.autorizacion || '') || c.auth_code) : c.auth_code }
+                    : c
+                ),
+                clientes: confirmacion.cliente_id
+                  ? (prev.clientes || []).map(cl =>
+                      cl.id === confirmacion.cliente_id
+                        ? { ...cl, saldo_pendiente: confirmacion.nuevo_saldo }
+                        : cl
+                    )
+                  : (prev.clientes || []),
+              };
               AppModel.save(updated);
               return updated;
-            } catch (errConfirm) {
-              // Nunca dejar que un error aquí rompa el render (pantalla en blanco)
-              console.error('[SpeiPoller] Error al confirmar pago:', errConfirm);
-              return prev;
+            });
+            if (_onConfirm) {
+              try { _onConfirm(cobro, json); } catch (errCb) { console.error('[SpeiPoller] Error en onConfirm:', errCb); }
             }
-          });
-          if (_onConfirm) {
-            try { _onConfirm(cobro, json); } catch (errCb) { console.error('[SpeiPoller] Error en onConfirm:', errCb); }
+            console.log('[SpeiPoller] Confirmado:', ref, cobro.cliente);
+          } catch (errConfirm) {
+            // Nunca dejar que un error aquí rompa el render (pantalla en blanco / datos en 0)
+            console.error('[SpeiPoller] Error al confirmar pago:', errConfirm);
           }
-          console.log('[SpeiPoller] Confirmado:', ref, cobro.cliente);
         }
       } catch(e) {
         // Silencioso — next tick
