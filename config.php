@@ -34,7 +34,11 @@ define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadet
 define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local de respaldo
 
 // ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php');
+// IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
+// y dale a Pagadetodo la URL con ?token=ESE_TOKEN. Sin esto, cualquiera podía
+// forjar un pago SPEI llamando directo a este endpoint.
+define('WEBHOOK_SPEI_TOKEN', 'CAMBIA_ESTO_POR_UN_TOKEN_ALEATORIO_LARGO_2026');
+define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=CAMBIA_ESTO_POR_UN_TOKEN_ALEATORIO_LARGO_2026');
 
 // ─── Configuración del super-admin ───────────────────────────────────────────
 define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
