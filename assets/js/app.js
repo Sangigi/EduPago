@@ -20,6 +20,12 @@ const NAV_ITEMS = [{
   section: 'principal',
   roles: ['cajero', 'admin', 'superadmin']
 }, {
+  id: 'corte_caja',
+  label: 'Corte de caja',
+  icon: 'caja',
+  section: 'principal',
+  roles: ['cajero', 'admin', 'superadmin']
+}, {
   id: 'cobros',
   label: 'Historial cobros',
   icon: 'cobros',
@@ -313,6 +319,11 @@ function App() {
         return /*#__PURE__*/_jsxDEV(Caja, {
           data: dataScopeed,
           setData: d => setData(mergeScoped(data, d, escuelaActiva)),
+          user: user,
+          escuela: escuela
+        }, void 0, false);
+      case 'corte_caja':
+        return /*#__PURE__*/_jsxDEV(CorteCaja, {
           user: user,
           escuela: escuela
         }, void 0, false);
