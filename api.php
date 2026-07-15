@@ -705,6 +705,8 @@ switch ($action) {
         $metodo      = trim($input['metodo']         ?? '');
         $referencia  = trim($input['referencia']     ?? '');
         $carrito     = $input['carrito']             ?? [];
+        $sucursal_id = intval($input['sucursal_id']  ?? 0) ?: null;
+        $caja_id_pos = intval($input['caja_id']      ?? 0) ?: null;
 
         if (!$escuela_id || !$metodo || empty($carrito)) {
             respond(['success' => false, 'error' => 'Faltan datos del cobro']);
@@ -729,10 +731,10 @@ switch ($action) {
         $folio = $clave . '-' . str_pad($n, 4, '0', STR_PAD_LEFT);
 
         $stmt = $pdo->prepare(
-            "INSERT INTO cobros (escuela_id, cliente_id, folio, total, metodo, estado, fecha, referencia)
-             VALUES (?, ?, ?, ?, ?, 'pendiente', CURDATE(), ?)"
+            "INSERT INTO cobros (escuela_id, cliente_id, folio, total, metodo, estado, fecha, referencia, sucursal_id, caja_id)
+             VALUES (?, ?, ?, ?, ?, 'pendiente', CURDATE(), ?, ?, ?)"
         );
-        $stmt->execute([$escuela_id, $cliente_id, $folio, $total, $metodo, $referencia]);
+        $stmt->execute([$escuela_id, $cliente_id, $folio, $total, $metodo, $referencia, $sucursal_id, $caja_id_pos]);
         $cobro_id = $pdo->lastInsertId();
 
         // Obtener nombre del cliente y recalcular su saldo_pendiente
@@ -1252,6 +1254,222 @@ switch ($action) {
         respond(['success' => true, 'eliminadas' => $stmt->rowCount()]);
     break;
 
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MÓDULO DE CAJA — apertura / cierre / historial / resumen / movimientos
+    // Pegar este bloque en api.php, dentro del switch($action), junto a los
+    // demás "case". El orden no importa, PHP resuelve por coincidencia del case.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    case 'caja_sucursales':
+        // Lista sucursales de la escuela del usuario (o todas si es superadmin y manda escuela_id)
+        $escuela_id = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? $usuario_actual['escuela_id'] ?? 0);
+        if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+
+        $stmt = $pdo->prepare("SELECT id, nombre, activa FROM sucursales WHERE escuela_id = ? AND activa = 1 ORDER BY nombre");
+        $stmt->execute([$escuela_id]);
+        respond(['success' => true, 'sucursales' => $stmt->fetchAll()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_estado':
+        // Devuelve la caja abierta del usuario actual en esa sucursal (o null)
+        $sucursal_id = intval($input['sucursal_id'] ?? $_GET['sucursal_id'] ?? 0);
+        $usuario_id  = intval($usuario_actual['user_id']);
+        if (!$sucursal_id) respond(['success' => false, 'error' => 'sucursal_id requerido']);
+
+        $stmt = $pdo->prepare(
+            "SELECT * FROM caja WHERE sucursal_id = ? AND usuario_id = ? AND estado = 'abierta'
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([$sucursal_id, $usuario_id]);
+        $caja = $stmt->fetch();
+        respond(['success' => true, 'caja' => $caja ?: null]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_abrir':
+        $sucursal_id    = intval($input['sucursal_id'] ?? 0);
+        $monto_apertura = floatval($input['monto_apertura'] ?? -1);
+        $observaciones  = trim($input['observaciones'] ?? '');
+        $usuario_id     = intval($usuario_actual['user_id']);
+
+        if (!$sucursal_id) respond(['success' => false, 'error' => 'sucursal_id requerido']);
+        if ($monto_apertura < 0) respond(['success' => false, 'error' => 'Monto de apertura inválido']);
+
+        // No permitir dos cajas abiertas simultáneas del mismo usuario en la misma sucursal
+        $chk = $pdo->prepare("SELECT id FROM caja WHERE sucursal_id = ? AND usuario_id = ? AND estado = 'abierta'");
+        $chk->execute([$sucursal_id, $usuario_id]);
+        if ($chk->fetch()) {
+            respond(['success' => false, 'error' => 'Ya tienes una caja abierta en esta sucursal. Ciérrala antes de abrir otra.']);
+        }
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO caja (sucursal_id, usuario_id, monto_apertura, observaciones, estado, fecha_apertura)
+             VALUES (?, ?, ?, ?, 'abierta', NOW())"
+        );
+        $stmt->execute([$sucursal_id, $usuario_id, $monto_apertura, $observaciones]);
+        $caja_id = $pdo->lastInsertId();
+
+        log_api("caja_abrir -> caja_id={$caja_id} sucursal={$sucursal_id} usuario={$usuario_id} monto={$monto_apertura}");
+
+        $s2 = $pdo->prepare("SELECT * FROM caja WHERE id = ?");
+        $s2->execute([$caja_id]);
+        respond(['success' => true, 'caja' => $s2->fetch()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_movimiento':
+        // Ingreso/egreso manual (ej. "retiro de efectivo", "préstamo a caja chica")
+        $caja_id  = intval($input['caja_id'] ?? 0);
+        $tipo     = trim($input['tipo']      ?? '');
+        $concepto = trim($input['concepto']  ?? '');
+        $total    = floatval($input['total'] ?? 0);
+
+        if (!$caja_id || !in_array($tipo, ['ingreso', 'egreso']) || $total <= 0) {
+            respond(['success' => false, 'error' => 'Datos de movimiento inválidos']);
+        }
+
+        $chk = $pdo->prepare("SELECT id FROM caja WHERE id = ? AND estado = 'abierta'");
+        $chk->execute([$caja_id]);
+        if (!$chk->fetch()) respond(['success' => false, 'error' => 'La caja no está abierta']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO movimientos_caja (caja_id, tipo, concepto, total, fecha) VALUES (?, ?, ?, ?, NOW())"
+        );
+        $stmt->execute([$caja_id, $tipo, $concepto, $total]);
+
+        respond(['success' => true, 'movimiento_id' => intval($pdo->lastInsertId())]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_cerrar':
+        $caja_id       = intval($input['caja_id']       ?? 0);
+        $monto_cierre  = floatval($input['monto_cierre'] ?? -1);
+        $observaciones = trim($input['observaciones']    ?? '');
+
+        if (!$caja_id) respond(['success' => false, 'error' => 'caja_id requerido']);
+        if ($monto_cierre < 0) respond(['success' => false, 'error' => 'Monto de cierre inválido']);
+
+        $stmt = $pdo->prepare("SELECT * FROM caja WHERE id = ? AND estado = 'abierta'");
+        $stmt->execute([$caja_id]);
+        $caja_actual = $stmt->fetch();
+        if (!$caja_actual) respond(['success' => false, 'error' => 'Caja no encontrada o ya cerrada']);
+
+        // Ventas del POS asociadas a esta caja, agrupadas por método (solo pagadas)
+        $vstmt = $pdo->prepare(
+            "SELECT metodo, COALESCE(SUM(total),0) as total FROM cobros
+             WHERE caja_id = ? AND estado = 'pagado' GROUP BY metodo"
+        );
+        $vstmt->execute([$caja_id]);
+        $ventas_por_metodo = ['Efectivo' => 0, 'TC' => 0, 'SPEI' => 0, 'CoDi' => 0];
+        foreach ($vstmt->fetchAll() as $row) {
+            if (isset($ventas_por_metodo[$row['metodo']])) $ventas_por_metodo[$row['metodo']] = floatval($row['total']);
+        }
+        $ventas_efectivo      = $ventas_por_metodo['Efectivo'];
+        $ventas_tarjeta       = $ventas_por_metodo['TC'];
+        $ventas_transferencia = $ventas_por_metodo['SPEI'] + $ventas_por_metodo['CoDi'];
+        $total_ventas         = $ventas_efectivo + $ventas_tarjeta + $ventas_transferencia;
+
+        // Movimientos manuales (ingresos/egresos de efectivo, no ventas del POS)
+        $mstmt = $pdo->prepare(
+            "SELECT tipo, COALESCE(SUM(total),0) as total FROM movimientos_caja WHERE caja_id = ? GROUP BY tipo"
+        );
+        $mstmt->execute([$caja_id]);
+        $otros_ingresos = 0; $otros_egresos = 0;
+        foreach ($mstmt->fetchAll() as $row) {
+            if ($row['tipo'] === 'ingreso') $otros_ingresos = floatval($row['total']);
+            if ($row['tipo'] === 'egreso')  $otros_egresos  = floatval($row['total']);
+        }
+
+        // Monto esperado en efectivo = apertura + ventas en efectivo + otros ingresos - otros egresos
+        $monto_esperado = floatval($caja_actual['monto_apertura']) + $ventas_efectivo + $otros_ingresos - $otros_egresos;
+        $diferencia     = $monto_cierre - $monto_esperado;
+
+        $upd = $pdo->prepare(
+            "UPDATE caja SET
+                fecha_cierre = NOW(), monto_cierre = ?, monto_esperado = ?, diferencia = ?,
+                ventas_efectivo = ?, ventas_tarjeta = ?, ventas_transferencia = ?, total_ventas = ?,
+                otros_ingresos = ?, otros_egresos = ?, observaciones = ?, estado = 'cerrada'
+             WHERE id = ?"
+        );
+        $upd->execute([
+            $monto_cierre, $monto_esperado, $diferencia,
+            $ventas_efectivo, $ventas_tarjeta, $ventas_transferencia, $total_ventas,
+            $otros_ingresos, $otros_egresos, $observaciones, $caja_id
+        ]);
+
+        log_api("caja_cerrar -> caja_id={$caja_id} esperado={$monto_esperado} cierre={$monto_cierre} diff={$diferencia}");
+
+        $s2 = $pdo->prepare("SELECT * FROM caja WHERE id = ?");
+        $s2->execute([$caja_id]);
+        respond(['success' => true, 'caja' => $s2->fetch()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_historial':
+        $sucursal_id = intval($input['sucursal_id'] ?? $_GET['sucursal_id'] ?? 0);
+        $escuela_id  = intval($input['escuela_id']  ?? $_GET['escuela_id']  ?? $usuario_actual['escuela_id'] ?? 0);
+
+        if ($sucursal_id) {
+            $stmt = $pdo->prepare(
+                "SELECT c.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre
+                 FROM caja c
+                 JOIN usuarios u ON c.usuario_id = u.id
+                 JOIN sucursales s ON c.sucursal_id = s.id
+                 WHERE c.sucursal_id = ? ORDER BY c.id DESC LIMIT 200"
+            );
+            $stmt->execute([$sucursal_id]);
+        } elseif ($escuela_id) {
+            $stmt = $pdo->prepare(
+                "SELECT c.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre
+                 FROM caja c
+                 JOIN usuarios u ON c.usuario_id = u.id
+                 JOIN sucursales s ON c.sucursal_id = s.id
+                 WHERE s.escuela_id = ? ORDER BY c.id DESC LIMIT 200"
+            );
+            $stmt->execute([$escuela_id]);
+        } else {
+            respond(['success' => false, 'error' => 'sucursal_id o escuela_id requerido']);
+        }
+
+        respond(['success' => true, 'historial' => $stmt->fetchAll()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_resumen':
+        $caja_id = intval($input['caja_id'] ?? $_GET['caja_id'] ?? 0);
+        if (!$caja_id) respond(['success' => false, 'error' => 'caja_id requerido']);
+
+        $stmt = $pdo->prepare(
+            "SELECT c.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre
+             FROM caja c
+             JOIN usuarios u ON c.usuario_id = u.id
+             JOIN sucursales s ON c.sucursal_id = s.id
+             WHERE c.id = ?"
+        );
+        $stmt->execute([$caja_id]);
+        $caja = $stmt->fetch();
+        if (!$caja) respond(['success' => false, 'error' => 'Corte de caja no encontrado']);
+
+        $vstmt = $pdo->prepare(
+            "SELECT id, folio, cliente_id, total, metodo, estado, fecha FROM cobros
+             WHERE caja_id = ? ORDER BY id DESC"
+        );
+        $vstmt->execute([$caja_id]);
+
+        $mstmt = $pdo->prepare(
+            "SELECT * FROM movimientos_caja WHERE caja_id = ? ORDER BY fecha DESC"
+        );
+        $mstmt->execute([$caja_id]);
+
+        respond([
+            'success'      => true,
+            'caja'         => $caja,
+            'ventas'       => $vstmt->fetchAll(),
+            'movimientos'  => $mstmt->fetchAll(),
+        ]);
+    break;
 
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
