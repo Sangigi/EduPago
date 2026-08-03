@@ -72,24 +72,45 @@ function Escuelas({
     setErrorPlt('');
 
     if (formPlt.id) {
-      // Editar plantel existente: por ahora solo sincroniza nombre/dirección
-      // en la escuela-cuenta ya creada (el alta de la cuenta es lo que faltaba
-      // y ya se resolvió abajo, para planteles nuevos).
-      const planteles = data.planteles || [];
-      const newPlanteles = planteles.map(p => p.id === formPlt.id ? { ...p, ...formPlt } : p);
-      let newEscuelas = data.escuelas || [];
-      if (formPlt.escuela_plantel_id) {
-        newEscuelas = newEscuelas.map(e => e.id === formPlt.escuela_plantel_id ? {
-          ...e,
-          nombre: formPlt.nombre,
-          direccion: formPlt.direccion
-        } : e);
+      // Editar plantel existente: se guarda en el servidor (planteles + escuela-cuenta
+      // + correo de acceso del usuario, si se modificó).
+      if (!formPlt.email) {
+        setErrorPlt('El correo es obligatorio: con él inicia sesión la cuenta del plantel.');
+        return;
       }
-      const newData = { ...data, escuelas: newEscuelas, planteles: newPlanteles };
-      setData(newData);
-      AppModel.save(newData);
-      setFormPlt(EMPTY_PLT);
-      setModalPlt('list');
+      setGuardandoPlt(true);
+      try {
+        const res = await apiPost('editar_plantel', {
+          id: formPlt.id,
+          nombre: formPlt.nombre,
+          direccion: formPlt.direccion,
+          responsable: formPlt.responsable,
+          tel: formPlt.tel,
+          email: formPlt.email
+        });
+        if (!res.success) {
+          setErrorPlt(res.error || 'No se pudo guardar el plantel');
+          setGuardandoPlt(false);
+          return;
+        }
+        const planteles = data.planteles || [];
+        const newPlanteles = planteles.map(p => p.id === formPlt.id ? { ...p, ...res.plantel } : p);
+        let newEscuelas = data.escuelas || [];
+        if (res.escuela_plantel) {
+          newEscuelas = newEscuelas.map(e => e.id === res.escuela_plantel.id ? {
+            ...e,
+            ...res.escuela_plantel
+          } : e);
+        }
+        const newData = { ...data, escuelas: newEscuelas, planteles: newPlanteles };
+        setData(newData);
+        AppModel.save(newData);
+        setFormPlt(EMPTY_PLT);
+        setModalPlt('list');
+      } catch (e) {
+        setErrorPlt('Error de conexión al guardar el plantel: ' + e.message);
+      }
+      setGuardandoPlt(false);
       return;
     }
 
@@ -824,8 +845,10 @@ function Escuelas({
             }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-ghost btn-sm",
               onClick: () => {
+                const escPlt = (data.escuelas || []).find(e => e.id === plt.escuela_plantel_id);
                 setFormPlt({
-                  ...plt
+                  ...plt,
+                  email: escPlt?.email || ''
                 });
                 setModalPlt('form');
               },
@@ -951,7 +974,38 @@ function Escuelas({
                 }
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            className: "form-group",
+            children: [/*#__PURE__*/_jsxDEV("label", {
+              className: "form-label",
+              children: "Correo de acceso *"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              className: "form-input",
+              type: "email",
+              placeholder: "plantel@correo.com",
+              value: formPlt.email || '',
+              onChange: e => setFormPlt(p => ({
+                ...p,
+                email: e.target.value
+              }))
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 11,
+                color: 'var(--ink-4)',
+                marginTop: 4
+              },
+              children: formPlt.id
+                ? "Con este correo el responsable del plantel inicia sesión. Si lo cambias, deberá usar el nuevo correo la próxima vez."
+                : "Con este correo el responsable del plantel iniciará sesión. Se generará una contraseña temporal."
+            }, void 0, false)]
+          }, void 0, true), errorPlt && /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              color: 'var(--red, #d33)',
+              fontSize: 12,
+              marginTop: 8
+            },
+            children: errorPlt
+          }, void 0, false)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: [/*#__PURE__*/_jsxDEV("button", {
@@ -961,8 +1015,8 @@ function Escuelas({
           }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
             onClick: guardarPlantel,
-            disabled: !formPlt.nombre,
-            children: "Guardar plantel"
+            disabled: !formPlt.nombre || guardandoPlt || !formPlt.email,
+            children: guardandoPlt ? 'Guardando…' : 'Guardar plantel'
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)
