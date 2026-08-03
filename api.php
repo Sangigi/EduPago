@@ -630,6 +630,19 @@ switch ($action) {
             return $c;
         }, $clientes_raw);
 
+        // ── Planteles (sub escuelas) ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM planteles ORDER BY escuela_id, id");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM planteles WHERE escuela_id = ? ORDER BY id");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $planteles_raw = $stmt->fetchAll();
+        $planteles = array_map(function($p) {
+            $p['activo'] = (bool)$p['activo'];
+            return $p;
+        }, $planteles_raw);
+
         // ── Familias ──
         if ($rol === 'superadmin') {
             $stmt = $pdo->query("SELECT * FROM familias ORDER BY escuela_id, nombre");
@@ -690,6 +703,7 @@ switch ($action) {
             'success'   => true,
             'escuelas'  => $escuelas,
             'clientes'  => $clientes,
+            'planteles' => $planteles,
             'familias'  => $familias,
             'productos' => $productos,
             'cobros'    => $cobros,
@@ -1061,6 +1075,127 @@ switch ($action) {
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
         respond(['success' => true]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_plantel':
+        // Validación de permisos
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para crear planteles.']);
+        }
+
+        $escuela_padre_id = intval($input['escuela_id'] ?? 0);
+        $nombre           = trim($input['nombre']      ?? '');
+        $direccion        = trim($input['direccion']   ?? '');
+        $responsable      = trim($input['responsable'] ?? '');
+        $tel              = trim($input['tel']         ?? '');
+        $email            = trim($input['email']       ?? '');
+
+        if (!$escuela_padre_id || !$nombre || !$email) {
+            respond(['success' => false, 'error' => 'Faltan datos: escuela_id, nombre y email son obligatorios']);
+        }
+
+        // Validación de scope para administradores
+        if ($rol_actual === 'admin' && intval($usuario_actual['escuela_id'] ?? 0) !== $escuela_padre_id) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo puedes crear planteles de tu propia escuela.']);
+        }
+
+        $padre = $pdo->prepare("SELECT * FROM escuelas WHERE id = ? AND es_plantel = 0");
+        $padre->execute([$escuela_padre_id]);
+        $escuelaPadre = $padre->fetch();
+        
+        if (!$escuelaPadre) respond(['success' => false, 'error' => 'Escuela principal no encontrada']);
+
+        $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chk->execute([$email]);
+        if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Insertar en escuelas (para que funcione como entidad de cobro)
+            $clave = $escuelaPadre['clave'] . '-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $nombre), 0, 4));
+            
+            $stmt = $pdo->prepare(
+                "INSERT INTO escuelas (nombre, clave, rfc, telefono, email, direccion, logo_emoji, activa, es_plantel, escuela_padre_id, plan, color, permite_planteles)
+                 VALUES (?, ?, '', ?, ?, ?, '', 1, 1, ?, 'pro', '#282d65', 0)"
+            );
+            $stmt->execute([$nombre, $clave, $tel, $email, $direccion, $escuela_padre_id]);
+            $nueva_escuela_id = intval($pdo->lastInsertId());
+
+            // 2. Insertar en planteles (para la UI de administración)
+            $stmt2 = $pdo->prepare(
+                "INSERT INTO planteles (escuela_id, escuela_plantel_id, nombre, direccion, responsable, tel, activo)
+                 VALUES (?, ?, ?, ?, ?, ?, 1)"
+            );
+            $stmt2->execute([$escuela_padre_id, $nueva_escuela_id, $nombre, $direccion, $responsable, $tel]);
+            $plantel_id = intval($pdo->lastInsertId());
+
+            // 3. Crear la cuenta de usuario (Admin del plantel)
+            $password_temporal = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
+            $hash = password_hash($password_temporal, PASSWORD_BCRYPT);
+            
+            $stmt3 = $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, creado_por)
+                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?)"
+            );
+            $nombre_admin = 'Admin ' . $nombre;
+            $stmt3->execute([$nueva_escuela_id, $nombre_admin, $email, $hash, $usuario_actual['id'] ?? null]);
+
+            $pdo->commit();
+
+            // Retornar los objetos exactos que espera el frontend
+            respond([
+                'success' => true,
+                'escuela_plantel' => [
+                    'id'               => $nueva_escuela_id,
+                    'nombre'           => $nombre,
+                    'clave'            => $clave,
+                    'es_plantel'       => 1,
+                    'escuela_padre_id' => $escuela_padre_id
+                ],
+                'plantel' => [
+                    'id'                 => $plantel_id,
+                    'escuela_id'         => $escuela_padre_id,
+                    'escuela_plantel_id' => $nueva_escuela_id,
+                    'nombre'             => $nombre,
+                    'direccion'          => $direccion,
+                    'responsable'        => $responsable,
+                    'tel'                => $tel,
+                    'activo'             => true
+                ],
+                'cuenta' => [
+                    'email'             => $email,
+                    'password_temporal' => $password_temporal
+                ]
+            ]);
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Error de BD: ' . $e->getMessage()]);
+        }
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_plantel':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $stmt = $pdo->prepare("SELECT escuela_plantel_id, activo FROM planteles WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if (!$row) respond(['success' => false, 'error' => 'Plantel no encontrado']);
+
+        $nuevoEstado = $row['activo'] ? 0 : 1;
+        $pdo->prepare("UPDATE planteles SET activo = ? WHERE id = ?")->execute([$nuevoEstado, $id]);
+        // La escuela-cuenta del plantel también se activa/desactiva junto con él,
+        // para que no pueda iniciar sesión si el plantel está dado de baja.
+        $pdo->prepare("UPDATE escuelas SET activa = ? WHERE id = ?")->execute([$nuevoEstado, $row['escuela_plantel_id']]);
+
+        respond(['success' => true, 'activo' => (bool) $nuevoEstado]);
     break;
 
     // ══════════════════════════════════════════════════════════════════════════
