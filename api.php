@@ -607,11 +607,14 @@ switch ($action) {
         }
 
         // ── Escuelas ──
+        // Para admin/cajero/familia se incluye también su propia escuela y las
+        // escuelas-cuenta de sus planteles (escuela_padre_id), para poder ver y
+        // editar sus datos (ej. el correo de acceso) desde "Gestionar planteles".
         if ($rol === 'superadmin') {
             $stmt = $pdo->query("SELECT * FROM escuelas ORDER BY id");
         } else {
-            $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ?");
-            $stmt->execute([$escuela_id_usuario]);
+            $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ? OR escuela_padre_id = ?");
+            $stmt->execute([$escuela_id_usuario, $escuela_id_usuario]);
         }
         $escuelas = $stmt->fetchAll();
 
@@ -1120,8 +1123,8 @@ switch ($action) {
             $clave = $escuelaPadre['clave'] . '-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $nombre), 0, 4));
             
             $stmt = $pdo->prepare(
-                "INSERT INTO escuelas (nombre, clave, rfc, telefono, email, direccion, logo_emoji, activa, es_plantel, escuela_padre_id, plan, color, permite_planteles)
-                 VALUES (?, ?, '', ?, ?, ?, '', 1, 1, ?, 'pro', '#282d65', 0)"
+                "INSERT INTO escuelas (nombre, clave, rfc, telefono, email, direccion, logo_emoji, activa, es_plantel, escuela_padre_id, plan, fecha_alta)
+                 VALUES (?, ?, '', ?, ?, ?, '', 1, 1, ?, 'pro', CURDATE())"
             );
             $stmt->execute([$nombre, $clave, $tel, $email, $direccion, $escuela_padre_id]);
             $nueva_escuela_id = intval($pdo->lastInsertId());
@@ -1173,6 +1176,99 @@ switch ($action) {
                 ]
             ]);
 
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Error de BD: ' . $e->getMessage()]);
+        }
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_plantel':
+        // Edita un plantel existente: actualiza la fila en `planteles`, la
+        // escuela-cuenta asociada (nombre/dirección/teléfono/correo) y, si el
+        // correo cambió, también el correo de acceso del usuario admin de esa
+        // cuenta (así puede seguir iniciando sesión con el nuevo correo).
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para editar planteles.']);
+        }
+
+        $id          = intval($input['id']          ?? 0);
+        $nombre      = trim($input['nombre']         ?? '');
+        $direccion   = trim($input['direccion']      ?? '');
+        $responsable = trim($input['responsable']    ?? '');
+        $tel         = trim($input['tel']            ?? '');
+        $email       = trim($input['email']          ?? '');
+
+        if (!$id || !$nombre) {
+            respond(['success' => false, 'error' => 'Faltan datos: id y nombre son obligatorios']);
+        }
+
+        $stmt = $pdo->prepare("SELECT * FROM planteles WHERE id = ?");
+        $stmt->execute([$id]);
+        $plantel = $stmt->fetch();
+        if (!$plantel) respond(['success' => false, 'error' => 'Plantel no encontrado']);
+
+        // Scope: un admin solo puede editar planteles de su propia escuela
+        if ($rol_actual === 'admin' && intval($usuario_actual['escuela_id'] ?? 0) !== intval($plantel['escuela_id'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo puedes editar planteles de tu propia escuela.']);
+        }
+
+        $escuela_plantel_id = intval($plantel['escuela_plantel_id']);
+
+        // Si se envía correo, validar que no esté en uso por otra cuenta
+        if ($email) {
+            $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ? AND escuela_id != ?");
+            $chk->execute([$email, $escuela_plantel_id]);
+            if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado en otra cuenta']);
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Tabla planteles
+            $pdo->prepare(
+                "UPDATE planteles SET nombre = ?, direccion = ?, responsable = ?, tel = ? WHERE id = ?"
+            )->execute([$nombre, $direccion, $responsable, $tel, $id]);
+
+            // 2. Escuela-cuenta del plantel
+            $sets = ['nombre = ?', 'direccion = ?', 'telefono = ?'];
+            $vals = [$nombre, $direccion, $tel];
+            if ($email) { $sets[] = 'email = ?'; $vals[] = $email; }
+            $vals[] = $escuela_plantel_id;
+            $pdo->prepare("UPDATE escuelas SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+
+            // 3. Correo de acceso del usuario admin de esa escuela-cuenta
+            if ($email) {
+                $pdo->prepare(
+                    "UPDATE usuarios SET email = ? WHERE escuela_id = ? AND rol = 'admin'"
+                )->execute([$email, $escuela_plantel_id]);
+            }
+
+            $pdo->commit();
+
+            respond([
+                'success'  => true,
+                'plantel'  => [
+                    'id'                 => $id,
+                    'escuela_id'         => intval($plantel['escuela_id']),
+                    'escuela_plantel_id' => $escuela_plantel_id,
+                    'nombre'             => $nombre,
+                    'direccion'          => $direccion,
+                    'responsable'        => $responsable,
+                    'tel'                => $tel,
+                    'activo'             => (bool)$plantel['activo'],
+                ],
+                'escuela_plantel' => [
+                    'id'        => $escuela_plantel_id,
+                    'nombre'    => $nombre,
+                    'direccion' => $direccion,
+                    'telefono'  => $tel,
+                    'email'     => $email ?: null,
+                ],
+            ]);
         } catch (Exception $e) {
             $pdo->rollBack();
             respond(['success' => false, 'error' => 'Error de BD: ' . $e->getMessage()]);
