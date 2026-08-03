@@ -189,6 +189,7 @@ function App() {
           ...base,
           escuelas:  (json.escuelas  || []).length ? json.escuelas  : (base.escuelas  || []),
           clientes:  json.clientes  || [],
+          planteles: json.planteles || [],
           familias:  json.familias  || [],
           productos: (json.productos || []).length ? json.productos : (base.productos || []),
           cobros:    json.cobros    || [],
@@ -288,6 +289,7 @@ function App() {
   const dataSegura = {
     escuelas: data.escuelas || [],
     clientes: data.clientes || [],
+    planteles: data.planteles || [],
     familias: data.familias || [],
     productos: data.productos || [],
     cobros: data.cobros || [],
