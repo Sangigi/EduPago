@@ -31,13 +31,16 @@ function Escuelas({
     nombre: '',
     direccion: '',
     responsable: '',
-    tel: ''
+    tel: '',
+    email: ''
   };
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [escuelaPltId, setEscuelaPltId] = useState(null); // escuela cuyo modal de planteles está abierto
   const [modalPlt, setModalPlt] = useState(null); // null | 'list' | 'form'
   const [formPlt, setFormPlt] = useState(EMPTY_PLT);
+  const [guardandoPlt, setGuardandoPlt] = useState(false);
+  const [errorPlt, setErrorPlt] = useState('');
   const guardar = () => {
     if (!form.nombre || !form.clave) return;
     let newEscuelas;
@@ -64,18 +67,17 @@ function Escuelas({
     setModal(null);
     setForm(EMPTY);
   };
-  const guardarPlantel = () => {
+  const guardarPlantel = async () => {
     if (!formPlt.nombre) return;
-    const planteles = data.planteles || [];
-    const escuelaPadre = (data.escuelas || []).find(e => e.id === escuelaPltId) || null;
-    let newPlanteles;
-    let newEscuelas = data.escuelas || [];
+    setErrorPlt('');
+
     if (formPlt.id) {
-      newPlanteles = planteles.map(p => p.id === formPlt.id ? {
-        ...p,
-        ...formPlt
-      } : p);
-      // Si el plantel ya tiene una escuela-cuenta asociada, sincronizamos el nombre
+      // Editar plantel existente: por ahora solo sincroniza nombre/dirección
+      // en la escuela-cuenta ya creada (el alta de la cuenta es lo que faltaba
+      // y ya se resolvió abajo, para planteles nuevos).
+      const planteles = data.planteles || [];
+      const newPlanteles = planteles.map(p => p.id === formPlt.id ? { ...p, ...formPlt } : p);
+      let newEscuelas = data.escuelas || [];
       if (formPlt.escuela_plantel_id) {
         newEscuelas = newEscuelas.map(e => e.id === formPlt.escuela_plantel_id ? {
           ...e,
@@ -83,47 +85,56 @@ function Escuelas({
           direccion: formPlt.direccion
         } : e);
       }
-    } else {
-      const nuevoId = AppModel.nextId(planteles);
-      // Creamos la escuela-cuenta del plantel: es una escuela más (por eso puede
-      // tener sus propios usuarios/login), pero queda ligada a la escuela principal
-      // vía escuela_padre_id, para que sus métricas se contabilicen en conjunto.
-      const nuevaEscuelaPlantel = {
-        id: AppModel.nextId(newEscuelas),
-        nombre: formPlt.nombre,
-        clave: (escuelaPadre?.clave || 'ESC') + '-' + nuevoId,
-        rfc: escuelaPadre?.rfc || '',
-        telefono: formPlt.tel || '',
-        email: escuelaPadre?.email || '',
-        direccion: formPlt.direccion || '',
-        logo_emoji: escuelaPadre?.logo_emoji || '',
-        plan: escuelaPadre?.plan || 'pro',
-        clabe_fija: '',
-        color: escuelaPadre?.color || '#282d65',
-        activa: true,
-        es_plantel: true,
-        escuela_padre_id: escuelaPltId,
-        fecha_alta: new Date().toISOString().slice(0, 10)
-      };
-      newEscuelas = [...newEscuelas, nuevaEscuelaPlantel];
-      const nuevo = {
-        ...formPlt,
-        id: nuevoId,
-        escuela_id: escuelaPltId,
-        escuela_plantel_id: nuevaEscuelaPlantel.id,
-        activo: true
-      };
-      newPlanteles = [...planteles, nuevo];
+      const newData = { ...data, escuelas: newEscuelas, planteles: newPlanteles };
+      setData(newData);
+      AppModel.save(newData);
+      setFormPlt(EMPTY_PLT);
+      setModalPlt('list');
+      return;
     }
-    const newData = {
-      ...data,
-      escuelas: newEscuelas,
-      planteles: newPlanteles
-    };
-    setData(newData);
-    AppModel.save(newData);
-    setFormPlt(EMPTY_PLT);
-    setModalPlt('list');
+
+    // Nuevo plantel: se crea en el servidor (escuela + planteles + usuario real)
+    if (!formPlt.email) {
+      setErrorPlt('El correo es obligatorio: con él inicia sesión la cuenta del plantel.');
+      return;
+    }
+    setGuardandoPlt(true);
+    try {
+      const res = await apiPost('crear_plantel', {
+        escuela_id: escuelaPltId,
+        nombre: formPlt.nombre,
+        direccion: formPlt.direccion,
+        responsable: formPlt.responsable,
+        tel: formPlt.tel,
+        email: formPlt.email
+      });
+      if (!res.success) {
+        setErrorPlt(res.error || 'No se pudo crear el plantel');
+        setGuardandoPlt(false);
+        return;
+      }
+      const newEscuelas = [...(data.escuelas || []), {
+        ...res.escuela_plantel,
+        rfc: '', telefono: formPlt.tel || '', email: formPlt.email,
+        direccion: formPlt.direccion || '', logo_emoji: '', clabe_fija: '',
+        color: '#282d65', plan: 'pro', fecha_alta: new Date().toISOString().slice(0, 10)
+      }];
+      const newPlanteles = [...(data.planteles || []), res.plantel];
+      const newData = { ...data, escuelas: newEscuelas, planteles: newPlanteles };
+      setData(newData);
+      AppModel.save(newData);
+      setFormPlt(EMPTY_PLT);
+      setModalPlt('list');
+      alert(
+        'Plantel creado. Cuenta de acceso:\n\n' +
+        'Correo: ' + res.cuenta.email + '\n' +
+        'Contraseña temporal: ' + res.cuenta.password_temporal +
+        '\n\nCompártela con el responsable del plantel; puede cambiarla después.'
+      );
+    } catch (e) {
+      setErrorPlt('Error de conexión al crear el plantel: ' + e.message);
+    }
+    setGuardandoPlt(false);
   };
   const togglePlantel = pid => {
     const planteles = (data.planteles || []).map(p => p.id === pid ? {
