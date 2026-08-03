@@ -19,6 +19,8 @@ function Dashboard({
   const pendientes = data.cobros.filter(c => c.estado === 'pendiente');
   const recientes = [...data.cobros].reverse().slice(0, 6);
   const totalMetodos = Object.values(stats.cobradosPorMetodo).reduce((a, b) => a + b, 0) || 1;
+  // Planteles (sub-escuelas) asociados a la escuela principal que se está viendo
+  const plantelesEscuela = escuela ? (data.planteles || []).filter(p => p.escuela_id === escuela.id) : [];
 
   // Si superadmin sin escuela seleccionada → mostrar overview global
   if (esSuper && !escuela) {
@@ -209,13 +211,22 @@ function Dashboard({
                 children: [s.nombre, !s.activa && /*#__PURE__*/_jsxDEV("span", {
                   className: "badge badge-red",
                   children: "Inactiva"
-                }, void 0, false)]
+                }, void 0, false), s.numPlanteles > 0 && /*#__PURE__*/_jsxDEV("span", {
+                  className: "badge badge-gray",
+                  title: "Planteles asociados",
+                  style: { display: 'flex', alignItems: 'center', gap: 3 },
+                  children: [/*#__PURE__*/_jsxDEV(Icon, {
+                    name: "escuelas",
+                    size: 10,
+                    color: "currentColor"
+                  }, void 0, false), s.numPlanteles]
+                }, void 0, true)]
               }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
                 style: {
                   fontSize: 12,
                   color: 'var(--ink-3)'
                 },
-                children: [s.numAlumnos, " alumnos · ", s.numCobros, " cobros"]
+                children: [s.numAlumnos, " alumnos · ", s.numCobros, " cobros", s.numPlanteles > 0 ? ` · incluye ${s.numPlanteles} plantel${s.numPlanteles > 1 ? 'es' : ''}` : '']
               }, void 0, true)]
             }, void 0, true)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -307,6 +318,60 @@ function Dashboard({
           month: 'long',
           year: 'numeric'
         })]
+      }, void 0, true)]
+    }, void 0, true), plantelesEscuela.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+      style: { marginBottom: 22 },
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 10
+        },
+        children: [/*#__PURE__*/_jsxDEV(Icon, {
+          name: "escuelas",
+          size: 14,
+          color: "var(--ink-3)"
+        }, void 0, false), /*#__PURE__*/_jsxDEV("h3", {
+          style: { fontSize: 13, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '.4px' },
+          children: ["Planteles de ", escuela.nombre, " (", plantelesEscuela.length, ")"]
+        }, void 0, true)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        style: {
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))',
+          gap: 12
+        },
+        children: plantelesEscuela.map(p => /*#__PURE__*/_jsxDEV("div", {
+          className: "card",
+          style: {
+            borderLeft: `3px solid ${escuela.color || 'var(--navy)'}`,
+            padding: '12px 14px',
+            opacity: p.activo ? 1 : .6
+          },
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 6,
+              marginBottom: 4
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { fontWeight: 700, fontSize: 13, color: 'var(--ink)' },
+              children: p.nombre
+            }, void 0, false), !p.activo && /*#__PURE__*/_jsxDEV("span", {
+              className: "badge badge-gray",
+              children: "Inactivo"
+            }, void 0, false)]
+          }, void 0, true), p.direccion && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 2 },
+            children: p.direccion
+          }, void 0, false), p.responsable && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 11, color: 'var(--ink-4)' },
+            children: ["Resp: ", p.responsable, p.tel ? ' · ' + p.tel : '']
+          }, void 0, true)]
+        }, p.id, true))
       }, void 0, true)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
       className: "stats-grid",
