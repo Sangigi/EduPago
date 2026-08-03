@@ -1,67 +1,1477 @@
 <?php
 /**
- * EduPago — Configuración Central
- * Edita este archivo al subir a Hostinger.
+ * EduPago — Backend API v4 (Segura con DB)
  */
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
 
-// ─── Credenciales Pagadetodo ──────────────────────────────────────────────────
-define('PDT_USER',         'p9E5Vdu5Ya');
-define('PDT_PASS',         'Ak63MKo#1/');
-define('PDT_INT_ID',       '124');
-define('PDT_BUS_ID_SPEI',  '000060');
-define('PDT_BUS_ID_TC',    '000060');
+header('Content-Type: application/json; charset=UTF-8');
+header('Access-Control-Allow-Origin: *'); // Cambiar a tu dominio en prod
+header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-define('DB_HOST', 'test.grupoideasmx.com');
-define('DB_NAME', 'grupoide_pagalaescuela');
-define('DB_USER', 'grupoide_leonel');
-define('DB_PASS', 'M4imvdG#O&NQ');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { 
+    http_response_code(200); 
+    exit(); 
+}
 
-// ─── URLs de Pagadetodo ───────────────────────────────────────────────────────
-define('PDT_URL_CLABE',    'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');
-define('PDT_URL_LIGA',     'https://pagadetodo.mx/Pagadetodo/Service/GenerarLigaIndi');
+function generar_token($user_id) {
+    $exp = time() + APP_TOKEN_TTL;
+    $payload = $user_id . '.' . $exp;
+    $firma = hash_hmac('sha256', $payload, APP_TOKEN_SECRET);
+    return base64_encode($payload . '.' . $firma);
+}
 
-// ─── CLABE FIJA (legado / fallback) ──────────────────────────────────────────
-// Se mantiene como respaldo, pero el sistema ahora genera una CLABE INDIVIDUAL
-// por cada alumno/familia vía PDT_URL_CLABE (GenerarClabeIndi).
-define('SPEI_CLABE_FIJA',  '646180633010000055'); // <-- Reemplazar con la CLABE real de STP
-define('SPEI_BANCO',       'STP — Sistema de Transferencias y Pagos');
-define('SPEI_BENEFICIARIO','Paga la Escuela S.A. de C.V.');
+function verificar_token_auth() {
+    global $pdo;
 
-// ─── CLABEs individuales (alta automática por alumno/familia) ────────────────
-// Cada CLABE generada se asigna y permanece ligada al alumno hasta que
-// se da de baja (deja la escuela), momento en que se libera/cancela.
-define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadetodo
-define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local de respaldo
+    // apache_request_headers() no funciona en PHP-FPM/CGI (Hostinger).
+    // Usamos múltiples fuentes para obtener el Authorization header.
+    $authHeader = '';
+    if (function_exists('apache_request_headers')) {
+        $headers    = apache_request_headers();
+        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    }
+    if (empty($authHeader)) {
+        // Fallback para CGI/FPM — requiere RewriteRule en .htaccess
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+                   ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+                   ?? '';
+    }
 
-// ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
-// IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
-// y dale a Pagadetodo la URL con ?token=ESE_TOKEN. Sin esto, cualquiera podía
-// forjar un pago SPEI llamando directo a este endpoint.
-define('WEBHOOK_SPEI_TOKEN', 'CAMBIA_ESTO_POR_UN_TOKEN_ALEATORIO_LARGO_2026');
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=CAMBIA_ESTO_POR_UN_TOKEN_ALEATORIO_LARGO_2026');
+    if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'No autorizado. Token requerido.']);
+        exit;
+    }
 
-// ─── Configuración del super-admin ───────────────────────────────────────────
-define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
-define('ADMIN_PASS',     'SuperAdmin2026!');  // Cambiar en producción
+    $decoded = base64_decode($matches[1], true);
+    $partes  = $decoded !== false ? explode('.', $decoded) : [];
 
-// ─── Logging ──────────────────────────────────────────────────────────────────
-define('API_LOG_ENABLED', true);
-define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
+    if (count($partes) !== 3) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Token inválido.']);
+        exit;
+    }
 
-// ─── Clave secreta para firmar tokens de sesión (HMAC) ───────────────────────
-// IMPORTANTE: en producción, cambia este valor por una cadena aleatoria larga
-// y única, y no la subas a un repositorio público.
-define('APP_TOKEN_SECRET', 'CAMBIA_ESTA_CLAVE_POR_UNA_ALEATORIA_Y_LARGA_EN_PRODUCCION_2026');
-define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
+    [$user_id, $exp, $firma] = $partes;
+    $firma_esperada = hash_hmac('sha256', $user_id . '.' . $exp, APP_TOKEN_SECRET);
 
-// ─── Zona horaria ────────────────────────────────────────────────────────────
-date_default_timezone_set('America/Mexico_City');
+    if (!hash_equals($firma_esperada, $firma) || intval($exp) < time()) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Token inválido o expirado.']);
+        exit;
+    }
 
-// ─── Credenciales del PAC (Ej. Facturama) ────────────────────────────────────
-// Usa las credenciales de Sandbox para desarrollo y las reales para producción.
-define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
-define('PAC_USER',    'tu_usuario_pac');
-define('PAC_PASS',    'tu_password_pac');
+    // El rol y estado se leen siempre frescos de la BD (no del token),
+    // así reflejan cualquier cambio (ej. desactivación) inmediatamente.
+    $stmt = $pdo->prepare("SELECT id, rol, escuela_id, activo FROM usuarios WHERE id = ?");
+    $stmt->execute([intval($user_id)]);
+    $usuario = $stmt->fetch();
 
-// ─── Credenciales de Facturapi ───────────────────────────────────────────────
-define('FACTURAPI_KEY', 'sk_test_oC5ZzoaR5Hvmig4maAfxbcevwPoMPNDbZHQg8s3zEr');
+    if (!$usuario || !$usuario['activo']) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Usuario no encontrado o inactivo.']);
+        exit;
+    }
+
+    // Igual que con el usuario: si su escuela fue desactivada a media sesión, se corta el acceso.
+    if ($usuario['escuela_id']) {
+        $esc = $pdo->prepare("SELECT activa FROM escuelas WHERE id = ?");
+        $esc->execute([$usuario['escuela_id']]);
+        $escuela = $esc->fetch();
+        if ($escuela && !$escuela['activa']) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Esta escuela está inactiva.']);
+            exit;
+        }
+    }
+
+    return ['user_id' => intval($usuario['id']), 'rol' => $usuario['rol'], 'escuela_id' => $usuario['escuela_id']];
+}
+
+$action = $_GET['action'] ?? '';
+$acciones_publicas = ['login', 'descargar_cfdi', 'verificar_spei']; 
+
+if (!in_array($action, $acciones_publicas)) {
+    $usuario_actual = verificar_token_auth();
+}
+
+function respond($data) {
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
+function log_api($msg) {
+    if (!API_LOG_ENABLED) return;
+    file_put_contents(API_LOG_FILE, date('Y-m-d H:i:s') . ' | ' . $msg . "\n", FILE_APPEND);
+}
+
+function curl_post($url, $payload, $headers = []) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => array_merge(['Content-Type: application/json'], $headers),
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    $result = curl_exec($ch);
+    $err    = curl_error($ch);
+    curl_close($ch);
+    return ['body' => $result, 'error' => $err];
+}
+
+$input = json_decode(file_get_contents('php://input'), true) ?? [];
+
+switch ($action) {
+
+    case 'login':
+        $email = trim($input['email'] ?? '');
+        $pass  = $input['password'] ?? '';
+
+        if (!$email || !$pass) respond(['success' => false, 'error' => 'Faltan credenciales']);
+
+        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id, familia_id FROM usuarios WHERE email = ? AND activo = 1");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        $credenciales_ok = false;
+        if ($user) {
+            $hash_guardado = $user['password_hash'];
+            $es_hash_real  = strlen($hash_guardado) > 0 && (substr($hash_guardado, 0, 4) === '$2y$' || substr($hash_guardado, 0, 4) === '$2a$');
+
+            if ($es_hash_real) {
+                // Caso normal: contraseña ya migrada a hash bcrypt
+                $credenciales_ok = password_verify($pass, $hash_guardado);
+            } elseif ($pass === $hash_guardado) {
+                // Compatibilidad con cuentas viejas en texto plano:
+                // si coincide, se acepta UNA vez y de inmediato se migra a hash real.
+                $credenciales_ok = true;
+                $nuevo_hash = password_hash($pass, PASSWORD_BCRYPT);
+                $pdo->prepare("UPDATE usuarios SET password_hash = ? WHERE id = ?")->execute([$nuevo_hash, $user['id']]);
+            }
+        }
+
+        if ($credenciales_ok) {
+            // Si el usuario pertenece a una escuela, verificar que esté activa.
+            // (superadmin no tiene escuela_id, así que nunca se bloquea por esto)
+            if ($user['escuela_id']) {
+                $esc = $pdo->prepare("SELECT activa FROM escuelas WHERE id = ?");
+                $esc->execute([$user['escuela_id']]);
+                $escuela = $esc->fetch();
+                if ($escuela && !$escuela['activa']) {
+                    respond(['success' => false, 'error' => 'Esta escuela está inactiva. Contacta al administrador.']);
+                }
+            }
+
+            $token = generar_token($user['id']);
+            respond([
+                'success' => true, 
+                'user' => [
+                    'id'         => $user['id'],
+                    'nombre'     => $user['nombre'],
+                    'email'      => $user['email'],
+                    'rol'        => $user['rol'],
+                    'escuela_id' => $user['escuela_id'],
+                    'familia_id' => $user['familia_id'] ? intval($user['familia_id']) : null,
+                    'token'      => $token
+                ]
+            ]);
+        }
+        respond(['success' => false, 'error' => 'Credenciales incorrectas']);
+    break;
+
+    case 'generar_clabe_individual':
+        $alumno_id  = trim($input['alumno_id']  ?? '');
+        $matricula  = trim($input['matricula']  ?? '');
+        $nombre     = trim($input['nombre']     ?? '');
+        $email      = trim($input['email']      ?? '');
+
+        if (!$alumno_id || !$nombre) respond(['success' => false, 'error' => 'alumno_id y nombre son requeridos']);
+
+        $account = $matricula !== '' ? $matricula : ('AL-' . str_pad($alumno_id, 9, '0', STR_PAD_LEFT));
+
+        $payload = [
+            'User'           => PDT_USER,
+            'Password'       => PDT_PASS,
+            'IntegrationID'  => PDT_INT_ID,
+            'BusinessID'     => PDT_BUS_ID_SPEI,
+            'Description'    => substr("EduPago - {$nombre}", 0, 40),
+            'Account'        => $account,
+            'CustomerEmail'  => $email ?: 'sin-correo@edupago.mx',
+            'CustomerName'   => substr($nombre, 0, 60),
+            'ExpirationDate' => date('Y-m-d', strtotime('+' . SPEI_CLABE_EXPIRACION_DIAS . ' days')),
+        ];
+
+        $res = curl_post(PDT_URL_CLABE, $payload);
+        if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
+
+        $raw = json_decode($res['body'], true) ?? [];
+        $clabe = $raw['Clabe'] ?? $raw['clabe'] ?? null;
+
+        if (!$clabe) respond(['success' => false, 'error' => 'Pagadetodo no devolvió una CLABE']);
+
+        // ── Guardar CLABE en Base de Datos ──
+        try {
+            $stmt = $pdo->prepare("UPDATE clientes SET clabe_individual = ?, clabe_individual_estado = 'activa', clabe_individual_fecha = CURRENT_DATE WHERE id = ?");
+            $stmt->execute([$clabe, $alumno_id]);
+        } catch (\PDOException $e) {
+            log_api("ERROR DB GenerarClabe: " . $e->getMessage());
+        }
+
+        respond([
+            'success'      => true,
+            'clabe'        => $clabe,
+            'banco'        => SPEI_BANCO,
+            'beneficiario' => SPEI_BENEFICIARIO,
+            'account'      => $account,
+        ]);
+    break;
+
+    case 'liberar_clabe_individual':
+        $clabe     = trim($input['clabe']     ?? '');
+        $alumno_id = trim($input['alumno_id'] ?? '');
+
+        if (!$clabe) respond(['success' => false, 'error' => 'clabe requerida']);
+
+        // ── Liberar CLABE en Base de Datos ──
+        try {
+            $stmt = $pdo->prepare("UPDATE clientes SET clabe_individual_estado = 'liberada' WHERE clabe_individual = ? AND id = ?");
+            $stmt->execute([$clabe, $alumno_id]);
+        } catch (\PDOException $e) {
+            respond(['success' => false, 'error' => 'Error de BD al liberar CLABE']);
+        }
+
+        respond(['success' => true, 'mensaje' => 'CLABE liberada']);
+    break;
+
+    case 'verificar_spei':
+        $referencia = strtoupper(trim($input['referencia'] ?? ''));
+        if (!$referencia) respond(['success' => false, 'error' => 'Referencia requerida']);
+
+        // Solo verificar cobros que siguen pendientes — evita falsos positivos del polling
+        // cuando el cobro ya fue marcado como pagado manualmente antes.
+        $stmt = $pdo->prepare("SELECT id, estado, total, auth_code FROM cobros WHERE referencia = ? AND estado = 'pendiente'");
+        $stmt->execute([$referencia]);
+        $cobro_pendiente = $stmt->fetch();
+
+        if ($cobro_pendiente) {
+            // Revisar si llegó el pago en pagos_spei.json (webhook/simulacion)
+            $archivo = __DIR__ . '/pagos_spei.json';
+            $pagos   = file_exists($archivo) ? (json_decode(file_get_contents($archivo), true) ?? []) : [];
+            $pago    = $pagos[strtoupper($referencia)] ?? null;
+            if ($pago && !empty($pago['pagado'])) {
+                respond([
+                    'success'       => true,
+                    'pagado'        => true,
+                    'monto_pesos'   => $pago['monto_pesos'] ?? $cobro_pendiente['total'],
+                    'clave_rastreo' => $pago['clave_rastreo'] ?? null,
+                    'autorizacion'  => $pago['autorizacion']  ?? null,
+                ]);
+            }
+        }
+        respond(['success' => true, 'pagado' => false]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 3. SIMULAR PAGO SPEI (para testing sin webhook real)
+    //    Acepta clabe_destino opcional para simular un depósito a la CLABE
+    //    individual del alumno (si no se manda, usa la CLABE fija legado).
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'simular_spei':
+        $referencia    = strtoupper(trim($input['referencia'] ?? ''));
+        $monto         = intval(floatval($input['monto'] ?? 0) * 100);
+        $emisor        = $input['emisor'] ?? 'PADRE DE FAMILIA DEMO';
+        $clabe_destino = trim($input['clabe_destino'] ?? '') ?: SPEI_CLABE_FIJA;
+
+        if (!$referencia || $monto <= 0) {
+            respond(['success' => false, 'error' => 'referencia y monto requeridos']);
+        }
+
+        $archivo  = __DIR__ . '/pagos_spei.json';
+        $fp       = fopen($archivo, 'c+');
+        flock($fp, LOCK_EX);
+        $contenido = stream_get_contents($fp);
+        $pagos     = $contenido ? (json_decode($contenido, true) ?? []) : [];
+
+        $autorizacion = rand(10000000, 99999999);
+        $pagos[$referencia] = [
+            'concepto'       => $referencia,
+            'concepto_raw'   => $referencia,
+            'clabe_destino'  => $clabe_destino,
+            'monto'          => $monto,
+            'monto_pesos'    => number_format($monto / 100, 2),
+            'clave_rastreo'  => 'SIM-' . date('YmdHis'),
+            'autorizacion'   => $autorizacion,
+            'nombre_emisor'  => $emisor,
+            'fecha'          => date('Y-m-d'),
+            'recibido_en'    => date('Y-m-d H:i:s'),
+            'pagado'         => true,
+            'simulado'       => true,
+        ];
+
+        rewind($fp);
+        ftruncate($fp, 0);
+        fwrite($fp, json_encode($pagos, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        flock($fp, LOCK_UN);
+        fclose($fp);
+
+        log_api("simular_spei -> ref={$referencia} clabe={$clabe_destino} monto=" . number_format($monto/100,2));
+        respond(['success' => true, 'autorizacion' => $autorizacion, 'mensaje' => 'Pago simulado OK']);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 4. GENERAR LIGA TARJETA (sin cambios)
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'generar_liga':
+        $folio       = $input['folio']       ?? 'COB-0000';
+        $total       = floatval($input['total'] ?? 0);
+        $descripcion = $input['descripcion'] ?? 'Pago escolar';
+
+        if ($total < 10) respond(['success' => false, 'error' => 'Monto mínimo $10.00']);
+
+        $ts      = intval(substr(time(), -6));
+        $rand    = rand(100, 999);
+        $base    = $ts . $rand;
+        $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
+        $ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
+
+        $payload = [
+            'User'          => PDT_USER,
+            'Password'      => PDT_PASS,
+            'IntegrationID' => PDT_INT_ID,
+            'BusinessID'    => PDT_BUS_ID_TC,
+            'PaymentTypes'  => '401',
+            'Id'            => $id_pago,
+            'Description'   => substr($descripcion, 0, 40),
+            'Amount'        => intval($total * 100),
+            'Reference'     => $ref,
+            'ExpirationDate'=> date('Y-m-d', strtotime('+1 day')),
+        ];
+
+        log_api("generar_liga -> folio={$folio} total={$total}");
+        $res = curl_post(PDT_URL_LIGA, $payload);
+
+        if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
+
+        $raw  = json_decode($res['body'], true) ?? [];
+        $data_resp = [];
+        foreach ($raw as $k => $v) { $data_resp[trim($k)] = $v; }
+
+        $url_pago = $data_resp['url'] ?? $data_resp['Url'] ?? $data_resp['URL'] ?? null;
+        if (!$url_pago) {
+            respond(['success' => false, 'error' => 'Sin URL de pago', 'raw' => $data_resp]);
+        }
+
+        respond([
+            'success'    => true,
+            'url'        => $url_pago,
+            'referencia' => $ref,
+            'qr_url'     => 'https://api.qrserver.com/v2/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
+        ]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 5. GENERAR CFDI (mock — conectar a PAC real en producción)
+    //    Estructura real de CFDI 4.0. Listo para Facturama / SW SAPiens / etc.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'generar_cfdi':
+        $cobro_id    = $input['cobro_id']    ?? '';
+        $rfc         = strtoupper(trim($input['rfc'] ?? ''));
+        $razon       = strtoupper(trim($input['razon_social'] ?? ''));
+        $uso         = $input['uso_cfdi']    ?? 'D10';
+        $regimen     = $input['regimen']     ?? '616';
+        $email       = $input['email']       ?? '';
+        $total       = floatval($input['total']   ?? 0);
+        // OJO: usar ?? no basta, porque si el frontend manda "" (cadena vacía),
+        // ?? NO la reemplaza (solo actúa cuando es null/no existe), y Facturapi
+        // rechaza con "items[0].product.description is not allowed to be empty".
+        $descripcion = trim($input['descripcion'] ?? '');
+        if ($descripcion === '') {
+            $descripcion = 'Servicios educativos';
+        }
+        
+        // CFDI 4.0 exige el Código Postal del receptor. 
+        // Si no lo pides en el frontend, Facturapi arrojará error si no coincide con el RFC.
+        $cp_receptor = $input['cp_receptor'] ?? '97000'; 
+
+        if (!$rfc || !$razon || $total <= 0) {
+            respond(['success' => false, 'error' => 'RFC, razón social y total son requeridos']);
+        }
+
+        // 1. Estructuramos el payload para Facturapi
+        // Facturapi calcula automáticamente el subtotal e IVA a partir del precio final
+        // si le indicas que el precio incluye impuestos, o puedes enviarlo desglosado.
+        // Aquí enviamos el subtotal y le decimos que agregue el IVA del 16%.
+        $subtotal = round($total / 1.16, 2);
+
+        // Domicilio fiscal: Facturapi CFDI 4.0 requiere customer.address.zip
+        // Poner "zip" en el root del customer produce "customer.address is required"
+        $domicilio = $input['domicilio'] ?? '';
+        $customer_address = [
+            "zip"     => $cp_receptor,
+            "country" => "MEX"
+        ];
+        if ($domicilio) {
+            $customer_address["street"] = $domicilio;
+        }
+
+        $payload_facturapi = [
+            "customer" => [
+                "legal_name" => $razon,
+                "tax_id"     => $rfc,
+                "tax_system" => $regimen,
+                "address"    => $customer_address,
+                "email"      => $email ?: null
+            ],
+            "items" => [
+                [
+                    "quantity" => 1,
+                    "product" => [
+                        "description" => $descripcion,
+                        "product_key" => "86101800", // Servicios educativos
+                        "price"       => $subtotal,
+                        "taxes"       => [
+                            [
+                                "type" => "IVA",
+                                "rate" => 0.16
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "use"          => $uso,
+            "payment_form" => "03", // Transferencia electrónica
+            "payment_method" => "PUE"
+        ];
+
+        // 2. Ejecutamos la petición cURL a Facturapi
+        $ch = curl_init('https://www.facturapi.io/v2/invoices');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . FACTURAPI_KEY
+            ],
+            CURLOPT_POSTFIELDS     => json_encode($payload_facturapi),
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false, // Cambiar a true en producción estricta
+        ]);
+
+        $result = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($err) {
+            log_api("ERROR cURL Facturapi: " . $err);
+            respond(['success' => false, 'error' => 'Error de red al contactar al PAC.']);
+        }
+
+        $response_data = json_decode($result, true);
+
+        // 3. Manejo de la respuesta
+        if ($http_code >= 200 && $http_code < 300 && isset($response_data['id'])) {
+            
+            $uuid = $response_data['uuid'] ?? 'PENDIENTE';
+
+            // Guardar datos fiscales en el cliente para pre-rellenar en futuros CFDIs
+            if ($cobro_id) {
+                $cobro_row = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
+                $cobro_row->execute([$cobro_id]);
+                $cr = $cobro_row->fetch();
+                if ($cr && $cr['cliente_id']) {
+                    $pdo->prepare(
+                        "UPDATE clientes SET
+                            rfc_factura           = ?,
+                            razon_social_factura  = ?,
+                            cp_factura            = ?,
+                            domicilio_factura     = ?,
+                            regimen_factura       = ?,
+                            uso_cfdi_defecto      = ?
+                         WHERE id = ?"
+                    )->execute([$rfc, $razon, $cp_receptor, $domicilio, $regimen, $uso, $cr['cliente_id']]);
+                }
+                // Marcar cobro como facturado
+                $pdo->prepare("UPDATE cobros SET factura = 1 WHERE id = ?")->execute([$cobro_id]);
+            }
+
+            log_api("generar_cfdi -> EXITOSO cobro:{$cobro_id} uuid:{$uuid}");
+
+            respond([
+                'success'        => true,
+                'facturapi_id'   => $response_data['id'],
+                'uuid'           => $uuid,
+                'folio_fiscal'   => $uuid,
+                'serie'          => 'F',
+                'folio'          => $response_data['folio_number'] ?? '',
+                'fecha_timbrado' => $response_data['created_at'] ?? date('Y-m-d\TH:i:s'),
+                'subtotal'       => $subtotal,
+                'iva'            => round($total - $subtotal, 2),
+                'total'          => $total,
+                // Facturapi permite descargar el XML con una URL pública si configuras tu cuenta,
+                // o haciendo un GET a https://www.facturapi.io/v2/invoices/{id}/xml
+                'xml'            => '',
+                'qr_url'         => 'https://api.qrserver.com/v2/create-qr-code/?size=200x200&data=' . urlencode($response_data['verification_url'] ?? ''),
+                'nota'           => 'Timbrado exitoso con Facturapi.',
+            ]);
+
+        } else {
+            // Error devuelto por Facturapi (ej. CP no coincide con RFC)
+            $mensaje_error = $response_data['message'] ?? 'Error desconocido al timbrar';
+            log_api("ERROR Facturapi: " . $result);
+            respond(['success' => false, 'error' => $mensaje_error]);
+        }
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 6. DESCARGAR CFDI (XML o PDF) DESDE FACTURAPI
+    //    Hace proxy del binario para que el navegador lo descargue directamente.
+    //    Uso: GET api.php?action=descargar_cfdi&id={facturapi_id}&tipo=xml|pdf
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'descargar_cfdi':
+        $facturapi_id = trim($_GET['id'] ?? '');
+        $tipo         = strtolower(trim($_GET['tipo'] ?? 'pdf'));
+
+        if (!$facturapi_id) {
+            respond(['success' => false, 'error' => 'ID de Facturapi requerido']);
+        }
+        if (!in_array($tipo, ['xml', 'pdf'])) {
+            respond(['success' => false, 'error' => 'tipo debe ser xml o pdf']);
+        }
+
+        $url_facturapi = "https://www.facturapi.io/v2/invoices/{$facturapi_id}/{$tipo}";
+
+        $ch = curl_init($url_facturapi);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . FACTURAPI_KEY
+            ],
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_FOLLOWLOCATION => true,
+        ]);
+
+        $binary   = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err       = curl_error($ch);
+        curl_close($ch);
+
+        if ($err) {
+            respond(['success' => false, 'error' => 'Error de red: ' . $err]);
+        }
+
+        if ($http_code !== 200) {
+            // Facturapi devolvió un error JSON — lo relay como JSON
+            header('Content-Type: application/json; charset=UTF-8');
+            $decoded = json_decode($binary, true);
+            $msg = $decoded['message'] ?? "Facturapi respondió HTTP {$http_code}";
+            respond(['success' => false, 'error' => $msg]);
+        }
+
+        // Éxito: stream the file to the browser
+        // Reemplaza el Content-Type JSON que se mandó al inicio del archivo
+        header_remove('Content-Type');
+        $mime     = ($tipo === 'pdf') ? 'application/pdf' : 'application/xml; charset=UTF-8';
+        $filename = "cfdi-{$facturapi_id}.{$tipo}";
+        header("Content-Type: {$mime}");
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        header('Content-Length: ' . strlen($binary));
+        header('Cache-Control: no-cache, must-revalidate');
+
+        log_api("descargar_cfdi -> id={$facturapi_id} tipo={$tipo} http={$http_code}");
+        echo $binary;
+        exit;
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'cargar_datos':
+        // Carga el estado completo del usuario actual desde la DB
+        // Respeta el scope: superadmin ve todo, admin/cajero/familia ven su escuela
+
+        $rol       = $usuario_actual['rol']       ?? 'cajero';
+        $user_id   = $usuario_actual['user_id']   ?? 0;
+        $escuela_id_usuario = null;
+
+        // Obtener escuela_id del usuario en la DB
+        $su = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+        $su->execute([$user_id]);
+        $urow = $su->fetch();
+        if ($urow) {
+            $escuela_id_usuario = $urow['escuela_id'];
+            $rol = $urow['rol'];
+        }
+
+        // ── Escuelas ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM escuelas ORDER BY id");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ?");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $escuelas = $stmt->fetchAll();
+
+        // ── Clientes (alumnos) ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM clientes ORDER BY escuela_id, nombre");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE escuela_id = ? ORDER BY nombre");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $clientes_raw = $stmt->fetchAll();
+        $clientes = array_map(function($c) {
+            $c['activo']          = (bool)$c['activo'];
+            $c['saldo_pendiente'] = floatval($c['saldo_pendiente']);
+            $c['familia_id']      = $c['familia_id'] ? intval($c['familia_id']) : null;
+            return $c;
+        }, $clientes_raw);
+
+        // ── Familias ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM familias ORDER BY escuela_id, nombre");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM familias WHERE escuela_id = ? ORDER BY nombre");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $familias_raw = $stmt->fetchAll();
+        $familias = array_map(function($f) {
+            $f['activa'] = (bool)$f['activa'];
+            return $f;
+        }, $familias_raw);
+
+        // ── Productos ──
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query("SELECT * FROM productos ORDER BY escuela_id, nombre");
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM productos WHERE escuela_id = ? ORDER BY nombre");
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $productos_raw = $stmt->fetchAll();
+        $productos = array_map(function($p) {
+            $p['activo'] = (bool)$p['activo'];
+            $p['precio'] = floatval($p['precio']);
+            return $p;
+        }, $productos_raw);
+
+        // ── Cobros (últimos 90 días para no sobrecargar) ──
+        // Se incluye LEFT JOIN con clientes para traer el nombre (alias "cliente"),
+        // ya que el frontend (Dashboard.js, Cobros.js) espera c.cliente como string.
+        if ($rol === 'superadmin') {
+            $stmt = $pdo->query(
+                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+                 FROM cobros co
+                 LEFT JOIN clientes cl ON cl.id = co.cliente_id
+                 WHERE co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                 ORDER BY co.id DESC"
+            );
+        } else {
+            $stmt = $pdo->prepare(
+                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+                 FROM cobros co
+                 LEFT JOIN clientes cl ON cl.id = co.cliente_id
+                 WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                 ORDER BY co.id DESC"
+            );
+            $stmt->execute([$escuela_id_usuario]);
+        }
+        $cobros_raw = $stmt->fetchAll();
+        $cobros = array_map(function($c) {
+            $c['total']   = floatval($c['total']);
+            $c['factura'] = (bool)$c['factura'];
+            $c['cliente'] = $c['cliente'] ?? 'Cliente general';
+            return $c;
+        }, $cobros_raw);
+
+        respond([
+            'success'   => true,
+            'escuelas'  => $escuelas,
+            'clientes'  => $clientes,
+            'familias'  => $familias,
+            'productos' => $productos,
+            'cobros'    => $cobros,
+        ]);
+    break;
+
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_cobro':
+        $escuela_id  = intval($input['escuela_id']  ?? 0);
+        $cliente_id  = intval($input['cliente_id']  ?? 0) ?: null;
+        $metodo      = trim($input['metodo']         ?? '');
+        $referencia  = trim($input['referencia']     ?? '');
+        $carrito     = $input['carrito']             ?? [];
+        $sucursal_id = intval($input['sucursal_id']  ?? 0) ?: null;
+        $caja_id_pos = intval($input['caja_id']      ?? 0) ?: null;
+
+        if (!$escuela_id || !$metodo || empty($carrito)) {
+            respond(['success' => false, 'error' => 'Faltan datos del cobro']);
+        }
+
+        // Calcular total desde el carrito
+        $total = 0;
+        foreach ($carrito as $item) {
+            $total += floatval($item['precio'] ?? 0) * intval($item['qty'] ?? 1);
+        }
+
+        // Generar folio: CLA-ESC{esc_id}-{timestamp}
+        $stmt = $pdo->prepare("SELECT clave FROM escuelas WHERE id = ?");
+        $stmt->execute([$escuela_id]);
+        $esc = $stmt->fetch();
+        $clave = $esc ? $esc['clave'] : 'ESC';
+
+        $stmt = $pdo->prepare("SELECT COUNT(*) as n FROM cobros WHERE escuela_id = ?");
+        $stmt->execute([$escuela_id]);
+        $row = $stmt->fetch();
+        $n = intval($row['n'] ?? 0) + 1;
+        $folio = $clave . '-' . str_pad($n, 4, '0', STR_PAD_LEFT);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO cobros (escuela_id, cliente_id, folio, total, metodo, estado, fecha, referencia, sucursal_id, caja_id)
+             VALUES (?, ?, ?, ?, ?, 'pendiente', CURDATE(), ?, ?, ?)"
+        );
+        $stmt->execute([$escuela_id, $cliente_id, $folio, $total, $metodo, $referencia, $sucursal_id, $caja_id_pos]);
+        $cobro_id = $pdo->lastInsertId();
+
+        // Obtener nombre del cliente y recalcular su saldo_pendiente
+        $cliente_nombre = 'Cliente general';
+        if ($cliente_id) {
+            $s2 = $pdo->prepare("SELECT nombre FROM clientes WHERE id = ?");
+            $s2->execute([$cliente_id]);
+            $cl = $s2->fetch();
+            if ($cl) $cliente_nombre = $cl['nombre'];
+
+            // Recalcular saldo_pendiente desde cobros (fuente de verdad)
+            $pdo->prepare(
+                "UPDATE clientes SET saldo_pendiente = (
+                    SELECT COALESCE(SUM(total), 0) FROM cobros
+                    WHERE cliente_id = ? AND estado = 'pendiente'
+                ) WHERE id = ?"
+            )->execute([$cliente_id, $cliente_id]);
+        }
+        $nuevo_saldo_crear = 0;
+        if ($cliente_id) {
+            $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
+            $rs->execute([$cliente_id]);
+            $nuevo_saldo_crear = floatval($rs->fetchColumn());
+        }
+
+        respond([
+            'success' => true,
+            'cobro' => [
+                'id'         => intval($cobro_id),
+                'folio'      => $folio,
+                'escuela_id' => $escuela_id,
+                'cliente_id' => $cliente_id,
+                'cliente'    => $cliente_nombre,
+                'total'      => $total,
+                'metodo'     => $metodo,
+                'estado'     => 'pendiente',
+                'referencia' => $referencia,
+                'fecha'      => date('Y-m-d'),
+                'items'      => $carrito,
+            ],
+            'cliente_id'  => $cliente_id,
+            'nuevo_saldo' => $nuevo_saldo_crear,
+        ]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'confirmar_pago':
+        $cobro_id  = intval($input['cobro_id']  ?? 0);
+        $auth_code = trim($input['auth_code']   ?? '');
+        $transaccion = trim($input['transaccion'] ?? '');
+
+        if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+
+        $extra_auth = $auth_code ?: $transaccion ?: null;
+
+        $stmt = $pdo->prepare(
+            "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code) WHERE id = ?"
+        );
+        $stmt->execute([$extra_auth, $cobro_id]);
+
+        // Recalcular saldo_pendiente del cliente vinculado
+        $cob = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
+        $cob->execute([$cobro_id]);
+        $cob_row = $cob->fetch();
+        $nuevo_saldo = 0; $cliente_id_afectado = null;
+        if (!empty($cob_row['cliente_id'])) {
+            $cliente_id_afectado = intval($cob_row['cliente_id']);
+            $pdo->prepare(
+                "UPDATE clientes SET saldo_pendiente = (
+                    SELECT COALESCE(SUM(total), 0) FROM cobros
+                    WHERE cliente_id = ? AND estado = 'pendiente'
+                ) WHERE id = ?"
+            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
+            $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
+            $rs->execute([$cliente_id_afectado]);
+            $nuevo_saldo = floatval($rs->fetchColumn());
+        }
+        respond(['success' => true, 'cobro_id' => $cobro_id, 'estado' => 'pagado',
+                 'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'cancelar_cobro':
+        $cobro_id = intval($input['cobro_id'] ?? 0);
+        if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+
+        $stmt = $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?");
+        $stmt->execute([$cobro_id]);
+
+        // Recalcular saldo_pendiente del cliente vinculado
+        $cob = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
+        $cob->execute([$cobro_id]);
+        $cob_row = $cob->fetch();
+        $nuevo_saldo = 0; $cliente_id_afectado = null;
+        if (!empty($cob_row['cliente_id'])) {
+            $cliente_id_afectado = intval($cob_row['cliente_id']);
+            $pdo->prepare(
+                "UPDATE clientes SET saldo_pendiente = (
+                    SELECT COALESCE(SUM(total), 0) FROM cobros
+                    WHERE cliente_id = ? AND estado = 'pendiente'
+                ) WHERE id = ?"
+            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
+            $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
+            $rs->execute([$cliente_id_afectado]);
+            $nuevo_saldo = floatval($rs->fetchColumn());
+        }
+        respond(['success' => true, 'cobro_id' => $cobro_id,
+                 'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_cliente':
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $nombre     = trim($input['nombre']       ?? '');
+        $matricula  = trim($input['matricula']    ?? '') ?: null;
+        $grado      = trim($input['grado']        ?? '') ?: null;
+        $curp       = trim($input['curp']         ?? '') ?: null;
+        $email      = trim($input['email']        ?? '') ?: null;
+        $tel        = trim($input['tel']          ?? '') ?: null;
+        $familia_id = intval($input['familia_id'] ?? 0) ?: null;
+        $tipo       = in_array($input['tipo'] ?? '', ['alumno','general']) ? $input['tipo'] : 'alumno';
+
+        if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO clientes (escuela_id, familia_id, tipo, nombre, grado, matricula, curp, email, telefono, activo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+        );
+        $stmt->execute([$escuela_id, $familia_id, $tipo, $nombre, $grado, $matricula, $curp, $email, $tel]);
+        $id = intval($pdo->lastInsertId());
+
+        respond(['success' => true, 'cliente' => array_merge($input, ['id' => $id, 'activo' => true, 'saldo_pendiente' => 0])]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_cliente':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id'];
+        $sets = []; $vals = [];
+        foreach ($campos as $c) {
+            if (array_key_exists($c, $input)) {
+                $sets[] = "`$c` = ?";
+                // Usar array_key_exists + isset para respetar null explícito
+                // (ej: familia_id: null al desvincular un alumno)
+                $vals[] = isset($input[$c]) ? $input[$c] : null;
+            }
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+
+        $vals[] = $id;
+        $stmt = $pdo->prepare("UPDATE clientes SET " . implode(', ', $sets) . " WHERE id = ?");
+        $stmt->execute($vals);
+
+        // Regresar el registro actualizado real de la DB (no $input parcial)
+        $stmt2 = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
+        $stmt2->execute([$id]);
+        $clienteActualizado = $stmt2->fetch(PDO::FETCH_ASSOC);
+        $clienteActualizado['familia_id'] = $clienteActualizado['familia_id'] ? intval($clienteActualizado['familia_id']) : null;
+        $clienteActualizado['activo']     = (bool)$clienteActualizado['activo'];
+
+        respond(['success' => true, 'cliente' => $clienteActualizado]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_cliente_activo':
+        $id     = intval($input['id']     ?? 0);
+        $activo = $input['activar'] ? 1 : 0;
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $stmt = $pdo->prepare("UPDATE clientes SET activo = ? WHERE id = ?");
+        $stmt->execute([$activo, $id]);
+
+        respond(['success' => true, 'cliente' => ['id' => $id, 'activo' => (bool)$activo]]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_familia':
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $nombre     = trim($input['nombre']       ?? '');
+        $contacto   = trim($input['contacto']     ?? '') ?: null;
+        $email      = trim($input['email']        ?? '') ?: null;
+        $tel        = trim($input['telefono']     ?? '') ?: null;
+
+        if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO familias (escuela_id, nombre, contacto, email, telefono, activa) VALUES (?,?,?,?,?,1)"
+        );
+        $stmt->execute([$escuela_id, $nombre, $contacto, $email, $tel]);
+        $id = intval($pdo->lastInsertId());
+
+        respond(['success' => true, 'familia' => array_merge($input, ['id' => $id, 'activa' => true])]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_familia':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $campos = ['nombre','contacto','email','telefono'];
+        $sets = []; $vals = [];
+        foreach ($campos as $c) {
+            if (array_key_exists($c, $input)) {
+                $sets[] = "`$c` = ?";
+                $vals[] = $input[$c] ?: null;
+            }
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+
+        $vals[] = $id;
+        $stmt = $pdo->prepare("UPDATE familias SET " . implode(', ', $sets) . " WHERE id = ?");
+        $stmt->execute($vals);
+
+        respond(['success' => true, 'familia' => $input]);
+    break;
+
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'listar_usuarios':
+        $rol_actual = $usuario_actual['rol']       ?? '';
+        $esc_actual = $usuario_actual['escuela_id'] ?? null;
+
+        if ($rol_actual === 'superadmin') {
+            $stmt = $pdo->query(
+                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                        u.familia_id, u.creado_por,
+                        e.nombre AS escuela_nombre
+                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                 ORDER BY u.rol, u.nombre"
+            );
+        } else {
+            $stmt = $pdo->prepare(
+                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                        u.familia_id, u.creado_por,
+                        e.nombre AS escuela_nombre
+                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                 WHERE u.escuela_id = ? AND u.rol != 'superadmin'
+                 ORDER BY u.rol, u.nombre"
+            );
+            $stmt->execute([$esc_actual]);
+        }
+        $usuarios = $stmt->fetchAll();
+        respond(['success' => true, 'usuarios' => $usuarios]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_usuario':
+        $nombre    = trim($input['nombre']     ?? '');
+        $email     = trim($input['email']      ?? '');
+        $password  = trim($input['password']   ?? '');
+        $rol       = trim($input['rol']        ?? '');
+        $esc_id    = intval($input['escuela_id'] ?? 0) ?: null;
+        $fam_id    = intval($input['familia_id'] ?? 0) ?: null;
+        $rol_actual = $usuario_actual['rol'] ?? '';
+
+        $roles_validos = ['admin','cajero','familia'];
+        if ($rol_actual === 'superadmin') $roles_validos[] = 'superadmin';
+        if (!$nombre || !$email || !$password || !in_array($rol, $roles_validos)) {
+            respond(['success' => false, 'error' => 'Datos incompletos o rol no permitido']);
+        }
+        // Verificar email único
+        $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chk->execute([$email]);
+        if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
+
+        $creado_por = $usuario_actual["id"] ?? null;
+        $stmt = $pdo->prepare(
+            "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, familia_id, creado_por)"
+            . " VALUES (?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
+        );
+        $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol, $fam_id, $creado_por]);
+        $id = intval($pdo->lastInsertId());
+        respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_usuario':
+        $id       = intval($input['id']    ?? 0);
+        $nombre   = trim($input['nombre']  ?? '');
+        $email    = trim($input['email']   ?? '');
+        $password = trim($input['password'] ?? '');
+        $rol      = trim($input['rol']     ?? '');
+        $esc_id   = intval($input['escuela_id'] ?? 0) ?: null;
+        // familia_id puede enviarse como null explícitamente (limpiar vínculo) o como entero
+        $fam_id_raw = $input['familia_id'] ?? '__NO_ENVIADO__';
+        $fam_id   = ($fam_id_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (intval($fam_id_raw) ?: null);
+
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $sets = []; $vals = [];
+        if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
+        if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }
+        if ($password) { $sets[] = 'password_hash = ?';  $vals[] = password_hash($password, PASSWORD_BCRYPT); }
+        if ($rol)      { $sets[] = 'rol = ?';            $vals[] = $rol; }
+        if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
+        if ($fam_id !== '__NO_ENVIADO__') { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
+
+        if ($sets) {
+            $vals[] = $id;
+            $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        }
+        // Re-leer el usuario actualizado para devolverlo completo
+        $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por FROM usuarios u WHERE u.id = ?");
+        $stmt->execute([$id]);
+        $usuarioActualizado = $stmt->fetch();
+        respond(['success' => true, 'usuario' => $usuarioActualizado]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_usuario':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
+        $stmt->execute([$id]);
+        respond(['success' => true]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'eliminar_usuario':
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
+        respond(['success' => true]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_escuela':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if ($rol_actual !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede activar/desactivar escuelas.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $stmt = $pdo->prepare("UPDATE escuelas SET activa = NOT activa WHERE id = ?");
+        $stmt->execute([$id]);
+
+        $stmt = $pdo->prepare("SELECT activa FROM escuelas WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if (!$row) respond(['success' => false, 'error' => 'Escuela no encontrada']);
+
+        respond(['success' => true, 'activa' => (bool) $row['activa']]);
+    break;
+
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // POOL DE CLABEs SPEI
+    // ══════════════════════════════════════════════════════════════════════════
+
+    case 'importar_clabes':
+        // Recibe: { escuela_id, clabes: ["646180...", "646180...", ...] }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $clabes     = $input['clabes'] ?? [];
+
+        if (!$escuela_id || empty($clabes)) {
+            respond(['success' => false, 'error' => 'escuela_id y clabes[] son requeridos']);
+        }
+        // Verificar que la escuela existe
+        $chk = $pdo->prepare("SELECT id FROM escuelas WHERE id = ?");
+        $chk->execute([$escuela_id]);
+        if (!$chk->fetch()) respond(['success' => false, 'error' => 'Escuela no encontrada']);
+
+        $insertadas = 0;
+        $duplicadas = 0;
+        $stmt = $pdo->prepare(
+            "INSERT IGNORE INTO clabe_pool (escuela_id, clabe, estado, fecha_alta)
+             VALUES (?, ?, 'libre', CURDATE())"
+        );
+        foreach ($clabes as $clabe) {
+            $clabe = preg_replace('/\s+/', '', trim($clabe)); // quitar espacios
+            if (!preg_match('/^\d{18}$/', $clabe)) continue;  // validar 18 dígitos
+            $stmt->execute([$escuela_id, $clabe]);
+            if ($stmt->rowCount() > 0) $insertadas++;
+            else $duplicadas++;
+        }
+        respond(['success' => true, 'insertadas' => $insertadas, 'duplicadas' => $duplicadas]);
+    break;
+
+    case 'listar_clabes_pool':
+        // Recibe: { escuela_id }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+
+        $stmt = $pdo->prepare(
+            "SELECT cp.id, cp.clabe, cp.estado, cp.fecha_alta, cp.fecha_asign,
+                    c.nombre AS alumno, c.matricula
+             FROM clabe_pool cp
+             LEFT JOIN clientes c ON c.id = cp.cliente_id
+             WHERE cp.escuela_id = ?
+             ORDER BY cp.estado ASC, cp.id ASC"
+        );
+        $stmt->execute([$escuela_id]);
+        $pool = $stmt->fetchAll();
+
+        // Contadores
+        $stmt2 = $pdo->prepare(
+            "SELECT estado, COUNT(*) as n FROM clabe_pool WHERE escuela_id = ? GROUP BY estado"
+        );
+        $stmt2->execute([$escuela_id]);
+        $conteos = [];
+        foreach ($stmt2->fetchAll() as $row) $conteos[$row['estado']] = intval($row['n']);
+
+        respond([
+            'success' => true,
+            'pool'    => $pool,
+            'totales' => [
+                'libre'    => $conteos['libre']    ?? 0,
+                'asignada' => $conteos['asignada'] ?? 0,
+                'liberada' => $conteos['liberada'] ?? 0,
+            ],
+        ]);
+    break;
+
+    case 'asignar_clabe_pool':
+        // Toma la primera CLABE libre del pool de la escuela y la asigna al alumno
+        // Recibe: { escuela_id, cliente_id }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $cliente_id = intval($input['cliente_id'] ?? 0);
+
+        if (!$escuela_id || !$cliente_id) {
+            respond(['success' => false, 'error' => 'escuela_id y cliente_id son requeridos']);
+        }
+
+        // Verificar que el alumno no tenga ya CLABE asignada del pool
+        $chk = $pdo->prepare(
+            "SELECT clabe FROM clabe_pool WHERE cliente_id = ? AND estado = 'asignada'"
+        );
+        $chk->execute([$cliente_id]);
+        if ($row = $chk->fetch()) {
+            respond(['success' => true, 'clabe' => $row['clabe'], 'ya_tenia' => true]);
+        }
+
+        // Tomar la primera CLABE libre (FOR UPDATE para evitar race conditions)
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT id, clabe FROM clabe_pool
+                 WHERE escuela_id = ? AND estado IN ('libre', 'liberada')
+                 ORDER BY id ASC LIMIT 1 FOR UPDATE"
+            );
+            $stmt->execute([$escuela_id]);
+            $clabeRow = $stmt->fetch();
+
+            if (!$clabeRow) {
+                $pdo->rollBack();
+                respond(['success' => false, 'error' => 'No hay CLABEs disponibles en el pool. Importa más CLABEs.']);
+            }
+
+            // Marcar como asignada en el pool
+            $upd = $pdo->prepare(
+                "UPDATE clabe_pool SET estado='asignada', cliente_id=?, fecha_asign=CURDATE()
+                 WHERE id = ?"
+            );
+            $upd->execute([$cliente_id, $clabeRow['id']]);
+
+            // Actualizar el alumno en la tabla clientes
+            $upd2 = $pdo->prepare(
+                "UPDATE clientes SET clabe_individual=?, clabe_individual_estado='activa',
+                 clabe_individual_fecha=CURDATE() WHERE id=?"
+            );
+            $upd2->execute([$clabeRow['clabe'], $cliente_id]);
+
+            $pdo->commit();
+            respond(['success' => true, 'clabe' => $clabeRow['clabe']]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Error al asignar CLABE: ' . $e->getMessage()]);
+        }
+    break;
+
+    case 'liberar_clabe_pool':
+        // Libera la CLABE de un alumno y la devuelve al pool como 'liberada'
+        // Recibe: { cliente_id }
+        $cliente_id = intval($input['cliente_id'] ?? 0);
+        if (!$cliente_id) respond(['success' => false, 'error' => 'cliente_id requerido']);
+
+        $pdo->beginTransaction();
+        try {
+            $upd = $pdo->prepare(
+                "UPDATE clabe_pool SET estado='liberada', cliente_id=NULL, fecha_asign=NULL
+                 WHERE cliente_id=? AND estado='asignada'"
+            );
+            $upd->execute([$cliente_id]);
+
+            $upd2 = $pdo->prepare(
+                "UPDATE clientes SET clabe_individual=NULL, clabe_individual_estado='liberada'
+                 WHERE id=?"
+            );
+            $upd2->execute([$cliente_id]);
+
+            $pdo->commit();
+            respond(['success' => true]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => $e->getMessage()]);
+        }
+    break;
+
+    case 'eliminar_clabes_pool':
+        // Elimina CLABEs libres/liberadas del pool (no asignadas)
+        // Recibe: { escuela_id, ids: [1,2,3] }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $ids = array_filter(array_map('intval', $input['ids'] ?? []), fn($i) => $i > 0);
+        if (!$escuela_id || empty($ids)) respond(['success' => false, 'error' => 'Datos insuficientes']);
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare(
+            "DELETE FROM clabe_pool WHERE escuela_id=? AND id IN ($placeholders) AND estado != 'asignada'"
+        );
+        $stmt->execute(array_merge([$escuela_id], $ids));
+        respond(['success' => true, 'eliminadas' => $stmt->rowCount()]);
+    break;
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MÓDULO DE CAJA — apertura / cierre / historial / resumen / movimientos
+    // Pegar este bloque en api.php, dentro del switch($action), junto a los
+    // demás "case". El orden no importa, PHP resuelve por coincidencia del case.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    case 'caja_sucursales':
+        // Lista sucursales de la escuela del usuario (o todas si es superadmin y manda escuela_id)
+        $escuela_id = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? $usuario_actual['escuela_id'] ?? 0);
+        if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+
+        $stmt = $pdo->prepare("SELECT id, nombre, activa FROM sucursales WHERE escuela_id = ? AND activa = 1 ORDER BY nombre");
+        $stmt->execute([$escuela_id]);
+        respond(['success' => true, 'sucursales' => $stmt->fetchAll()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_estado':
+        // Devuelve la caja abierta del usuario actual en esa sucursal (o null)
+        $sucursal_id = intval($input['sucursal_id'] ?? $_GET['sucursal_id'] ?? 0);
+        $usuario_id  = intval($usuario_actual['user_id']);
+        if (!$sucursal_id) respond(['success' => false, 'error' => 'sucursal_id requerido']);
+
+        $stmt = $pdo->prepare(
+            "SELECT * FROM caja WHERE sucursal_id = ? AND usuario_id = ? AND estado = 'abierta'
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([$sucursal_id, $usuario_id]);
+        $caja = $stmt->fetch();
+        respond(['success' => true, 'caja' => $caja ?: null]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_abrir':
+        $sucursal_id    = intval($input['sucursal_id'] ?? 0);
+        $monto_apertura = floatval($input['monto_apertura'] ?? -1);
+        $observaciones  = trim($input['observaciones'] ?? '');
+        $usuario_id     = intval($usuario_actual['user_id']);
+
+        if (!$sucursal_id) respond(['success' => false, 'error' => 'sucursal_id requerido']);
+        if ($monto_apertura < 0) respond(['success' => false, 'error' => 'Monto de apertura inválido']);
+
+        // No permitir dos cajas abiertas simultáneas del mismo usuario en la misma sucursal
+        $chk = $pdo->prepare("SELECT id FROM caja WHERE sucursal_id = ? AND usuario_id = ? AND estado = 'abierta'");
+        $chk->execute([$sucursal_id, $usuario_id]);
+        if ($chk->fetch()) {
+            respond(['success' => false, 'error' => 'Ya tienes una caja abierta en esta sucursal. Ciérrala antes de abrir otra.']);
+        }
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO caja (sucursal_id, usuario_id, monto_apertura, observaciones, estado, fecha_apertura)
+             VALUES (?, ?, ?, ?, 'abierta', NOW())"
+        );
+        $stmt->execute([$sucursal_id, $usuario_id, $monto_apertura, $observaciones]);
+        $caja_id = $pdo->lastInsertId();
+
+        log_api("caja_abrir -> caja_id={$caja_id} sucursal={$sucursal_id} usuario={$usuario_id} monto={$monto_apertura}");
+
+        $s2 = $pdo->prepare("SELECT * FROM caja WHERE id = ?");
+        $s2->execute([$caja_id]);
+        respond(['success' => true, 'caja' => $s2->fetch()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_movimiento':
+        // Ingreso/egreso manual (ej. "retiro de efectivo", "préstamo a caja chica")
+        $caja_id  = intval($input['caja_id'] ?? 0);
+        $tipo     = trim($input['tipo']      ?? '');
+        $concepto = trim($input['concepto']  ?? '');
+        $total    = floatval($input['total'] ?? 0);
+
+        if (!$caja_id || !in_array($tipo, ['ingreso', 'egreso']) || $total <= 0) {
+            respond(['success' => false, 'error' => 'Datos de movimiento inválidos']);
+        }
+
+        $chk = $pdo->prepare("SELECT id FROM caja WHERE id = ? AND estado = 'abierta'");
+        $chk->execute([$caja_id]);
+        if (!$chk->fetch()) respond(['success' => false, 'error' => 'La caja no está abierta']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO movimientos_caja (caja_id, tipo, concepto, total, fecha) VALUES (?, ?, ?, ?, NOW())"
+        );
+        $stmt->execute([$caja_id, $tipo, $concepto, $total]);
+
+        respond(['success' => true, 'movimiento_id' => intval($pdo->lastInsertId())]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_cerrar':
+        $caja_id       = intval($input['caja_id']       ?? 0);
+        $monto_cierre  = floatval($input['monto_cierre'] ?? -1);
+        $observaciones = trim($input['observaciones']    ?? '');
+
+        if (!$caja_id) respond(['success' => false, 'error' => 'caja_id requerido']);
+        if ($monto_cierre < 0) respond(['success' => false, 'error' => 'Monto de cierre inválido']);
+
+        $stmt = $pdo->prepare("SELECT * FROM caja WHERE id = ? AND estado = 'abierta'");
+        $stmt->execute([$caja_id]);
+        $caja_actual = $stmt->fetch();
+        if (!$caja_actual) respond(['success' => false, 'error' => 'Caja no encontrada o ya cerrada']);
+
+        // Ventas del POS asociadas a esta caja, agrupadas por método (solo pagadas)
+        $vstmt = $pdo->prepare(
+            "SELECT metodo, COALESCE(SUM(total),0) as total FROM cobros
+             WHERE caja_id = ? AND estado = 'pagado' GROUP BY metodo"
+        );
+        $vstmt->execute([$caja_id]);
+        $ventas_por_metodo = ['Efectivo' => 0, 'TC' => 0, 'SPEI' => 0, 'CoDi' => 0];
+        foreach ($vstmt->fetchAll() as $row) {
+            if (isset($ventas_por_metodo[$row['metodo']])) $ventas_por_metodo[$row['metodo']] = floatval($row['total']);
+        }
+        $ventas_efectivo      = $ventas_por_metodo['Efectivo'];
+        $ventas_tarjeta       = $ventas_por_metodo['TC'];
+        $ventas_transferencia = $ventas_por_metodo['SPEI'] + $ventas_por_metodo['CoDi'];
+        $total_ventas         = $ventas_efectivo + $ventas_tarjeta + $ventas_transferencia;
+
+        // Movimientos manuales (ingresos/egresos de efectivo, no ventas del POS)
+        $mstmt = $pdo->prepare(
+            "SELECT tipo, COALESCE(SUM(total),0) as total FROM movimientos_caja WHERE caja_id = ? GROUP BY tipo"
+        );
+        $mstmt->execute([$caja_id]);
+        $otros_ingresos = 0; $otros_egresos = 0;
+        foreach ($mstmt->fetchAll() as $row) {
+            if ($row['tipo'] === 'ingreso') $otros_ingresos = floatval($row['total']);
+            if ($row['tipo'] === 'egreso')  $otros_egresos  = floatval($row['total']);
+        }
+
+        // Monto esperado en efectivo = apertura + ventas en efectivo + otros ingresos - otros egresos
+        $monto_esperado = floatval($caja_actual['monto_apertura']) + $ventas_efectivo + $otros_ingresos - $otros_egresos;
+        $diferencia     = $monto_cierre - $monto_esperado;
+
+        $upd = $pdo->prepare(
+            "UPDATE caja SET
+                fecha_cierre = NOW(), monto_cierre = ?, monto_esperado = ?, diferencia = ?,
+                ventas_efectivo = ?, ventas_tarjeta = ?, ventas_transferencia = ?, total_ventas = ?,
+                otros_ingresos = ?, otros_egresos = ?, observaciones = ?, estado = 'cerrada'
+             WHERE id = ?"
+        );
+        $upd->execute([
+            $monto_cierre, $monto_esperado, $diferencia,
+            $ventas_efectivo, $ventas_tarjeta, $ventas_transferencia, $total_ventas,
+            $otros_ingresos, $otros_egresos, $observaciones, $caja_id
+        ]);
+
+        log_api("caja_cerrar -> caja_id={$caja_id} esperado={$monto_esperado} cierre={$monto_cierre} diff={$diferencia}");
+
+        $s2 = $pdo->prepare("SELECT * FROM caja WHERE id = ?");
+        $s2->execute([$caja_id]);
+        respond(['success' => true, 'caja' => $s2->fetch()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_historial':
+        $sucursal_id = intval($input['sucursal_id'] ?? $_GET['sucursal_id'] ?? 0);
+        $escuela_id  = intval($input['escuela_id']  ?? $_GET['escuela_id']  ?? $usuario_actual['escuela_id'] ?? 0);
+
+        if ($sucursal_id) {
+            $stmt = $pdo->prepare(
+                "SELECT c.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre
+                 FROM caja c
+                 JOIN usuarios u ON c.usuario_id = u.id
+                 JOIN sucursales s ON c.sucursal_id = s.id
+                 WHERE c.sucursal_id = ? ORDER BY c.id DESC LIMIT 200"
+            );
+            $stmt->execute([$sucursal_id]);
+        } elseif ($escuela_id) {
+            $stmt = $pdo->prepare(
+                "SELECT c.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre
+                 FROM caja c
+                 JOIN usuarios u ON c.usuario_id = u.id
+                 JOIN sucursales s ON c.sucursal_id = s.id
+                 WHERE s.escuela_id = ? ORDER BY c.id DESC LIMIT 200"
+            );
+            $stmt->execute([$escuela_id]);
+        } else {
+            respond(['success' => false, 'error' => 'sucursal_id o escuela_id requerido']);
+        }
+
+        respond(['success' => true, 'historial' => $stmt->fetchAll()]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'caja_resumen':
+        $caja_id = intval($input['caja_id'] ?? $_GET['caja_id'] ?? 0);
+        if (!$caja_id) respond(['success' => false, 'error' => 'caja_id requerido']);
+
+        $stmt = $pdo->prepare(
+            "SELECT c.*, u.nombre AS usuario_nombre, s.nombre AS sucursal_nombre
+             FROM caja c
+             JOIN usuarios u ON c.usuario_id = u.id
+             JOIN sucursales s ON c.sucursal_id = s.id
+             WHERE c.id = ?"
+        );
+        $stmt->execute([$caja_id]);
+        $caja = $stmt->fetch();
+        if (!$caja) respond(['success' => false, 'error' => 'Corte de caja no encontrado']);
+
+        $vstmt = $pdo->prepare(
+            "SELECT id, folio, cliente_id, total, metodo, estado, fecha FROM cobros
+             WHERE caja_id = ? ORDER BY id DESC"
+        );
+        $vstmt->execute([$caja_id]);
+
+        $mstmt = $pdo->prepare(
+            "SELECT * FROM movimientos_caja WHERE caja_id = ? ORDER BY fecha DESC"
+        );
+        $mstmt->execute([$caja_id]);
+
+        respond([
+            'success'      => true,
+            'caja'         => $caja,
+            'ventas'       => $vstmt->fetchAll(),
+            'movimientos'  => $mstmt->fetchAll(),
+        ]);
+    break;
+
+    default:
+        respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
+}
+?>
