@@ -6,7 +6,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json; charset=UTF-8');
-header('Access-Control-Allow-Origin: *'); // Cambiar a tu dominio en prod
+// APP_ALLOWED_ORIGIN debe definirse en config.php (ej. 'https://tudominio.com')
+header('Access-Control-Allow-Origin: ' . (defined('APP_ALLOWED_ORIGIN') ? APP_ALLOWED_ORIGIN : '*'));
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
@@ -590,14 +591,19 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'cargar_datos':
-        // Carga el estado completo del usuario actual desde la DB
-        // Respeta el scope: superadmin ve todo, admin/cajero/familia ven su escuela
+        // Carga el estado del usuario actual desde la DB.
+        // Respeta el scope: superadmin ve todo lo "ligero" (escuelas + conteos);
+        // admin/cajero/familia ven el detalle completo de SU escuela.
+        // Para no reventar con cuentas grandes: clientes y cobros van paginados
+        // con un tope duro (MAX_FILA), y el superadmin solo trae detalle
+        // completo (clientes/familias/productos/cobros) si manda escuela_id_ver.
+
+        $MAX_FILA = 1000; // tope duro por página, sin importar lo que pida el cliente
 
         $rol       = $usuario_actual['rol']       ?? 'cajero';
         $user_id   = $usuario_actual['user_id']   ?? 0;
         $escuela_id_usuario = null;
 
-        // Obtener escuela_id del usuario en la DB
         $su = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
         $su->execute([$user_id]);
         $urow = $su->fetch();
@@ -606,10 +612,21 @@ switch ($action) {
             $rol = $urow['rol'];
         }
 
+        // Paginación de clientes (alumnos)
+        $pagina_clientes    = max(1, intval($input['pagina_clientes'] ?? $_GET['pagina_clientes'] ?? 1));
+        $por_pagina_clientes = intval($input['por_pagina_clientes'] ?? $_GET['por_pagina_clientes'] ?? 500);
+        $por_pagina_clientes = max(1, min($por_pagina_clientes, $MAX_FILA));
+        $offset_clientes    = ($pagina_clientes - 1) * $por_pagina_clientes;
+        $busqueda_clientes  = trim($input['buscar_clientes'] ?? $_GET['buscar_clientes'] ?? '');
+
+        // Superadmin: si no especifica una escuela concreta, solo recibe el
+        // catálogo de escuelas + conteos por escuela (resumen liviano), no el
+        // detalle de alumnos/familias/productos/cobros de TODAS las escuelas.
+        $escuela_id_ver = $rol === 'superadmin'
+            ? (intval($input['escuela_id_ver'] ?? $_GET['escuela_id_ver'] ?? 0) ?: null)
+            : $escuela_id_usuario;
+
         // ── Escuelas ──
-        // Para admin/cajero/familia se incluye también su propia escuela y las
-        // escuelas-cuenta de sus planteles (escuela_padre_id), para poder ver y
-        // editar sus datos (ej. el correo de acceso) desde "Gestionar planteles".
         if ($rol === 'superadmin') {
             $stmt = $pdo->query("SELECT * FROM escuelas ORDER BY id");
         } else {
@@ -618,13 +635,53 @@ switch ($action) {
         }
         $escuelas = $stmt->fetchAll();
 
-        // ── Clientes (alumnos) ──
+        // ── Resumen liviano por escuela (siempre se manda, sirve para el dashboard
+        //    de superadmin sin tener que cargar el detalle de cada una) ──
+        $resumen_escuelas = [];
         if ($rol === 'superadmin') {
-            $stmt = $pdo->query("SELECT * FROM clientes ORDER BY escuela_id, nombre");
-        } else {
-            $stmt = $pdo->prepare("SELECT * FROM clientes WHERE escuela_id = ? ORDER BY nombre");
-            $stmt->execute([$escuela_id_usuario]);
+            $rs = $pdo->query(
+                "SELECT escuela_id, COUNT(*) AS total_alumnos, SUM(saldo_pendiente) AS saldo_total
+                 FROM clientes GROUP BY escuela_id"
+            );
+            foreach ($rs->fetchAll() as $row) {
+                $resumen_escuelas[intval($row['escuela_id'])] = [
+                    'total_alumnos' => intval($row['total_alumnos']),
+                    'saldo_total'   => floatval($row['saldo_total']),
+                ];
+            }
         }
+
+        if ($escuela_id_ver === null && $rol === 'superadmin') {
+            // Superadmin sin escuela seleccionada: responde solo lo liviano.
+            respond([
+                'success'          => true,
+                'escuelas'         => $escuelas,
+                'resumen_escuelas' => $resumen_escuelas,
+                'clientes'         => [],
+                'planteles'        => [],
+                'familias'         => [],
+                'productos'        => [],
+                'cobros'           => [],
+                'requiere_escuela_id_ver' => true,
+            ]);
+        }
+
+        // ── Clientes (alumnos) — paginado y con búsqueda opcional ──
+        $where_cli = 'escuela_id = ?';
+        $params_cli = [$escuela_id_ver];
+        if ($busqueda_clientes !== '') {
+            $where_cli .= ' AND (nombre LIKE ? OR email LIKE ?)';
+            $params_cli[] = "%$busqueda_clientes%";
+            $params_cli[] = "%$busqueda_clientes%";
+        }
+        $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE $where_cli");
+        $cnt->execute($params_cli);
+        $clientes_total = intval($cnt->fetch()['n'] ?? 0);
+
+        $stmt = $pdo->prepare(
+            "SELECT * FROM clientes WHERE $where_cli ORDER BY nombre LIMIT $por_pagina_clientes OFFSET $offset_clientes"
+        );
+        $stmt->execute($params_cli);
         $clientes_raw = $stmt->fetchAll();
         $clientes = array_map(function($c) {
             $c['activo']          = (bool)$c['activo'];
@@ -634,12 +691,8 @@ switch ($action) {
         }, $clientes_raw);
 
         // ── Planteles (sub escuelas) ──
-        if ($rol === 'superadmin') {
-            $stmt = $pdo->query("SELECT * FROM planteles ORDER BY escuela_id, id");
-        } else {
-            $stmt = $pdo->prepare("SELECT * FROM planteles WHERE escuela_id = ? ORDER BY id");
-            $stmt->execute([$escuela_id_usuario]);
-        }
+        $stmt = $pdo->prepare("SELECT * FROM planteles WHERE escuela_id = ? ORDER BY id");
+        $stmt->execute([$escuela_id_ver]);
         $planteles_raw = $stmt->fetchAll();
         $planteles = array_map(function($p) {
             $p['activo'] = (bool)$p['activo'];
@@ -647,12 +700,8 @@ switch ($action) {
         }, $planteles_raw);
 
         // ── Familias ──
-        if ($rol === 'superadmin') {
-            $stmt = $pdo->query("SELECT * FROM familias ORDER BY escuela_id, nombre");
-        } else {
-            $stmt = $pdo->prepare("SELECT * FROM familias WHERE escuela_id = ? ORDER BY nombre");
-            $stmt->execute([$escuela_id_usuario]);
-        }
+        $stmt = $pdo->prepare("SELECT * FROM familias WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
+        $stmt->execute([$escuela_id_ver]);
         $familias_raw = $stmt->fetchAll();
         $familias = array_map(function($f) {
             $f['activa'] = (bool)$f['activa'];
@@ -660,12 +709,8 @@ switch ($action) {
         }, $familias_raw);
 
         // ── Productos ──
-        if ($rol === 'superadmin') {
-            $stmt = $pdo->query("SELECT * FROM productos ORDER BY escuela_id, nombre");
-        } else {
-            $stmt = $pdo->prepare("SELECT * FROM productos WHERE escuela_id = ? ORDER BY nombre");
-            $stmt->execute([$escuela_id_usuario]);
-        }
+        $stmt = $pdo->prepare("SELECT * FROM productos WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
+        $stmt->execute([$escuela_id_ver]);
         $productos_raw = $stmt->fetchAll();
         $productos = array_map(function($p) {
             $p['activo'] = (bool)$p['activo'];
@@ -673,27 +718,15 @@ switch ($action) {
             return $p;
         }, $productos_raw);
 
-        // ── Cobros (últimos 90 días para no sobrecargar) ──
-        // Se incluye LEFT JOIN con clientes para traer el nombre (alias "cliente"),
-        // ya que el frontend (Dashboard.js, Cobros.js) espera c.cliente como string.
-        if ($rol === 'superadmin') {
-            $stmt = $pdo->query(
-                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
-                 FROM cobros co
-                 LEFT JOIN clientes cl ON cl.id = co.cliente_id
-                 WHERE co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-                 ORDER BY co.id DESC"
-            );
-        } else {
-            $stmt = $pdo->prepare(
-                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
-                 FROM cobros co
-                 LEFT JOIN clientes cl ON cl.id = co.cliente_id
-                 WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-                 ORDER BY co.id DESC"
-            );
-            $stmt->execute([$escuela_id_usuario]);
-        }
+        // ── Cobros (últimos 90 días, con tope duro adicional) ──
+        $stmt = $pdo->prepare(
+            "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+             FROM cobros co
+             LEFT JOIN clientes cl ON cl.id = co.cliente_id
+             WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+             ORDER BY co.id DESC LIMIT $MAX_FILA"
+        );
+        $stmt->execute([$escuela_id_ver]);
         $cobros_raw = $stmt->fetchAll();
         $cobros = array_map(function($c) {
             $c['total']   = floatval($c['total']);
@@ -703,13 +736,18 @@ switch ($action) {
         }, $cobros_raw);
 
         respond([
-            'success'   => true,
-            'escuelas'  => $escuelas,
-            'clientes'  => $clientes,
-            'planteles' => $planteles,
-            'familias'  => $familias,
-            'productos' => $productos,
-            'cobros'    => $cobros,
+            'success'           => true,
+            'escuelas'          => $escuelas,
+            'resumen_escuelas'  => $resumen_escuelas,
+            'clientes'          => $clientes,
+            'clientes_total'    => $clientes_total,
+            'clientes_pagina'   => $pagina_clientes,
+            'clientes_por_pagina' => $por_pagina_clientes,
+            'planteles'         => $planteles,
+            'familias'          => $familias,
+            'productos'         => $productos,
+            'cobros'            => $cobros,
+            'escuela_id_ver'    => $escuela_id_ver,
         ]);
     break;
 
@@ -1002,18 +1040,27 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'crear_usuario':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para crear usuarios.']);
+        }
+
         $nombre    = trim($input['nombre']     ?? '');
         $email     = trim($input['email']      ?? '');
         $password  = trim($input['password']   ?? '');
         $rol       = trim($input['rol']        ?? '');
         $esc_id    = intval($input['escuela_id'] ?? 0) ?: null;
         $fam_id    = intval($input['familia_id'] ?? 0) ?: null;
-        $rol_actual = $usuario_actual['rol'] ?? '';
 
         $roles_validos = ['admin','cajero','familia'];
         if ($rol_actual === 'superadmin') $roles_validos[] = 'superadmin';
         if (!$nombre || !$email || !$password || !in_array($rol, $roles_validos)) {
             respond(['success' => false, 'error' => 'Datos incompletos o rol no permitido']);
+        }
+        // Un admin solo puede crear usuarios dentro de su propia escuela
+        if ($rol_actual === 'admin') {
+            $esc_id = $usuario_actual['escuela_id'] ?? null;
         }
         // Verificar email único
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
@@ -1032,7 +1079,29 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_usuario':
+        $rol_actual = $usuario_actual['rol'] ?? '';
         $id       = intval($input['id']    ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        // Solo admin/superadmin editan usuarios ajenos; cualquier usuario puede editar su propio perfil
+        // (pero sin poder tocar su propio rol/escuela, eso se filtra abajo).
+        $es_propio_perfil = ($id === intval($usuario_actual['id'] ?? 0));
+        if (!in_array($rol_actual, ['superadmin', 'admin']) && !$es_propio_perfil) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para editar este usuario.']);
+        }
+
+        // Un admin solo puede tocar usuarios de su propia escuela (y nunca a un superadmin)
+        if ($rol_actual === 'admin') {
+            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+            $chk->execute([$id]);
+            $objetivo = $chk->fetch();
+            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para editar este usuario.']);
+            }
+        }
+
         $nombre   = trim($input['nombre']  ?? '');
         $email    = trim($input['email']   ?? '');
         $password = trim($input['password'] ?? '');
@@ -1042,7 +1111,12 @@ switch ($action) {
         $fam_id_raw = $input['familia_id'] ?? '__NO_ENVIADO__';
         $fam_id   = ($fam_id_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (intval($fam_id_raw) ?: null);
 
-        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        // Nadie edita su propio rol/escuela (evita auto-ascenso a superadmin), y solo
+        // superadmin puede reasignar rol/escuela de terceros.
+        if ($es_propio_perfil || $rol_actual !== 'superadmin') {
+            $rol    = '';
+            $esc_id = null;
+        }
 
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
@@ -1065,8 +1139,25 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_usuario':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+        }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        if ($id === intval($usuario_actual['id'] ?? 0)) {
+            respond(['success' => false, 'error' => 'No puedes desactivarte a ti mismo.']);
+        }
+        if ($rol_actual === 'admin') {
+            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+            $chk->execute([$id]);
+            $objetivo = $chk->fetch();
+            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+            }
+        }
         $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
         $stmt->execute([$id]);
         respond(['success' => true]);
@@ -1074,8 +1165,25 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'eliminar_usuario':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+        }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        if ($id === intval($usuario_actual['id'] ?? 0)) {
+            respond(['success' => false, 'error' => 'No puedes eliminarte a ti mismo.']);
+        }
+        if ($rol_actual === 'admin') {
+            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+            $chk->execute([$id]);
+            $objetivo = $chk->fetch();
+            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+            }
+        }
         $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
         respond(['success' => true]);
     break;
@@ -1277,6 +1385,11 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_plantel':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para activar/desactivar planteles.']);
+        }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
 
@@ -1323,6 +1436,11 @@ switch ($action) {
 
     case 'importar_clabes':
         // Recibe: { escuela_id, clabes: ["646180...", "646180...", ...] }
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para importar CLABEs.']);
+        }
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $clabes     = $input['clabes'] ?? [];
 
@@ -1473,6 +1591,11 @@ switch ($action) {
     case 'eliminar_clabes_pool':
         // Elimina CLABEs libres/liberadas del pool (no asignadas)
         // Recibe: { escuela_id, ids: [1,2,3] }
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para eliminar CLABEs del pool.']);
+        }
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $ids = array_filter(array_map('intval', $input['ids'] ?? []), fn($i) => $i > 0);
         if (!$escuela_id || empty($ids)) respond(['success' => false, 'error' => 'Datos insuficientes']);
