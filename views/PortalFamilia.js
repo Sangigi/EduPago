@@ -211,7 +211,8 @@ function PortalFamilia({
   const pendientesHj = id => cobrosHijo(id).filter(c => c.estado === 'pendiente');
   return /*#__PURE__*/_jsxDEV("div", {
     style: {
-      minHeight: '100vh',
+      height: '100vh',
+      overflowY: 'auto',
       background: PLC.bg,
       fontFamily: "'DM Sans',system-ui,sans-serif"
     },
