@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduPago — Sistema de Cobros Escolar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     SPLASH DE BIENVENIDA — Normal 1ra vez, Rápido las siguientes
+══════════════════════════════════════════════════════ -->
+<div id="intro-splash">
+  <div class="splash-wrapper">
+    
+    <!-- Bloque principal: Texto en dos líneas + Palomita a la derecha -->
+    <div class="main-content-block">
+      
+      <!-- Columna de texto -->
+      <div class="text-column">
+        <div class="intro-word" id="word-line1"></div>
+        <div class="intro-word" id="word-line2"></div>
+      </div>
+      
+      <!-- SVG de la palomita -->
+      <svg class="intro-check" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="checkGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="43%" stop-color="#ffffff"/>
+            <stop offset="43.1%" stop-color="#a4ce25"/>
+          </linearGradient>
+        </defs>
+        <path d="M22 52 L43 73 L85 25" stroke="url(#checkGrad)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      
+    </div>
+
+    <!-- Subtítulo inferior con el icono de billetes exacto -->
+    <div class="intro-sub">
+      <span class="by-text">by</span> 
+      <span class="liberty-text">Libertyfin</span>
+      
+      <!-- SVG Icono de Billetes refinado -->
+      <svg class="liberty-icon" viewBox="0 0 130 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g fill="#43b05c">
+          <path d="M5,105 Q40,65 95,90 Q45,80 5,105 Z" />
+          <path d="M12,80 Q47,40 102,65 Q52,55 12,80 Z" />
+          <path d="M19,55 Q54,15 109,40 Q59,30 19,55 Z" />
+        </g>
+        <text x="36" y="46" fill="#272c64" font-family="'DM Sans', system-ui, sans-serif" font-weight="900" font-size="28" transform="rotate(-18 36 46)">$</text>
+        <text x="100" y="30" fill="#78c88c" font-family="'DM Sans', system-ui, sans-serif" font-weight="600" font-size="18">MR</text>
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  #intro-splash {
+    /* Velocidad por defecto (1 = Normal) */
+    --speed: 1; 
+    
+    position: fixed; inset: 0; z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    background: #272c64; 
+    background-image:
+      radial-gradient(ellipse 60% 60% at 80% 15%, rgba(164,206,37,.10) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 60% at 15% 85%, rgba(164,206,37,.08) 0%, transparent 60%);
+    transition: opacity calc(0.5s * var(--speed)) ease, visibility calc(0.5s * var(--speed)) ease;
+    overflow: hidden;
+  }
+  
+  /* Clase que se añade por JS si el usuario ya vio la intro */
+  #intro-splash.fast-mode {
+    --speed: 0.3; /* 3.3x más rápido (aprox 1 segundo en total) */
+  }
+  
+  #intro-splash.intro-hide { opacity: 0; visibility: hidden; pointer-events: none; }
+
+  .splash-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end; 
+  }
+
+  .main-content-block {
+    display: flex;
+    align-items: center;
+  }
+
+  .text-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 0.95; 
+  }
+
+  .intro-word {
+    position: relative;
+    display: flex;
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+  
+  .intro-letter {
+    font-size: clamp(34px, 8vw, 85px); 
+    font-weight: 800;
+    color: #ffffff; 
+    letter-spacing: -2px;
+    display: inline-block;
+    white-space: pre; 
+    opacity: 0;
+    transform: translateX(var(--dx, 0px)) scale(2.4, 1.9) skewX(14deg);
+    filter: blur(24px);
+  }
+  
+  .intro-letter-animar {
+    animation: introLetterForm calc(1.15s * var(--speed)) cubic-bezier(.32,.1,.2,1) forwards;
+    animation-delay: calc((var(--i) * 50ms + 150ms) * var(--speed));
+  }
+
+  .intro-check {
+    opacity: 0;
+    width: clamp(40px, 9vw, 90px);
+    height: clamp(40px, 9vw, 90px);
+    margin-left: clamp(10px, 2vw, 20px);
+    transform-origin: center;
+    animation: popInCheck calc(0.6s * var(--speed)) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    animation-delay: calc(1.1s * var(--speed)); 
+  }
+
+  .intro-sub {
+    opacity: 0;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: clamp(16px, 3.5vw, 32px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 5px; 
+    padding-right: clamp(15px, 5vw, 65px); 
+    animation: fadeUpSub calc(0.6s * var(--speed)) ease forwards;
+    animation-delay: calc(1.3s * var(--speed));
+  }
+  
+  .by-text { color: #ffffff; font-weight: 300; }
+  .liberty-text { color: #43b05c; font-weight: 600; letter-spacing: -0.5px; }
+  
+  .liberty-icon {
+    width: clamp(40px, 8vw, 65px);
+    height: auto;
+    margin-left: 2px;
+    transform: translateY(5px);
+  }
+
+  @keyframes introLetterForm {
+    0%   { opacity: 0;   filter: blur(24px); transform: translateX(var(--dx,0px)) scale(2.4, 1.9) skewX(16deg); }
+    12%  { opacity: 1;   filter: blur(12px); }
+    42%  { filter: blur(6px);  transform: translateX(calc(var(--dx,0px) * .32)) scale(1.5, .55) skewX(-8deg); }
+    62%  { filter: blur(2px);  transform: translateX(calc(var(--dx,0px) * .06)) scale(.72, 1.28) skewX(4deg); }
+    80%  { filter: blur(0px);  transform: translateX(calc(var(--dx,0px) * -.015)) scale(1.1, .92) skewX(-1.5deg); }
+    92%  { filter: blur(0px);  transform: translateX(0) scale(.96, 1.04) skewX(.5deg); }
+    100% { opacity: 1; filter: blur(0px); transform: translateX(0) scale(1,1) skewX(0); }
+  }
+
+  @keyframes popInCheck {
+    0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+    70% { transform: scale(1.15) rotate(5deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+
+  @keyframes fadeUpSub {
+    0% { transform: translateY(15px); opacity: 0; filter: blur(4px); }
+    100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .intro-letter, .intro-letter-animar, .intro-check, .intro-sub { 
+      animation: none !important; opacity: 1 !important; filter: none !important; transform: none !important; 
+    }
+  }
+</style>
+
+<script>
+(function(){
+  var splash = document.getElementById('intro-splash');
+  if (!splash) return;
+
+  var LINEA_1 = 'paga la';
+  var LINEA_2 = 'escuela';
+  
+  var yaVisto = false;
+  try { yaVisto = localStorage.getItem('edupago_intro_seen') === '1'; } catch(e){}
+
+  var prefiereMenosMovimiento = false;
+  try { prefiereMenosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+
+  // Si ya lo vio, aplicamos el modo rápido inmediatamente
+  var multiplicadorVelocidad = 1;
+  if (yaVisto) {
+    splash.classList.add('fast-mode');
+    multiplicadorVelocidad = 0.45; // 45% del tiempo original
+  }
+
+  var marcarVisto = function(){
+    try { localStorage.setItem('edupago_intro_seen', '1'); } catch(e){}
+  };
+
+  var wordLine1 = document.getElementById('word-line1');
+  var wordLine2 = document.getElementById('word-line2');
+
+  if (prefiereMenosMovimiento) {
+    wordLine1.textContent = LINEA_1;
+    wordLine2.textContent = LINEA_2;
+    marcarVisto();
+    splash.classList.add('intro-hide');
+    setTimeout(function(){ splash.remove(); }, 100);
+    return;
+  }
+
+  var letterIndex = 0; 
+  
+  function prepararLinea(texto, contenedor) {
+    return texto.split('').map(function(letra){
+      var span = document.createElement('span');
+      span.className = 'intro-letter';
+      span.style.setProperty('--i', letterIndex++);
+      span.textContent = letra;
+      contenedor.appendChild(span);
+      return span;
+    });
+  }
+
+  var spansL1 = prepararLinea(LINEA_1, wordLine1);
+  var spansL2 = prepararLinea(LINEA_2, wordLine2);
+  var todosLosSpans = spansL1.concat(spansL2);
+
+  requestAnimationFrame(function(){
+    var centerX1 = wordLine1.getBoundingClientRect().width / 2;
+    var centerX2 = wordLine2.getBoundingClientRect().width / 2;
+    
+    spansL1.forEach(function(span){
+      var letraCenterX = span.offsetLeft + span.offsetWidth / 2;
+      span.style.setProperty('--dx', (centerX1 - letraCenterX) + 'px');
+      span.classList.add('intro-letter-animar');
+    });
+
+    spansL2.forEach(function(span){
+      var letraCenterX = span.offsetLeft + span.offsetWidth / 2;
+      span.style.setProperty('--dx', (centerX2 - letraCenterX) + 'px');
+      span.classList.add('intro-letter-animar');
+    });
+  });
+
+  // Calculamos la duración total tomando en cuenta si es modo normal o rápido
+  var tiempoBase = 150 + (todosLosSpans.length * 50) + 1600 + 400;
+  var duracionTotal = tiempoBase * multiplicadorVelocidad;
+  
+  setTimeout(function(){
+    splash.classList.add('intro-hide');
+    marcarVisto(); // Marcamos para la próxima vez
+    
+    // Transición de salida ajustada a la velocidad actual
+    var salidaDelay = 600 * multiplicadorVelocidad;
+    setTimeout(function(){ splash.remove(); }, salidaDelay);
+  }, duracionTotal);
+})();
+</script>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Demo API interceptor (auto-desactiva cuando PHP está disponible) -->
+<script src="assets/js/demo_api.js?v=1785782963"></script>
+
+<!-- SPEI Global Poller -->
+<script src="assets/js/spei_poller.js?v=1785782963"></script>
+
+<!-- Models -->
+<script src="models/AppModel.js?v=1785782963"></script>
+
+<!-- Controllers -->
+<script src="controllers/AuthController.js?v=1785782963"></script>
+<script src="controllers/CobroController.js?v=1785782963"></script>
+<script src="controllers/ClienteController.js?v=1785782963"></script>
+<script src="controllers/CajaController.js?v=1785782963"></script>
+
+<!-- Shared components (precompilados, sin Babel en navegador) -->
+<script src="views/components/Icons.js?v=1785782963"></script>
+<script src="views/components/Badge.js?v=1785782963"></script>
+<script src="views/components/EmojiPicker.js?v=1785782963"></script>
+
+<!-- Views (precompilados) -->
+<script src="views/Login.js?v=1785782963"></script>
+<script src="views/Dashboard.js?v=1785782963"></script>
+<script src="views/Caja.js?v=1785782963"></script>
+<script src="views/CorteCaja.js?v=1785782963"></script>
+<script src="views/Cobros.js?v=1785782963"></script>
+<script src="views/Alumnos.js?v=1785782963"></script>
+<script src="views/Familias.js?v=1785782963"></script>
+<script src="views/Productos.js?v=1785782963"></script>
+<script src="views/Facturacion.js?v=1785782963"></script>
+<script src="views/Reportes.js?v=1785782963"></script>
+<script src="views/Recordatorios.js?v=1785782963"></script>
+<script src="views/Escuelas.js?v=1785782963"></script>
+<script src="views/Usuarios.js?v=1785782963"></script>
+<script src="views/SuperReportes.js?v=1785782963"></script>
+<script src="views/Suscripciones.js?v=1785782963"></script>
+<script src="views/Logs.js?v=1785782963"></script>
+<script src="views/PortalFamilia.js?v=1785782963"></script>
+
+<!-- App entry -->
+<script src="assets/js/app.js?v=1785782963"></script>
+</body>
+</html>
