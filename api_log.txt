@@ -140,3 +140,5 @@
 2026-07-15 17:31:41 | caja_abrir -> caja_id=1 sucursal=1 usuario=2 monto=45000
 2026-07-15 20:42:48 | ❌ WEBHOOK SPEI: token inválido o ausente
 2026-07-16 12:24:53 | caja_cerrar -> caja_id=1 esperado=45000 cierre=0.04 diff=-44999.96
+2026-08-04 08:40:10 | generar_liga -> folio=ITM-0028 total=1800
+2026-08-05 16:23:41 | generar_liga -> folio=ITM-0030 total=246

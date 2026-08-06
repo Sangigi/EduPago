@@ -5,6 +5,47 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 
+// ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
+// max_alumnos / max_planteles = null significa "sin límite"
+const PLANES_LIMITES = [
+    // TODO(Leo): confirmar los límites reales del plan 'free' — estos son un
+    // placeholder conservador (trial) mientras tanto, para que NUNCA quede
+    // sin límite por accidente como pasaba antes con un plan no mapeado.
+    'free'     => ['precio' => 0.00,    'max_alumnos' => 30,  'max_planteles' => 1,    'label' => 'Free (trial)'],
+    'basico'   => ['precio' => 999.00,  'max_alumnos' => 400, 'max_planteles' => 1,    'label' => 'Básico'],
+    'avanzado' => ['precio' => 1500.00, 'max_alumnos' => 800, 'max_planteles' => 1,    'label' => 'Avanzado'],
+    'pro'      => ['precio' => 3000.00, 'max_alumnos' => null, 'max_planteles' => null, 'label' => 'Pro'],
+];
+// Plan de respaldo si `escuelas.plan` trae un valor no reconocido (typo,
+// migración vieja, etc.) — se usa el más restrictivo, NUNCA "sin límite".
+const PLAN_FALLBACK = 'basico';
+function limitesDelPlan($nombrePlan) {
+    return PLANES_LIMITES[$nombrePlan] ?? PLANES_LIMITES[PLAN_FALLBACK];
+}
+
+// Registra una acción sensible en logs_sistema. Nunca debe tumbar la
+// petición si la tabla aún no existe (falta correr la migración) — se
+// degrada a silencio + nota en api_log.txt, igual que hicimos con
+// recordatorios.
+function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela_id = null) {
+    try {
+        $stmt = $pdo->prepare(
+            "INSERT INTO logs_sistema (usuario_id, usuario_nombre, escuela_id, accion, detalle, ip)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $usuario_actual['user_id'] ?? null,
+            $usuario_actual['nombre'] ?? ($usuario_actual['email'] ?? null),
+            $escuela_id ?? ($usuario_actual['escuela_id'] ?? null),
+            $accion,
+            $detalle,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+    } catch (\PDOException $e) {
+        file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | registrar_log falló (¿falta migrar logs_sistema?): " . $e->getMessage() . "\n", FILE_APPEND);
+    }
+}
+
 header('Content-Type: application/json; charset=UTF-8');
 // APP_ALLOWED_ORIGIN debe definirse en config.php (ej. 'https://tudominio.com')
 header('Access-Control-Allow-Origin: ' . (defined('APP_ALLOWED_ORIGIN') ? APP_ALLOWED_ORIGIN : '*'));
@@ -168,6 +209,7 @@ switch ($action) {
             }
 
             $token = generar_token($user['id']);
+            registrar_log($pdo, ['user_id' => $user['id'], 'nombre' => $user['nombre']], 'login_exitoso', null, $user['escuela_id']);
             respond([
                 'success' => true, 
                 'user' => [
@@ -181,6 +223,7 @@ switch ($action) {
                 ]
             ]);
         }
+        registrar_log($pdo, ['user_id' => $user['id'] ?? null, 'nombre' => $email], 'login_fallido', "Intento con correo: $email", $user['escuela_id'] ?? null);
         respond(['success' => false, 'error' => 'Credenciales incorrectas']);
     break;
 
@@ -614,7 +657,7 @@ switch ($action) {
 
         // Paginación de clientes (alumnos)
         $pagina_clientes    = max(1, intval($input['pagina_clientes'] ?? $_GET['pagina_clientes'] ?? 1));
-        $por_pagina_clientes = intval($input['por_pagina_clientes'] ?? $_GET['por_pagina_clientes'] ?? 500);
+        $por_pagina_clientes = intval($input['por_pagina_clientes'] ?? $_GET['por_pagina_clientes'] ?? 25);
         $por_pagina_clientes = max(1, min($por_pagina_clientes, $MAX_FILA));
         $offset_clientes    = ($pagina_clientes - 1) * $por_pagina_clientes;
         $busqueda_clientes  = trim($input['buscar_clientes'] ?? $_GET['buscar_clientes'] ?? '');
@@ -636,7 +679,8 @@ switch ($action) {
         $escuelas = $stmt->fetchAll();
 
         // ── Resumen liviano por escuela (siempre se manda, sirve para el dashboard
-        //    de superadmin sin tener que cargar el detalle de cada una) ──
+        //    de superadmin y para el desglose por plantel sin cargar el detalle
+        //    completo de cada escuela) ──
         $resumen_escuelas = [];
         if ($rol === 'superadmin') {
             $rs = $pdo->query(
@@ -647,7 +691,29 @@ switch ($action) {
                 $resumen_escuelas[intval($row['escuela_id'])] = [
                     'total_alumnos' => intval($row['total_alumnos']),
                     'saldo_total'   => floatval($row['saldo_total']),
+                    'cobrado_90d'   => 0,
+                    'pendiente_90d' => 0,
+                    'num_cobros_90d' => 0,
                 ];
+            }
+            // Cobrado/pendiente por escuela en los últimos 90 días (para desglosar
+            // por plantel en SuperReportes/Dashboard sin otro roundtrip por escuela)
+            $rs2 = $pdo->query(
+                "SELECT escuela_id, estado, COUNT(*) AS n, COALESCE(SUM(total),0) AS suma
+                 FROM cobros WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                 GROUP BY escuela_id, estado"
+            );
+            foreach ($rs2->fetchAll() as $row) {
+                $eid = intval($row['escuela_id']);
+                if (!isset($resumen_escuelas[$eid])) {
+                    $resumen_escuelas[$eid] = ['total_alumnos' => 0, 'saldo_total' => 0, 'cobrado_90d' => 0, 'pendiente_90d' => 0, 'num_cobros_90d' => 0];
+                }
+                if ($row['estado'] === 'pagado') {
+                    $resumen_escuelas[$eid]['cobrado_90d'] += floatval($row['suma']);
+                } elseif ($row['estado'] === 'pendiente') {
+                    $resumen_escuelas[$eid]['pendiente_90d'] += floatval($row['suma']);
+                }
+                $resumen_escuelas[$eid]['num_cobros_90d'] += intval($row['n']);
             }
         }
 
@@ -699,6 +765,43 @@ switch ($action) {
             return $p;
         }, $planteles_raw);
 
+        // ── Métricas por plantel (alumnos + cobros 90 días de su escuela-cuenta
+        //    hija). Disponible para admin/superadmin, no solo superadmin, para
+        //    que el dashboard de cada escuela vea sus propios planteles. ──
+        $resumen_planteles = [];
+        if (!empty($planteles)) {
+            $ids_hijos = array_column($planteles, 'escuela_plantel_id');
+            $ids_hijos = array_values(array_unique(array_filter($ids_hijos)));
+            if (!empty($ids_hijos)) {
+                $in = implode(',', array_fill(0, count($ids_hijos), '?'));
+                $rp1 = $pdo->prepare("SELECT escuela_id, COUNT(*) AS n FROM clientes WHERE escuela_id IN ($in) GROUP BY escuela_id");
+                $rp1->execute($ids_hijos);
+                foreach ($rp1->fetchAll() as $row) {
+                    $resumen_planteles[intval($row['escuela_id'])]['num_alumnos'] = intval($row['n']);
+                }
+                $rp2 = $pdo->prepare(
+                    "SELECT escuela_id, estado, COUNT(*) AS n, COALESCE(SUM(total),0) AS suma
+                     FROM cobros WHERE escuela_id IN ($in) AND fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                     GROUP BY escuela_id, estado"
+                );
+                $rp2->execute($ids_hijos);
+                foreach ($rp2->fetchAll() as $row) {
+                    $eid = intval($row['escuela_id']);
+                    if (!isset($resumen_planteles[$eid]['cobrado_90d'])) $resumen_planteles[$eid]['cobrado_90d'] = 0;
+                    if (!isset($resumen_planteles[$eid]['pendiente_90d'])) $resumen_planteles[$eid]['pendiente_90d'] = 0;
+                    if ($row['estado'] === 'pagado') $resumen_planteles[$eid]['cobrado_90d'] += floatval($row['suma']);
+                    if ($row['estado'] === 'pendiente') $resumen_planteles[$eid]['pendiente_90d'] += floatval($row['suma']);
+                }
+            }
+            // Rellenar defaults para los que no tuvieron ni alumnos ni cobros
+            foreach ($ids_hijos as $eid) {
+                $resumen_planteles[$eid] = array_merge(
+                    ['num_alumnos' => 0, 'cobrado_90d' => 0, 'pendiente_90d' => 0],
+                    $resumen_planteles[$eid] ?? []
+                );
+            }
+        }
+
         // ── Familias ──
         $stmt = $pdo->prepare("SELECT * FROM familias WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
         $stmt->execute([$escuela_id_ver]);
@@ -719,6 +822,10 @@ switch ($action) {
         }, $productos_raw);
 
         // ── Cobros (últimos 90 días, con tope duro adicional) ──
+        // Nota: este campo alimenta también Dashboard.js y el badge de
+        // "pendientes" en app.js, que necesitan el conjunto agregado, no una
+        // página. La tabla paginada de Cobros.js usa el endpoint aparte
+        // 'listar_cobros' (ver más abajo en el switch).
         $stmt = $pdo->prepare(
             "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
              FROM cobros co
@@ -735,6 +842,37 @@ switch ($action) {
             return $c;
         }, $cobros_raw);
 
+        // Resumen agregado exacto (no depende del tope $MAX_FILA de arriba,
+        // así el badge de "pendientes" y los totales del dashboard son
+        // correctos aunque la escuela tenga más de $MAX_FILA cobros en 90 días).
+        $res_co = $pdo->prepare(
+            "SELECT estado, COUNT(*) AS n, COALESCE(SUM(total),0) AS suma
+             FROM cobros WHERE escuela_id = ? AND fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+             GROUP BY estado"
+        );
+        $res_co->execute([$escuela_id_ver]);
+        $cobros_resumen = ['pagado' => ['n'=>0,'suma'=>0], 'pendiente' => ['n'=>0,'suma'=>0], 'cancelado' => ['n'=>0,'suma'=>0]];
+        foreach ($res_co->fetchAll() as $row) {
+            $cobros_resumen[$row['estado']] = ['n' => intval($row['n']), 'suma' => floatval($row['suma'])];
+        }
+
+        // ── Recordatorios (últimos 60 días, ya reales desde la BD) ──
+        // Envuelto en try/catch: si la tabla `recordatorios` (ver
+        // optimizacion_bd.sql, Bloque 0) todavía no se migró, cargar_datos
+        // no se debe caer completo por eso.
+        $recordatorios = [];
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT id, escuela_id, cobro_id, cliente, fecha, canal, usuario_id
+                 FROM recordatorios WHERE escuela_id = ? AND fecha >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
+                 ORDER BY fecha DESC LIMIT $MAX_FILA"
+            );
+            $stmt->execute([$escuela_id_ver]);
+            $recordatorios = $stmt->fetchAll();
+        } catch (\PDOException $e) {
+            file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | recordatorios no disponible (¿falta migrar tabla?): " . $e->getMessage() . "\n", FILE_APPEND);
+        }
+
         respond([
             'success'           => true,
             'escuelas'          => $escuelas,
@@ -744,14 +882,134 @@ switch ($action) {
             'clientes_pagina'   => $pagina_clientes,
             'clientes_por_pagina' => $por_pagina_clientes,
             'planteles'         => $planteles,
+            'resumen_planteles' => $resumen_planteles,
             'familias'          => $familias,
             'productos'         => $productos,
             'cobros'            => $cobros,
+            'cobros_resumen'    => $cobros_resumen,
+            'recordatorios'     => $recordatorios,
             'escuela_id_ver'    => $escuela_id_ver,
         ]);
     break;
 
 
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'marcar_recordatorio':
+        $cobro_id = intval($input['cobro_id'] ?? 0);
+        if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+
+        // El cobro debe pertenecer a la escuela del usuario (o cualquiera si superadmin)
+        $chk = $pdo->prepare("SELECT co.escuela_id, COALESCE(cl.nombre,'Cliente general') AS cliente FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id WHERE co.id = ?");
+        $chk->execute([$cobro_id]);
+        $cobro = $chk->fetch();
+        if (!$cobro) respond(['success' => false, 'error' => 'Cobro no encontrado']);
+        if ($usuario_actual['rol'] !== 'superadmin' && $cobro['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
+        }
+
+        $hoy = date('Y-m-d');
+        // Idempotente: un recordatorio por cobro por día (uq_recordatorio_dia)
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO recordatorios (escuela_id, cobro_id, cliente, fecha, canal, usuario_id)
+                 VALUES (?, ?, ?, ?, 'manual', ?)
+                 ON DUPLICATE KEY UPDATE canal = canal"
+            );
+            $stmt->execute([$cobro['escuela_id'], $cobro_id, $cobro['cliente'], $hoy, $usuario_actual['user_id'] ?? null]);
+        } catch (\PDOException $e) {
+            file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | marcar_recordatorio error (¿falta migrar tabla?): " . $e->getMessage() . "\n", FILE_APPEND);
+            respond(['success' => false, 'error' => 'No se pudo guardar el recordatorio. Contacta al administrador (falta migración de BD).']);
+        }
+        respond(['success' => true]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'listar_logs':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el superadmin puede ver los logs del sistema.']);
+        }
+        $pagina_lg    = max(1, intval($input['pagina'] ?? $_GET['pagina'] ?? 1));
+        $por_pagina_lg = max(1, min(intval($input['por_pagina'] ?? $_GET['por_pagina'] ?? 25), 200));
+        $offset_lg    = ($pagina_lg - 1) * $por_pagina_lg;
+        $accion_lg    = trim($input['accion'] ?? $_GET['accion'] ?? '');
+        $escuela_lg   = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
+
+        $where = '1=1'; $params = [];
+        if ($accion_lg !== '') { $where .= ' AND accion = ?'; $params[] = $accion_lg; }
+        if ($escuela_lg) { $where .= ' AND escuela_id = ?'; $params[] = $escuela_lg; }
+
+        try {
+            $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM logs_sistema WHERE $where");
+            $cnt->execute($params);
+            $total_lg = intval($cnt->fetch()['n'] ?? 0);
+
+            $stmt = $pdo->prepare("SELECT * FROM logs_sistema WHERE $where ORDER BY id DESC LIMIT $por_pagina_lg OFFSET $offset_lg");
+            $stmt->execute($params);
+            $logs = $stmt->fetchAll();
+        } catch (\PDOException $e) {
+            respond(['success' => false, 'error' => 'La tabla logs_sistema aún no existe. Corre la migración (optimizacion_bd.sql, Bloque 0b).']);
+        }
+
+        respond(['success' => true, 'logs' => $logs, 'total' => $total_lg, 'pagina' => $pagina_lg, 'por_pagina' => $por_pagina_lg]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'listar_cobros':
+        // Endpoint paginado dedicado para la tabla de Cobros.js — independiente
+        // del resumen agregado que trae cargar_datos (para no mezclar "página
+        // actual" con "totales para el dashboard").
+        $escuela_id_lc = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
+        if (!$escuela_id_lc) respond(['success' => false, 'error' => 'escuela_id requerido']);
+        if ($usuario_actual['rol'] !== 'superadmin' && $escuela_id_lc != ($usuario_actual['escuela_id'] ?? null)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para ver los cobros de esa escuela.']);
+        }
+
+        $pagina_lc    = max(1, intval($input['pagina'] ?? $_GET['pagina'] ?? 1));
+        $por_pagina_lc = max(1, min(intval($input['por_pagina'] ?? $_GET['por_pagina'] ?? 25), 200));
+        $offset_lc    = ($pagina_lc - 1) * $por_pagina_lc;
+        $estado_lc    = trim($input['estado'] ?? $_GET['estado'] ?? '');
+        $buscar_lc    = trim($input['buscar'] ?? $_GET['buscar'] ?? '');
+
+        $where = 'co.escuela_id = ?';
+        $params = [$escuela_id_lc];
+        if (in_array($estado_lc, ['pagado', 'pendiente', 'cancelado'])) {
+            $where .= ' AND co.estado = ?';
+            $params[] = $estado_lc;
+        }
+        if ($buscar_lc !== '') {
+            $where .= ' AND (co.folio LIKE ? OR cl.nombre LIKE ? OR co.referencia LIKE ?)';
+            $params[] = "%$buscar_lc%"; $params[] = "%$buscar_lc%"; $params[] = "%$buscar_lc%";
+        }
+
+        $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id WHERE $where");
+        $cnt->execute($params);
+        $total_lc = intval($cnt->fetch()['n'] ?? 0);
+
+        $stmt = $pdo->prepare(
+            "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+             FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id
+             WHERE $where ORDER BY co.id DESC LIMIT $por_pagina_lc OFFSET $offset_lc"
+        );
+        $stmt->execute($params);
+        $lista_lc = array_map(function($c) {
+            $c['total']   = floatval($c['total']);
+            $c['factura'] = (bool)$c['factura'];
+            $c['cliente'] = $c['cliente'] ?? 'Cliente general';
+            return $c;
+        }, $stmt->fetchAll());
+
+        respond([
+            'success'   => true,
+            'cobros'    => $lista_lc,
+            'total'     => $total_lc,
+            'pagina'    => $pagina_lc,
+            'por_pagina' => $por_pagina_lc,
+        ]);
+    break;
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'crear_cobro':
@@ -765,6 +1023,13 @@ switch ($action) {
 
         if (!$escuela_id || !$metodo || empty($carrito)) {
             respond(['success' => false, 'error' => 'Faltan datos del cobro']);
+        }
+        // Validar contra el enum real de la columna `cobros.metodo` — sin esto,
+        // un typo o un cliente mal formado inserta basura silenciosa (así se
+        // coló el cobro con metodo='' que encontramos en el dump).
+        $metodos_validos = ['Efectivo', 'TC', 'SPEI', 'CoDi'];
+        if (!in_array($metodo, $metodos_validos, true)) {
+            respond(['success' => false, 'error' => 'Método de pago inválido']);
         }
 
         // Calcular total desde el carrito
@@ -902,6 +1167,11 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'crear_cliente':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'El cajero no puede dar de alta alumnos, solo consultarlos.']);
+        }
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $nombre     = trim($input['nombre']       ?? '');
         $matricula  = trim($input['matricula']    ?? '') ?: null;
@@ -913,6 +1183,20 @@ switch ($action) {
         $tipo       = in_array($input['tipo'] ?? '', ['alumno','general']) ? $input['tipo'] : 'alumno';
 
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+
+        // Límite de alumnos según el plan contratado (ver PLANES_LIMITES arriba)
+        $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");
+        $plan_esc->execute([$escuela_id]);
+        $plan_nombre = $plan_esc->fetch()['plan'] ?? PLAN_FALLBACK;
+        $limite = limitesDelPlan($plan_nombre)['max_alumnos'];
+        if ($limite !== null) {
+            $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ? AND activo = 1");
+            $cnt->execute([$escuela_id]);
+            $actuales = intval($cnt->fetch()['n'] ?? 0);
+            if ($actuales >= $limite) {
+                respond(['success' => false, 'error' => "Llegaste al límite de $limite alumnos activos de tu plan ($plan_nombre). Actualiza tu plan para dar de alta a más alumnos."]);
+            }
+        }
 
         $stmt = $pdo->prepare(
             "INSERT INTO clientes (escuela_id, familia_id, tipo, nombre, grado, matricula, curp, email, telefono, activo)
@@ -926,6 +1210,10 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_cliente':
+        if (!in_array($usuario_actual['rol'] ?? '', ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'El cajero no puede editar alumnos, solo consultarlos.']);
+        }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
 
@@ -957,6 +1245,10 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_cliente_activo':
+        if (!in_array($usuario_actual['rol'] ?? '', ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'El cajero no puede activar/desactivar alumnos.']);
+        }
         $id     = intval($input['id']     ?? 0);
         $activo = $input['activar'] ? 1 : 0;
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
@@ -1074,6 +1366,7 @@ switch ($action) {
         );
         $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol, $fam_id, $creado_por]);
         $id = intval($pdo->lastInsertId());
+        registrar_log($pdo, $usuario_actual, 'usuario_creado', "Nuevo usuario '$nombre' ($email) con rol '$rol'", $esc_id);
         respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
     break;
 
@@ -1129,6 +1422,14 @@ switch ($action) {
         if ($sets) {
             $vals[] = $id;
             $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+            if ($rol || $esc_id !== null || $password) {
+                $cambios = array_filter([
+                    $rol ? "rol → '$rol'" : null,
+                    $esc_id !== null ? "escuela_id → $esc_id" : null,
+                    $password ? 'contraseña restablecida' : null,
+                ]);
+                registrar_log($pdo, $usuario_actual, 'usuario_editado_sensible', "Usuario #$id: " . implode(', ', $cambios));
+            }
         }
         // Re-leer el usuario actualizado para devolverlo completo
         $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por FROM usuarios u WHERE u.id = ?");
@@ -1160,6 +1461,7 @@ switch ($action) {
         }
         $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
         $stmt->execute([$id]);
+        registrar_log($pdo, $usuario_actual, 'usuario_activo_toggle', "Usuario #$id");
         respond(['success' => true]);
     break;
 
@@ -1184,8 +1486,37 @@ switch ($action) {
                 respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
             }
         }
+        $chkNombre = $pdo->prepare("SELECT nombre, email FROM usuarios WHERE id = ?");
+        $chkNombre->execute([$id]);
+        $objetivoInfo = $chkNombre->fetch();
         $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
+        registrar_log($pdo, $usuario_actual, 'usuario_eliminado', "Usuario #$id eliminado: " . ($objetivoInfo['nombre'] ?? '') . ' (' . ($objetivoInfo['email'] ?? '') . ')');
         respond(['success' => true]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'planteles_de_escuela':
+        // Independiente de escuela_id_ver / cargar_datos: el panel "Ver
+        // planteles" en Escuelas.js puede abrirse para cualquier escuela sin
+        // importar cuál esté seleccionada en el nav global.
+        $escuela_id_pe = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
+        if (!$escuela_id_pe) respond(['success' => false, 'error' => 'escuela_id requerido']);
+        if (!in_array($usuario_actual['rol'] ?? '', ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para ver planteles.']);
+        }
+        if (($usuario_actual['rol'] ?? '') === 'admin' && $escuela_id_pe != ($usuario_actual['escuela_id'] ?? null)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para ver planteles de esa escuela.']);
+        }
+        $stmt = $pdo->prepare("SELECT * FROM planteles WHERE escuela_id = ? ORDER BY id");
+        $stmt->execute([$escuela_id_pe]);
+        $planteles_pe = array_map(function($p) {
+            $p['activo'] = (bool)$p['activo'];
+            return $p;
+        }, $stmt->fetchAll());
+        respond(['success' => true, 'planteles' => $planteles_pe, 'escuela_id' => $escuela_id_pe]);
     break;
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1203,9 +1534,29 @@ switch ($action) {
         $responsable      = trim($input['responsable'] ?? '');
         $tel              = trim($input['tel']         ?? '');
         $email            = trim($input['email']       ?? '');
+        $nivel_educativo  = trim($input['nivel_educativo'] ?? '') ?: null;
+        $zona             = trim($input['zona']        ?? '') ?: null;
+        $niveles_validos  = ['preescolar', 'primaria', 'secundaria', 'preparatoria', 'universidad', 'mixto'];
+        if ($nivel_educativo !== null && !in_array($nivel_educativo, $niveles_validos, true)) {
+            respond(['success' => false, 'error' => 'Nivel educativo inválido']);
+        }
 
         if (!$escuela_padre_id || !$nombre || !$email) {
             respond(['success' => false, 'error' => 'Faltan datos: escuela_id, nombre y email son obligatorios']);
+        }
+
+        // Límite de planteles según el plan contratado
+        $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");
+        $plan_esc->execute([$escuela_padre_id]);
+        $plan_nombre = $plan_esc->fetch()['plan'] ?? PLAN_FALLBACK;
+        $limite_plt = limitesDelPlan($plan_nombre)['max_planteles'];
+        if ($limite_plt !== null) {
+            $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM planteles WHERE escuela_id = ?");
+            $cnt->execute([$escuela_padre_id]);
+            $actuales = intval($cnt->fetch()['n'] ?? 0);
+            if ($actuales >= $limite_plt) {
+                respond(['success' => false, 'error' => "Tu plan ($plan_nombre) permite máximo $limite_plt plantel(es). Actualiza a Pro para multi-plantel."]);
+            }
         }
 
         // Validación de scope para administradores
@@ -1239,10 +1590,10 @@ switch ($action) {
 
             // 2. Insertar en planteles (para la UI de administración)
             $stmt2 = $pdo->prepare(
-                "INSERT INTO planteles (escuela_id, escuela_plantel_id, nombre, direccion, responsable, tel, activo)
-                 VALUES (?, ?, ?, ?, ?, ?, 1)"
+                "INSERT INTO planteles (escuela_id, escuela_plantel_id, nombre, direccion, nivel_educativo, zona, responsable, tel, activo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)"
             );
-            $stmt2->execute([$escuela_padre_id, $nueva_escuela_id, $nombre, $direccion, $responsable, $tel]);
+            $stmt2->execute([$escuela_padre_id, $nueva_escuela_id, $nombre, $direccion, $nivel_educativo, $zona, $responsable, $tel]);
             $plantel_id = intval($pdo->lastInsertId());
 
             // 3. Crear la cuenta de usuario (Admin del plantel)
@@ -1274,6 +1625,8 @@ switch ($action) {
                     'escuela_plantel_id' => $nueva_escuela_id,
                     'nombre'             => $nombre,
                     'direccion'          => $direccion,
+                    'nivel_educativo'    => $nivel_educativo,
+                    'zona'               => $zona,
                     'responsable'        => $responsable,
                     'tel'                => $tel,
                     'activo'             => true
@@ -1308,6 +1661,12 @@ switch ($action) {
         $responsable = trim($input['responsable']    ?? '');
         $tel         = trim($input['tel']            ?? '');
         $email       = trim($input['email']          ?? '');
+        $nivel_educativo = trim($input['nivel_educativo'] ?? '') ?: null;
+        $zona            = trim($input['zona']        ?? '') ?: null;
+        $niveles_validos = ['preescolar', 'primaria', 'secundaria', 'preparatoria', 'universidad', 'mixto'];
+        if ($nivel_educativo !== null && !in_array($nivel_educativo, $niveles_validos, true)) {
+            respond(['success' => false, 'error' => 'Nivel educativo inválido']);
+        }
 
         if (!$id || !$nombre) {
             respond(['success' => false, 'error' => 'Faltan datos: id y nombre son obligatorios']);
@@ -1338,8 +1697,8 @@ switch ($action) {
 
             // 1. Tabla planteles
             $pdo->prepare(
-                "UPDATE planteles SET nombre = ?, direccion = ?, responsable = ?, tel = ? WHERE id = ?"
-            )->execute([$nombre, $direccion, $responsable, $tel, $id]);
+                "UPDATE planteles SET nombre = ?, direccion = ?, nivel_educativo = ?, zona = ?, responsable = ?, tel = ? WHERE id = ?"
+            )->execute([$nombre, $direccion, $nivel_educativo, $zona, $responsable, $tel, $id]);
 
             // 2. Escuela-cuenta del plantel
             $sets = ['nombre = ?', 'direccion = ?', 'telefono = ?'];
@@ -1365,6 +1724,8 @@ switch ($action) {
                     'escuela_plantel_id' => $escuela_plantel_id,
                     'nombre'             => $nombre,
                     'direccion'          => $direccion,
+                    'nivel_educativo'    => $nivel_educativo,
+                    'zona'               => $zona,
                     'responsable'        => $responsable,
                     'tel'                => $tel,
                     'activo'             => (bool)$plantel['activo'],
@@ -1419,6 +1780,7 @@ switch ($action) {
 
         $stmt = $pdo->prepare("UPDATE escuelas SET activa = NOT activa WHERE id = ?");
         $stmt->execute([$id]);
+        registrar_log($pdo, $usuario_actual, 'escuela_activa_toggle', "Escuela #$id", $id);
 
         $stmt = $pdo->prepare("SELECT activa FROM escuelas WHERE id = ?");
         $stmt->execute([$id]);
@@ -1764,6 +2126,10 @@ switch ($action) {
     case 'caja_historial':
         $sucursal_id = intval($input['sucursal_id'] ?? $_GET['sucursal_id'] ?? 0);
         $escuela_id  = intval($input['escuela_id']  ?? $_GET['escuela_id']  ?? $usuario_actual['escuela_id'] ?? 0);
+        // Un cajero solo debe ver su propio historial de cortes, no el de sus
+        // compañeros (admin/superadmin sí ven el de toda la sucursal/escuela).
+        $solo_propio = ($usuario_actual['rol'] ?? '') === 'cajero';
+        $filtro_usuario = $solo_propio ? " AND c.usuario_id = " . intval($usuario_actual['user_id'] ?? 0) : "";
 
         if ($sucursal_id) {
             $stmt = $pdo->prepare(
@@ -1771,7 +2137,7 @@ switch ($action) {
                  FROM caja c
                  JOIN usuarios u ON c.usuario_id = u.id
                  JOIN sucursales s ON c.sucursal_id = s.id
-                 WHERE c.sucursal_id = ? ORDER BY c.id DESC LIMIT 200"
+                 WHERE c.sucursal_id = ? $filtro_usuario ORDER BY c.id DESC LIMIT 200"
             );
             $stmt->execute([$sucursal_id]);
         } elseif ($escuela_id) {
@@ -1780,7 +2146,7 @@ switch ($action) {
                  FROM caja c
                  JOIN usuarios u ON c.usuario_id = u.id
                  JOIN sucursales s ON c.sucursal_id = s.id
-                 WHERE s.escuela_id = ? ORDER BY c.id DESC LIMIT 200"
+                 WHERE s.escuela_id = ? $filtro_usuario ORDER BY c.id DESC LIMIT 200"
             );
             $stmt->execute([$escuela_id]);
         } else {

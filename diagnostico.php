@@ -15,6 +15,7 @@ if ($token !== 'edupago_check_2026') {
 header('Content-Type: text/html; charset=UTF-8');
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
 
 function check($label, $ok, $detail = '') {
     $icon  = $ok ? '✅' : '❌';
@@ -39,6 +40,34 @@ function check($label, $ok, $detail = '') {
 </head>
 <body>
 <h1>🔍 EduPago — Diagnóstico de entorno</h1>
+
+<h2>Planteles / Escuelas (BD real)</h2>
+<table>
+<?php
+try {
+    $stmt = $pdo->query("SELECT id, nombre, es_plantel, escuela_padre_id FROM escuelas ORDER BY id");
+    $escs = $stmt->fetchAll();
+    foreach ($escs as $e) {
+        $tipo = $e['es_plantel'] ? 'PLANTEL de escuela #' . $e['escuela_padre_id'] : 'ESCUELA principal';
+        check('Escuela #' . $e['id'] . ' — ' . $e['nombre'], true, $tipo . ' (es_plantel tipo PHP: ' . gettype($e['es_plantel']) . ' = ' . var_export($e['es_plantel'], true) . ')');
+    }
+} catch (Exception $ex) {
+    check('Consulta escuelas', false, $ex->getMessage());
+}
+try {
+    $stmt2 = $pdo->query("SELECT id, escuela_id, escuela_plantel_id, nombre, activo FROM planteles ORDER BY escuela_id, id");
+    $plts = $stmt2->fetchAll();
+    if (!$plts) {
+        check('Tabla planteles', true, 'Vacía — no hay filas');
+    }
+    foreach ($plts as $p) {
+        check('Plantel #' . $p['id'] . ' — ' . $p['nombre'], true, 'escuela_id (tipo ' . gettype($p['escuela_id']) . ') = ' . var_export($p['escuela_id'], true) . ' → escuela_plantel_id ' . $p['escuela_plantel_id'] . ' | activo=' . var_export($p['activo'], true));
+    }
+} catch (Exception $ex) {
+    check('Consulta planteles', false, $ex->getMessage());
+}
+?>
+</table>
 
 <h2>Webhook SPEI</h2>
 <table>

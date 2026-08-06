@@ -12,65 +12,77 @@ const NAV_ITEMS = [{
   label: 'Dashboard',
   icon: 'dashboard',
   section: 'principal',
-  roles: ['cajero', 'admin', 'superadmin']
+  roles: ['cajero', 'admin']
 }, {
   id: 'caja',
   label: 'Caja de cobros',
   icon: 'caja',
   section: 'principal',
-  roles: ['cajero', 'admin', 'superadmin']
+  roles: ['cajero', 'admin']
 }, {
   id: 'corte_caja',
   label: 'Corte de caja',
   icon: 'caja',
   section: 'principal',
-  roles: ['cajero', 'admin', 'superadmin']
+  roles: ['cajero', 'admin']
 }, {
   id: 'cobros',
   label: 'Historial cobros',
   icon: 'cobros',
   section: 'principal',
-  roles: ['cajero', 'admin', 'superadmin']
+  roles: ['cajero', 'admin']
 }, {
   id: 'alumnos',
   label: 'Alumnos',
   icon: 'alumnos',
   section: 'principal',
-  roles: ['cajero', 'admin', 'superadmin']
+  roles: ['cajero', 'admin']
 }, {
   id: 'familias',
   label: 'Familias',
   icon: 'familias',
   section: 'principal',
-  roles: ['cajero', 'admin', 'superadmin']
+  roles: ['admin']
 }, {
   id: 'productos',
   label: 'Conceptos de pago',
   icon: 'productos',
   section: 'configuración',
-  roles: ['admin', 'superadmin']
+  roles: ['admin']
 }, {
   id: 'facturacion',
   label: 'Facturación',
   icon: 'facturacion2',
   section: 'configuración',
-  roles: ['admin', 'superadmin']
+  roles: ['admin']
 }, {
   id: 'recordatorios',
   label: 'Recordatorios',
   icon: 'emails',
   section: 'configuración',
-  roles: ['admin', 'superadmin']
+  roles: ['admin']
 }, {
   id: 'reportes',
   label: 'Reportes',
   icon: 'reportes',
   section: 'configuración',
-  roles: ['admin', 'superadmin']
+  roles: ['admin']
 }, {
   id: 'escuelas',
-  label: 'Escuelas',
+  label: 'Colegios / Inquilinos',
   icon: 'escuelas',
+  section: 'superadmin',
+  roles: ['superadmin']
+}, {
+  id: 'suscripciones',
+  label: 'Suscripciones',
+  icon: 'facturacion2',
+  section: 'superadmin',
+  roles: ['superadmin']
+}, {
+  id: 'logs',
+  label: 'Logs del Sistema',
+  icon: 'reportes',
   section: 'superadmin',
   roles: ['superadmin']
 }, {
@@ -87,7 +99,7 @@ const NAV_ITEMS = [{
   roles: ['admin']
 }, {
   id: 'superreportes',
-  label: 'Reportes globales',
+  label: 'Métricas Globales',
   icon: 'superreportes',
   section: 'superadmin',
   roles: ['superadmin']
@@ -102,8 +114,10 @@ const TITLES = {
   facturacion: 'Facturación',
   recordatorios: 'Recordatorios',
   reportes: 'Reportes',
-  escuelas: 'Gestión de Escuelas',
-  superreportes: 'Reportes Globales',
+  escuelas: 'Colegios / Inquilinos',
+  suscripciones: 'Suscripciones',
+  logs: 'Logs del Sistema',
+  superreportes: 'Métricas Globales',
   usuarios: 'Gestión de Usuarios',
   miequipo: 'Mi Equipo'
 };
@@ -172,9 +186,11 @@ function App() {
   }, [theme]);
 
   // Carga datos desde la API (MySQL) o desde localStorage como fallback (modo demo/offline)
-  const cargarDatosDesdeAPI = async token => {
+  const cargarDatosDesdeAPI = async (token, escuelaId) => {
     try {
-      const res = await fetch('api.php?action=cargar_datos', {
+      const params = new URLSearchParams({ action: 'cargar_datos' });
+      if (escuelaId) params.set('escuela_id_ver', escuelaId);
+      const res = await fetch('api.php?' + params.toString(), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -188,12 +204,17 @@ function App() {
         const merged = {
           ...base,
           escuelas:  (json.escuelas  || []).length ? json.escuelas  : (base.escuelas  || []),
+          resumen_escuelas: json.resumen_escuelas || {},
           clientes:  json.clientes  || [],
+          clientes_total: json.clientes_total,
+          clientes_pagina: json.clientes_pagina,
+          clientes_por_pagina: json.clientes_por_pagina,
           planteles: json.planteles || [],
+          resumen_planteles: json.resumen_planteles || {},
           familias:  json.familias  || [],
           productos: (json.productos || []).length ? json.productos : (base.productos || []),
           cobros:    json.cobros    || [],
-          recordatorios: base.recordatorios || [],
+          recordatorios: json.recordatorios || base.recordatorios || [],
         };
         AppModel.save(merged);
         return merged;
@@ -207,7 +228,7 @@ function App() {
       setUser(session);
       if (session.escuela_id) setEscuelaActiva(session.escuela_id);
       // Intentar cargar desde DB
-      cargarDatosDesdeAPI(session.token).then(loaded => {
+      cargarDatosDesdeAPI(session.token, session.escuela_id).then(loaded => {
         setData(loaded);
         dataRef.current = loaded;
       });
@@ -220,11 +241,23 @@ function App() {
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
+  // Superadmin: al elegir una escuela en el selector se re-consulta cargar_datos
+  // con escuela_id_ver, porque el backend ya no manda el detalle de TODAS las
+  // escuelas de un jalón (ver optimización de cargar_datos).
+  const esSuperParaFetch = user && AuthController.isSuperAdmin(user);
+  useEffect(() => {
+    if (!user || !esSuperParaFetch || !escuelaActiva) return;
+    cargarDatosDesdeAPI(user.token, escuelaActiva).then(loaded => {
+      setData(loaded);
+      dataRef.current = loaded;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [escuelaActiva]);
   const handleLogin = u => {
     setUser(u);
     if (u.escuela_id) setEscuelaActiva(u.escuela_id);else setEscuelaActiva(null);
     // Cargar datos frescos de la DB después del login
-    cargarDatosDesdeAPI(u.token).then(loaded => {
+    cargarDatosDesdeAPI(u.token, u.escuela_id).then(loaded => {
       setData(loaded);
       dataRef.current = loaded;
     });
@@ -294,6 +327,8 @@ function App() {
     productos: data.productos || [],
     cobros: data.cobros || [],
     recordatorios: data.recordatorios || [],
+    resumen_planteles: data.resumen_planteles || {},
+    resumen_escuelas: data.resumen_escuelas || {},
   };
   const esSuper = AuthController.isSuperAdmin(user);
   const escuela = dataSegura.escuelas.find(e => e.id === escuelaActiva) || null;
@@ -332,13 +367,16 @@ function App() {
       case 'cobros':
         return /*#__PURE__*/_jsxDEV(Cobros, {
           data: dataScopeed,
-          setData: d => setData(mergeScoped(data, d, escuelaActiva))
+          setData: d => setData(mergeScoped(data, d, escuelaActiva)),
+          escuela_id: escuelaActiva,
+          rol: user?.rol
         }, void 0, false);
       case 'alumnos':
         return /*#__PURE__*/_jsxDEV(Alumnos, {
           data: dataScopeed,
           setData: d => setData(mergeScoped(data, d, escuelaActiva)),
-          escuela_id: escuelaActiva
+          escuela_id: escuelaActiva,
+          rol: user?.rol
         }, void 0, false);
       case 'familias':
         return /*#__PURE__*/_jsxDEV(Familias, {
@@ -380,6 +418,14 @@ function App() {
         }, void 0, false);
       case 'superreportes':
         return /*#__PURE__*/_jsxDEV(SuperReportes, {
+          data: dataSegura
+        }, void 0, false);
+      case 'suscripciones':
+        return /*#__PURE__*/_jsxDEV(Suscripciones, {
+          data: dataSegura
+        }, void 0, false);
+      case 'logs':
+        return /*#__PURE__*/_jsxDEV(Logs, {
           data: dataSegura
         }, void 0, false);
       case 'usuarios':

@@ -90,7 +90,17 @@ function Caja({
     const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
     const texto = [c.nombre, c.matricula, c.grado, fam?.nombre].filter(Boolean).join(' ').toLowerCase();
     return texto.includes(qCliente.toLowerCase());
-  });
+  }).map(c => {
+    const busq = qCliente.trim().toLowerCase();
+    const exacto = busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
+    return { c, exacto };
+  }).sort((a, b) => (b.exacto - a.exacto)).map(x => x.c);
+  const clientesFiltradosExactos = new Set(
+    clientesFiltrados.filter(c => {
+      const busq = qCliente.trim().toLowerCase();
+      return busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
+    }).map(c => c.id)
+  );
   const subtotal = carrito.reduce((a, i) => a + i.precio * i.qty, 0);
   const total = subtotal;
 
@@ -785,10 +795,18 @@ function Caja({
                     color: 'var(--ink)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5
                   },
-                  children: c.nombre
-                }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                  children: [clientesFiltradosExactos.has(c.id) && /*#__PURE__*/_jsxDEV(Icon, {
+                    name: "escuelas",
+                    size: 14,
+                    color: "var(--lime)",
+                    style: { display: 'inline', flexShrink: 0 }
+                  }, void 0, false), c.nombre]
+                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontSize: 11,
                     color: 'var(--ink-3)',

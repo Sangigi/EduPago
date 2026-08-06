@@ -51,21 +51,41 @@ function Recordatorios({
     return recordatoriosEnviados.some(r => r.cobro_id === cobroId && r.fecha === hoyStr);
   };
 
-  const marcarRecordado = cobro => {
+  const [guardandoId, setGuardandoId] = useState(null);
+
+  const marcarRecordado = async cobro => {
+    if (guardandoId) return;
+    setGuardandoId(cobro.id);
+    const hoyStr = hoy.toISOString().slice(0, 10);
+    // Optimista: se refleja de inmediato; si falla, se revierte.
     const nuevo = {
       id: AppModel.nextId(recordatoriosEnviados),
       cobro_id: cobro.id,
       cliente: cobro.cliente,
       escuela_id: cobro.escuela_id || (escuela ? escuela.id : null),
-      fecha: hoy.toISOString().slice(0, 10),
+      fecha: hoyStr,
       canal: 'manual'
     };
-    const newData = {
-      ...data,
-      recordatorios: [...recordatoriosEnviados, nuevo]
-    };
+    const newData = { ...data, recordatorios: [...recordatoriosEnviados, nuevo] };
     setData(newData);
-    AppModel.save(newData);
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=marcar_recordatorio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ cobro_id: cobro.id }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'No se pudo guardar');
+      // Persistimos también en cache local por si se pierde la conexión luego
+      AppModel.save(newData);
+    } catch (e) {
+      // Revertir el optimista si la API falló de verdad
+      setData(data);
+      alert('No se pudo guardar el recordatorio: ' + (e.message || 'intenta de nuevo'));
+    } finally {
+      setGuardandoId(null);
+    }
   };
 
   const listaFiltrada = pendientes.filter(c => {
@@ -143,17 +163,19 @@ function Recordatorios({
                   children: '✓ Recordado hoy'
                 }, void 0, false) : /*#__PURE__*/_jsxDEV("button", {
                   onClick: () => marcarRecordado(c),
+                  disabled: guardandoId === c.id,
                   style: {
                     padding: '6px 12px',
                     borderRadius: 8,
                     border: 'none',
                     background: 'var(--accent, #bdcf00)',
                     color: '#111',
-                    cursor: 'pointer',
+                    cursor: guardandoId === c.id ? 'default' : 'pointer',
+                    opacity: guardandoId === c.id ? .6 : 1,
                     fontSize: 12,
                     fontWeight: 600
                   },
-                  children: 'Marcar recordado'
+                  children: guardandoId === c.id ? 'Guardando…' : 'Marcar recordado'
                 }, void 0, false)
               ]
             }, void 0, true)

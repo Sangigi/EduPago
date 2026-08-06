@@ -841,6 +841,10 @@ function PortalFamilia({
                 v: hijo.curp || '—',
                 mono: true
               }, {
+                l: 'CLABE SPEI',
+                v: hijo.clabe_individual || 'Sin asignar',
+                mono: true
+              }, {
                 l: 'Correo',
                 v: hijo.email || '—'
               }, {

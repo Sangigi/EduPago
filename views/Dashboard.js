@@ -370,7 +370,21 @@ function Dashboard({
           }, void 0, false), p.responsable && /*#__PURE__*/_jsxDEV("div", {
             style: { fontSize: 11, color: 'var(--ink-4)' },
             children: ["Resp: ", p.responsable, p.tel ? ' · ' + p.tel : '']
-          }, void 0, true)]
+          }, void 0, true), (() => {
+            const r = (data.resumen_planteles || {})[p.escuela_plantel_id];
+            if (!r) return null;
+            return /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex', gap: 10, marginTop: 8, paddingTop: 8,
+                borderTop: '1px solid var(--glass-light)', fontSize: 11
+              },
+              children: [
+                /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--ink-3)' }, children: [r.num_alumnos, " alumnos"] }, void 0, true),
+                /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--green)', fontFamily: 'var(--mono)' }, children: fmt(r.cobrado_90d) }, void 0, false),
+                r.pendiente_90d > 0 && /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--amber)', fontFamily: 'var(--mono)' }, children: fmt(r.pendiente_90d) + ' pend.' }, void 0, false),
+              ]
+            }, void 0, true);
+          })()]
         }, p.id, true))
       }, void 0, true)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {

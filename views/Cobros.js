@@ -9,7 +9,8 @@ var _Fragment = React.Fragment;
 /* views/Cobros.jsx v2 */
 function Cobros({
   data,
-  setData
+  setData,
+  escuela_id
 }) {
   const {
     useState
@@ -19,15 +20,71 @@ function Cobros({
   const [q, setQ] = useState('');
   const [detalle, setDetalle] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
-  const lista = [...data.cobros].reverse().filter(c => {
-    if (filtroEstado !== 'todos' && c.estado !== filtroEstado) return false;
+  const [pagina, setPagina] = useState(1);
+  const [buscando, setBuscando] = useState(false);
+  // Página actual traída del backend (independiente del data.cobros global,
+  // que solo trae un resumen de 90 días para el dashboard). null = aún no
+  // se ha buscado en el servidor -> se usa el fallback local de data.cobros.
+  const [paginaBackend, setPaginaBackend] = useState(null);
+
+  const token = () => AuthController.getToken();
+
+  const buscarEnServidor = async (pag) => {
+    if (!escuela_id) return;
+    setBuscando(true);
+    try {
+      const params = new URLSearchParams({
+        action: 'listar_cobros',
+        escuela_id,
+        pagina: pag,
+        por_pagina: 25,
+      });
+      if (filtroEstado !== 'todos') params.set('estado', filtroEstado);
+      if (q) params.set('buscar', q);
+      const res = await fetch('api.php?' + params.toString(), {
+        headers: { 'Authorization': 'Bearer ' + token() },
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPaginaBackend(json);
+      }
+    } catch (e) {
+      // sin red: se sigue mostrando el fallback local
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  // Debounce de 400ms ante cambios de búsqueda/filtro/escuela; resetea a página 1
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      setPagina(1);
+      buscarEnServidor(1);
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, filtroEstado, escuela_id]);
+
+  const irAPagina = p => {
+    const totalPaginas = paginaBackend ? Math.max(1, Math.ceil(paginaBackend.total / paginaBackend.por_pagina)) : 1;
+    const destino = Math.min(Math.max(1, p), totalPaginas);
+    setPagina(destino);
+    buscarEnServidor(destino);
+  };
+
+  // filtroMetodo se sigue aplicando en cliente sobre la página ya traída
+  // (filtrar por método no justifica otro roundtrip; es solo la vista actual).
+  const fuente = paginaBackend ? paginaBackend.cobros : [...data.cobros].reverse();
+  const lista = fuente.filter(c => {
     if (filtroMetodo !== 'todos' && c.metodo !== filtroMetodo) return false;
-    if (q) {
+    if (!paginaBackend && filtroEstado !== 'todos' && c.estado !== filtroEstado) return false;
+    if (!paginaBackend && q) {
       const busq = q.toLowerCase();
       return c.cliente.toLowerCase().includes(busq) || c.folio.toLowerCase().includes(busq) || c.referencia && c.referencia.toLowerCase().includes(busq);
     }
     return true;
   });
+  const totalPaginas = paginaBackend ? Math.max(1, Math.ceil(paginaBackend.total / paginaBackend.por_pagina)) : 1;
   const totales = {
     todos: data.cobros.length,
     pagado: data.cobros.filter(c => c.estado === 'pagado').length,
@@ -47,6 +104,7 @@ function Cobros({
       AppModel.save(upd);
       setData(upd);
       setDetalle(null);
+      if (paginaBackend) buscarEnServidor(pagina);
     } catch(e) {
       alert('Error al cancelar: ' + (e.message || 'Intenta de nuevo'));
     } finally {
@@ -67,6 +125,7 @@ function Cobros({
       AppModel.save(upd);
       setData(upd);
       setDetalle(prev => prev ? { ...prev, estado: 'pagado', auth_code } : null);
+      if (paginaBackend) buscarEnServidor(pagina);
     } catch(e) {
       alert('Error al confirmar: ' + (e.message || 'Intenta de nuevo'));
     } finally {
@@ -92,7 +151,7 @@ function Cobros({
             children: "Historial de cobros"
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             className: "card-sub",
-            children: [lista.length, " resultados"]
+            children: [paginaBackend ? paginaBackend.total : lista.length, " resultados", buscando && ' · buscando…']
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
           className: "btn btn-secondary btn-sm",
@@ -307,7 +366,34 @@ function Cobros({
             }, c.id, true))]
           }, void 0, true)]
         }, void 0, true)
-      }, void 0, false)]
+      }, void 0, false), paginaBackend && totalPaginas > 1 && /*#__PURE__*/_jsxDEV("div", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 10,
+          marginTop: 12,
+          fontSize: 13,
+          color: 'var(--ink-3)',
+        },
+        children: [
+          /*#__PURE__*/_jsxDEV("span", {
+            children: `Página ${pagina} de ${totalPaginas} · ${paginaBackend.total} cobros`
+          }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            disabled: pagina <= 1 || buscando,
+            onClick: () => irAPagina(pagina - 1),
+            children: "‹ Anterior"
+          }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            disabled: pagina >= totalPaginas || buscando,
+            onClick: () => irAPagina(pagina + 1),
+            children: "Siguiente ›"
+          }, void 0, false),
+        ],
+      }, void 0, true)]
     }, void 0, true), detalle && /*#__PURE__*/_jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setDetalle(null),

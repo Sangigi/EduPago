@@ -30,13 +30,41 @@ function Escuelas({
   const EMPTY_PLT = {
     nombre: '',
     direccion: '',
+    nivel_educativo: '',
+    zona: '',
     responsable: '',
     tel: '',
     email: ''
   };
+  const NIVELES_EDUCATIVOS = [
+    { value: '', label: 'Sin especificar' },
+    { value: 'preescolar', label: 'Preescolar' },
+    { value: 'primaria', label: 'Primaria' },
+    { value: 'secundaria', label: 'Secundaria' },
+    { value: 'preparatoria', label: 'Preparatoria' },
+    { value: 'universidad', label: 'Universidad' },
+    { value: 'mixto', label: 'Mixto' },
+  ];
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [escuelaPltId, setEscuelaPltId] = useState(null); // escuela cuyo modal de planteles está abierto
+  const [plantelesPanel, setPlantelesPanel] = useState(null); // null = cargando/no pedido aún; [] = ya cargó y no hay
+  const [cargandoPlt, setCargandoPlt] = useState(false);
+  const [filtroNivelPlt, setFiltroNivelPlt] = useState('');
+  const [filtroZonaPlt, setFiltroZonaPlt] = useState('');
+
+  const cargarPlantelesDe = async (escId) => {
+    setCargandoPlt(true);
+    setPlantelesPanel(null);
+    try {
+      const res = await apiPost('planteles_de_escuela', { escuela_id: escId });
+      setPlantelesPanel(res.success ? (res.planteles || []) : []);
+    } catch (e) {
+      setPlantelesPanel([]);
+    } finally {
+      setCargandoPlt(false);
+    }
+  };
   const [modalPlt, setModalPlt] = useState(null); // null | 'list' | 'form'
   const [formPlt, setFormPlt] = useState(EMPTY_PLT);
   const [guardandoPlt, setGuardandoPlt] = useState(false);
@@ -84,6 +112,8 @@ function Escuelas({
           id: formPlt.id,
           nombre: formPlt.nombre,
           direccion: formPlt.direccion,
+          nivel_educativo: formPlt.nivel_educativo,
+          zona: formPlt.zona,
           responsable: formPlt.responsable,
           tel: formPlt.tel,
           email: formPlt.email
@@ -95,6 +125,7 @@ function Escuelas({
         }
         const planteles = data.planteles || [];
         const newPlanteles = planteles.map(p => p.id === formPlt.id ? { ...p, ...res.plantel } : p);
+        setPlantelesPanel(prev => (prev || []).map(p => p.id === formPlt.id ? { ...p, ...res.plantel } : p));
         let newEscuelas = data.escuelas || [];
         if (res.escuela_plantel) {
           newEscuelas = newEscuelas.map(e => e.id === res.escuela_plantel.id ? {
@@ -125,6 +156,8 @@ function Escuelas({
         escuela_id: escuelaPltId,
         nombre: formPlt.nombre,
         direccion: formPlt.direccion,
+        nivel_educativo: formPlt.nivel_educativo,
+        zona: formPlt.zona,
         responsable: formPlt.responsable,
         tel: formPlt.tel,
         email: formPlt.email
@@ -141,6 +174,7 @@ function Escuelas({
         color: '#282d65', plan: 'pro', fecha_alta: new Date().toISOString().slice(0, 10)
       }];
       const newPlanteles = [...(data.planteles || []), res.plantel];
+      setPlantelesPanel(prev => [...(prev || []), res.plantel]);
       const newData = { ...data, escuelas: newEscuelas, planteles: newPlanteles };
       setData(newData);
       AppModel.save(newData);
@@ -157,17 +191,22 @@ function Escuelas({
     }
     setGuardandoPlt(false);
   };
-  const togglePlantel = pid => {
-    const planteles = (data.planteles || []).map(p => p.id === pid ? {
-      ...p,
-      activo: !p.activo
-    } : p);
-    const newData = {
-      ...data,
-      planteles
-    };
-    setData(newData);
-    AppModel.save(newData);
+  const togglePlantel = async pid => {
+    // Optimista + persistido: antes solo mutaba el estado local y nunca
+    // llegaba a la BD, así que el cambio se perdía en el siguiente refresh.
+    const anteriorPanel = plantelesPanel;
+    const anteriorData = data.planteles;
+    setPlantelesPanel(prev => (prev || []).map(p => p.id === pid ? { ...p, activo: !p.activo } : p));
+    setData({ ...data, planteles: (data.planteles || []).map(p => p.id === pid ? { ...p, activo: !p.activo } : p) });
+    try {
+      const res = await apiPost('toggle_plantel', { id: pid });
+      if (!res.success) throw new Error(res.error || 'No se pudo actualizar');
+    } catch (e) {
+      // Revertir si falló de verdad en el servidor
+      setPlantelesPanel(anteriorPanel);
+      setData({ ...data, planteles: anteriorData });
+      alert('No se pudo cambiar el estado del plantel: ' + e.message);
+    }
   };
   const toggleActiva = async id => {
     // Optimista: refleja el cambio de inmediato en la UI
@@ -530,6 +569,7 @@ function Escuelas({
               onClick: () => {
                 setEscuelaPltId(esc.id);
                 setModalPlt('list');
+                cargarPlantelesDe(esc.id);
               },
               children: /*#__PURE__*/_jsxDEV(Icon, {
                 name: "escuelas",
@@ -789,7 +829,36 @@ function Escuelas({
           }, void 0, false)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-body",
-          children: [(data.planteles || []).filter(p => p.escuela_id === escuelaPltId).length === 0 && /*#__PURE__*/_jsxDEV("div", {
+          children: [(() => {
+            const zonasDisponibles = Array.from(new Set((plantelesPanel || []).map(p => p.zona).filter(Boolean))).sort();
+            const plantelesFiltrados = (plantelesPanel || []).filter(p =>
+              (!filtroNivelPlt || p.nivel_educativo === filtroNivelPlt) &&
+              (!filtroZonaPlt || p.zona === filtroZonaPlt)
+            );
+            return /*#__PURE__*/_jsxDEV(_Fragment, {
+              children: [!cargandoPlt && (plantelesPanel || []).length > 0 && /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'flex', gap: 8, marginBottom: 12 },
+                children: [/*#__PURE__*/_jsxDEV("select", {
+                  className: "form-select",
+                  style: { fontSize: 12.5, padding: '6px 10px' },
+                  value: filtroNivelPlt,
+                  onChange: e => setFiltroNivelPlt(e.target.value),
+                  children: NIVELES_EDUCATIVOS.map(n => /*#__PURE__*/_jsxDEV("option", {
+                    value: n.value,
+                    children: n.value ? n.label : 'Todos los niveles'
+                  }, n.value, false))
+                }, void 0, false), zonasDisponibles.length > 0 && /*#__PURE__*/_jsxDEV("select", {
+                  className: "form-select",
+                  style: { fontSize: 12.5, padding: '6px 10px' },
+                  value: filtroZonaPlt,
+                  onChange: e => setFiltroZonaPlt(e.target.value),
+                  children: [/*#__PURE__*/_jsxDEV("option", { value: "", children: "Todas las zonas" }, void 0, false),
+                  ...zonasDisponibles.map(z => /*#__PURE__*/_jsxDEV("option", { value: z, children: z }, z, false))]
+                }, void 0, true)]
+              }, void 0, true), cargandoPlt && /*#__PURE__*/_jsxDEV("div", {
+            className: "empty-state",
+            children: /*#__PURE__*/_jsxDEV("div", { className: "empty-text", children: "Cargando planteles…" }, void 0, false)
+          }, void 0, false), !cargandoPlt && plantelesFiltrados.length === 0 && /*#__PURE__*/_jsxDEV("div", {
             className: "empty-state",
             children: [/*#__PURE__*/_jsxDEV("div", {
               className: "empty-icon",
@@ -802,7 +871,7 @@ function Escuelas({
               className: "empty-text",
               children: "Sin planteles registrados"
             }, void 0, false)]
-          }, void 0, true), (data.planteles || []).filter(p => p.escuela_id === escuelaPltId).map(plt => /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), plantelesFiltrados.map(plt => /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'flex',
               alignItems: 'center',
@@ -826,7 +895,14 @@ function Escuelas({
                 children: [plt.nombre, !plt.activo && /*#__PURE__*/_jsxDEV("span", {
                   className: "badge badge-gray",
                   children: "Inactivo"
-                }, void 0, false)]
+                }, void 0, false), plt.nivel_educativo && /*#__PURE__*/_jsxDEV("span", {
+                  className: "badge badge-gray",
+                  style: { fontWeight: 400, textTransform: 'capitalize' },
+                  children: plt.nivel_educativo
+                }, void 0, false), plt.zona && /*#__PURE__*/_jsxDEV("span", {
+                  style: { fontSize: 11, color: 'var(--ink-4)', fontWeight: 400 },
+                  children: ["📍 ", plt.zona]
+                }, void 0, true)]
               }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
                 style: {
                   fontSize: 11.5,
@@ -871,6 +947,8 @@ function Escuelas({
               }, void 0, false)
             }, void 0, false)]
           }, plt.id, true))]
+            }, void 0, true);
+          })()]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: [/*#__PURE__*/_jsxDEV("button", {
@@ -936,6 +1014,38 @@ function Escuelas({
                 direccion: e.target.value
               }))
             }, void 0, false)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              className: "form-group",
+              children: [/*#__PURE__*/_jsxDEV("label", {
+                className: "form-label",
+                children: "Nivel educativo"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+                className: "form-select",
+                value: formPlt.nivel_educativo || '',
+                onChange: e => setFormPlt(p => ({ ...p, nivel_educativo: e.target.value })),
+                children: NIVELES_EDUCATIVOS.map(n => /*#__PURE__*/_jsxDEV("option", {
+                  value: n.value,
+                  children: n.label
+                }, n.value, false))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              className: "form-group",
+              children: [/*#__PURE__*/_jsxDEV("label", {
+                className: "form-label",
+                children: "Zona"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input",
+                placeholder: "Ej: Norte, Centro, Sur",
+                value: formPlt.zona || '',
+                onChange: e => setFormPlt(p => ({ ...p, zona: e.target.value }))
+              }, void 0, false)]
+            }, void 0, true)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'grid',

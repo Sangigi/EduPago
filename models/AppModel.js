@@ -151,13 +151,64 @@ const AppModel = (() => {
 
   // Estadísticas globales (super-admin)
   function getEstadisticasGlobales(data) {
-    const { escuelas, cobros, clientes } = data;
+    const { escuelas, cobros, clientes, resumen_escuelas } = data;
     // Las escuelas-plantel (es_plantel:true) no se listan por separado en las
     // métricas globales: sus cobros/alumnos se suman dentro de la escuela
     // principal (escuela_padre_id), para que aparezcan asociadas a ella.
     const principales = escuelas.filter(e => !e.es_plantel);
+    // Vista global sin escuela seleccionada: el backend ya no manda el detalle
+    // completo (clientes/cobros) de todas las escuelas por costo/escala — usa
+    // el resumen liviano (conteos por escuela) en su lugar. Al entrar a una
+    // escuela específica sí llega el detalle y se calcula todo con precisión.
+    const hayDetalleCompleto = (cobros && cobros.length > 0) || (clientes && clientes.length > 0);
+
+    // Desglose por plantel individual (siempre que exista resumen_escuelas,
+    // sin importar si estamos en modo ligero o con detalle cargado — es
+    // información barata que ya viene en cada respuesta de cargar_datos).
+    const desglosePlanteles = esc => {
+      const hijos = escuelas.filter(e => e.es_plantel && e.escuela_padre_id === esc.id);
+      if (!resumen_escuelas) return [];
+      return hijos.map(h => {
+        const r = resumen_escuelas[h.id] || { total_alumnos: 0, saldo_total: 0, cobrado_90d: 0, pendiente_90d: 0, num_cobros_90d: 0 };
+        return {
+          escuela_id: h.id,
+          nombre: h.nombre,
+          numAlumnos: r.total_alumnos,
+          totalPendienteSaldo: r.saldo_total,
+          totalCobrado90d: r.cobrado_90d,
+          totalPendiente90d: r.pendiente_90d,
+          numCobros90d: r.num_cobros_90d,
+        };
+      }).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    };
+
     return principales.map(esc => {
       const idsGrupo = [esc.id, ...escuelas.filter(e => e.es_plantel && e.escuela_padre_id === esc.id).map(e => e.id)];
+      if (!hayDetalleCompleto && resumen_escuelas) {
+        const r = idsGrupo.reduce((acc, id) => {
+          const s = resumen_escuelas[id] || { total_alumnos: 0, saldo_total: 0 };
+          acc.total_alumnos += s.total_alumnos;
+          acc.saldo_total += s.saldo_total;
+          return acc;
+        }, { total_alumnos: 0, saldo_total: 0 });
+        return {
+          escuela_id:     esc.id,
+          nombre:         esc.nombre,
+          clave:          esc.clave,
+          emoji:          esc.logo_emoji,
+          color:          esc.color,
+          plan:           esc.plan,
+          activa:         !!esc.activa,
+          numPlanteles:   idsGrupo.length - 1,
+          totalCobrado:   null, // requiere entrar a la escuela para ver el detalle de cobros
+          totalPendiente: r.saldo_total,
+          numCobros:      null,
+          numAlumnos:     r.total_alumnos,
+          porMetodo:      null,
+          resumenLigero:  true,
+          subplanteles:   desglosePlanteles(esc),
+        };
+      }
       const cobroEsc  = cobros.filter(c => idsGrupo.includes(c.escuela_id));
       const alumnosEsc = clientes.filter(c => idsGrupo.includes(c.escuela_id) && c.activo);
       const pagados   = cobroEsc.filter(c => c.estado === 'pagado');
@@ -181,6 +232,8 @@ const AppModel = (() => {
           CoDi:     pagados.filter(c=>c.metodo==='CoDi').reduce((a,c)=>a+c.total,0),
           Efectivo: pagados.filter(c=>c.metodo==='Efectivo').reduce((a,c)=>a+c.total,0),
         },
+        resumenLigero: false,
+        subplanteles: desglosePlanteles(esc),
       };
     });
   }

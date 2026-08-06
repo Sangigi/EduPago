@@ -35,11 +35,84 @@ function Alumnos({
   const [form, setForm] = useState(EMPTY);
   const [q, setQ] = useState('');
   const [clabeLoadingId, setClabeLoadingId] = useState(null);
-  const escuela = data.escuelas.find(e => e.id === escuela_id);
-  const lista = data.clientes.filter(c => !q || c.nombre.toLowerCase().includes(q.toLowerCase()) || c.matricula && c.matricula.toLowerCase().includes(q.toLowerCase()) || c.email.toLowerCase().includes(q.toLowerCase()));
+  const [pagina, setPagina] = useState(1);
+  const [buscando, setBuscando] = useState(false);
+  const [qFamilia, setQFamilia] = useState('');
+  const [familiaAbierta, setFamiliaAbierta] = useState(false);
 
-  // ── CLABE Pool: asignar desde pool en lugar de Pagadetodo ──────────────────
+  const familiasFiltradas = React.useMemo(() => {
+    const texto = qFamilia.trim().toLowerCase();
+    const todas = data.familias.map(fam => ({
+      fam,
+      exacta: texto !== '' && fam.nombre.toLowerCase() === texto,
+    }));
+    const lista = texto === ''
+      ? todas
+      : todas.filter(({ fam }) => fam.nombre.toLowerCase().includes(texto));
+    // Exactas primero, luego el resto en orden alfabético
+    return lista.sort((a, b) => (b.exacta - a.exacta) || a.fam.nombre.localeCompare(b.fam.nombre)).slice(0, 30);
+  }, [qFamilia, data.familias]);
+  const escuela = data.escuelas.find(e => e.id === escuela_id);
+  const porPagina = data.clientes_por_pagina || 500;
+  const totalAlumnos = typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length;
+  const totalPaginas = Math.max(1, Math.ceil(totalAlumnos / porPagina));
+
   const token = () => AuthController.getToken();
+
+  // Escuelas con muchos alumnos: la búsqueda y la paginación se resuelven en el
+  // backend (endpoint cargar_datos con buscar_clientes/pagina_clientes), no
+  // filtrando en el navegador un arreglo que ya no llega completo.
+  const buscarEnServidor = async (texto, paginaBuscar) => {
+    if (!escuela_id) return;
+    setBuscando(true);
+    try {
+      const params = new URLSearchParams({
+        action: 'cargar_datos',
+        escuela_id_ver: escuela_id,
+        buscar_clientes: texto || '',
+        pagina_clientes: paginaBuscar || 1,
+      });
+      const res = await fetch('api.php?' + params.toString(), {
+        headers: { 'Authorization': 'Bearer ' + token() },
+      });
+      const json = await res.json();
+      if (json.success) {
+        const actualizado = {
+          ...data,
+          clientes: json.clientes || [],
+          clientes_total: json.clientes_total,
+          clientes_pagina: json.clientes_pagina,
+          clientes_por_pagina: json.clientes_por_pagina,
+        };
+        setData(actualizado);
+        AppModel.save(actualizado);
+      }
+    } catch (e) {
+      // Sin red: se sigue mostrando lo que ya había en memoria (fallback offline)
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  // Debounce de 400ms para no disparar una query por cada tecla
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      setPagina(1);
+      buscarEnServidor(q, 1);
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, escuela_id]);
+
+  const irAPagina = p => {
+    const destino = Math.min(Math.max(1, p), totalPaginas);
+    setPagina(destino);
+    buscarEnServidor(q, destino);
+  };
+
+  // La lista ya viene filtrada/paginada del backend; se mantiene un filtro
+  // local ligero como respaldo mientras la búsqueda del servidor está en vuelo.
+  const lista = data.clientes;
 
   const _apiPost = async (action, body) => {
     const res = await fetch('api.php?action=' + action, {
@@ -121,6 +194,7 @@ function Alumnos({
       } catch (e) { alert('Error al editar alumno: ' + e.message); }
       setModal(null);
       setForm(EMPTY);
+      setQFamilia('');
       return;
     }
     // Alta nueva: registrar en DB, luego asignar CLABE del pool automáticamente
@@ -136,6 +210,7 @@ function Alumnos({
       AppModel.save(newData);
       setModal(null);
       setForm(EMPTY);
+      setQFamilia('');
       // Asignar CLABE del pool de inmediato
       await asignarClabeDesdePool(alumnoNuevo, newData);
     } catch (e) { alert('Error al dar de alta alumno: ' + e.message); }
@@ -188,6 +263,7 @@ function Alumnos({
               return;
             }
             setForm(EMPTY);
+            setQFamilia('');
             setModal('form');
           },
           children: "+ Alta de alumno"
@@ -220,6 +296,9 @@ function Alumnos({
             placeholder: "Buscar por nombre, matrícula o correo…",
             value: q,
             onChange: e => setQ(e.target.value)
+          }, void 0, false), buscando && /*#__PURE__*/_jsxDEV("span", {
+            style: { fontSize: 12, color: 'var(--ink-3)', marginLeft: 8 },
+            children: "Buscando…"
           }, void 0, false)]
         }, void 0, true)
       }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
@@ -447,6 +526,7 @@ function Alumnos({
                         ...EMPTY,
                         ...c
                       });
+                      setQFamilia('');
                       setModal('form');
                     },
                     style: {
@@ -478,7 +558,34 @@ function Alumnos({
             }, c.id, true))]
           }, void 0, true)]
         }, void 0, true)
-      }, void 0, false)]
+      }, void 0, false), totalPaginas > 1 && /*#__PURE__*/_jsxDEV("div", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 10,
+          marginTop: 12,
+          fontSize: 13,
+          color: 'var(--ink-3)',
+        },
+        children: [
+          /*#__PURE__*/_jsxDEV("span", {
+            children: `Página ${pagina} de ${totalPaginas} · ${totalAlumnos} alumnos`
+          }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            disabled: pagina <= 1 || buscando,
+            onClick: () => irAPagina(pagina - 1),
+            children: "‹ Anterior"
+          }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            disabled: pagina >= totalPaginas || buscando,
+            onClick: () => irAPagina(pagina + 1),
+            children: "Siguiente ›"
+          }, void 0, false),
+        ],
+      }, void 0, true)]
     }, void 0, true), modal === 'form' && /*#__PURE__*/_jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setModal(null),
@@ -512,24 +619,57 @@ function Alumnos({
             children: "Datos generales"
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             className: "form-group",
+            style: { position: 'relative' },
             children: [/*#__PURE__*/_jsxDEV("label", {
               className: "form-label",
               children: "Familia (opcional)"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
-              className: "form-select",
-              value: form.familia_id || '',
-              onChange: e => setForm(f => ({
-                ...f,
-                familia_id: e.target.value ? parseInt(e.target.value) : null
-              })),
-              children: [/*#__PURE__*/_jsxDEV("option", {
-                value: "",
-                children: "Sin familia asignada"
-              }, void 0, false), data.familias.map(fam => /*#__PURE__*/_jsxDEV("option", {
-                value: fam.id,
-                children: fam.nombre
-              }, fam.id, false))]
-            }, void 0, true)]
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              className: "form-input",
+              placeholder: "Buscar familia por nombre…",
+              value: qFamilia,
+              onChange: e => { setQFamilia(e.target.value); setFamiliaAbierta(true); },
+              onFocus: () => setFamiliaAbierta(true),
+              onBlur: () => setTimeout(() => setFamiliaAbierta(false), 150),
+            }, void 0, false), form.familia_id && !familiaAbierta && /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 },
+              children: [/*#__PURE__*/_jsxDEV(Icon, {
+                name: "escuelas",
+                size: 14,
+                color: "var(--lime)",
+                style: { display: 'inline' }
+              }, void 0, false), "Seleccionada: ", data.familias.find(f => f.id === form.familia_id)?.nombre, /*#__PURE__*/_jsxDEV("button", {
+                type: "button",
+                className: "btn btn-ghost btn-sm",
+                style: { padding: '2px 8px', fontSize: 11 },
+                onClick: () => { setForm(f => ({ ...f, familia_id: null })); setQFamilia(''); },
+                children: "Quitar"
+              }, void 0, false)]
+            }, void 0, true), familiaAbierta && /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0,
+                marginTop: 4, maxHeight: 220, overflowY: 'auto',
+                background: 'var(--bg-2, #17181c)', border: '1px solid var(--glass-light)',
+                borderRadius: 'var(--radius-sm)', boxShadow: '0 8px 24px rgba(0,0,0,.35)'
+              },
+              children: familiasFiltradas.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+                style: { padding: 12, fontSize: 12.5, color: 'var(--ink-3)' },
+                children: "Sin coincidencias"
+              }, void 0, false) : familiasFiltradas.map(({ fam, exacta }) => /*#__PURE__*/_jsxDEV("div", {
+                onMouseDown: () => { setForm(f => ({ ...f, familia_id: fam.id })); setQFamilia(''); setFamiliaAbierta(false); },
+                style: {
+                  padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                  fontSize: 13, borderBottom: '1px solid var(--glass-light)'
+                },
+                children: [exacta && /*#__PURE__*/_jsxDEV(Icon, {
+                  name: "escuelas",
+                  size: 16,
+                  color: "var(--lime)",
+                  style: { display: 'inline' }
+                }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                  children: fam.nombre
+                }, void 0, false)]
+              }, fam.id, true))
+            }, void 0, false)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
             className: "form-group",
             children: [/*#__PURE__*/_jsxDEV("label", {
