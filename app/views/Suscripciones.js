@@ -10,7 +10,6 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
 // Debe reflejar PLANES_LIMITES en api.php — única fuente de verdad real es el
 // backend (ahí se valida de verdad); esto es solo para mostrarlo en pantalla.
 const PLANES_INFO = {
-  free:     { label: 'Free (trial)', precio: 0,    max_alumnos: 30,  max_planteles: 1,    color: 'var(--ink-4)' },
   basico:   { label: 'Básico',   precio: 999,  max_alumnos: 400, max_planteles: 1,    color: 'var(--ink-3)' },
   avanzado: { label: 'Avanzado', precio: 1500, max_alumnos: 800, max_planteles: 1,    color: 'var(--accent, #bdcf00)' },
   pro:      { label: 'Pro',      precio: 3000, max_alumnos: null, max_planteles: null, color: 'var(--lime)' },
@@ -93,7 +92,7 @@ function Suscripciones({ data }) {
                   children: /*#__PURE__*/_jsxDEV("div", {
                     style: { display: 'flex', alignItems: 'center', gap: 8 },
                     children: [/*#__PURE__*/_jsxDEV("span", { style: { fontSize: 16 }, children: esc.logo_emoji }, void 0, false),
-                    /*#__PURE__*/_jsxDEV("span", { style: { fontWeight: 500, fontSize: 13 }, children: esc.nombre }, void 0, false)]
+                    /*#__PURE__*/_jsxDEV("span", { style: { fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap' }, children: esc.nombre }, void 0, false)]
                   }, void 0, true)
                 }, void 0, false),
                 /*#__PURE__*/_jsxDEV("td", {
@@ -106,16 +105,20 @@ function Suscripciones({ data }) {
                 /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 12.5 }, children: fmt(info.precio) + ' + IVA' }, void 0, false),
                 /*#__PURE__*/_jsxDEV("td", {
                   children: /*#__PURE__*/_jsxDEV("span", {
-                    style: { fontSize: 12.5, color: excedidoPlanteles ? 'var(--red)' : 'var(--ink-3)' },
-                    children: [numPlanteles, " / ", info.max_planteles === null ? '∞' : info.max_planteles, excedidoPlanteles && ' ⚠']
-                  }, void 0, true)
+                    style: { fontSize: 12.5, whiteSpace: 'nowrap', color: excedidoPlanteles ? 'var(--red)' : 'var(--ink-3)' },
+                    children: info.max_planteles === null
+                      ? `${numPlanteles} (sin límite)`
+                      : [numPlanteles, " / ", info.max_planteles, excedidoPlanteles && ' ⚠']
+                  }, void 0, false)
                 }, void 0, false),
                 /*#__PURE__*/_jsxDEV("td", {
                   children: /*#__PURE__*/_jsxDEV("div", {
                     children: [/*#__PURE__*/_jsxDEV("span", {
-                      style: { fontSize: 12.5, color: excedido ? 'var(--red)' : 'var(--ink-2)', fontWeight: excedido ? 600 : 400 },
-                      children: [totalAlumnos, " / ", info.max_alumnos === null ? '∞' : info.max_alumnos, excedido && ' — supera el límite']
-                    }, void 0, true), pctAlumnos !== null && /*#__PURE__*/_jsxDEV("div", {
+                      style: { fontSize: 12.5, whiteSpace: 'nowrap', color: excedido ? 'var(--red)' : 'var(--ink-2)', fontWeight: excedido ? 600 : 400 },
+                      children: info.max_alumnos === null
+                        ? `${totalAlumnos} alumnos (sin límite)`
+                        : [totalAlumnos, " / ", info.max_alumnos, " alumnos", excedido && ' — supera el límite']
+                    }, void 0, false), pctAlumnos !== null && /*#__PURE__*/_jsxDEV("div", {
                       style: { width: 120, height: 5, background: 'var(--glass-light)', borderRadius: 3, marginTop: 4, overflow: 'hidden' },
                       children: /*#__PURE__*/_jsxDEV("div", {
                         style: { width: `${pctAlumnos}%`, height: '100%', background: excedido ? 'var(--red)' : 'var(--lime)' }

@@ -142,3 +142,5 @@
 2026-07-16 12:24:53 | caja_cerrar -> caja_id=1 esperado=45000 cierre=0.04 diff=-44999.96
 2026-08-04 08:40:10 | generar_liga -> folio=ITM-0028 total=1800
 2026-08-05 16:23:41 | generar_liga -> folio=ITM-0030 total=246
+2026-08-06 14:01:17 | generar_liga -> folio=ITM-0033 total=738
+2026-08-06 14:01:20 | generar_liga -> folio=ITM-0034 total=738

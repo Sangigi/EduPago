@@ -6,18 +6,16 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
+// Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
 const PLANES_LIMITES = [
-    // TODO(Leo): confirmar los límites reales del plan 'free' — estos son un
-    // placeholder conservador (trial) mientras tanto, para que NUNCA quede
-    // sin límite por accidente como pasaba antes con un plan no mapeado.
-    'free'     => ['precio' => 0.00,    'max_alumnos' => 30,  'max_planteles' => 1,    'label' => 'Free (trial)'],
     'basico'   => ['precio' => 999.00,  'max_alumnos' => 400, 'max_planteles' => 1,    'label' => 'Básico'],
     'avanzado' => ['precio' => 1500.00, 'max_alumnos' => 800, 'max_planteles' => 1,    'label' => 'Avanzado'],
     'pro'      => ['precio' => 3000.00, 'max_alumnos' => null, 'max_planteles' => null, 'label' => 'Pro'],
 ];
 // Plan de respaldo si `escuelas.plan` trae un valor no reconocido (typo,
-// migración vieja, etc.) — se usa el más restrictivo, NUNCA "sin límite".
+// dato viejo tipo 'free' que ya no existe como plan real, etc.) — se usa el
+// más restrictivo, NUNCA "sin límite".
 const PLAN_FALLBACK = 'basico';
 function limitesDelPlan($nombrePlan) {
     return PLANES_LIMITES[$nombrePlan] ?? PLANES_LIMITES[PLAN_FALLBACK];
@@ -1167,10 +1165,14 @@ switch ($action) {
 
     // ══════════════════════════════════════════════════════════════════════════
     case 'crear_cliente':
+        // El cajero SÍ puede dar de alta alumnos (para poder cobrarles el mismo
+        // día que llegan), pero no editarlos ni desactivarlos — eso sigue
+        // restringido a admin/superadmin más abajo en editar_cliente y
+        // toggle_cliente_activo.
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+        if (!in_array($rol_actual, ['superadmin', 'admin', 'cajero'])) {
             http_response_code(403);
-            respond(['success' => false, 'error' => 'El cajero no puede dar de alta alumnos, solo consultarlos.']);
+            respond(['success' => false, 'error' => 'No tienes permiso para dar de alta alumnos.']);
         }
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $nombre     = trim($input['nombre']       ?? '');
@@ -1788,6 +1790,84 @@ switch ($action) {
         if (!$row) respond(['success' => false, 'error' => 'Escuela no encontrada']);
 
         respond(['success' => true, 'activa' => (bool) $row['activa']]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_escuela':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede crear colegios.']);
+        }
+        $nombre     = trim($input['nombre']     ?? '');
+        $clave      = trim($input['clave']      ?? '');
+        $rfc        = trim($input['rfc']        ?? '') ?: null;
+        $telefono   = trim($input['telefono']   ?? '') ?: null;
+        $email      = trim($input['email']      ?? '') ?: null;
+        $direccion  = trim($input['direccion']  ?? '') ?: null;
+        $logo_emoji = trim($input['logo_emoji'] ?? '') ?: '🏫';
+        $plan       = trim($input['plan']       ?? 'basico');
+        if (!in_array($plan, array_keys(PLANES_LIMITES), true)) $plan = PLAN_FALLBACK;
+        if (!$nombre || !$clave) respond(['success' => false, 'error' => 'Nombre y clave son obligatorios']);
+
+        $chk = $pdo->prepare("SELECT id FROM escuelas WHERE clave = ?");
+        $chk->execute([$clave]);
+        if ($chk->fetch()) respond(['success' => false, 'error' => 'Ya existe un colegio con esa clave']);
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO escuelas (nombre, clave, rfc, telefono, email, direccion, logo_emoji, activa, es_plantel, plan, fecha_alta)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, CURDATE())"
+        );
+        $stmt->execute([$nombre, $clave, $rfc, $telefono, $email, $direccion, $logo_emoji, $plan]);
+        $nuevo_id = intval($pdo->lastInsertId());
+        registrar_log($pdo, $usuario_actual, 'escuela_creada', "Colegio '$nombre' ($clave)", $nuevo_id);
+
+        respond(['success' => true, 'escuela' => [
+            'id' => $nuevo_id, 'nombre' => $nombre, 'clave' => $clave, 'rfc' => $rfc,
+            'telefono' => $telefono, 'email' => $email, 'direccion' => $direccion,
+            'logo_emoji' => $logo_emoji, 'activa' => true, 'es_plantel' => false,
+            'escuela_padre_id' => null, 'plan' => $plan, 'fecha_alta' => date('Y-m-d'),
+        ]]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_escuela':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede editar colegios.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $nombre     = trim($input['nombre']     ?? '');
+        $clave      = trim($input['clave']      ?? '');
+        $rfc        = trim($input['rfc']        ?? '') ?: null;
+        $telefono   = trim($input['telefono']   ?? '') ?: null;
+        $email      = trim($input['email']      ?? '') ?: null;
+        $direccion  = trim($input['direccion']  ?? '') ?: null;
+        $logo_emoji = trim($input['logo_emoji'] ?? '') ?: '🏫';
+        $plan       = trim($input['plan']       ?? '');
+        if (!$nombre || !$clave) respond(['success' => false, 'error' => 'Nombre y clave son obligatorios']);
+        if ($plan !== '' && !in_array($plan, array_keys(PLANES_LIMITES), true)) {
+            respond(['success' => false, 'error' => 'Plan inválido']);
+        }
+
+        $chk = $pdo->prepare("SELECT id FROM escuelas WHERE clave = ? AND id != ?");
+        $chk->execute([$clave, $id]);
+        if ($chk->fetch()) respond(['success' => false, 'error' => 'Ya existe otro colegio con esa clave']);
+
+        $sets = ["nombre = ?", "clave = ?", "rfc = ?", "telefono = ?", "email = ?", "direccion = ?", "logo_emoji = ?"];
+        $vals = [$nombre, $clave, $rfc, $telefono, $email, $direccion, $logo_emoji];
+        if ($plan !== '') { $sets[] = "plan = ?"; $vals[] = $plan; }
+        $vals[] = $id;
+        $pdo->prepare("UPDATE escuelas SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        registrar_log($pdo, $usuario_actual, 'escuela_editada', "Colegio #$id: '$nombre'" . ($plan !== '' ? " (plan → $plan)" : ''), $id);
+
+        $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ?");
+        $stmt->execute([$id]);
+        $esc = $stmt->fetch();
+        $esc['activa'] = (bool) $esc['activa'];
+        $esc['es_plantel'] = (bool) $esc['es_plantel'];
+        respond(['success' => true, 'escuela' => $esc]);
     break;
 
 

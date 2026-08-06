@@ -9,11 +9,13 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
 function Alumnos({
   data,
   setData,
-  escuela_id
+  escuela_id,
+  rol
 }) {
   const {
     useState
   } = React;
+  const puedeEditar = rol !== 'cajero'; // el cajero puede dar de alta pero no editar/desactivar
   const EMPTY = {
     tipo: 'alumno',
     nombre: '',
@@ -514,7 +516,10 @@ function Alumnos({
                   children: "Inactivo"
                 }, void 0, false)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("div", {
+                children: !puedeEditar ? /*#__PURE__*/_jsxDEV("span", {
+                  style: { fontSize: 11, color: 'var(--ink-4)' },
+                  children: "Sin edición"
+                }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
                   style: {
                     display: 'flex',
                     gap: 5

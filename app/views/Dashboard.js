@@ -6,6 +6,12 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : React.createElement(type,p,ch);
 };
 /* views/Dashboard.jsx v2 — Multi-escuela */
+// Debe reflejar PLANES_LIMITES en api.php (única fuente de verdad real).
+const PLANES_INFO_DASH = {
+  basico:   { label: 'Básico',   max_alumnos: 400, max_planteles: 1,    color: 'var(--ink-3)' },
+  avanzado: { label: 'Avanzado', max_alumnos: 800, max_planteles: 1,    color: 'var(--accent, #bdcf00)' },
+  pro:      { label: 'Pro',      max_alumnos: null, max_planteles: null, color: 'var(--lime)' },
+};
 function Dashboard({
   data,
   user,
@@ -312,14 +318,59 @@ function Dashboard({
           className: "badge badge-red",
           style: { marginRight: 6 },
           children: "Inactiva"
-        }, void 0, false), new Date().toLocaleDateString('es-MX', {
+        }, void 0, false), escuela && (() => {
+          const planKey = (escuela.plan || '').toLowerCase();
+          const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
+          if (!info) return null;
+          return /*#__PURE__*/_jsxDEV("span", {
+            className: "badge",
+            style: { marginRight: 6, color: info.color, borderColor: info.color },
+            title: `Plan ${info.label} — ${info.max_alumnos === null ? 'alumnos ilimitados' : `hasta ${info.max_alumnos} alumnos`}, ${info.max_planteles === null ? 'planteles ilimitados' : `hasta ${info.max_planteles} plantel(es)`}`,
+            children: ["Plan ", info.label]
+          }, void 0, true);
+        })(), new Date().toLocaleDateString('es-MX', {
           weekday: 'long',
           day: 'numeric',
           month: 'long',
           year: 'numeric'
         })]
       }, void 0, true)]
-    }, void 0, true), plantelesEscuela.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true), escuela && (() => {
+      const planKey = (escuela.plan || '').toLowerCase();
+      const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
+      if (!info) return null;
+      const totalAlumnos = typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length;
+      const pct = info.max_alumnos ? Math.min(100, Math.round(totalAlumnos / info.max_alumnos * 100)) : null;
+      const excedido = info.max_alumnos !== null && totalAlumnos > info.max_alumnos;
+      const excedidoPlt = info.max_planteles !== null && plantelesEscuela.length > info.max_planteles;
+      return /*#__PURE__*/_jsxDEV("div", {
+        className: "card",
+        style: { marginBottom: 22, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' },
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '.4px' }, children: "Tu plan" }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 15, fontWeight: 700, color: info.color }, children: info.label }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          style: { flex: 1, minWidth: 180 },
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 12, color: excedido ? 'var(--red)' : 'var(--ink-3)', marginBottom: 4 },
+            children: info.max_alumnos === null
+              ? `${totalAlumnos} alumnos (sin límite)`
+              : `${totalAlumnos} / ${info.max_alumnos} alumnos${excedido ? ' — superaste el límite' : ''}`
+          }, void 0, false), pct !== null && /*#__PURE__*/_jsxDEV("div", {
+            style: { width: '100%', maxWidth: 260, height: 6, background: 'var(--glass-light)', borderRadius: 3, overflow: 'hidden' },
+            children: /*#__PURE__*/_jsxDEV("div", { style: { width: `${pct}%`, height: '100%', background: excedido ? 'var(--red)' : 'var(--lime)' } }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          style: { fontSize: 12, color: excedidoPlt ? 'var(--red)' : 'var(--ink-3)' },
+          children: info.max_planteles === null
+            ? `${plantelesEscuela.length} planteles (sin límite)`
+            : `${plantelesEscuela.length} / ${info.max_planteles} plantel(es)${excedidoPlt ? ' ⚠' : ''}`
+        }, void 0, false), (excedido || excedidoPlt) && /*#__PURE__*/_jsxDEV("span", {
+          style: { fontSize: 11.5, color: 'var(--red)' },
+          children: "Contacta a soporte para subir de plan."
+        }, void 0, false)]
+      }, void 0, true);
+    })(), plantelesEscuela.length > 0 && /*#__PURE__*/_jsxDEV("div", {
       style: { marginBottom: 22 },
       children: [/*#__PURE__*/_jsxDEV("div", {
         style: {

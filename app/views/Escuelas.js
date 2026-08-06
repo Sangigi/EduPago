@@ -69,31 +69,43 @@ function Escuelas({
   const [formPlt, setFormPlt] = useState(EMPTY_PLT);
   const [guardandoPlt, setGuardandoPlt] = useState(false);
   const [errorPlt, setErrorPlt] = useState('');
-  const guardar = () => {
+  const [guardandoEsc, setGuardandoEsc] = useState(false);
+  const [errorEsc, setErrorEsc] = useState('');
+  const guardar = async () => {
     if (!form.nombre || !form.clave) return;
-    let newEscuelas;
-    if (form.id) {
-      newEscuelas = data.escuelas.map(e => e.id === form.id ? {
-        ...e,
-        ...form
-      } : e);
-    } else {
-      const nueva = {
-        ...form,
-        id: AppModel.nextId(data.escuelas),
-        activa: true,
-        fecha_alta: new Date().toISOString().slice(0, 10)
-      };
-      newEscuelas = [...data.escuelas, nueva];
-    }
-    const newData = {
-      ...data,
-      escuelas: newEscuelas
+    setErrorEsc('');
+    setGuardandoEsc(true);
+    const payload = {
+      nombre: form.nombre,
+      clave: form.clave,
+      rfc: form.rfc,
+      telefono: form.telefono,
+      email: form.email,
+      direccion: form.direccion,
+      logo_emoji: form.logo_emoji,
+      plan: form.plan,
     };
-    setData(newData);
-    AppModel.save(newData);
-    setModal(null);
-    setForm(EMPTY);
+    try {
+      const res = form.id
+        ? await apiPost('editar_escuela', { id: form.id, ...payload })
+        : await apiPost('crear_escuela', payload);
+      if (!res.success) {
+        setErrorEsc(res.error || 'No se pudo guardar el colegio');
+        setGuardandoEsc(false);
+        return;
+      }
+      const newEscuelas = form.id
+        ? data.escuelas.map(e => e.id === form.id ? { ...e, ...res.escuela } : e)
+        : [...data.escuelas, res.escuela];
+      const newData = { ...data, escuelas: newEscuelas };
+      setData(newData);
+      AppModel.save(newData);
+      setModal(null);
+      setForm(EMPTY);
+    } catch (e) {
+      setErrorEsc('Error de conexión al guardar el colegio: ' + e.message);
+    }
+    setGuardandoEsc(false);
   };
   const guardarPlantel = async () => {
     if (!formPlt.nombre) return;
@@ -238,14 +250,14 @@ function Escuelas({
     };
   };
   const PLANES = {
-    free: 'Gratuito',
-    pro: 'Pro',
-    enterprise: 'Enterprise'
+    basico: 'Básico',
+    avanzado: 'Avanzado',
+    pro: 'Pro'
   };
   const PLAN_COLORS = {
-    free: 'badge-gray',
-    pro: 'badge-blue',
-    enterprise: 'badge-purple'
+    basico: 'badge-gray',
+    avanzado: 'badge-blue',
+    pro: 'badge-purple'
   };
   // ── Pool CLABEs ─────────────────────────────────────────────────────────────
   const [poolEscId,   setPoolEscId]   = useState(null);  // escuela cuyo pool se gestiona
@@ -384,6 +396,7 @@ function Escuelas({
         className: "btn btn-primary",
         onClick: () => {
           setForm(EMPTY);
+          setErrorEsc('');
           setModal('form');
         },
         children: "+ Nueva escuela"
@@ -582,6 +595,7 @@ function Escuelas({
                 setForm({
                   ...esc
                 });
+                setErrorEsc('');
                 setModal('form');
               },
               style: {
@@ -698,14 +712,14 @@ function Escuelas({
                   plan: e.target.value
                 })),
                 children: [/*#__PURE__*/_jsxDEV("option", {
-                  value: "free",
-                  children: "Gratuito"
+                  value: "basico",
+                  children: "Básico"
+                }, void 0, false), /*#__PURE__*/_jsxDEV("option", {
+                  value: "avanzado",
+                  children: "Avanzado"
                 }, void 0, false), /*#__PURE__*/_jsxDEV("option", {
                   value: "pro",
                   children: "Pro"
-                }, void 0, false), /*#__PURE__*/_jsxDEV("option", {
-                  value: "enterprise",
-                  children: "Enterprise"
                 }, void 0, false)]
               }, void 0, true)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -790,6 +804,9 @@ function Escuelas({
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true)
+        }, void 0, false), errorEsc && /*#__PURE__*/_jsxDEV("div", {
+          style: { padding: '0 20px 8px', color: 'var(--red)', fontSize: 12.5 },
+          children: errorEsc
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: [/*#__PURE__*/_jsxDEV("button", {
@@ -799,8 +816,8 @@ function Escuelas({
           }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
             onClick: guardar,
-            disabled: !form.nombre || !form.clave,
-            children: "Guardar escuela"
+            disabled: !form.nombre || !form.clave || guardandoEsc,
+            children: guardandoEsc ? 'Guardando…' : 'Guardar escuela'
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)
