@@ -1,1825 +1,1825 @@
-var _jsxDEV = function(type,props,key,_s,_src,_self){
-  var p = Object.assign({key:key||undefined},props);
-  var ch = p.children; delete p.children;
-  return ch===undefined ? React.createElement(type,p)
-       : Array.isArray(ch) ? React.createElement(type,p,...ch)
-       : React.createElement(type,p,ch);
-};
-var _Fragment = React.Fragment;
-/* views/Caja.jsx — Sistema de cobros completo v2 */
-function Caja({
-  data,
-  setData,
-  user,
-  escuela
-}) {
-  const {
-    useState,
-    useEffect,
-    useRef
-  } = React;
-  const [carrito, setCarrito] = useState([]);
-  const [clienteSel, setClienteSel] = useState(null);
-  const [metodo, setMetodo] = useState('TC');
-  const [q, setQ] = useState('');
-  const [clasificacion, setClasificacion] = useState('todos');
-  const [qCliente, setQCliente] = useState('');
-  const [modal, setModal] = useState(null); // null | 'cliente' | 'spei' | 'codi' | 'ticket' | 'tc'
-  const [cobroActivo, setCobroActivo] = useState(null);
-  const [copiedCLABE, setCopiedCLABE] = useState(false);
-  const [speiStatus, setSpeiStatus] = useState('esperando'); // esperando | verificando | confirmado
-  const [speiError, setSpeiError] = useState(null);
-  const [codiStatus, setCodiStatus] = useState('esperando'); // esperando | escaneado | pagado | expirado
-  const [codiTimer, setCodiTimer] = useState(300); // 5 minutos
-  const [tcInfo, setTcInfo] = useState(null); // { url, qr_url, referencia }
-  const [tcLoading, setTcLoading] = useState(false);
-  const [tcError, setTcError] = useState(null);
-  const [speiBloqueo, setSpeiBloqueo] = useState(null); // mensaje de error SPEI en pantalla
-  // Cheque
-  const [chequeInfo, setChequeInfo] = useState({
-    banco: '',
-    num_cuenta: '',
-    num_cheque: ''
-  });
-  const intervalRef = useRef(null);
-  const timerRef = useRef(null);
-  const speiPollRef = useRef(null);
-  const CATS_PERIODICAS = ['colegiatura', 'anualidad', 'inscripcion'];
-  const CAT_LABELS_CAJA = {
-    colegiatura: 'Colegiatura', anualidad: 'Anualidad', inscripcion: 'Inscripción',
-    examen: 'Examen', uniforme: 'Uniforme', material: 'Material',
-    transporte: 'Transporte', comedor: 'Comedor', extracurricular: 'Extracurricular',
-    beca: 'Beca / Descuento', otro: 'Otro'
-  };
-  const productosBase = data.productos.filter(p =>
-    p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
-  );
-  // Aplica clasificación seleccionada
-  const productosFiltrados = (() => {
-    switch (clasificacion) {
-      case 'descuentos':
-        return productosBase.filter(p => p.precio < 0 || p.categoria === 'beca');
-      case 'periodicos':
-        return productosBase.filter(p => CATS_PERIODICAS.includes(p.categoria));
-      case 'unicos':
-        return productosBase.filter(p => !CATS_PERIODICAS.includes(p.categoria) && p.precio >= 0 && p.categoria !== 'beca');
-      case 'mayor_precio':
-        return [...productosBase].sort((a, b) => Math.abs(b.precio) - Math.abs(a.precio));
-      case 'menor_precio':
-        return [...productosBase].sort((a, b) => Math.abs(a.precio) - Math.abs(b.precio));
-      case 'alfabetico':
-        return [...productosBase].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-      default:
-        return productosBase;
-    }
-  })();
-  // Para la vista agrupada por categoría
-  const productosPorCategoria = (() => {
-    if (clasificacion !== 'por_categoria') return null;
-    const grupos = {};
-    productosBase.forEach(p => {
-      const cat = p.categoria || 'otro';
-      if (!grupos[cat]) grupos[cat] = [];
-      grupos[cat].push(p);
-    });
-    return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], 'es'));
-  })();
-  const clientesFiltrados = data.clientes.filter(c => {
-    if (!c.activo) return false;
-    if (!qCliente) return true;
-    const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
-    const texto = [c.nombre, c.matricula, c.grado, fam?.nombre].filter(Boolean).join(' ').toLowerCase();
-    return texto.includes(qCliente.toLowerCase());
-  }).map(c => {
-    const busq = qCliente.trim().toLowerCase();
-    const exacto = busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
-    return { c, exacto };
-  }).sort((a, b) => (b.exacto - a.exacto)).map(x => x.c);
-  const clientesFiltradosExactos = new Set(
-    clientesFiltrados.filter(c => {
-      const busq = qCliente.trim().toLowerCase();
-      return busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
-    }).map(c => c.id)
-  );
-  const subtotal = carrito.reduce((a, i) => a + i.precio * i.qty, 0);
-  const total = subtotal;
-
-  /* ── HELPER: actualizar saldo_pendiente de un cliente en el estado global ── */
-  const actualizarSaldoCliente = (res) => {
-    if (res && res.cliente_id != null) {
-      setData(prev => ({
-        ...prev,
-        clientes: prev.clientes.map(c =>
-          c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c
-        )
-      }));
-    }
-  };
-
-  /* ── CARRITO ── */
-  const addItem = p => {
-    setCarrito(prev => {
-      const ex = prev.find(i => i.id === p.id);
-      return ex ? prev.map(i => i.id === p.id ? {
-        ...i,
-        qty: i.qty + 1
-      } : i) : [...prev, {
-        ...p,
-        qty: 1
-      }];
-    });
-  };
-  const setQty = (id, qty) => qty < 1 ? setCarrito(prev => prev.filter(i => i.id !== id)) : setCarrito(prev => prev.map(i => i.id === id ? {
-    ...i,
-    qty
-  } : i));
-  const removeItem = id => setCarrito(prev => prev.filter(i => i.id !== id));
-
-  /* ── INICIAR COBRO ── */
-  const cobrar = async () => {
-    if (!carrito.length) return;
-
-    // Validar SPEI antes de crear el cobro
-    if (metodo === 'SPEI') {
-      if (!clienteSel) {
-        setSpeiBloqueo({ tipo: 'sin_alumno', msg: 'Selecciona un alumno o familia para cobrar por SPEI.' });
-        return;
-      }
-      const tieneClabe = clienteSel.clabe_individual && clienteSel.clabe_individual_estado === 'activa';
-      if (!tieneClabe) {
-        const motivo = !clienteSel.clabe_individual
-          ? 'no tiene CLABE SPEI asignada'
-          : `su CLABE está ${clienteSel.clabe_individual_estado || 'inactiva'}`;
-        setSpeiBloqueo({ tipo: 'sin_clabe', alumno: clienteSel.nombre, clabe: clienteSel.clabe_individual, estado: clienteSel.clabe_individual_estado, msg: `${clienteSel.nombre} ${motivo}.` });
-        return;
-      }
-      setSpeiBloqueo(null);
-    }
-    const escuela_id = escuela?.id ?? data.escuelas?.[0]?.id ?? 1;
-    let cobro;
-    try {
-      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id });
-    } catch(err) {
-      alert('Error al crear cobro: ' + err.message);
-      return;
-    }
-    setCobroActivo(cobro);
-    // Actualizar saldo_pendiente del cliente si el API lo devolvió
-    if (cobro._nuevo_saldo != null && cobro._cliente_id != null) {
-      setData(prev => ({
-        ...prev,
-        clientes: prev.clientes.map(c => c.id === cobro._cliente_id ? { ...c, saldo_pendiente: cobro._nuevo_saldo } : c)
-      }));
-    }
-    const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
-    if (metodo === 'SPEI') {
-      setSpeiStatus('generando');
-      setSpeiError(null);
-      setData(newData);
-      setModal('spei');
-      try {
-        // CLABE INDIVIDUAL: usa la CLABE individual activa del alumno.
-        // Si no tiene CLABE asignada, lanza error y no procede.
-        const spei = await CobroController.iniciarSPEI(cobro, escuela, clienteSel);
-        // Guardar info SPEI en el cobro
-        const cobrosActualizados = newData.cobros.map(c => c.id === cobro.id ? {
-          ...c,
-          clabe: spei.clabe,
-          banco: spei.banco,
-          beneficiario: spei.beneficiario,
-          referencia_spei: spei.referencia,
-          instruccion: spei.instruccion,
-          clabe_es_individual: !!spei.esIndividual
-        } : c);
-        const dataConClabe = {
-          ...newData,
-          cobros: cobrosActualizados
-        };
-        setData(dataConClabe);
-        setCobroActivo(prev => ({
-          ...prev,
-          clabe: spei.clabe,
-          referencia_spei: spei.referencia,
-          instruccion: spei.instruccion,
-          banco: spei.banco,
-          beneficiario: spei.beneficiario,
-          clabe_es_individual: !!spei.esIndividual
-        }));
-        setSpeiStatus('esperando');
-        AppModel.save(dataConClabe);
-
-        // Polling automático: verificar cada 10 segundos por referencia y/o CLABE individual
-        speiPollRef.current = setInterval(async () => {
-          try {
-            const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe);
-            if (ver.pagado) {
-              clearInterval(speiPollRef.current);
-              CobroController.confirmarPago(cobro.id, { transaccion: ver.transaccion }).then(res => {
-                actualizarSaldoCliente(res);
-              }).catch(()=>{});
-              setData(prev => {
-                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
-                AppModel.save(upd);
-                return upd;
-              });
-              setSpeiStatus('confirmado');
-            }
-          } catch (e) {/* continuar polling */}
-        }, 10000);
-      } catch (err) {
-        setSpeiError(err.message);
-        setSpeiStatus('error');
-      }
-    } else if (metodo === 'CoDi') {
-      // CoDi: se mantiene igual (no hay API real disponible)
-      setCodiStatus('esperando');
-      setCodiTimer(300);
-      setData(newData);
-      setModal('codi');
-      let t = 300;
-      timerRef.current = setInterval(() => {
-        t--;
-        setCodiTimer(t);
-        if (t <= 0) {
-          clearInterval(timerRef.current);
-          setCodiStatus('expirado');
-        }
-      }, 1000);
-    } else if (metodo === 'TC') {
-      // TC: generar liga de pago real con Pagadetodo
-      setTcLoading(true);
-      setTcError(null);
-      setTcInfo(null);
-      setData(newData);
-      setModal('tc');
-      try {
-        const liga = await CobroController.iniciarTC(cobro);
-        setTcInfo(liga);
-      } catch (err) {
-        setTcError(err.message);
-      } finally {
-        setTcLoading(false);
-      }
-    } else if (metodo === 'Cheque') {
-      // Cheque: mostrar modal para capturar datos del cheque antes de confirmar
-      setData(newData);
-      setChequeInfo({
-        banco: '',
-        num_cuenta: '',
-        num_cheque: ''
-      });
-      setModal('cheque');
-    } else {
-      // Efectivo referenciado: cobro inmediato
-      setData(newData);
-      AppModel.save(newData);
-      setModal('ticket');
-      resetCarrito();
-    }
-  };
-
-  /* ── CONFIRMAR TC MANUALMENTE (cliente ya pagó en el link) ── */
-  const confirmarTC = async () => {
-    try { const res = await CobroController.confirmarPago(cobroActivo.id, { auth_code: tcInfo?.referencia }); actualizarSaldoCliente(res); } catch(e) {}
-    setData(prev => {
-      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: tcInfo?.referencia } : c) };
-      AppModel.save(upd);
-      return upd;
-    });
-    setModal('ticket');
-    resetCarrito();
-  };
-
-  /* ── CONFIRMAR SPEI MANUAL (botón de "ya pagué") ── */
-  const confirmarSPEI = async () => {
-    if (speiStatus === 'confirmado') {
-      setModal('ticket');
-      resetCarrito();
-      return;
-    }
-    setSpeiStatus('verificando');
-    try {
-      const refSpei = cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.clabe;
-      const clabeActiva = cobroActivo?.clabe;
-      if (refSpei || clabeActiva) {
-        const ver = await CobroController.verificarSPEI(refSpei, clabeActiva);
-        if (ver.pagado) {
-          clearInterval(speiPollRef.current);
-          try { const res = await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); actualizarSaldoCliente(res); } catch(e) {}
-          setData(prev => {
-            const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
-            AppModel.save(upd);
-            return upd;
-          });
-          setSpeiStatus('confirmado');
-          return;
-        }
-      }
-      // Si no se verificó, confirmar manualmente de todas formas
-      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
-        AppModel.save(upd); return upd;
-      });
-      setSpeiStatus('confirmado');
-    } catch (e) {
-      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e2) {}
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
-        AppModel.save(upd); return upd;
-      });
-      setSpeiStatus('confirmado');
-    }
-  };
-
-  /* ── CONFIRMAR CODI MANUAL ── */
-  const confirmarCoDi = async () => {
-    clearInterval(timerRef.current);
-    try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
-    setData(prev => {
-      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
-      AppModel.save(upd); return upd;
-    });
-    setCodiStatus('pagado');
-    setTimeout(() => {
-      setModal('ticket');
-      resetCarrito();
-    }, 1200);
-  };
-  const resetCarrito = () => {
-    setCarrito([]);
-    setClienteSel(null);
-    setTcInfo(null);
-    setTcError(null);
-    setChequeInfo({
-      banco: '',
-      num_cuenta: '',
-      num_cheque: ''
-    });
-  };
-  const cerrarModal = () => {
-    if (intervalRef.current) clearTimeout(intervalRef.current);
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (speiPollRef.current) clearInterval(speiPollRef.current);
-    setModal(null);
-  };
-
-  /* ── COPIAR CLABE ── */
-  const copiarCLABE = () => {
-    if (cobroActivo?.clabe) {
-      navigator.clipboard.writeText(cobroActivo.clabe).catch(() => {});
-      setCopiedCLABE(true);
-      setTimeout(() => setCopiedCLABE(false), 2000);
-    }
-  };
-
-  /* ── FORMATO CLABE ── */
-  const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
-
-  /* ── QR CODI (SVG simple) ── */
-  const QRSimple = ({
-    value
-  }) => {
-    // QR placeholder visual (pattern basado en value hash)
-    const hash = value ? [...value].reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
-    const cells = 21;
-    const grid = Array.from({
-      length: cells
-    }, (_, r) => Array.from({
-      length: cells
-    }, (_, c) => {
-      // Corner finder patterns
-      if (r < 7 && c < 7 || r < 7 && c >= cells - 7 || r >= cells - 7 && c < 7) return 1;
-      // Data pattern based on hash
-      return hash * (r + 1) * (c + 1) % 7 < 3 ? 1 : 0;
-    }));
-    const size = 160;
-    const cellSize = size / cells;
-    return /*#__PURE__*/_jsxDEV("svg", {
-      width: size,
-      height: size,
-      viewBox: `0 0 ${size} ${size}`,
-      xmlns: "http://www.w3.org/2000/svg",
-      children: [/*#__PURE__*/_jsxDEV("rect", {
-        width: size,
-        height: size,
-        fill: "#fff"
-      }, void 0, false), grid.map((row, r) => row.map((cell, c) => cell ? /*#__PURE__*/_jsxDEV("rect", {
-        x: c * cellSize,
-        y: r * cellSize,
-        width: cellSize,
-        height: cellSize,
-        fill: "#000"
-      }, `${r}-${c}`, false) : null))]
-    }, void 0, true);
-  };
-  const METODOS = [{
-    id: 'TC',
-    label: 'Tarjeta',
-    icon: 'card'
-  }, {
-    id: 'SPEI',
-    label: 'SPEI',
-    icon: 'bank'
-  }, {
-    id: 'CoDi',
-    label: 'CoDi',
-    icon: 'phone'
-  }, {
-    id: 'Efectivo',
-    label: 'Efectivo referenciado',
-    icon: 'pay'
-  }, {
-    id: 'Cheque',
-    label: 'Cheque',
-    icon: 'reportes'
-  }];
-  return /*#__PURE__*/_jsxDEV("div", {
-    className: "pos-layout",
-    children: [/*#__PURE__*/_jsxDEV("div", {
-      className: "pos-products",
-      children: [/*#__PURE__*/_jsxDEV("div", {
-        className: "pos-header",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%' },
-          children: [/*#__PURE__*/_jsxDEV("span", {
-            style: { fontWeight: 600, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 },
-            children: [/*#__PURE__*/_jsxDEV(Icon, { name: "productos", size: 15, color: "currentColor" }, void 0, false), " Conceptos"]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            className: "search-bar",
-            style: { flex: 1, minWidth: 120 },
-            children: [/*#__PURE__*/_jsxDEV("span", {
-              className: "search-icon",
-              children: /*#__PURE__*/_jsxDEV(Icon, { name: "search", size: 15, color: "currentColor" }, void 0, false)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-              placeholder: "Buscar concepto…",
-              value: q,
-              onChange: e => setQ(e.target.value)
-            }, void 0, false)]
-          }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          style: { display: 'flex', gap: 5, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--glass-light)', marginTop: 4 },
-          children: [
-            { id: 'todos',        label: 'Todos',        icon: 'productos' },
-            { id: 'por_categoria',label: 'Por categoría',icon: 'cobros' },
-            { id: 'descuentos',   label: 'Descuentos',   icon: 'check' },
-            { id: 'periodicos',   label: 'Periódicos',   icon: 'history' },
-            { id: 'unicos',       label: 'Conceptos únicos', icon: 'pay' },
-            { id: 'mayor_precio', label: 'Mayor precio', icon: 'reportes' },
-            { id: 'menor_precio', label: 'Menor precio', icon: 'download' },
-            { id: 'alfabetico',   label: 'A–Z',          icon: 'search' },
-          ].map(tab => /*#__PURE__*/_jsxDEV("button", {
-            onClick: () => setClasificacion(tab.id),
-            style: {
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 11.5,
-              fontFamily: 'var(--font)', cursor: 'pointer', border: '1px solid',
-              transition: 'all .15s',
-              background: clasificacion === tab.id ? 'var(--accent)' : 'var(--bg-surface-2)',
-              borderColor: clasificacion === tab.id ? 'var(--accent)' : 'var(--border-glow)',
-              color: clasificacion === tab.id ? 'var(--on-accent)' : 'var(--ink-3)',
-              fontWeight: clasificacion === tab.id ? 700 : 400,
-            },
-            children: [/*#__PURE__*/_jsxDEV(Icon, { name: tab.icon, size: 12, color: "currentColor" }, void 0, false), tab.label]
-          }, tab.id, true))
-        }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-        className: "pos-products-grid",
-        children: [productosPorCategoria ? productosPorCategoria.map(([cat, prods]) => /*#__PURE__*/_jsxDEV(_Fragment, {
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              gridColumn: '1/-1', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '.6px', color: 'var(--ink-4)', padding: '8px 2px 4px',
-              borderBottom: '1px solid var(--glass-light)', marginBottom: 2
-            },
-            children: CAT_LABELS_CAJA[cat] || cat
-          }, void 0, false), prods.map(p => /*#__PURE__*/_jsxDEV("div", {
-            className: "product-card",
-            onClick: () => addItem(p),
-            children: [/*#__PURE__*/_jsxDEV("div", { className: "product-emoji", children: p.emoji }, void 0, false),
-              /*#__PURE__*/_jsxDEV("div", { className: "product-name", children: p.nombre }, void 0, false),
-              /*#__PURE__*/_jsxDEV("div", { className: "product-type", children: CAT_LABELS_CAJA[p.categoria] || p.categoria }, void 0, false),
-              /*#__PURE__*/_jsxDEV("div", { className: "product-price", style: { color: p.precio < 0 ? 'var(--green)' : 'var(--accent)' }, children: fmt(p.precio) }, void 0, false)]
-          }, p.id, true))]
-        }, cat, true)) : productosFiltrados.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
-          className: "empty-state",
-          style: { gridColumn: '1/-1' },
-          children: [/*#__PURE__*/_jsxDEV("div", { className: "empty-icon", children: /*#__PURE__*/_jsxDEV(Icon, { name: "search", size: 36, color: "currentColor" }, void 0, false) }, void 0, false),
-            /*#__PURE__*/_jsxDEV("div", { className: "empty-text", children: "Sin resultados" }, void 0, false)]
-        }, void 0, true) : productosFiltrados.map(p => /*#__PURE__*/_jsxDEV("div", {
-          className: "product-card",
-          onClick: () => addItem(p),
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "product-emoji",
-            children: p.emoji
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            className: "product-name",
-            children: p.nombre
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            className: "product-type",
-            children: p.categoria
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            className: "product-price",
-            style: {
-              color: p.precio < 0 ? 'var(--green)' : 'var(--accent)'
-            },
-            children: fmt(p.precio)
-          }, void 0, false)]
-        }, p.id, true))]
-      }, void 0, true)]
-    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-      className: "pos-cart",
-      children: [/*#__PURE__*/_jsxDEV("div", {
-        className: "cart-header",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          style: {
-            fontWeight: 600,
-            fontSize: 13.5,
-            marginBottom: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7
-          },
-          children: [/*#__PURE__*/_jsxDEV(Icon, {
-            name: "cobros",
-            size: 15,
-            color: "currentColor"
-          }, void 0, false), " Cobro en curso"]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "cart-customer",
-          onClick: () => { setQCliente(''); setModal('cliente'); },
-          children: [/*#__PURE__*/_jsxDEV(Icon, {
-            name: clienteSel ? 'alumnos' : 'familias',
-            size: 18,
-            color: "var(--ink-3)"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              flex: 1,
-              minWidth: 0
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--accent)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              },
-              children: clienteSel?.nombre || 'Seleccionar alumno/familia'
-            }, void 0, false), clienteSel && /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                color: 'var(--ink-3)'
-              },
-              children: [clienteSel.tipo, " · ", clienteSel.grado]
-            }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
-            style: {
-              fontSize: 12,
-              color: 'var(--accent)'
-            },
-            children: "›"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-        className: "cart-items",
-        children: [carrito.length === 0 && /*#__PURE__*/_jsxDEV("div", {
-          className: "empty-state",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "empty-icon",
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "caja",
-              size: 36,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            className: "empty-text",
-            children: "Sin conceptos"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            className: "empty-sub",
-            children: "Selecciona conceptos de la izquierda"
-          }, void 0, false)]
-        }, void 0, true), carrito.map(item => /*#__PURE__*/_jsxDEV("div", {
-          className: "cart-item",
-          children: [/*#__PURE__*/_jsxDEV("span", {
-            style: {
-              fontSize: 20
-            },
-            children: item.emoji
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            className: "cart-item-info",
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              className: "cart-item-name",
-              children: item.nombre
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              className: "cart-item-qty",
-              children: [/*#__PURE__*/_jsxDEV("button", {
-                className: "qty-btn",
-                onClick: () => setQty(item.id, item.qty - 1),
-                children: "−"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-                className: "qty-num",
-                children: item.qty
-              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-                className: "qty-btn",
-                onClick: () => setQty(item.id, item.qty + 1),
-                children: "+"
-              }, void 0, false)]
-            }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              textAlign: 'right'
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              className: "cart-item-price",
-              children: fmt(item.precio * item.qty)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-              className: "cart-remove",
-              onClick: () => removeItem(item.id),
-              children: /*#__PURE__*/_jsxDEV(Icon, {
-                name: "close",
-                size: 15,
-                color: "currentColor"
-              }, void 0, false)
-            }, void 0, false)]
-          }, void 0, true)]
-        }, item.id, true))]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-        className: "cart-totals",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "totals-row",
-          children: [/*#__PURE__*/_jsxDEV("span", {
-            children: "Subtotal"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-            className: "text-mono",
-            children: fmt(subtotal)
-          }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "totals-row",
-          style: {
-            fontWeight: 700,
-            fontSize: 15,
-            color: 'var(--ink)',
-            marginTop: 6
-          },
-          children: [/*#__PURE__*/_jsxDEV("span", {
-            children: "Total"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-            className: "totals-total",
-            children: fmt(total)
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-        className: "payment-methods",
-        children: METODOS.map(m => /*#__PURE__*/_jsxDEV("div", {
-          className: `pay-method ${metodo === m.id ? 'selected' : ''}`,
-          onClick: () => { setMetodo(m.id); setSpeiBloqueo(null); },
-          children: [/*#__PURE__*/_jsxDEV("span", {
-            className: "pm-icon",
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: m.icon,
-              size: 18,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false), m.label]
-        }, m.id, true))
-      }, void 0, false), speiBloqueo && metodo === 'SPEI' && /*#__PURE__*/_jsxDEV("div", {
-        style: {
-          margin: '0 0 10px',
-          padding: '12px 14px',
-          background: 'rgba(239,68,68,.08)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 'var(--radius-sm)',
-          fontSize: 12.5,
-          color: 'var(--red)',
-          lineHeight: 1.5,
-        },
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          style: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 4 },
-          children: [/*#__PURE__*/_jsxDEV(Icon, { name: "warning", size: 14, color: "currentColor" }, void 0, false),
-            speiBloqueo.tipo === 'sin_alumno' ? 'Alumno requerido' : 'CLABE SPEI no disponible']
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          style: { color: 'var(--ink-2)' },
-          children: speiBloqueo.msg
-        }, void 0, false), speiBloqueo.tipo === 'sin_clabe' && /*#__PURE__*/_jsxDEV("div", {
-          style: { marginTop: 6, fontSize: 11.5, color: 'var(--ink-3)' },
-          children: "Asigna una CLABE individual desde Alumnos → ficha del alumno → sección SPEI."
-        }, void 0, false)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-        className: "checkout-btn",
-        onClick: cobrar,
-        disabled: !carrito.length || total === 0,
-        children: ["Cobrar ", fmt(total)]
-      }, void 0, true)]
-    }, void 0, true), modal === 'cliente' && /*#__PURE__*/_jsxDEV("div", {
-      className: "modal-backdrop",
-      onClick: e => e.target === e.currentTarget && setModal(null),
-      children: /*#__PURE__*/_jsxDEV("div", {
-        className: "modal",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "modal-title",
-            children: "Seleccionar alumno o familia"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-ghost btn-sm",
-            onClick: () => setModal(null),
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "close",
-              size: 16,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "search-bar",
-          style: {
-            margin: '10px 18px 0'
-          },
-          children: [/*#__PURE__*/_jsxDEV("span", {
-            className: "search-icon",
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "search",
-              size: 15,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-            placeholder: "Buscar por nombre, matrícula, grado o familia…",
-            value: qCliente,
-            onChange: e => setQCliente(e.target.value),
-            autoFocus: true
-          }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-body",
-          style: {
-            padding: '10px 18px'
-          },
-          children: [clientesFiltrados.length === 0 && /*#__PURE__*/_jsxDEV("div", {
-            className: "empty-state",
-            children: /*#__PURE__*/_jsxDEV("div", {
-              className: "empty-text",
-              children: "Sin resultados para esa búsqueda"
-            }, void 0, false)
-          }, void 0, false), clientesFiltrados.map(c => {
-            const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
-            return /*#__PURE__*/_jsxDEV("div", {
-              onClick: () => {
-                setClienteSel(c);
-                setSpeiBloqueo(null);
-                setModal(null);
-              },
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 8px',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                borderBottom: '1px solid var(--glass-light)',
-                transition: 'background .15s'
-              },
-              onMouseEnter: e => e.currentTarget.style.background = 'var(--glass-light)',
-              onMouseLeave: e => e.currentTarget.style.background = 'transparent',
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                className: "avatar avatar-admin",
-                children: c.nombre.charAt(0)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  flex: 1,
-                  minWidth: 0
-                },
-                children: [/*#__PURE__*/_jsxDEV("div", {
-                  style: {
-                    fontWeight: 500,
-                    fontSize: 13,
-                    color: 'var(--ink)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5
-                  },
-                  children: [clientesFiltradosExactos.has(c.id) && /*#__PURE__*/_jsxDEV(Icon, {
-                    name: "escuelas",
-                    size: 14,
-                    color: "var(--lime)",
-                    style: { display: 'inline', flexShrink: 0 }
-                  }, void 0, false), c.nombre]
-                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                  style: {
-                    fontSize: 11,
-                    color: 'var(--ink-3)',
-                    display: 'flex',
-                    gap: 6,
-                    flexWrap: 'wrap'
-                  },
-                  children: [/*#__PURE__*/_jsxDEV("span", {
-                    children: c.grado
-                  }, void 0, false), c.matricula && /*#__PURE__*/_jsxDEV("span", {
-                    style: {
-                      fontFamily: 'var(--mono)'
-                    },
-                    children: ["· ", c.matricula]
-                  }, void 0, true), fam && /*#__PURE__*/_jsxDEV("span", {
-                    style: {
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5
-                    },
-                    children: ["· ", /*#__PURE__*/_jsxDEV(Icon, {
-                      name: "familias",
-                      size: 13,
-                      color: "currentColor"
-                    }, void 0, false), " ", fam.nombre.split(' ').slice(1, 3).join(' ')]
-                  }, void 0, true)]
-                }, void 0, true)]
-              }, void 0, true), c.saldo_pendiente > 0 && /*#__PURE__*/_jsxDEV("span", {
-                style: {
-                  color: 'var(--amber)',
-                  fontSize: 12,
-                  fontFamily: 'var(--mono)',
-                  fontWeight: 600,
-                  flexShrink: 0
-                },
-                children: fmt(c.saldo_pendiente)
-              }, void 0, false)]
-            }, c.id, true);
-          })]
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-footer",
-          children: /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-ghost",
-            onClick: () => {
-              setClienteSel(null);
-              setModal(null);
-            },
-            children: "Sin cliente específico"
-          }, void 0, false)
-        }, void 0, false)]
-      }, void 0, true)
-    }, void 0, false), modal === 'spei' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
-      className: "modal-backdrop",
-      children: /*#__PURE__*/_jsxDEV("div", {
-        className: "modal modal-lg",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "modal-title",
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 8
-            },
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "bank",
-              size: 18,
-              color: "currentColor"
-            }, void 0, false), " Pago por Transferencia SPEI"]
-          }, void 0, true), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("span", {
-            className: "badge badge-green",
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "check",
-              size: 11,
-              color: "currentColor"
-            }, void 0, false), " Confirmado"]
-          }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-body",
-          children: [speiStatus !== 'confirmado' && /*#__PURE__*/_jsxDEV(_Fragment, {
-            children: [speiStatus === 'generando' && /*#__PURE__*/_jsxDEV("div", {
-              className: "verif-row",
-              style: {
-                justifyContent: 'center',
-                padding: '20px 0'
-              },
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner",
-                style: {
-                  borderTopColor: 'var(--accent)'
-                }
-              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-                style: {
-                  fontSize: 13,
-                  color: 'var(--ink-2)',
-                  marginLeft: 10
-                },
-                children: "Cargando CLABE de pago…"
-              }, void 0, false)]
-            }, void 0, true), speiStatus === 'error' && /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                background: '#fef2f2',
-                border: '1px solid #fca5a5',
-                borderRadius: 'var(--radius)',
-                padding: '14px 16px',
-                marginBottom: 14
-              },
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontWeight: 600,
-                  color: 'var(--red)',
-                  marginBottom: 4
-                },
-                children: [/*#__PURE__*/_jsxDEV(Icon, {
-                  name: "warning",
-                  size: 15,
-                  color: "var(--red)"
-                }, void 0, false), " Error al obtener CLABE"]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 12,
-                  color: 'var(--ink-2)'
-                },
-                children: speiError
-              }, void 0, false)]
-            }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("div", {
-              className: "spei-box",
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 11,
-                  color: 'rgba(255,255,255,.5)',
-                  marginBottom: 4,
-                  textAlign: 'center',
-                  textTransform: 'uppercase',
-                  letterSpacing: '.5px'
-                },
-                children: cobroActivo?.clabe_es_individual ? `CLABE Individual · ${cobroActivo?.cliente || 'Alumno'}` : 'CLABE Interbancaria Fija · STP'
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                className: "clabe-display",
-                children: fmtCLABE(cobroActivo?.clabe)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 8,
-                  marginBottom: 12
-                },
-                children: [/*#__PURE__*/_jsxDEV("div", {
-                  className: "spei-info-row",
-                  style: {
-                    flexDirection: 'column',
-                    gap: 2,
-                    alignItems: 'flex-start'
-                  },
-                  children: [/*#__PURE__*/_jsxDEV("span", {
-                    className: "spei-label",
-                    children: "Beneficiario"
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-                    className: "spei-value",
-                    style: {
-                      fontSize: 12
-                    },
-                    children: cobroActivo?.beneficiario || escuela?.nombre || 'Escuela'
-                  }, void 0, false)]
-                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                  className: "spei-info-row",
-                  style: {
-                    flexDirection: 'column',
-                    gap: 2,
-                    alignItems: 'flex-start'
-                  },
-                  children: [/*#__PURE__*/_jsxDEV("span", {
-                    className: "spei-label",
-                    children: "Monto exacto"
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-                    className: "spei-value",
-                    style: {
-                      fontSize: 16
-                    },
-                    children: fmt(cobroActivo?.total)
-                  }, void 0, false)]
-                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                  className: "spei-info-row",
-                  style: {
-                    flexDirection: 'column',
-                    gap: 2,
-                    alignItems: 'flex-start',
-                    gridColumn: '1/-1'
-                  },
-                  children: [/*#__PURE__*/_jsxDEV("span", {
-                    className: "spei-label",
-                    style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5
-                    },
-                    children: [/*#__PURE__*/_jsxDEV(Icon, {
-                      name: "warning",
-                      size: 12,
-                      color: "currentColor"
-                    }, void 0, false), cobroActivo?.clabe_es_individual ? 'Concepto (opcional, recomendado)' : 'Concepto obligatorio (copiar exacto)']
-                  }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
-                    className: "spei-value",
-                    style: {
-                      fontFamily: 'var(--mono)',
-                      letterSpacing: 1,
-                      color: '#fbbf24',
-                      fontSize: 15
-                    },
-                    children: cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.folio
-                  }, void 0, false)]
-                }, void 0, true)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-                className: `copy-btn ${copiedCLABE ? 'copied' : ''}`,
-                onClick: copiarCLABE,
-                children: copiedCLABE ? 'CLABE copiada' : 'Copiar CLABE al portapapeles'
-              }, void 0, false)]
-            }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("div", {
-              className: "verif-row",
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                className: "verif-dot pulse",
-                style: {
-                  background: speiStatus === 'verificando' ? 'var(--amber)' : 'var(--accent)'
-                }
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 12.5,
-                  color: 'var(--ink-2)'
-                },
-                children: speiStatus === 'esperando' ? 'Esperando transferencia… verificación automática cada 10s' : 'Verificando pago…'
-              }, void 0, false), speiStatus === 'verificando' && /*#__PURE__*/_jsxDEV("span", {
-                className: "spinner",
-                style: {
-                  marginLeft: 'auto'
-                }
-              }, void 0, false)]
-            }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("p", {
-              style: {
-                fontSize: 11.5,
-                color: 'var(--ink-4)',
-                marginTop: 10,
-                lineHeight: 1.5
-              },
-              children: cobroActivo?.clabe_es_individual ? /*#__PURE__*/_jsxDEV(_Fragment, {
-                children: ["ℹ Esta CLABE pertenece exclusivamente a ", cobroActivo?.cliente || 'este alumno', ". Cualquier transferencia recibida aquí se identificará automáticamente, sin importar el concepto."]
-              }, void 0, true) : /*#__PURE__*/_jsxDEV(_Fragment, {
-                children: "ℹ Transfiere a esta CLABE individual. El pago se confirmará automáticamente."
-              }, void 0, false)
-            }, void 0, false)]
-          }, void 0, true), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              textAlign: 'center',
-              padding: '10px 0'
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                justifyContent: 'center',
-                marginBottom: 12
-              },
-              children: /*#__PURE__*/_jsxDEV(Icon, {
-                name: "check",
-                size: 52,
-                color: "var(--green)"
-              }, void 0, false)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 18,
-                fontWeight: 700,
-                color: 'var(--ink)',
-                marginBottom: 6
-              },
-              children: "¡Pago recibido!"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 13.5,
-                color: 'var(--ink-3)',
-                marginBottom: 4
-              },
-              children: ["Transferencia verificada · ", cobroActivo.folio]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 22,
-                fontWeight: 800,
-                color: 'var(--green)',
-                fontFamily: 'var(--mono)'
-              },
-              children: fmt(cobroActivo.total)
-            }, void 0, false)]
-          }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-footer",
-          children: [/*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-secondary",
-            onClick: () => {
-              cerrarModal();
-            },
-            children: speiStatus === 'confirmado' ? 'Cerrar' : 'Dejar pendiente'
-          }, void 0, false), speiStatus !== 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: confirmarSPEI,
-            disabled: speiStatus === 'verificando' || speiStatus === 'generando',
-            children: speiStatus === 'verificando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner"
-              }, void 0, false), " Verificando…"]
-            }, void 0, true) : speiStatus === 'generando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner"
-              }, void 0, false), " Generando…"]
-            }, void 0, true) : 'Confirmar pago recibido'
-          }, void 0, false), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-success",
-            onClick: () => {
-              cerrarModal();
-              setModal('ticket');
-            },
-            children: "Ver ticket"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true)
-    }, void 0, false), modal === 'codi' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
-      className: "modal-backdrop",
-      children: /*#__PURE__*/_jsxDEV("div", {
-        className: "modal",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "modal-title",
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 8
-            },
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "phone",
-              size: 18,
-              color: "currentColor"
-            }, void 0, false), " Pago con CoDi"]
-          }, void 0, true), codiStatus === 'pagado' && /*#__PURE__*/_jsxDEV("span", {
-            className: "badge badge-green",
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "check",
-              size: 11,
-              color: "currentColor"
-            }, void 0, false), " Pagado"]
-          }, void 0, true), codiStatus === 'expirado' && /*#__PURE__*/_jsxDEV("span", {
-            className: "badge badge-red",
-            children: "Expirado"
-          }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-body",
-          style: {
-            textAlign: 'center'
-          },
-          children: [codiStatus !== 'pagado' && codiStatus !== 'expirado' && /*#__PURE__*/_jsxDEV(_Fragment, {
-            children: [/*#__PURE__*/_jsxDEV("p", {
-              style: {
-                fontSize: 13,
-                color: 'var(--ink-3)',
-                marginBottom: 14
-              },
-              children: codiStatus === 'esperando' ? 'Muestra este código QR al cliente para pagar desde su app bancaria' : '¡Código escaneado! Esperando confirmación del banco…'
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              className: "codi-qr",
-              style: {
-                opacity: codiStatus === 'escaneado' ? .6 : 1,
-                transition: 'opacity .3s'
-              },
-              children: /*#__PURE__*/_jsxDEV(QRSimple, {
-                value: cobroActivo.codi_payload
-              }, void 0, false)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 24,
-                fontWeight: 800,
-                color: 'var(--accent)',
-                fontFamily: 'var(--mono)',
-                margin: '14px 0 4px'
-              },
-              children: fmt(cobroActivo.total)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 12,
-                color: 'var(--ink-3)',
-                marginBottom: 12
-              },
-              children: cobroActivo.folio
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 13,
-                color: codiTimer < 60 ? 'var(--red)' : 'var(--ink-3)',
-                fontFamily: 'var(--mono)',
-                marginBottom: 10
-              },
-              children: ["Expira en ", Math.floor(codiTimer / 60), ":", String(codiTimer % 60).padStart(2, '0')]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              className: "progress-bar",
-              style: {
-                marginBottom: 14
-              },
-              children: /*#__PURE__*/_jsxDEV("div", {
-                className: "progress-fill",
-                style: {
-                  width: codiTimer / 300 * 100 + '%',
-                  background: codiTimer < 60 ? 'var(--red)' : 'var(--accent)',
-                  transition: 'width 1s linear, background .5s'
-                }
-              }, void 0, false)
-            }, void 0, false), codiStatus === 'escaneado' && /*#__PURE__*/_jsxDEV("div", {
-              className: "verif-row",
-              style: {
-                justifyContent: 'center'
-              },
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner",
-                style: {
-                  borderTopColor: 'var(--accent)'
-                }
-              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-                style: {
-                  fontSize: 12.5,
-                  color: 'var(--ink-2)'
-                },
-                children: "Confirmando pago con el banco del cliente…"
-              }, void 0, false)]
-            }, void 0, true)]
-          }, void 0, true), codiStatus === 'pagado' && /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              padding: '10px 0'
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                justifyContent: 'center',
-                marginBottom: 10
-              },
-              children: /*#__PURE__*/_jsxDEV(Icon, {
-                name: "check",
-                size: 52,
-                color: "var(--green)"
-              }, void 0, false)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 18,
-                fontWeight: 700,
-                color: 'var(--ink)',
-                marginBottom: 4
-              },
-              children: "¡Pago CoDi confirmado!"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 22,
-                fontWeight: 800,
-                color: 'var(--green)',
-                fontFamily: 'var(--mono)'
-              },
-              children: fmt(cobroActivo.total)
-            }, void 0, false)]
-          }, void 0, true), codiStatus === 'expirado' && /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              padding: '10px 0'
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                justifyContent: 'center',
-                marginBottom: 10
-              },
-              children: /*#__PURE__*/_jsxDEV(Icon, {
-                name: "history",
-                size: 46,
-                color: "var(--amber)"
-              }, void 0, false)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 16,
-                fontWeight: 600,
-                color: 'var(--red)',
-                marginBottom: 6
-              },
-              children: "Código expirado"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("p", {
-              style: {
-                fontSize: 13,
-                color: 'var(--ink-3)'
-              },
-              children: "El código QR ha vencido. Puedes confirmar manualmente si el cliente ya pagó."
-            }, void 0, false)]
-          }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-footer",
-          children: [/*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-secondary",
-            onClick: cerrarModal,
-            children: "Cancelar"
-          }, void 0, false), (codiStatus === 'esperando' || codiStatus === 'escaneado' || codiStatus === 'expirado') && /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: confirmarCoDi,
-            children: "Confirmar pago manualmente"
-          }, void 0, false), codiStatus === 'pagado' && /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-success",
-            onClick: () => {
-              cerrarModal();
-              setModal('ticket');
-            },
-            children: "Ver ticket"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true)
-    }, void 0, false), modal === 'tc' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
-      className: "modal-backdrop",
-      children: /*#__PURE__*/_jsxDEV("div", {
-        className: "modal modal-lg",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "modal-title",
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 8
-            },
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "card",
-              size: 18,
-              color: "currentColor"
-            }, void 0, false), " Cobro con Tarjeta"]
-          }, void 0, true), tcInfo && /*#__PURE__*/_jsxDEV("span", {
-            className: "badge badge-green",
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "check",
-              size: 11,
-              color: "currentColor"
-            }, void 0, false), " Liga generada"]
-          }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-body",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              background: 'linear-gradient(135deg,#1c2050,#282d65)',
-              borderRadius: 'var(--radius-lg)',
-              padding: '18px 20px',
-              marginBottom: 18
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                color: 'rgba(255,255,255,.6)',
-                marginBottom: 4
-              },
-              children: "Total a cobrar"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 26,
-                fontWeight: 800,
-                color: '#fff',
-                fontFamily: 'var(--mono)'
-              },
-              children: fmt(cobroActivo.total)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 12,
-                color: 'rgba(255,255,255,.6)',
-                marginTop: 4
-              },
-              children: [cobroActivo.folio, " · ", cobroActivo.cliente]
-            }, void 0, true)]
-          }, void 0, true), tcLoading && /*#__PURE__*/_jsxDEV("div", {
-            className: "verif-row",
-            style: {
-              justifyContent: 'center',
-              padding: '20px 0'
-            },
-            children: [/*#__PURE__*/_jsxDEV("span", {
-              className: "spinner",
-              style: {
-                borderTopColor: 'var(--accent)'
-              }
-            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-              style: {
-                fontSize: 13,
-                color: 'var(--ink-2)',
-                marginLeft: 10
-              },
-              children: "Generando liga de pago con Pagadetodo…"
-            }, void 0, false)]
-          }, void 0, true), tcError && !tcLoading && /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              background: '#fef2f2',
-              border: '1px solid #fca5a5',
-              borderRadius: 'var(--radius)',
-              padding: '14px 16px',
-              marginBottom: 14
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontWeight: 600,
-                color: 'var(--red)',
-                marginBottom: 4
-              },
-              children: [/*#__PURE__*/_jsxDEV(Icon, {
-                name: "warning",
-                size: 15,
-                color: "var(--red)"
-              }, void 0, false), " Error al generar liga de pago"]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 12,
-                color: 'var(--ink-2)'
-              },
-              children: tcError
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                color: 'var(--ink-3)',
-                marginTop: 8
-              },
-              children: "Puedes confirmar el cobro manualmente si el cliente pagó por otro medio."
-            }, void 0, false)]
-          }, void 0, true), tcInfo && !tcLoading && /*#__PURE__*/_jsxDEV(_Fragment, {
-            children: [/*#__PURE__*/_jsxDEV("p", {
-              style: {
-                fontSize: 13,
-                color: 'var(--ink-3)',
-                marginBottom: 14
-              },
-              children: "Comparte el enlace o muestra el QR al cliente para que complete el pago con su tarjeta de crédito o débito."
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                marginBottom: 18
-              },
-              children: [/*#__PURE__*/_jsxDEV("img", {
-                src: tcInfo.qr_url,
-                alt: "QR de pago",
-                style: {
-                  width: 200,
-                  height: 200,
-                  borderRadius: 'var(--radius)',
-                  border: '1px solid var(--border)',
-                  background: '#fff',
-                  padding: 8
-                },
-                onError: e => e.target.style.display = 'none'
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 11,
-                  color: 'var(--ink-4)',
-                  marginTop: 8
-                },
-                children: "Escanear con cualquier app de banco"
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '12px 14px',
-                marginBottom: 12
-              },
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 11,
-                  color: 'var(--ink-4)',
-                  marginBottom: 4
-                },
-                children: "Enlace de pago"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("a", {
-                href: tcInfo.url,
-                target: "_blank",
-                rel: "noreferrer",
-                style: {
-                  fontSize: 12,
-                  color: 'var(--accent)',
-                  wordBreak: 'break-all',
-                  fontFamily: 'var(--mono)'
-                },
-                children: tcInfo.url
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-              className: "copy-btn",
-              onClick: () => {
-                navigator.clipboard.writeText(tcInfo.url).catch(() => {});
-              },
-              style: {
-                width: '100%',
-                marginBottom: 10
-              },
-              children: "Copiar enlace de pago"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              className: "verif-row",
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                className: "verif-dot pulse"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 12,
-                  color: 'var(--ink-2)'
-                },
-                children: ["Esperando confirmación de pago — Ref: ", tcInfo.referencia]
-              }, void 0, true)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("p", {
-              style: {
-                fontSize: 11,
-                color: 'var(--ink-4)',
-                marginTop: 10
-              },
-              children: "ℹ Una vez que el cliente complete el pago en el enlace, confirma el cobro con el botón de abajo."
-            }, void 0, false)]
-          }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-footer",
-          children: [/*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-secondary",
-            onClick: cerrarModal,
-            children: "Cancelar"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: confirmarTC,
-            children: "Confirmar pago recibido"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true)
-    }, void 0, false), modal === 'ticket' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
-      className: "modal-backdrop",
-      children: /*#__PURE__*/_jsxDEV("div", {
-        className: "modal",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "modal-header",
-          children: /*#__PURE__*/_jsxDEV("div", {
-            className: "modal-title",
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            },
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "check",
-              size: 17,
-              color: "var(--green)"
-            }, void 0, false), " Cobro completado"]
-          }, void 0, true)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-body",
-          children: /*#__PURE__*/_jsxDEV("div", {
-            className: "ticket",
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                textAlign: 'center',
-                marginBottom: 10
-              },
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 17,
-                  fontWeight: 800
-                },
-                children: "ESCUELA EDUPAGO"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 10,
-                  color: '#555'
-                },
-                children: "Sistema de Cobros Escolar"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 10
-                },
-                children: ["Folio: ", cobroActivo.folio]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 10
-                },
-                children: fmtDate(cobroActivo.fecha)
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("hr", {
-              className: "ticket-divider"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                marginBottom: 4
-              },
-              children: ["Cliente: ", /*#__PURE__*/_jsxDEV("strong", {
-                children: cobroActivo.cliente
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                marginBottom: 6
-              },
-              children: ["Método: ", /*#__PURE__*/_jsxDEV("strong", {
-                children: cobroActivo.metodo
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("hr", {
-              className: "ticket-divider"
-            }, void 0, false), (cobroActivo.items || []).map((it, i) => /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 11,
-                marginBottom: 3
-              },
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                children: [it.nombre, " x", it.qty]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
-                children: fmt(it.precio * it.qty)
-              }, void 0, false)]
-            }, i, true)), /*#__PURE__*/_jsxDEV("hr", {
-              className: "ticket-divider"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontWeight: 800,
-                fontSize: 14
-              },
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                children: "TOTAL"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-                children: fmt(cobroActivo.total)
-              }, void 0, false)]
-            }, void 0, true), cobroActivo.auth_code && /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 10,
-                color: '#666',
-                marginTop: 6
-              },
-              children: ["Auth: ", cobroActivo.auth_code]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("hr", {
-              className: "ticket-divider"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                textAlign: 'center',
-                fontSize: 10,
-                marginTop: 6
-              },
-              children: "¡Gracias por su pago!"
-            }, void 0, false)]
-          }, void 0, true)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-footer",
-          children: [/*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-secondary",
-            onClick: () => window.print(),
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "download",
-              size: 14,
-              color: "currentColor"
-            }, void 0, false), " Imprimir"]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: () => {
-              setModal(null);
-              setCobroActivo(null);
-              resetCarrito();
-            },
-            children: "Nuevo cobro"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true)
-    }, void 0, false), modal === 'cheque' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
-      className: "modal-backdrop",
-      onClick: e => e.target === e.currentTarget && cerrarModal(),
-      children: /*#__PURE__*/_jsxDEV("div", {
-        className: "modal",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "modal-title",
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            },
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "reportes",
-              size: 17,
-              color: "currentColor"
-            }, void 0, false), " Pago con cheque"]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-ghost btn-sm",
-            onClick: cerrarModal,
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "close",
-              size: 16,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-body",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              marginBottom: 14,
-              padding: '10px 14px',
-              background: 'var(--accent-glow)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 13,
-              display: 'flex',
-              justifyContent: 'space-between'
-            },
-            children: [/*#__PURE__*/_jsxDEV("span", {
-              style: {
-                color: 'var(--ink-3)'
-              },
-              children: "Total a cobrar"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
-              style: {
-                fontFamily: 'var(--mono)',
-                fontWeight: 700,
-                fontSize: 15
-              },
-              children: fmt(cobroActivo.total)
-            }, void 0, false)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            className: "form-group",
-            children: [/*#__PURE__*/_jsxDEV("label", {
-              className: "form-label",
-              children: "Banco emisor *"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-              className: "form-input",
-              placeholder: "Ej: BBVA, Santander, Banamex…",
-              value: chequeInfo.banco,
-              onChange: e => setChequeInfo(p => ({
-                ...p,
-                banco: e.target.value
-              }))
-            }, void 0, false)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 12
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              className: "form-group",
-              children: [/*#__PURE__*/_jsxDEV("label", {
-                className: "form-label",
-                children: "Número de cuenta"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                className: "form-input",
-                placeholder: "1234567890",
-                style: {
-                  fontFamily: 'var(--mono)'
-                },
-                value: chequeInfo.num_cuenta,
-                onChange: e => setChequeInfo(p => ({
-                  ...p,
-                  num_cuenta: e.target.value
-                }))
-              }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              className: "form-group",
-              children: [/*#__PURE__*/_jsxDEV("label", {
-                className: "form-label",
-                children: "Número de cheque"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                className: "form-input",
-                placeholder: "001234",
-                style: {
-                  fontFamily: 'var(--mono)'
-                },
-                value: chequeInfo.num_cheque,
-                onChange: e => setChequeInfo(p => ({
-                  ...p,
-                  num_cheque: e.target.value
-                }))
-              }, void 0, false)]
-            }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              marginTop: 6,
-              padding: '8px 12px',
-              background: 'rgba(245,158,11,.08)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 11.5,
-              color: 'var(--ink-2)'
-            },
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-              name: "warning",
-              size: 13,
-              color: "#f59e0b"
-            }, void 0, false), " El cobro quedará pendiente hasta que el cheque sea compensado."]
-          }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          className: "modal-footer",
-          children: [/*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-secondary",
-            onClick: cerrarModal,
-            children: "Cancelar"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            disabled: !chequeInfo.banco,
-            onClick: async () => {
-              const extra = {
-                banco_cheque: chequeInfo.banco,
-                num_cuenta_cheque: chequeInfo.num_cuenta,
-                num_cheque: chequeInfo.num_cheque
-              };
-              CobroController.confirmarPago(cobroActivo.id, extra).then(res => {
-                actualizarSaldoCliente(res);
-              }).catch(()=>{});
-              setData(prev => {
-                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', ...extra } : c) };
-                AppModel.save(upd); return upd;
-              });
-              setModal('ticket');
-              resetCarrito();
-            },
-            children: "Registrar cheque"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true)
-    }, void 0, false)]
-  }, void 0, true);
+var _jsxDEV = function(type,props,key,_s,_src,_self){
+  var p = Object.assign({key:key||undefined},props);
+  var ch = p.children; delete p.children;
+  return ch===undefined ? React.createElement(type,p)
+       : Array.isArray(ch) ? React.createElement(type,p,...ch)
+       : React.createElement(type,p,ch);
+};
+var _Fragment = React.Fragment;
+/* views/Caja.jsx — Sistema de cobros completo v2 */
+function Caja({
+  data,
+  setData,
+  user,
+  escuela
+}) {
+  const {
+    useState,
+    useEffect,
+    useRef
+  } = React;
+  const [carrito, setCarrito] = useState([]);
+  const [clienteSel, setClienteSel] = useState(null);
+  const [metodo, setMetodo] = useState('TC');
+  const [q, setQ] = useState('');
+  const [clasificacion, setClasificacion] = useState('todos');
+  const [qCliente, setQCliente] = useState('');
+  const [modal, setModal] = useState(null); // null | 'cliente' | 'spei' | 'codi' | 'ticket' | 'tc'
+  const [cobroActivo, setCobroActivo] = useState(null);
+  const [copiedCLABE, setCopiedCLABE] = useState(false);
+  const [speiStatus, setSpeiStatus] = useState('esperando'); // esperando | verificando | confirmado
+  const [speiError, setSpeiError] = useState(null);
+  const [codiStatus, setCodiStatus] = useState('esperando'); // esperando | escaneado | pagado | expirado
+  const [codiTimer, setCodiTimer] = useState(300); // 5 minutos
+  const [tcInfo, setTcInfo] = useState(null); // { url, qr_url, referencia }
+  const [tcLoading, setTcLoading] = useState(false);
+  const [tcError, setTcError] = useState(null);
+  const [speiBloqueo, setSpeiBloqueo] = useState(null); // mensaje de error SPEI en pantalla
+  // Cheque
+  const [chequeInfo, setChequeInfo] = useState({
+    banco: '',
+    num_cuenta: '',
+    num_cheque: ''
+  });
+  const intervalRef = useRef(null);
+  const timerRef = useRef(null);
+  const speiPollRef = useRef(null);
+  const CATS_PERIODICAS = ['colegiatura', 'anualidad', 'inscripcion'];
+  const CAT_LABELS_CAJA = {
+    colegiatura: 'Colegiatura', anualidad: 'Anualidad', inscripcion: 'Inscripción',
+    examen: 'Examen', uniforme: 'Uniforme', material: 'Material',
+    transporte: 'Transporte', comedor: 'Comedor', extracurricular: 'Extracurricular',
+    beca: 'Beca / Descuento', otro: 'Otro'
+  };
+  const productosBase = data.productos.filter(p =>
+    p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
+  );
+  // Aplica clasificación seleccionada
+  const productosFiltrados = (() => {
+    switch (clasificacion) {
+      case 'descuentos':
+        return productosBase.filter(p => p.precio < 0 || p.categoria === 'beca');
+      case 'periodicos':
+        return productosBase.filter(p => CATS_PERIODICAS.includes(p.categoria));
+      case 'unicos':
+        return productosBase.filter(p => !CATS_PERIODICAS.includes(p.categoria) && p.precio >= 0 && p.categoria !== 'beca');
+      case 'mayor_precio':
+        return [...productosBase].sort((a, b) => Math.abs(b.precio) - Math.abs(a.precio));
+      case 'menor_precio':
+        return [...productosBase].sort((a, b) => Math.abs(a.precio) - Math.abs(b.precio));
+      case 'alfabetico':
+        return [...productosBase].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+      default:
+        return productosBase;
+    }
+  })();
+  // Para la vista agrupada por categoría
+  const productosPorCategoria = (() => {
+    if (clasificacion !== 'por_categoria') return null;
+    const grupos = {};
+    productosBase.forEach(p => {
+      const cat = p.categoria || 'otro';
+      if (!grupos[cat]) grupos[cat] = [];
+      grupos[cat].push(p);
+    });
+    return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  })();
+  const clientesFiltrados = data.clientes.filter(c => {
+    if (!c.activo) return false;
+    if (!qCliente) return true;
+    const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
+    const texto = [c.nombre, c.matricula, c.grado, fam?.nombre].filter(Boolean).join(' ').toLowerCase();
+    return texto.includes(qCliente.toLowerCase());
+  }).map(c => {
+    const busq = qCliente.trim().toLowerCase();
+    const exacto = busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
+    return { c, exacto };
+  }).sort((a, b) => (b.exacto - a.exacto)).map(x => x.c);
+  const clientesFiltradosExactos = new Set(
+    clientesFiltrados.filter(c => {
+      const busq = qCliente.trim().toLowerCase();
+      return busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
+    }).map(c => c.id)
+  );
+  const subtotal = carrito.reduce((a, i) => a + i.precio * i.qty, 0);
+  const total = subtotal;
+
+  /* ── HELPER: actualizar saldo_pendiente de un cliente en el estado global ── */
+  const actualizarSaldoCliente = (res) => {
+    if (res && res.cliente_id != null) {
+      setData(prev => ({
+        ...prev,
+        clientes: prev.clientes.map(c =>
+          c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c
+        )
+      }));
+    }
+  };
+
+  /* ── CARRITO ── */
+  const addItem = p => {
+    setCarrito(prev => {
+      const ex = prev.find(i => i.id === p.id);
+      return ex ? prev.map(i => i.id === p.id ? {
+        ...i,
+        qty: i.qty + 1
+      } : i) : [...prev, {
+        ...p,
+        qty: 1
+      }];
+    });
+  };
+  const setQty = (id, qty) => qty < 1 ? setCarrito(prev => prev.filter(i => i.id !== id)) : setCarrito(prev => prev.map(i => i.id === id ? {
+    ...i,
+    qty
+  } : i));
+  const removeItem = id => setCarrito(prev => prev.filter(i => i.id !== id));
+
+  /* ── INICIAR COBRO ── */
+  const cobrar = async () => {
+    if (!carrito.length) return;
+
+    // Validar SPEI antes de crear el cobro
+    if (metodo === 'SPEI') {
+      if (!clienteSel) {
+        setSpeiBloqueo({ tipo: 'sin_alumno', msg: 'Selecciona un alumno o familia para cobrar por SPEI.' });
+        return;
+      }
+      const tieneClabe = clienteSel.clabe_individual && clienteSel.clabe_individual_estado === 'activa';
+      if (!tieneClabe) {
+        const motivo = !clienteSel.clabe_individual
+          ? 'no tiene CLABE SPEI asignada'
+          : `su CLABE está ${clienteSel.clabe_individual_estado || 'inactiva'}`;
+        setSpeiBloqueo({ tipo: 'sin_clabe', alumno: clienteSel.nombre, clabe: clienteSel.clabe_individual, estado: clienteSel.clabe_individual_estado, msg: `${clienteSel.nombre} ${motivo}.` });
+        return;
+      }
+      setSpeiBloqueo(null);
+    }
+    const escuela_id = escuela?.id ?? data.escuelas?.[0]?.id ?? 1;
+    let cobro;
+    try {
+      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id });
+    } catch(err) {
+      alert('Error al crear cobro: ' + err.message);
+      return;
+    }
+    setCobroActivo(cobro);
+    // Actualizar saldo_pendiente del cliente si el API lo devolvió
+    if (cobro._nuevo_saldo != null && cobro._cliente_id != null) {
+      setData(prev => ({
+        ...prev,
+        clientes: prev.clientes.map(c => c.id === cobro._cliente_id ? { ...c, saldo_pendiente: cobro._nuevo_saldo } : c)
+      }));
+    }
+    const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
+    if (metodo === 'SPEI') {
+      setSpeiStatus('generando');
+      setSpeiError(null);
+      setData(newData);
+      setModal('spei');
+      try {
+        // CLABE INDIVIDUAL: usa la CLABE individual activa del alumno.
+        // Si no tiene CLABE asignada, lanza error y no procede.
+        const spei = await CobroController.iniciarSPEI(cobro, escuela, clienteSel);
+        // Guardar info SPEI en el cobro
+        const cobrosActualizados = newData.cobros.map(c => c.id === cobro.id ? {
+          ...c,
+          clabe: spei.clabe,
+          banco: spei.banco,
+          beneficiario: spei.beneficiario,
+          referencia_spei: spei.referencia,
+          instruccion: spei.instruccion,
+          clabe_es_individual: !!spei.esIndividual
+        } : c);
+        const dataConClabe = {
+          ...newData,
+          cobros: cobrosActualizados
+        };
+        setData(dataConClabe);
+        setCobroActivo(prev => ({
+          ...prev,
+          clabe: spei.clabe,
+          referencia_spei: spei.referencia,
+          instruccion: spei.instruccion,
+          banco: spei.banco,
+          beneficiario: spei.beneficiario,
+          clabe_es_individual: !!spei.esIndividual
+        }));
+        setSpeiStatus('esperando');
+        AppModel.save(dataConClabe);
+
+        // Polling automático: verificar cada 10 segundos por referencia y/o CLABE individual
+        speiPollRef.current = setInterval(async () => {
+          try {
+            const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe);
+            if (ver.pagado) {
+              clearInterval(speiPollRef.current);
+              CobroController.confirmarPago(cobro.id, { transaccion: ver.transaccion }).then(res => {
+                actualizarSaldoCliente(res);
+              }).catch(()=>{});
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
+                AppModel.save(upd);
+                return upd;
+              });
+              setSpeiStatus('confirmado');
+            }
+          } catch (e) {/* continuar polling */}
+        }, 10000);
+      } catch (err) {
+        setSpeiError(err.message);
+        setSpeiStatus('error');
+      }
+    } else if (metodo === 'CoDi') {
+      // CoDi: se mantiene igual (no hay API real disponible)
+      setCodiStatus('esperando');
+      setCodiTimer(300);
+      setData(newData);
+      setModal('codi');
+      let t = 300;
+      timerRef.current = setInterval(() => {
+        t--;
+        setCodiTimer(t);
+        if (t <= 0) {
+          clearInterval(timerRef.current);
+          setCodiStatus('expirado');
+        }
+      }, 1000);
+    } else if (metodo === 'TC') {
+      // TC: generar liga de pago real con Pagadetodo
+      setTcLoading(true);
+      setTcError(null);
+      setTcInfo(null);
+      setData(newData);
+      setModal('tc');
+      try {
+        const liga = await CobroController.iniciarTC(cobro);
+        setTcInfo(liga);
+      } catch (err) {
+        setTcError(err.message);
+      } finally {
+        setTcLoading(false);
+      }
+    } else if (metodo === 'Cheque') {
+      // Cheque: mostrar modal para capturar datos del cheque antes de confirmar
+      setData(newData);
+      setChequeInfo({
+        banco: '',
+        num_cuenta: '',
+        num_cheque: ''
+      });
+      setModal('cheque');
+    } else {
+      // Efectivo referenciado: cobro inmediato
+      setData(newData);
+      AppModel.save(newData);
+      setModal('ticket');
+      resetCarrito();
+    }
+  };
+
+  /* ── CONFIRMAR TC MANUALMENTE (cliente ya pagó en el link) ── */
+  const confirmarTC = async () => {
+    try { const res = await CobroController.confirmarPago(cobroActivo.id, { auth_code: tcInfo?.referencia }); actualizarSaldoCliente(res); } catch(e) {}
+    setData(prev => {
+      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: tcInfo?.referencia } : c) };
+      AppModel.save(upd);
+      return upd;
+    });
+    setModal('ticket');
+    resetCarrito();
+  };
+
+  /* ── CONFIRMAR SPEI MANUAL (botón de "ya pagué") ── */
+  const confirmarSPEI = async () => {
+    if (speiStatus === 'confirmado') {
+      setModal('ticket');
+      resetCarrito();
+      return;
+    }
+    setSpeiStatus('verificando');
+    try {
+      const refSpei = cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.clabe;
+      const clabeActiva = cobroActivo?.clabe;
+      if (refSpei || clabeActiva) {
+        const ver = await CobroController.verificarSPEI(refSpei, clabeActiva);
+        if (ver.pagado) {
+          clearInterval(speiPollRef.current);
+          try { const res = await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); actualizarSaldoCliente(res); } catch(e) {}
+          setData(prev => {
+            const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
+            AppModel.save(upd);
+            return upd;
+          });
+          setSpeiStatus('confirmado');
+          return;
+        }
+      }
+      // Si no se verificó, confirmar manualmente de todas formas
+      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+        AppModel.save(upd); return upd;
+      });
+      setSpeiStatus('confirmado');
+    } catch (e) {
+      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e2) {}
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+        AppModel.save(upd); return upd;
+      });
+      setSpeiStatus('confirmado');
+    }
+  };
+
+  /* ── CONFIRMAR CODI MANUAL ── */
+  const confirmarCoDi = async () => {
+    clearInterval(timerRef.current);
+    try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
+    setData(prev => {
+      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+      AppModel.save(upd); return upd;
+    });
+    setCodiStatus('pagado');
+    setTimeout(() => {
+      setModal('ticket');
+      resetCarrito();
+    }, 1200);
+  };
+  const resetCarrito = () => {
+    setCarrito([]);
+    setClienteSel(null);
+    setTcInfo(null);
+    setTcError(null);
+    setChequeInfo({
+      banco: '',
+      num_cuenta: '',
+      num_cheque: ''
+    });
+  };
+  const cerrarModal = () => {
+    if (intervalRef.current) clearTimeout(intervalRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (speiPollRef.current) clearInterval(speiPollRef.current);
+    setModal(null);
+  };
+
+  /* ── COPIAR CLABE ── */
+  const copiarCLABE = () => {
+    if (cobroActivo?.clabe) {
+      navigator.clipboard.writeText(cobroActivo.clabe).catch(() => {});
+      setCopiedCLABE(true);
+      setTimeout(() => setCopiedCLABE(false), 2000);
+    }
+  };
+
+  /* ── FORMATO CLABE ── */
+  const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
+
+  /* ── QR CODI (SVG simple) ── */
+  const QRSimple = ({
+    value
+  }) => {
+    // QR placeholder visual (pattern basado en value hash)
+    const hash = value ? [...value].reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
+    const cells = 21;
+    const grid = Array.from({
+      length: cells
+    }, (_, r) => Array.from({
+      length: cells
+    }, (_, c) => {
+      // Corner finder patterns
+      if (r < 7 && c < 7 || r < 7 && c >= cells - 7 || r >= cells - 7 && c < 7) return 1;
+      // Data pattern based on hash
+      return hash * (r + 1) * (c + 1) % 7 < 3 ? 1 : 0;
+    }));
+    const size = 160;
+    const cellSize = size / cells;
+    return /*#__PURE__*/_jsxDEV("svg", {
+      width: size,
+      height: size,
+      viewBox: `0 0 ${size} ${size}`,
+      xmlns: "http://www.w3.org/2000/svg",
+      children: [/*#__PURE__*/_jsxDEV("rect", {
+        width: size,
+        height: size,
+        fill: "#fff"
+      }, void 0, false), grid.map((row, r) => row.map((cell, c) => cell ? /*#__PURE__*/_jsxDEV("rect", {
+        x: c * cellSize,
+        y: r * cellSize,
+        width: cellSize,
+        height: cellSize,
+        fill: "#000"
+      }, `${r}-${c}`, false) : null))]
+    }, void 0, true);
+  };
+  const METODOS = [{
+    id: 'TC',
+    label: 'Tarjeta',
+    icon: 'card'
+  }, {
+    id: 'SPEI',
+    label: 'SPEI',
+    icon: 'bank'
+  }, {
+    id: 'CoDi',
+    label: 'CoDi',
+    icon: 'phone'
+  }, {
+    id: 'Efectivo',
+    label: 'Efectivo referenciado',
+    icon: 'pay'
+  }, {
+    id: 'Cheque',
+    label: 'Cheque',
+    icon: 'reportes'
+  }];
+  return /*#__PURE__*/_jsxDEV("div", {
+    className: "pos-layout",
+    children: [/*#__PURE__*/_jsxDEV("div", {
+      className: "pos-products",
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        className: "pos-header",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%' },
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            style: { fontWeight: 600, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 },
+            children: [/*#__PURE__*/_jsxDEV(Icon, { name: "productos", size: 15, color: "currentColor" }, void 0, false), " Conceptos"]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            className: "search-bar",
+            style: { flex: 1, minWidth: 120 },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              className: "search-icon",
+              children: /*#__PURE__*/_jsxDEV(Icon, { name: "search", size: 15, color: "currentColor" }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              placeholder: "Buscar concepto…",
+              value: q,
+              onChange: e => setQ(e.target.value)
+            }, void 0, false)]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', gap: 5, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--glass-light)', marginTop: 4 },
+          children: [
+            { id: 'todos',        label: 'Todos',        icon: 'productos' },
+            { id: 'por_categoria',label: 'Por categoría',icon: 'cobros' },
+            { id: 'descuentos',   label: 'Descuentos',   icon: 'check' },
+            { id: 'periodicos',   label: 'Periódicos',   icon: 'history' },
+            { id: 'unicos',       label: 'Conceptos únicos', icon: 'pay' },
+            { id: 'mayor_precio', label: 'Mayor precio', icon: 'reportes' },
+            { id: 'menor_precio', label: 'Menor precio', icon: 'download' },
+            { id: 'alfabetico',   label: 'A–Z',          icon: 'search' },
+          ].map(tab => /*#__PURE__*/_jsxDEV("button", {
+            onClick: () => setClasificacion(tab.id),
+            style: {
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 11.5,
+              fontFamily: 'var(--font)', cursor: 'pointer', border: '1px solid',
+              transition: 'all .15s',
+              background: clasificacion === tab.id ? 'var(--accent)' : 'var(--bg-surface-2)',
+              borderColor: clasificacion === tab.id ? 'var(--accent)' : 'var(--border-glow)',
+              color: clasificacion === tab.id ? 'var(--on-accent)' : 'var(--ink-3)',
+              fontWeight: clasificacion === tab.id ? 700 : 400,
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, { name: tab.icon, size: 12, color: "currentColor" }, void 0, false), tab.label]
+          }, tab.id, true))
+        }, void 0, true)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: "pos-products-grid",
+        children: [productosPorCategoria ? productosPorCategoria.map(([cat, prods]) => /*#__PURE__*/_jsxDEV(_Fragment, {
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            style: {
+              gridColumn: '1/-1', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '.6px', color: 'var(--ink-4)', padding: '8px 2px 4px',
+              borderBottom: '1px solid var(--glass-light)', marginBottom: 2
+            },
+            children: CAT_LABELS_CAJA[cat] || cat
+          }, void 0, false), prods.map(p => /*#__PURE__*/_jsxDEV("div", {
+            className: "product-card",
+            onClick: () => addItem(p),
+            children: [/*#__PURE__*/_jsxDEV("div", { className: "product-emoji", children: p.emoji }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { className: "product-name", children: p.nombre }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { className: "product-type", children: CAT_LABELS_CAJA[p.categoria] || p.categoria }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { className: "product-price", style: { color: p.precio < 0 ? 'var(--green)' : 'var(--accent)' }, children: fmt(p.precio) }, void 0, false)]
+          }, p.id, true))]
+        }, cat, true)) : productosFiltrados.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+          className: "empty-state",
+          style: { gridColumn: '1/-1' },
+          children: [/*#__PURE__*/_jsxDEV("div", { className: "empty-icon", children: /*#__PURE__*/_jsxDEV(Icon, { name: "search", size: 36, color: "currentColor" }, void 0, false) }, void 0, false),
+            /*#__PURE__*/_jsxDEV("div", { className: "empty-text", children: "Sin resultados" }, void 0, false)]
+        }, void 0, true) : productosFiltrados.map(p => /*#__PURE__*/_jsxDEV("div", {
+          className: "product-card",
+          onClick: () => addItem(p),
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "product-emoji",
+            children: p.emoji
+          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: "product-name",
+            children: p.nombre
+          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: "product-type",
+            children: p.categoria
+          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: "product-price",
+            style: {
+              color: p.precio < 0 ? 'var(--green)' : 'var(--accent)'
+            },
+            children: fmt(p.precio)
+          }, void 0, false)]
+        }, p.id, true))]
+      }, void 0, true)]
+    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      className: "pos-cart",
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        className: "cart-header",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          style: {
+            fontWeight: 600,
+            fontSize: 13.5,
+            marginBottom: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7
+          },
+          children: [/*#__PURE__*/_jsxDEV(Icon, {
+            name: "cobros",
+            size: 15,
+            color: "currentColor"
+          }, void 0, false), " Cobro en curso"]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "cart-customer",
+          onClick: () => { setQCliente(''); setModal('cliente'); },
+          children: [/*#__PURE__*/_jsxDEV(Icon, {
+            name: clienteSel ? 'alumnos' : 'familias',
+            size: 18,
+            color: "var(--ink-3)"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              flex: 1,
+              minWidth: 0
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--accent)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              },
+              children: clienteSel?.nombre || 'Seleccionar alumno/familia'
+            }, void 0, false), clienteSel && /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 11,
+                color: 'var(--ink-3)'
+              },
+              children: [clienteSel.tipo, " · ", clienteSel.grado]
+            }, void 0, true)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
+            style: {
+              fontSize: 12,
+              color: 'var(--accent)'
+            },
+            children: "›"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: "cart-items",
+        children: [carrito.length === 0 && /*#__PURE__*/_jsxDEV("div", {
+          className: "empty-state",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "empty-icon",
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "caja",
+              size: 36,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: "empty-text",
+            children: "Sin conceptos"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: "empty-sub",
+            children: "Selecciona conceptos de la izquierda"
+          }, void 0, false)]
+        }, void 0, true), carrito.map(item => /*#__PURE__*/_jsxDEV("div", {
+          className: "cart-item",
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            style: {
+              fontSize: 20
+            },
+            children: item.emoji
+          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: "cart-item-info",
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              className: "cart-item-name",
+              children: item.nombre
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              className: "cart-item-qty",
+              children: [/*#__PURE__*/_jsxDEV("button", {
+                className: "qty-btn",
+                onClick: () => setQty(item.id, item.qty - 1),
+                children: "−"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                className: "qty-num",
+                children: item.qty
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                className: "qty-btn",
+                onClick: () => setQty(item.id, item.qty + 1),
+                children: "+"
+              }, void 0, false)]
+            }, void 0, true)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              textAlign: 'right'
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              className: "cart-item-price",
+              children: fmt(item.precio * item.qty)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              className: "cart-remove",
+              onClick: () => removeItem(item.id),
+              children: /*#__PURE__*/_jsxDEV(Icon, {
+                name: "close",
+                size: 15,
+                color: "currentColor"
+              }, void 0, false)
+            }, void 0, false)]
+          }, void 0, true)]
+        }, item.id, true))]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: "cart-totals",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "totals-row",
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            children: "Subtotal"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+            className: "text-mono",
+            children: fmt(subtotal)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "totals-row",
+          style: {
+            fontWeight: 700,
+            fontSize: 15,
+            color: 'var(--ink)',
+            marginTop: 6
+          },
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            children: "Total"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+            className: "totals-total",
+            children: fmt(total)
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: "payment-methods",
+        children: METODOS.map(m => /*#__PURE__*/_jsxDEV("div", {
+          className: `pay-method ${metodo === m.id ? 'selected' : ''}`,
+          onClick: () => { setMetodo(m.id); setSpeiBloqueo(null); },
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            className: "pm-icon",
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: m.icon,
+              size: 18,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false), m.label]
+        }, m.id, true))
+      }, void 0, false), speiBloqueo && metodo === 'SPEI' && /*#__PURE__*/_jsxDEV("div", {
+        style: {
+          margin: '0 0 10px',
+          padding: '12px 14px',
+          background: 'rgba(239,68,68,.08)',
+          border: '1px solid rgba(239,68,68,.3)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: 12.5,
+          color: 'var(--red)',
+          lineHeight: 1.5,
+        },
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 4 },
+          children: [/*#__PURE__*/_jsxDEV(Icon, { name: "warning", size: 14, color: "currentColor" }, void 0, false),
+            speiBloqueo.tipo === 'sin_alumno' ? 'Alumno requerido' : 'CLABE SPEI no disponible']
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          style: { color: 'var(--ink-2)' },
+          children: speiBloqueo.msg
+        }, void 0, false), speiBloqueo.tipo === 'sin_clabe' && /*#__PURE__*/_jsxDEV("div", {
+          style: { marginTop: 6, fontSize: 11.5, color: 'var(--ink-3)' },
+          children: "Asigna una CLABE individual desde Alumnos → ficha del alumno → sección SPEI."
+        }, void 0, false)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+        className: "checkout-btn",
+        onClick: cobrar,
+        disabled: !carrito.length || total === 0,
+        children: ["Cobrar ", fmt(total)]
+      }, void 0, true)]
+    }, void 0, true), modal === 'cliente' && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && setModal(null),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            children: "Seleccionar alumno o familia"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: () => setModal(null),
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "close",
+              size: 16,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "search-bar",
+          style: {
+            margin: '10px 18px 0'
+          },
+          children: [/*#__PURE__*/_jsxDEV("span", {
+            className: "search-icon",
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "search",
+              size: 15,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+            placeholder: "Buscar por nombre, matrícula, grado o familia…",
+            value: qCliente,
+            onChange: e => setQCliente(e.target.value),
+            autoFocus: true
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          style: {
+            padding: '10px 18px'
+          },
+          children: [clientesFiltrados.length === 0 && /*#__PURE__*/_jsxDEV("div", {
+            className: "empty-state",
+            children: /*#__PURE__*/_jsxDEV("div", {
+              className: "empty-text",
+              children: "Sin resultados para esa búsqueda"
+            }, void 0, false)
+          }, void 0, false), clientesFiltrados.map(c => {
+            const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
+            return /*#__PURE__*/_jsxDEV("div", {
+              onClick: () => {
+                setClienteSel(c);
+                setSpeiBloqueo(null);
+                setModal(null);
+              },
+              style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 8px',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                borderBottom: '1px solid var(--glass-light)',
+                transition: 'background .15s'
+              },
+              onMouseEnter: e => e.currentTarget.style.background = 'var(--glass-light)',
+              onMouseLeave: e => e.currentTarget.style.background = 'transparent',
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                className: "avatar avatar-admin",
+                children: c.nombre.charAt(0)
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  flex: 1,
+                  minWidth: 0
+                },
+                children: [/*#__PURE__*/_jsxDEV("div", {
+                  style: {
+                    fontWeight: 500,
+                    fontSize: 13,
+                    color: 'var(--ink)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5
+                  },
+                  children: [clientesFiltradosExactos.has(c.id) && /*#__PURE__*/_jsxDEV(Icon, {
+                    name: "escuelas",
+                    size: 14,
+                    color: "var(--lime)",
+                    style: { display: 'inline', flexShrink: 0 }
+                  }, void 0, false), c.nombre]
+                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                  style: {
+                    fontSize: 11,
+                    color: 'var(--ink-3)',
+                    display: 'flex',
+                    gap: 6,
+                    flexWrap: 'wrap'
+                  },
+                  children: [/*#__PURE__*/_jsxDEV("span", {
+                    children: c.grado
+                  }, void 0, false), c.matricula && /*#__PURE__*/_jsxDEV("span", {
+                    style: {
+                      fontFamily: 'var(--mono)'
+                    },
+                    children: ["· ", c.matricula]
+                  }, void 0, true), fam && /*#__PURE__*/_jsxDEV("span", {
+                    style: {
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5
+                    },
+                    children: ["· ", /*#__PURE__*/_jsxDEV(Icon, {
+                      name: "familias",
+                      size: 13,
+                      color: "currentColor"
+                    }, void 0, false), " ", fam.nombre.split(' ').slice(1, 3).join(' ')]
+                  }, void 0, true)]
+                }, void 0, true)]
+              }, void 0, true), c.saldo_pendiente > 0 && /*#__PURE__*/_jsxDEV("span", {
+                style: {
+                  color: 'var(--amber)',
+                  fontSize: 12,
+                  fontFamily: 'var(--mono)',
+                  fontWeight: 600,
+                  flexShrink: 0
+                },
+                children: fmt(c.saldo_pendiente)
+              }, void 0, false)]
+            }, c.id, true);
+          })]
+        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost",
+            onClick: () => {
+              setClienteSel(null);
+              setModal(null);
+            },
+            children: "Sin cliente específico"
+          }, void 0, false)
+        }, void 0, false)]
+      }, void 0, true)
+    }, void 0, false), modal === 'spei' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal modal-lg",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 8
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "bank",
+              size: 18,
+              color: "currentColor"
+            }, void 0, false), " Pago por Transferencia SPEI"]
+          }, void 0, true), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("span", {
+            className: "badge badge-green",
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "check",
+              size: 11,
+              color: "currentColor"
+            }, void 0, false), " Confirmado"]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          children: [speiStatus !== 'confirmado' && /*#__PURE__*/_jsxDEV(_Fragment, {
+            children: [speiStatus === 'generando' && /*#__PURE__*/_jsxDEV("div", {
+              className: "verif-row",
+              style: {
+                justifyContent: 'center',
+                padding: '20px 0'
+              },
+              children: [/*#__PURE__*/_jsxDEV("span", {
+                className: "spinner",
+                style: {
+                  borderTopColor: 'var(--accent)'
+                }
+              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                style: {
+                  fontSize: 13,
+                  color: 'var(--ink-2)',
+                  marginLeft: 10
+                },
+                children: "Cargando CLABE de pago…"
+              }, void 0, false)]
+            }, void 0, true), speiStatus === 'error' && /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                background: '#fef2f2',
+                border: '1px solid #fca5a5',
+                borderRadius: 'var(--radius)',
+                padding: '14px 16px',
+                marginBottom: 14
+              },
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontWeight: 600,
+                  color: 'var(--red)',
+                  marginBottom: 4
+                },
+                children: [/*#__PURE__*/_jsxDEV(Icon, {
+                  name: "warning",
+                  size: 15,
+                  color: "var(--red)"
+                }, void 0, false), " Error al obtener CLABE"]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 12,
+                  color: 'var(--ink-2)'
+                },
+                children: speiError
+              }, void 0, false)]
+            }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("div", {
+              className: "spei-box",
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 11,
+                  color: 'rgba(255,255,255,.5)',
+                  marginBottom: 4,
+                  textAlign: 'center',
+                  textTransform: 'uppercase',
+                  letterSpacing: '.5px'
+                },
+                children: cobroActivo?.clabe_es_individual ? `CLABE Individual · ${cobroActivo?.cliente || 'Alumno'}` : 'CLABE Interbancaria Fija · STP'
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                className: "clabe-display",
+                children: fmtCLABE(cobroActivo?.clabe)
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 8,
+                  marginBottom: 12
+                },
+                children: [/*#__PURE__*/_jsxDEV("div", {
+                  className: "spei-info-row",
+                  style: {
+                    flexDirection: 'column',
+                    gap: 2,
+                    alignItems: 'flex-start'
+                  },
+                  children: [/*#__PURE__*/_jsxDEV("span", {
+                    className: "spei-label",
+                    children: "Beneficiario"
+                  }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                    className: "spei-value",
+                    style: {
+                      fontSize: 12
+                    },
+                    children: cobroActivo?.beneficiario || escuela?.nombre || 'Escuela'
+                  }, void 0, false)]
+                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                  className: "spei-info-row",
+                  style: {
+                    flexDirection: 'column',
+                    gap: 2,
+                    alignItems: 'flex-start'
+                  },
+                  children: [/*#__PURE__*/_jsxDEV("span", {
+                    className: "spei-label",
+                    children: "Monto exacto"
+                  }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                    className: "spei-value",
+                    style: {
+                      fontSize: 16
+                    },
+                    children: fmt(cobroActivo?.total)
+                  }, void 0, false)]
+                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                  className: "spei-info-row",
+                  style: {
+                    flexDirection: 'column',
+                    gap: 2,
+                    alignItems: 'flex-start',
+                    gridColumn: '1/-1'
+                  },
+                  children: [/*#__PURE__*/_jsxDEV("span", {
+                    className: "spei-label",
+                    style: {
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5
+                    },
+                    children: [/*#__PURE__*/_jsxDEV(Icon, {
+                      name: "warning",
+                      size: 12,
+                      color: "currentColor"
+                    }, void 0, false), cobroActivo?.clabe_es_individual ? 'Concepto (opcional, recomendado)' : 'Concepto obligatorio (copiar exacto)']
+                  }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
+                    className: "spei-value",
+                    style: {
+                      fontFamily: 'var(--mono)',
+                      letterSpacing: 1,
+                      color: '#fbbf24',
+                      fontSize: 15
+                    },
+                    children: cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.folio
+                  }, void 0, false)]
+                }, void 0, true)]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+                className: `copy-btn ${copiedCLABE ? 'copied' : ''}`,
+                onClick: copiarCLABE,
+                children: copiedCLABE ? 'CLABE copiada' : 'Copiar CLABE al portapapeles'
+              }, void 0, false)]
+            }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("div", {
+              className: "verif-row",
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                className: "verif-dot pulse",
+                style: {
+                  background: speiStatus === 'verificando' ? 'var(--amber)' : 'var(--accent)'
+                }
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 12.5,
+                  color: 'var(--ink-2)'
+                },
+                children: speiStatus === 'esperando' ? 'Esperando transferencia… verificación automática cada 10s' : 'Verificando pago…'
+              }, void 0, false), speiStatus === 'verificando' && /*#__PURE__*/_jsxDEV("span", {
+                className: "spinner",
+                style: {
+                  marginLeft: 'auto'
+                }
+              }, void 0, false)]
+            }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("p", {
+              style: {
+                fontSize: 11.5,
+                color: 'var(--ink-4)',
+                marginTop: 10,
+                lineHeight: 1.5
+              },
+              children: cobroActivo?.clabe_es_individual ? /*#__PURE__*/_jsxDEV(_Fragment, {
+                children: ["ℹ Esta CLABE pertenece exclusivamente a ", cobroActivo?.cliente || 'este alumno', ". Cualquier transferencia recibida aquí se identificará automáticamente, sin importar el concepto."]
+              }, void 0, true) : /*#__PURE__*/_jsxDEV(_Fragment, {
+                children: "ℹ Transfiere a esta CLABE individual. El pago se confirmará automáticamente."
+              }, void 0, false)
+            }, void 0, false)]
+          }, void 0, true), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              textAlign: 'center',
+              padding: '10px 0'
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex',
+                justifyContent: 'center',
+                marginBottom: 12
+              },
+              children: /*#__PURE__*/_jsxDEV(Icon, {
+                name: "check",
+                size: 52,
+                color: "var(--green)"
+              }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 18,
+                fontWeight: 700,
+                color: 'var(--ink)',
+                marginBottom: 6
+              },
+              children: "¡Pago recibido!"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 13.5,
+                color: 'var(--ink-3)',
+                marginBottom: 4
+              },
+              children: ["Transferencia verificada · ", cobroActivo.folio]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 22,
+                fontWeight: 800,
+                color: 'var(--green)',
+                fontFamily: 'var(--mono)'
+              },
+              children: fmt(cobroActivo.total)
+            }, void 0, false)]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: () => {
+              cerrarModal();
+            },
+            children: speiStatus === 'confirmado' ? 'Cerrar' : 'Dejar pendiente'
+          }, void 0, false), speiStatus !== 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            onClick: confirmarSPEI,
+            disabled: speiStatus === 'verificando' || speiStatus === 'generando',
+            children: speiStatus === 'verificando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
+              children: [/*#__PURE__*/_jsxDEV("span", {
+                className: "spinner"
+              }, void 0, false), " Verificando…"]
+            }, void 0, true) : speiStatus === 'generando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
+              children: [/*#__PURE__*/_jsxDEV("span", {
+                className: "spinner"
+              }, void 0, false), " Generando…"]
+            }, void 0, true) : 'Confirmar pago recibido'
+          }, void 0, false), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-success",
+            onClick: () => {
+              cerrarModal();
+              setModal('ticket');
+            },
+            children: "Ver ticket"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modal === 'codi' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 8
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "phone",
+              size: 18,
+              color: "currentColor"
+            }, void 0, false), " Pago con CoDi"]
+          }, void 0, true), codiStatus === 'pagado' && /*#__PURE__*/_jsxDEV("span", {
+            className: "badge badge-green",
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "check",
+              size: 11,
+              color: "currentColor"
+            }, void 0, false), " Pagado"]
+          }, void 0, true), codiStatus === 'expirado' && /*#__PURE__*/_jsxDEV("span", {
+            className: "badge badge-red",
+            children: "Expirado"
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          style: {
+            textAlign: 'center'
+          },
+          children: [codiStatus !== 'pagado' && codiStatus !== 'expirado' && /*#__PURE__*/_jsxDEV(_Fragment, {
+            children: [/*#__PURE__*/_jsxDEV("p", {
+              style: {
+                fontSize: 13,
+                color: 'var(--ink-3)',
+                marginBottom: 14
+              },
+              children: codiStatus === 'esperando' ? 'Muestra este código QR al cliente para pagar desde su app bancaria' : '¡Código escaneado! Esperando confirmación del banco…'
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              className: "codi-qr",
+              style: {
+                opacity: codiStatus === 'escaneado' ? .6 : 1,
+                transition: 'opacity .3s'
+              },
+              children: /*#__PURE__*/_jsxDEV(QRSimple, {
+                value: cobroActivo.codi_payload
+              }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 24,
+                fontWeight: 800,
+                color: 'var(--accent)',
+                fontFamily: 'var(--mono)',
+                margin: '14px 0 4px'
+              },
+              children: fmt(cobroActivo.total)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 12,
+                color: 'var(--ink-3)',
+                marginBottom: 12
+              },
+              children: cobroActivo.folio
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 13,
+                color: codiTimer < 60 ? 'var(--red)' : 'var(--ink-3)',
+                fontFamily: 'var(--mono)',
+                marginBottom: 10
+              },
+              children: ["Expira en ", Math.floor(codiTimer / 60), ":", String(codiTimer % 60).padStart(2, '0')]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              className: "progress-bar",
+              style: {
+                marginBottom: 14
+              },
+              children: /*#__PURE__*/_jsxDEV("div", {
+                className: "progress-fill",
+                style: {
+                  width: codiTimer / 300 * 100 + '%',
+                  background: codiTimer < 60 ? 'var(--red)' : 'var(--accent)',
+                  transition: 'width 1s linear, background .5s'
+                }
+              }, void 0, false)
+            }, void 0, false), codiStatus === 'escaneado' && /*#__PURE__*/_jsxDEV("div", {
+              className: "verif-row",
+              style: {
+                justifyContent: 'center'
+              },
+              children: [/*#__PURE__*/_jsxDEV("span", {
+                className: "spinner",
+                style: {
+                  borderTopColor: 'var(--accent)'
+                }
+              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                style: {
+                  fontSize: 12.5,
+                  color: 'var(--ink-2)'
+                },
+                children: "Confirmando pago con el banco del cliente…"
+              }, void 0, false)]
+            }, void 0, true)]
+          }, void 0, true), codiStatus === 'pagado' && /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              padding: '10px 0'
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex',
+                justifyContent: 'center',
+                marginBottom: 10
+              },
+              children: /*#__PURE__*/_jsxDEV(Icon, {
+                name: "check",
+                size: 52,
+                color: "var(--green)"
+              }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 18,
+                fontWeight: 700,
+                color: 'var(--ink)',
+                marginBottom: 4
+              },
+              children: "¡Pago CoDi confirmado!"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 22,
+                fontWeight: 800,
+                color: 'var(--green)',
+                fontFamily: 'var(--mono)'
+              },
+              children: fmt(cobroActivo.total)
+            }, void 0, false)]
+          }, void 0, true), codiStatus === 'expirado' && /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              padding: '10px 0'
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex',
+                justifyContent: 'center',
+                marginBottom: 10
+              },
+              children: /*#__PURE__*/_jsxDEV(Icon, {
+                name: "history",
+                size: 46,
+                color: "var(--amber)"
+              }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 16,
+                fontWeight: 600,
+                color: 'var(--red)',
+                marginBottom: 6
+              },
+              children: "Código expirado"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("p", {
+              style: {
+                fontSize: 13,
+                color: 'var(--ink-3)'
+              },
+              children: "El código QR ha vencido. Puedes confirmar manualmente si el cliente ya pagó."
+            }, void 0, false)]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: cerrarModal,
+            children: "Cancelar"
+          }, void 0, false), (codiStatus === 'esperando' || codiStatus === 'escaneado' || codiStatus === 'expirado') && /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            onClick: confirmarCoDi,
+            children: "Confirmar pago manualmente"
+          }, void 0, false), codiStatus === 'pagado' && /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-success",
+            onClick: () => {
+              cerrarModal();
+              setModal('ticket');
+            },
+            children: "Ver ticket"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modal === 'tc' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal modal-lg",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 8
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "card",
+              size: 18,
+              color: "currentColor"
+            }, void 0, false), " Cobro con Tarjeta"]
+          }, void 0, true), tcInfo && /*#__PURE__*/_jsxDEV("span", {
+            className: "badge badge-green",
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "check",
+              size: 11,
+              color: "currentColor"
+            }, void 0, false), " Liga generada"]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            style: {
+              background: 'linear-gradient(135deg,#1c2050,#282d65)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '18px 20px',
+              marginBottom: 18
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 11,
+                color: 'rgba(255,255,255,.6)',
+                marginBottom: 4
+              },
+              children: "Total a cobrar"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 26,
+                fontWeight: 800,
+                color: '#fff',
+                fontFamily: 'var(--mono)'
+              },
+              children: fmt(cobroActivo.total)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 12,
+                color: 'rgba(255,255,255,.6)',
+                marginTop: 4
+              },
+              children: [cobroActivo.folio, " · ", cobroActivo.cliente]
+            }, void 0, true)]
+          }, void 0, true), tcLoading && /*#__PURE__*/_jsxDEV("div", {
+            className: "verif-row",
+            style: {
+              justifyContent: 'center',
+              padding: '20px 0'
+            },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              className: "spinner",
+              style: {
+                borderTopColor: 'var(--accent)'
+              }
+            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              style: {
+                fontSize: 13,
+                color: 'var(--ink-2)',
+                marginLeft: 10
+              },
+              children: "Generando liga de pago con Pagadetodo…"
+            }, void 0, false)]
+          }, void 0, true), tcError && !tcLoading && /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              background: '#fef2f2',
+              border: '1px solid #fca5a5',
+              borderRadius: 'var(--radius)',
+              padding: '14px 16px',
+              marginBottom: 14
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontWeight: 600,
+                color: 'var(--red)',
+                marginBottom: 4
+              },
+              children: [/*#__PURE__*/_jsxDEV(Icon, {
+                name: "warning",
+                size: 15,
+                color: "var(--red)"
+              }, void 0, false), " Error al generar liga de pago"]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 12,
+                color: 'var(--ink-2)'
+              },
+              children: tcError
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 11,
+                color: 'var(--ink-3)',
+                marginTop: 8
+              },
+              children: "Puedes confirmar el cobro manualmente si el cliente pagó por otro medio."
+            }, void 0, false)]
+          }, void 0, true), tcInfo && !tcLoading && /*#__PURE__*/_jsxDEV(_Fragment, {
+            children: [/*#__PURE__*/_jsxDEV("p", {
+              style: {
+                fontSize: 13,
+                color: 'var(--ink-3)',
+                marginBottom: 14
+              },
+              children: "Comparte el enlace o muestra el QR al cliente para que complete el pago con su tarjeta de crédito o débito."
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                marginBottom: 18
+              },
+              children: [/*#__PURE__*/_jsxDEV("img", {
+                src: tcInfo.qr_url,
+                alt: "QR de pago",
+                style: {
+                  width: 200,
+                  height: 200,
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  background: '#fff',
+                  padding: 8
+                },
+                onError: e => e.target.style.display = 'none'
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 11,
+                  color: 'var(--ink-4)',
+                  marginTop: 8
+                },
+                children: "Escanear con cualquier app de banco"
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '12px 14px',
+                marginBottom: 12
+              },
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 11,
+                  color: 'var(--ink-4)',
+                  marginBottom: 4
+                },
+                children: "Enlace de pago"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("a", {
+                href: tcInfo.url,
+                target: "_blank",
+                rel: "noreferrer",
+                style: {
+                  fontSize: 12,
+                  color: 'var(--accent)',
+                  wordBreak: 'break-all',
+                  fontFamily: 'var(--mono)'
+                },
+                children: tcInfo.url
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+              className: "copy-btn",
+              onClick: () => {
+                navigator.clipboard.writeText(tcInfo.url).catch(() => {});
+              },
+              style: {
+                width: '100%',
+                marginBottom: 10
+              },
+              children: "Copiar enlace de pago"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              className: "verif-row",
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                className: "verif-dot pulse"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 12,
+                  color: 'var(--ink-2)'
+                },
+                children: ["Esperando confirmación de pago — Ref: ", tcInfo.referencia]
+              }, void 0, true)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("p", {
+              style: {
+                fontSize: 11,
+                color: 'var(--ink-4)',
+                marginTop: 10
+              },
+              children: "ℹ Una vez que el cliente complete el pago en el enlace, confirma el cobro con el botón de abajo."
+            }, void 0, false)]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: cerrarModal,
+            children: "Cancelar"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            onClick: confirmarTC,
+            children: "Confirmar pago recibido"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modal === 'ticket' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: /*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "check",
+              size: 17,
+              color: "var(--green)"
+            }, void 0, false), " Cobro completado"]
+          }, void 0, true)
+        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          children: /*#__PURE__*/_jsxDEV("div", {
+            className: "ticket",
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: {
+                textAlign: 'center',
+                marginBottom: 10
+              },
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 17,
+                  fontWeight: 800
+                },
+                children: "ESCUELA EDUPAGO"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 10,
+                  color: '#555'
+                },
+                children: "Sistema de Cobros Escolar"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 10
+                },
+                children: ["Folio: ", cobroActivo.folio]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 10
+                },
+                children: fmtDate(cobroActivo.fecha)
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("hr", {
+              className: "ticket-divider"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 11,
+                marginBottom: 4
+              },
+              children: ["Cliente: ", /*#__PURE__*/_jsxDEV("strong", {
+                children: cobroActivo.cliente
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 11,
+                marginBottom: 6
+              },
+              children: ["Método: ", /*#__PURE__*/_jsxDEV("strong", {
+                children: cobroActivo.metodo
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("hr", {
+              className: "ticket-divider"
+            }, void 0, false), (cobroActivo.items || []).map((it, i) => /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 11,
+                marginBottom: 3
+              },
+              children: [/*#__PURE__*/_jsxDEV("span", {
+                children: [it.nombre, " x", it.qty]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
+                children: fmt(it.precio * it.qty)
+              }, void 0, false)]
+            }, i, true)), /*#__PURE__*/_jsxDEV("hr", {
+              className: "ticket-divider"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontWeight: 800,
+                fontSize: 14
+              },
+              children: [/*#__PURE__*/_jsxDEV("span", {
+                children: "TOTAL"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                children: fmt(cobroActivo.total)
+              }, void 0, false)]
+            }, void 0, true), cobroActivo.auth_code && /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                fontSize: 10,
+                color: '#666',
+                marginTop: 6
+              },
+              children: ["Auth: ", cobroActivo.auth_code]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("hr", {
+              className: "ticket-divider"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                textAlign: 'center',
+                fontSize: 10,
+                marginTop: 6
+              },
+              children: "¡Gracias por su pago!"
+            }, void 0, false)]
+          }, void 0, true)
+        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: () => window.print(),
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "download",
+              size: 14,
+              color: "currentColor"
+            }, void 0, false), " Imprimir"]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            onClick: () => {
+              setModal(null);
+              setCobroActivo(null);
+              resetCarrito();
+            },
+            children: "Nuevo cobro"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modal === 'cheque' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && cerrarModal(),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "reportes",
+              size: 17,
+              color: "currentColor"
+            }, void 0, false), " Pago con cheque"]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: cerrarModal,
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "close",
+              size: 16,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            style: {
+              marginBottom: 14,
+              padding: '10px 14px',
+              background: 'var(--accent-glow)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 13,
+              display: 'flex',
+              justifyContent: 'space-between'
+            },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              style: {
+                color: 'var(--ink-3)'
+              },
+              children: "Total a cobrar"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              style: {
+                fontFamily: 'var(--mono)',
+                fontWeight: 700,
+                fontSize: 15
+              },
+              children: fmt(cobroActivo.total)
+            }, void 0, false)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            className: "form-group",
+            children: [/*#__PURE__*/_jsxDEV("label", {
+              className: "form-label",
+              children: "Banco emisor *"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              className: "form-input",
+              placeholder: "Ej: BBVA, Santander, Banamex…",
+              value: chequeInfo.banco,
+              onChange: e => setChequeInfo(p => ({
+                ...p,
+                banco: e.target.value
+              }))
+            }, void 0, false)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              className: "form-group",
+              children: [/*#__PURE__*/_jsxDEV("label", {
+                className: "form-label",
+                children: "Número de cuenta"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input",
+                placeholder: "1234567890",
+                style: {
+                  fontFamily: 'var(--mono)'
+                },
+                value: chequeInfo.num_cuenta,
+                onChange: e => setChequeInfo(p => ({
+                  ...p,
+                  num_cuenta: e.target.value
+                }))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              className: "form-group",
+              children: [/*#__PURE__*/_jsxDEV("label", {
+                className: "form-label",
+                children: "Número de cheque"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input",
+                placeholder: "001234",
+                style: {
+                  fontFamily: 'var(--mono)'
+                },
+                value: chequeInfo.num_cheque,
+                onChange: e => setChequeInfo(p => ({
+                  ...p,
+                  num_cheque: e.target.value
+                }))
+              }, void 0, false)]
+            }, void 0, true)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              marginTop: 6,
+              padding: '8px 12px',
+              background: 'rgba(245,158,11,.08)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 11.5,
+              color: 'var(--ink-2)'
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "warning",
+              size: 13,
+              color: "#f59e0b"
+            }, void 0, false), " El cobro quedará pendiente hasta que el cheque sea compensado."]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: cerrarModal,
+            children: "Cancelar"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            disabled: !chequeInfo.banco,
+            onClick: async () => {
+              const extra = {
+                banco_cheque: chequeInfo.banco,
+                num_cuenta_cheque: chequeInfo.num_cuenta,
+                num_cheque: chequeInfo.num_cheque
+              };
+              CobroController.confirmarPago(cobroActivo.id, extra).then(res => {
+                actualizarSaldoCliente(res);
+              }).catch(()=>{});
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', ...extra } : c) };
+                AppModel.save(upd); return upd;
+              });
+              setModal('ticket');
+              resetCarrito();
+            },
+            children: "Registrar cheque"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false)]
+  }, void 0, true);
 }
