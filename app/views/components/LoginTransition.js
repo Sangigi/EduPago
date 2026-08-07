@@ -1,200 +1,259 @@
-/* views/LoginTransition.js — Login → Dashboard liquid metaball transition.
-   No build step: React.createElement directly.
-
-   Efecto (según spec del usuario):
-   - Overlay TRANSPARENTE: el login sigue visible por debajo, nunca hay
-     fondo negro. Es fluido "desde el login".
-   - Cada blob NACE en un elemento real del login (logo, inputs, botón,
-     tarjeta) y CRECE hasta convertirse en un elemento real del dashboard
-     (sidebar, topbar, stat-cards, cards de contenido) con su color y forma.
-   - Filtro gooey (feGaussianBlur + feColorMatrix) funde los blobs => líquido.
-   - Al terminar, el overlay se desvanece y revela el dashboard real idéntico.
-*/
-(function () {
-  const e = React.createElement;
-
-  function cssVar(name, fb) {
-    try {
-      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-      return v || fb;
-    } catch (_) { return fb; }
-  }
-
-  // Un "grupo" = un blob PRIMARIO con la forma del rect destino + satélites
-  // (círculos que caen dentro para dar la fusión líquida). Todos nacen en
-  // `origin` (un elemento del login) y viajan a `rect` (slot del dashboard).
-  function group(origin, rect, color, sats, satMax, blobs) {
-    const oc = { x: origin ? origin.x : rect.x + rect.w / 2, y: origin ? origin.y : rect.y + rect.h / 2 };
-    const primSize = Math.min(Math.max(rect.w, rect.h) * 0.3, 120) + 30;
-    blobs.push({
-      sx: oc.x - primSize / 2, sy: oc.y - primSize / 2, ss: primSize, sr: '50%',
-      tx: rect.x, ty: rect.y, tw: rect.w, th: rect.h, tr: rect.r,
-      color: color, delay: rect._d || 0, dur: 1.05 + Math.random() * 0.25, primary: true,
-    });
-    for (let i = 0; i < sats; i++) {
-      const size = 26 + Math.random() * (satMax - 26);
-      const m = size / 2 + 6;
-      const px = rect.x + m + Math.random() * Math.max(rect.w - 2 * m, 1);
-      const py = rect.y + m + Math.random() * Math.max(rect.h - 2 * m, 1);
-      const jitter = 40;
-      blobs.push({
-        sx: oc.x + (Math.random() * 2 - 1) * jitter - size / 2,
-        sy: oc.y + (Math.random() * 2 - 1) * jitter - size / 2,
-        ss: size, sr: '50%',
-        tx: px - size / 2, ty: py - size / 2, tw: size, th: size, tr: '50%',
-        color: color, delay: (rect._d || 0) + 0.06 + Math.random() * 0.16,
-        dur: 1.05 + Math.random() * 0.3, primary: false,
-      });
-    }
-  }
-
-  function buildScene(origin, role) {
-    const W = window.innerWidth, H = window.innerHeight;
-    const mobile = W <= 768;
-    const dark = role !== 'familia';
-
-    let sidebarW = parseFloat(cssVar('--sidebar-w', '256')) || 256;
-    let headerH = parseFloat(cssVar('--header-h', '64')) || 64;
-    if (mobile) { sidebarW = 0; headerH = 58; }
-
-    const sideCol = cssVar('--side-bg', dark ? '#12152a' : '#282d65');
-    const barCol = cssVar('--bg-solid', dark ? '#272c52' : '#272c52');
-    const cardCol = cssVar('--bg-surface', dark ? '#171a32' : '#ffffff');
-    const LIME = '#bdcf00', GREEN = '#49af54', NAVY = '#282d65';
-
-    const O = origin || {};
-    const inp = O.inputs && O.inputs.length ? O.inputs : [O.card];
-    const src = (i) => inp[i % inp.length] || O.card || O.logo || { x: W / 2, y: H / 2 };
-
-    const blobs = [];
-    const pad = mobile ? 14 : 24, gap = mobile ? 12 : 16;
-    const x0 = sidebarW + pad, y0 = headerH + pad;
-    const cW = W - sidebarW - pad * 2;
-
-    if (dark) {
-      // Sidebar (navy) nace del logo del login
-      if (!mobile) group(O.logo, { x: 0, y: 0, w: sidebarW, h: H, r: '0px', _d: 0 }, sideCol, 4, 90, blobs);
-      // Topbar nace del título del login; botón lime = "Nuevo cobro"
-      group(O.title, { x: sidebarW, y: 0, w: W - sidebarW - (mobile ? 0 : 150), h: headerH, r: '0px', _d: 0.04 }, barCol, 2, 60, blobs);
-      group(O.button, { x: W - (mobile ? 130 : 146), y: 12, w: mobile ? 116 : 128, h: 38, r: '10px', _d: 0.06 }, LIME, 1, 34, blobs);
-      // Fila de stat-cards nace de inputs + tarjeta
-      const nStats = mobile ? 2 : 4;
-      const statH = mobile ? 84 : 104;
-      const statW = (cW - gap * (nStats - 1)) / nStats;
-      const accents = [NAVY, NAVY, GREEN, LIME];
-      for (let i = 0; i < nStats; i++) {
-        group(src(i), { x: x0 + i * (statW + gap), y: y0, w: statW, h: statH, r: '14px', _d: 0.12 + i * 0.05 }, cardCol, 1, 38, blobs);
-        // pequeño satélite de acento que aterriza en el ícono de la card
-        blobs.push({
-          sx: src(i).x, sy: src(i).y, ss: 34, sr: '50%',
-          tx: x0 + i * (statW + gap) + 18, ty: y0 + 18, tw: 40, th: 40, tr: '10px',
-          color: accents[i % accents.length], delay: 0.16 + i * 0.05, dur: 1.15, primary: false,
-        });
-      }
-      // Cards grandes de contenido
-      const y1 = y0 + statH + gap;
-      const bigH = Math.min(Math.max(H - y1 - pad, 150), mobile ? 220 : 320);
-      if (mobile) {
-        group(O.card, { x: x0, y: y1, w: cW, h: bigH, r: '14px', _d: 0.24 }, cardCol, 2, 60, blobs);
-      } else {
-        const aW = cW * 0.64, bW = cW - aW - gap;
-        group(O.card, { x: x0, y: y1, w: aW, h: bigH, r: '14px', _d: 0.24 }, cardCol, 3, 70, blobs);
-        group(O.card, { x: x0 + aW + gap, y: y1, w: bW, h: bigH, r: '14px', _d: 0.3 }, cardCol, 2, 60, blobs);
-      }
-    } else {
-      // Portal familia (claro, sin sidebar): topbar + tarjeta bienvenida navy +
-      // tabs + card de contenido, todo naciendo de los elementos del login.
-      group(O.logo, { x: 0, y: 0, w: W, h: 60, r: '0px', _d: 0 }, NAVY, 2, 50, blobs);
-      const cx = mobile ? pad : Math.max(pad, (W - 880) / 2);
-      const cw = W - cx * 2;
-      group(O.title, { x: cx, y: 84, w: cw, h: mobile ? 180 : 210, r: '16px', _d: 0.08 }, NAVY, 3, 70, blobs);
-      // 3 stat blobs dentro de la tarjeta de bienvenida
-      const sw = (cw - 24 * 2) / 3;
-      const cols = [LIME, GREEN, LIME];
-      for (let i = 0; i < 3; i++) {
-        blobs.push({
-          sx: src(i).x, sy: src(i).y, ss: 40, sr: '50%',
-          tx: cx + 20 + i * (sw + 12), ty: mobile ? 190 : 210, tw: sw - 12, th: mobile ? 60 : 68, tr: '12px',
-          color: cols[i], delay: 0.16 + i * 0.05, dur: 1.2, primary: false,
-        });
-      }
-      group(O.button, { x: cx, y: (mobile ? 288 : 318), w: cw, h: 46, r: '10px', _d: 0.22 }, cardCol, 1, 40, blobs);
-      group(O.card, { x: cx, y: (mobile ? 348 : 378), w: cw, h: Math.min(Math.max(H - (mobile ? 348 : 378) - pad, 150), 260), r: '14px', _d: 0.28 }, cardCol, 2, 60, blobs);
-    }
-    return blobs;
-  }
-
-  function LoginTransition(props) {
-    const { origin, role, onCommit, onDone } = props;
-    const { useState, useEffect, useMemo, useRef } = React;
-    const [run, setRun] = useState(false);
-    const [fade, setFade] = useState(false);
-    const committed = useRef(false);
-
-    let reduce = false;
-    try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
-
-    const blobs = useMemo(() => buildScene(origin, role), [origin, role]);
-
-    useEffect(() => {
-      const timers = [];
-      const commit = () => { if (!committed.current) { committed.current = true; onCommit && onCommit(); } };
-      if (reduce) {
-        timers.push(setTimeout(commit, 40));
-        timers.push(setTimeout(() => setFade(true), 60));
-        timers.push(setTimeout(() => onDone && onDone(), 360));
-      } else {
-        let r1, r2;
-        r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setRun(true)); });
-        timers.push({ cancel: () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); } });
-        // Montar dashboard debajo cuando los rects ya cubren sus destinos
-        timers.push(setTimeout(commit, 1150));
-        // Desvanecer overlay para revelar el dashboard real idéntico
-        timers.push(setTimeout(() => setFade(true), 1500));
-        timers.push(setTimeout(() => onDone && onDone(), 2050));
-      }
-      return () => timers.forEach((t) => (t.cancel ? t.cancel() : clearTimeout(t)));
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const gooFilter = e(
-      'svg', { className: 'lt-svg', 'aria-hidden': 'true' },
-      e('defs', null,
-        e('filter', { id: 'lt-goo' },
-          e('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: '8', result: 'blur' }),
-          e('feColorMatrix', {
-            in: 'blur', mode: 'matrix',
-            values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9', result: 'goo',
-          }),
-          e('feBlend', { in: 'SourceGraphic', in2: 'goo' })
-        )
-      )
-    );
-
-    const blobEls = blobs.map((b, i) =>
-      e('div', {
-        key: i,
-        className: 'lt-blob',
-        style: run
-          ? {
-              left: b.tx, top: b.ty, width: b.tw, height: b.th,
-              borderRadius: b.tr, background: b.color,
-              transition: 'left ' + b.dur + 's cubic-bezier(.5,-0.05,.25,1.15) ' + b.delay + 's, top ' + b.dur + 's cubic-bezier(.5,-0.05,.25,1.15) ' + b.delay + 's, width ' + b.dur + 's cubic-bezier(.5,-0.05,.25,1.15) ' + b.delay + 's, height ' + b.dur + 's cubic-bezier(.5,-0.05,.25,1.15) ' + b.delay + 's, border-radius ' + b.dur + 's ease ' + b.delay + 's',
-            }
-          : {
-              left: b.sx, top: b.sy, width: b.ss, height: b.ss,
-              borderRadius: b.sr, background: b.color,
-            },
-      })
-    );
-
-    return e(
-      'div',
-      { className: 'lt-root' + (run ? ' run' : '') + (fade ? ' fade' : '') },
-      gooFilter,
-      e('div', { className: 'lt-goo' }, blobEls)
-    );
-  }
-
-  window.LoginTransition = LoginTransition;
-})();
+var _jsxDEV = function(type,props,key,_s,_src,_self){
+  var p = Object.assign({key:key||undefined},props);
+  var ch = p.children; delete p.children;
+  return ch===undefined ? React.createElement(type,p)
+       : Array.isArray(ch) ? React.createElement(type,p,...ch)
+       : React.createElement(type,p,ch);
+};
+
+/* views/LoginTransition.jsx
+   METAMORFOSIS Login → Dashboard con "metaballs" de colores.
+*/
+
+function ltRand(i, salt) {
+  var x = Math.sin((i + 1) * 127.1 + (salt || 0) * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function ltGeometria(origin, role) {
+  var W = window.innerWidth, H = window.innerHeight;
+  var esMobile = W <= 768;
+
+  var st = getComputedStyle(document.documentElement);
+  var v = function(name, def) { var x = st.getPropertyValue(name); return x ? x.trim() : def; };
+
+  var sidebarW = parseFloat(v('--sidebar-w', '256')) || 256;
+  var headerH  = parseFloat(v('--header-h', '64'))  || 64;
+  
+  // Valores por defecto más apegados a tu paleta oscura para evitar parpadeos blancos
+  var sideCol  = v('--side-bg',    '#1a1c33'); 
+  var barCol   = v('--bg-solid',   '#1a1c33');
+  var cardCol  = v('--bg-surface', '#222543');
+
+  // Paleta de las gotas EN VUELO
+  var navy  = v('--navy', '#1a1c33');
+  var navyL = v('--navy-light', '#222543');
+  var lime  = v('--lime', '#bdcf00');
+  
+  // Modificado: Más tonos oscuros para que el aterrizaje no sea un choque visual brillante.
+  var flightPalette = [navyL, navy, lime, navyL, navy];
+
+  if (esMobile) { sidebarW = 0; headerH = 58; }
+
+  var focoRect = origin && origin.card ? origin.card : (origin && origin.button) || null;
+  var cx = focoRect ? focoRect.left + focoRect.width / 2 : W / 2;
+  var cy = focoRect ? focoRect.top + focoRect.height / 2 : H / 2;
+  var spread = focoRect ? Math.max(focoRect.width, focoRect.height) * 0.42 : 150;
+
+  var blobs = [];
+  var k = 0;
+
+  function empujar(t, groupIndex, esPrimaria) {
+    var ang = ltRand(k, 0) * Math.PI * 2;
+    var rad = spread * (0.25 + ltRand(k, 1) * 0.9);
+    var destCx = t.tx + t.tw / 2, destCy = t.ty + t.th / 2;
+    var dirx = destCx - cx, diry = destCy - cy;
+    var dlen = Math.hypot(dirx, diry) || 1;
+    var ox = cx + Math.cos(ang) * rad * 0.6 + (dirx / dlen) * spread * 0.35;
+    var oy = cy + Math.sin(ang) * rad * 0.6 + (diry / dlen) * spread * 0.35;
+
+    blobs.push({
+      sx: ox - t.os / 2, sy: oy - t.os / 2, sw: t.os, sh: t.os,
+      tx: t.tx, ty: t.ty, tw: t.tw, th: t.th, tr: t.tr,
+      color: t.color,
+      flight: flightPalette[k % flightPalette.length],
+      delay: (groupIndex * 0.03 + (esPrimaria ? 0 : 0.06 + ltRand(k, 5) * 0.16)),
+      dur: 1.25 + ltRand(k, 6) * 0.3,
+      primary: esPrimaria
+    });
+    k++;
+  }
+
+  // OPTIMIZACIÓN: Se redujo nSat en general en las llamadas para quitar carga a la GPU
+  function grupo(rect, color, radius, nSat, satMax) {
+    var gi = k;
+    empujar({
+      tx: rect.x, ty: rect.y, tw: rect.w, th: rect.h, tr: radius, color: color,
+      os: Math.min(Math.max(rect.w, rect.h) * 0.22, 84) + 26
+    }, gi, true);
+    for (var s = 0; s < nSat; s++) {
+      var size = 26 + ltRand(k, 2) * (satMax - 26);
+      var m = size / 2 + 6;
+      var px = rect.x + m + ltRand(k, 3) * Math.max(rect.w - 2 * m, 1);
+      var py = rect.y + m + ltRand(k, 4) * Math.max(rect.h - 2 * m, 1);
+      empujar({ tx: px - size / 2, ty: py - size / 2, tw: size, th: size, tr: '50%', color: color, os: size }, gi, false);
+    }
+  }
+
+  // ── Destinos predeterminados según el rol ─────────────────────────────────
+  if (role === 'familia') {
+    grupo({ x: 0, y: 0, w: W, h: headerH }, barCol, '0px', 2, 70);
+    var padF = esMobile ? 14 : 28, gapF = 16;
+    var cWF = W - padF * 2;
+    var maxW = Math.min(cWF, 760);
+    var lx = padF + (cWF - maxW) / 2;
+    var y0F = headerH + padF;
+    var topH = esMobile ? 150 : 180;
+    grupo({ x: lx, y: y0F, w: maxW, h: topH }, cardCol, '14px', 2, 70);
+
+    var y1F = y0F + topH + gapF;
+    var bigHF = Math.min(Math.max(H - y1F - padF, 150), esMobile ? 240 : 300);
+    if (esMobile) {
+      grupo({ x: lx, y: y1F, w: maxW, h: bigHF }, cardCol, '14px', 1, 60);
+    } else {
+      var aWF = maxW * 0.5 - gapF / 2;
+      grupo({ x: lx, y: y1F, w: aWF, h: bigHF }, cardCol, '14px', 1, 60);
+      grupo({ x: lx + aWF + gapF, y: y1F, w: aWF, h: bigHF }, cardCol, '14px', 1, 60);
+    }
+  } 
+  else if (role === 'cajero') {
+    // CAJERO: Sidebar + Topbar + 4 Stats + 2 Tarjetas grandes
+    if (!esMobile) grupo({ x: 0, y: 0, w: sidebarW, h: H }, sideCol, '0px', 2, 90);
+    grupo({ x: sidebarW, y: 0, w: W - sidebarW, h: headerH }, barCol, '0px', 2, 70);
+
+    var padC = esMobile ? 14 : 24;
+    var gapC = 20; 
+    var gapStatsC = 16;
+    var x0C = sidebarW + padC;
+    
+    // MODIFICADO: Aumentamos este valor (de 85 a 115) para que los cuadros bajen más
+    var y0C = headerH + padC + (esMobile ? 90 : 115); 
+    var cWC = W - sidebarW - padC * 2;
+
+    var nStatsC = esMobile ? 2 : 4;
+    var statHC = esMobile ? 90 : 115;
+    var statWC = (cWC - gapStatsC * (nStatsC - 1)) / nStatsC;
+    
+    for (var i = 0; i < nStatsC; i++) {
+      var rowC = esMobile ? Math.floor(i / 2) : 0;
+      var colC = esMobile ? i % 2 : i;
+      var pxC = x0C + colC * (statWC + gapStatsC);
+      var pyC = y0C + rowC * (statHC + gapStatsC);
+      // Reducido a 0 satélites para tarjetas pequeñas, ayuda a la fluidez
+      grupo({ x: pxC, y: pyC, w: statWC, h: statHC }, cardCol, '14px', 0, 40);
+    }
+
+    var statsTotalH = esMobile ? (statHC * 2 + gapStatsC) : statHC;
+    var y1C = y0C + statsTotalH + 24; 
+    var bigHC = Math.min(Math.max(H - y1C - padC, 150), esMobile ? 220 : 400);
+
+    if (esMobile) {
+      grupo({ x: x0C, y: y1C, w: cWC, h: bigHC }, cardCol, '14px', 1, 60);
+    } else {
+      var rightW = 320; 
+      var leftW = cWC - rightW - gapC;
+      grupo({ x: x0C, y: y1C, w: leftW, h: bigHC }, cardCol, '14px', 2, 70);
+      grupo({ x: x0C + leftW + gapC, y: y1C, w: rightW, h: bigHC }, cardCol, '14px', 1, 60);
+    }
+  } 
+  else {
+    // ADMIN / SUPERADMIN
+    if (!esMobile) grupo({ x: 0, y: 0, w: sidebarW, h: H }, sideCol, '0px', 2, 90);
+    grupo({ x: sidebarW, y: 0, w: W - sidebarW, h: headerH }, barCol, '0px', 2, 70);
+
+    var pad = esMobile ? 14 : 24, gap = esMobile ? 12 : 16;
+    var x0 = sidebarW + pad;
+    var y0 = headerH + pad + 115; // También ajustado para consistencia
+    var cW = W - sidebarW - pad * 2;
+
+    var planH = 75;
+    grupo({ x: x0, y: y0, w: cW, h: planH }, cardCol, '14px', 1, 60);
+
+    var y1 = y0 + planH + 40;
+    var nStats = esMobile ? 2 : 4;
+    var statH = esMobile ? 90 : 104;
+    var statW = (cW - gap * (nStats - 1)) / nStats;
+    for (var j = 0; j < nStats; j++) {
+      var row = esMobile ? Math.floor(j / 2) : 0;
+      var col = esMobile ? j % 2 : j;
+      grupo({ x: x0 + col*(statW+gap), y: y1 + row*(statH+gap), w: statW, h: statH }, cardCol, '14px', 0, 40);
+    }
+  }
+
+  return { blobs: blobs };
+}
+
+function ltVars(b) {
+  return {
+    '--sx': b.sx + 'px', '--sy': b.sy + 'px', '--sw': b.sw + 'px', '--sh': b.sh + 'px',
+    '--tx': b.tx + 'px', '--ty': b.ty + 'px', '--tw': b.tw + 'px', '--th': b.th + 'px',
+    '--tr': b.tr, '--lt-color': b.color, '--lt-flight': b.flight,
+    animationDelay: b.delay + 's', animationDuration: b.dur + 's'
+  };
+}
+
+function LoginTransition({ origin, role, onDone }) {
+  const { useEffect, useState, useMemo, useRef } = React;
+  const [fadeOut, setFadeOut] = useState(false);
+  const doneRef = useRef(false);
+
+  const finish = () => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    onDone && onDone();
+  };
+
+  let prefiereMenos = false;
+  try { prefiereMenos = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  useEffect(() => {
+    const timers = [];
+    try {
+      if (prefiereMenos) {
+        timers.push(setTimeout(() => setFadeOut(true), 60));
+        timers.push(setTimeout(finish, 340));
+      } else {
+        // Empieza a desvanecer MUCHO ANTES (a los 0.8 segundos)
+        timers.push(setTimeout(() => setFadeOut(true), 800)); 
+        
+        // Termina la transición y muestra el dashboard (a los 1.2 segundos)
+        timers.push(setTimeout(finish, 1200)); 
+      }
+    } catch (e) { finish(); }
+    
+    // Red de seguridad reducida a 2 segundos
+    timers.push(setTimeout(finish, 2000)); 
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const geo = useMemo(() => {
+    try { return ltGeometria(origin, role); }
+    catch (e) { return { blobs: [] }; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (prefiereMenos) {
+    return /*#__PURE__*/_jsxDEV("div", { id: "lt-overlay", className: fadeOut ? 'lt-fade-out' : '' }, void 0, false);
+  }
+
+  return /*#__PURE__*/_jsxDEV("div", {
+    id: "lt-overlay",
+    className: fadeOut ? 'lt-fade-out' : '',
+    children: [
+      /*#__PURE__*/_jsxDEV("svg", {
+        className: "lt-defs", "aria-hidden": "true", width: "0", height: "0",
+        children: /*#__PURE__*/_jsxDEV("defs", {
+          children: /*#__PURE__*/_jsxDEV("filter", {
+            id: "lt-goo",
+            children: [
+              /*#__PURE__*/_jsxDEV("feGaussianBlur", { in: "SourceGraphic", stdDeviation: "11", result: "blur" }, void 0, false),
+              /*#__PURE__*/_jsxDEV("feColorMatrix", {
+                in: "blur", mode: "matrix",
+                values: "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9", result: "goo"
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("feBlend", { in: "SourceGraphic", in2: "goo" }, void 0, false)
+            ]
+          }, void 0, true)
+        }, void 0, false)
+      }, void 0, false),
+      /*#__PURE__*/_jsxDEV("div", {
+        className: "lt-goo-layer",
+        children: geo.blobs.map((b, i) => /*#__PURE__*/_jsxDEV("div", {
+          className: "lt-blob" + (b.primary ? " lt-blob--primary" : " lt-blob--sat"),
+          style: ltVars(b)
+        }, "b" + i, false))
+      }, void 0, false)
+    ]
+  }, void 0, true);
+}

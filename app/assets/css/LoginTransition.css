@@ -1,0 +1,106 @@
+/* ============================================================
+   TRANSICIÓN LOGIN → DASHBOARD ("metaballs" / gooey)
+   La tarjeta de login se separa en gotas líquidas que viajan
+   y se solidifican formando el sidebar y el topbar reales.
+   Solo se dispara una vez por usuario (ver LoginTransition.js).
+   ============================================================ */
+
+#login-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90000;
+  background: var(--bg-main, #272c64);
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity .42s ease;
+}
+#login-transition-overlay.lt-fade-out { opacity: 0; }
+
+/* Capa "gooey": el contraste alto es lo que funde las gotas cercanas entre sí */
+.lt-goo {
+  position: absolute;
+  inset: 0;
+  background: #12152a; /* casi negro puro a propósito: ver nota abajo */
+  filter: contrast(20);
+}
+/* El truco gooey solo es predecible cuando fondo y gotas están en los
+   extremos (negro/blanco). Con colores intermedios (ej. lima sobre azul)
+   contrast() los recorta a tonos raros e impredecibles. Por eso el fondo
+   de esta capa es casi-negro fijo y las gotas son blancas, sin importar
+   el tema activo — es una capa puramente óptica para el efecto líquido. */
+
+.lt-blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: top, left, width, height, border-radius, transform, filter;
+}
+
+/* ── Gotas principales: nacen del card, viajan y se vuelven sidebar/topbar ── */
+.lt-blob--primary {
+  background: var(--lt-color);
+  animation-name: lt-primary-travel;
+  animation-duration: var(--lt-dur, 1.85s);
+  animation-timing-function: cubic-bezier(.5, 0, .18, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes lt-primary-travel {
+  0% {
+    top: var(--sy); left: var(--sx); width: var(--sw); height: var(--sh);
+    border-radius: 50%; transform: scale(.35); opacity: 0;
+    filter: blur(var(--lt-blur, 20px));
+  }
+  14% { opacity: 1; transform: scale(1); }
+  46% {
+    top: var(--sy); left: var(--sx); width: var(--sw); height: var(--sh);
+    border-radius: 38% 62% 58% 42% / 48% 40% 60% 52%;
+    transform: scale(1.12) rotate(6deg);
+  }
+  60% {
+    border-radius: 58% 42% 45% 55% / 40% 58% 42% 60%;
+    transform: scale(.9) rotate(-5deg);
+  }
+  84% {
+    top: calc((var(--sy) + var(--ty)) / 2); left: calc((var(--sx) + var(--tx)) / 2);
+    width: calc((var(--sw) + var(--tw)) / 2); height: calc((var(--sh) + var(--th)) / 2);
+    border-radius: 30% 70% 65% 35% / 55% 45% 55% 45%;
+    transform: scale(1.015) rotate(2deg);
+    filter: blur(calc(var(--lt-blur, 20px) * .22));
+  }
+  100% {
+    top: var(--ty); left: var(--tx); width: var(--tw); height: var(--th);
+    border-radius: var(--tr, 0%); transform: scale(1) rotate(0deg);
+    filter: blur(0px);
+  }
+}
+
+/* ── Gotas decorativas: solo aportan el efecto líquido inicial y se disuelven ── */
+.lt-blob--deco {
+  background: var(--lt-color);
+  top: 50%; left: 50%;
+  width: var(--lt-size, 70px); height: var(--lt-size, 70px);
+  filter: blur(14px);
+  animation-name: lt-deco-wobble;
+  animation-duration: var(--lt-dur, 1.05s);
+  animation-timing-function: ease-in-out;
+  animation-delay: var(--lt-delay, 0s);
+  animation-fill-mode: forwards;
+}
+
+@keyframes lt-deco-wobble {
+  0%   { transform: translate(-50%, -50%) scale(.2); opacity: 0; }
+  18%  { opacity: .9; transform: translate(-50%, -50%) scale(1); }
+  50%  { transform: translate(calc(-50% + var(--wx, 16px)), calc(-50% + var(--wy, -12px))) scale(1.18); }
+  76%  { transform: translate(calc(-50% - var(--wx, 16px) * .55), calc(-50% - var(--wy, -12px) * .7)) scale(.75); opacity: .5; }
+  100% { transform: translate(-50%, -50%) scale(.12); opacity: 0; }
+}
+
+/* Posiciones/tamaños fijos de cada gota decorativa (dispersas cerca del centro) */
+.lt-deco-1 { margin-top: -46px; margin-left: -70px; --lt-size: 60px; --wx: 20px;  --wy: -16px; }
+.lt-deco-2 { margin-top:  38px; margin-left:  58px; --lt-size: 46px; --wx: -18px; --wy:  14px; }
+.lt-deco-3 { margin-top: -12px; margin-left:  86px; --lt-size: 34px; --wx: 15px;  --wy:  18px; }
+.lt-deco-4 { margin-top:  60px; margin-left: -54px; --lt-size: 38px; --wx: -14px; --wy: -20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-blob { animation: none !important; display: none !important; }
+}

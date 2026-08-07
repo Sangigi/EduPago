@@ -21,6 +21,10 @@ function Dashboard({
   const { useState } = React;
   const [filtroEscEstado, setFiltroEscEstado] = useState('todas'); // 'todas' | 'activas' | 'inactivas'
   const esSuper = AuthController.isSuperAdmin(user);
+  
+  // VERIFICACIÓN DE CAJERO
+  const esCajero = user && user.rol === 'cajero'; 
+
   const stats = AppModel.getEstadisticas(data.cobros);
   const pendientes = data.cobros.filter(c => c.estado === 'pendiente');
   const recientes = [...data.cobros].reverse().slice(0, 6);
@@ -318,7 +322,9 @@ function Dashboard({
           className: "badge badge-red",
           style: { marginRight: 6 },
           children: "Inactiva"
-        }, void 0, false), escuela && (() => {
+        }, void 0, false), 
+        
+        escuela && !esCajero && (() => {
           const planKey = (escuela.plan || '').toLowerCase();
           const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
           if (!info) return null;
@@ -335,7 +341,9 @@ function Dashboard({
           year: 'numeric'
         })]
       }, void 0, true)]
-    }, void 0, true), escuela && (() => {
+    }, void 0, true), 
+    
+    escuela && !esCajero && (() => {
       const planKey = (escuela.plan || '').toLowerCase();
       const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
       if (!info) return null;
@@ -370,7 +378,10 @@ function Dashboard({
           children: "Contacta a soporte para subir de plan."
         }, void 0, false)]
       }, void 0, true);
-    })(), plantelesEscuela.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+    })(), 
+    
+    // CONDICIÓN AÑADIDA: !esCajero para ocultar la sección de planteles
+    !esCajero && plantelesEscuela.length > 0 && /*#__PURE__*/_jsxDEV("div", {
       style: { marginBottom: 22 },
       children: [/*#__PURE__*/_jsxDEV("div", {
         style: {
