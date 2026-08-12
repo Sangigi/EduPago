@@ -142,3 +142,101 @@
 2026-07-16 12:24:53 | caja_cerrar -> caja_id=1 esperado=45000 cierre=0.04 diff=-44999.96
 2026-08-04 08:40:10 | generar_liga -> folio=ITM-0028 total=1800
 2026-08-05 16:23:41 | generar_liga -> folio=ITM-0030 total=246
+2026-08-06 14:01:17 | generar_liga -> folio=ITM-0033 total=738
+2026-08-06 14:01:20 | generar_liga -> folio=ITM-0034 total=738
+2026-08-07 10:27:11 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-07 10:27:11 | generar_liga -> folio=ITM-0036 total=2952
+2026-08-11 17:53:44 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:05:17 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:05:18 | generar_liga -> folio=ITM-0038 total=2800 ref=0000500318299
+2026-08-11 20:05:19 | generar_liga FALLÓ -> {"code":"3","message":"El ID de la integracion no existe.","url":null,"reference":null,"referenceEmisor":null}
+2026-08-11 20:05:35 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:05:36 | generar_liga -> folio=ITM-0039 total=2800 ref=0000500336384
+2026-08-11 20:05:36 | generar_liga FALLÓ -> {"code":"3","message":"El ID de la integracion no existe.","url":null,"reference":null,"referenceEmisor":null}
+2026-08-11 20:05:49 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:06:22 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:52:07 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:18 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:35 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:35 | generar_referencia_efectivo -> folio=ITM-0043 total=50 ref=000004486550015
+2026-08-12 09:53:36 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"Su cuenta no tiene acceso, por favor comuníquese con los administradores.","Error":"401","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 09:53:51 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:51 | generar_referencia_efectivo -> folio=ITM-0044 total=50 ref=000004586550031
+2026-08-12 09:53:52 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"Su cuenta no tiene acceso, por favor comuníquese con los administradores.","Error":"401","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:04:00 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:04:00 | generar_referencia_efectivo -> folio=ITM-0045 total=50 ref=000004686550640
+2026-08-12 10:04:01 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"Su cuenta no tiene acceso, por favor comuníquese con los administradores.","Error":"401","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:04:14 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:04:14 | generar_liga -> folio=ITM-0046 total=50 ref=0000550654803
+2026-08-12 10:04:15 | generar_liga FALLÓ -> {"code":"1","message":"El usuario y\/o contraseña son invalidos.","url":null,"reference":null,"referenceEmisor":null}
+2026-08-12 10:06:45 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:06:45 | generar_referencia_efectivo -> folio=ITM-0047 total=50 ref=000004886550805
+2026-08-12 10:06:46 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:06:54 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:06:54 | generar_liga -> folio=ITM-0048 total=50 ref=0000550814558
+2026-08-12 10:06:55 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 10:17:07 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:17:07 | generar_referencia_efectivo -> folio=ITM-0049 total=50 ref=000005086551427
+2026-08-12 10:17:08 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:17:28 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:17:28 | generar_liga -> folio=ITM-0050 total=50 ref=0000551448573
+2026-08-12 10:17:29 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 10:54:04 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:08 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:14 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:15 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:30 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:31 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:58:12 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:58:47 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:15:10 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:15:13 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:16:24 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:16:25 | generar_referencia_efectivo -> folio=ITM-0051 total=50 ref=000005286554985
+2026-08-12 11:16:26 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:16:44 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:17:32 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:17:51 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:17:51 | generar_liga -> folio=ITM-0054 total=50 ref=0000555071958
+2026-08-12 11:17:52 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 11:25:14 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:28:58 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:29:54 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:29:55 | generar_referencia_efectivo -> folio=ITM-0055 total=50 ref=000005686555795
+2026-08-12 11:29:55 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:33:33 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:34:25 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:34:25 | generar_referencia_efectivo -> folio=ITM-0056 total=50 ref=000005786556065
+2026-08-12 11:34:26 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:34:35 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:34:36 | generar_referencia_efectivo -> folio=ITM-0057 total=50 ref=000005886556076
+2026-08-12 11:34:36 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:48:36 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:48:37 | generar_referencia_efectivo -> folio=ITM-0058 total=50 ref=000005986556917
+2026-08-12 11:48:38 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
