@@ -13,13 +13,3 @@ Stack trace:
 #0 /home2/grupoide/test.grupoideasmx.com/api.php(965): PDO->prepare('UPDATE usuarios...')
 #1 {main}
   thrown in /home2/grupoide/test.grupoideasmx.com/api.php on line 965
-[07-Aug-2026 10:37:11 America/Mexico_City] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'direccion' in 'field list' in /home2/grupoide/test.grupoideasmx.com/api.php:1342
-Stack trace:
-#0 /home2/grupoide/test.grupoideasmx.com/api.php(1342): PDO->prepare('UPDATE clientes...')
-#1 {main}
-  thrown in /home2/grupoide/test.grupoideasmx.com/api.php on line 1342
-[07-Aug-2026 10:37:14 America/Mexico_City] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'direccion' in 'field list' in /home2/grupoide/test.grupoideasmx.com/api.php:1342
-Stack trace:
-#0 /home2/grupoide/test.grupoideasmx.com/api.php(1342): PDO->prepare('UPDATE clientes...')
-#1 {main}
-  thrown in /home2/grupoide/test.grupoideasmx.com/api.php on line 1342
