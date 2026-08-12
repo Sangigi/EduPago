@@ -5,16 +5,16 @@
  */
 
 // ─── Credenciales Pagadetodo ──────────────────────────────────────────────────
-define('PDT_USER',         'p9E5Vdu5Ya');
-define('PDT_PASS',         'Ak63MKo#1/');
-define('PDT_INT_ID',       '124');
-define('PDT_BUS_ID_SPEI',  '000060');
-define('PDT_BUS_ID_TC',    '000060');
+define('PDT_USER',         'xxx');
+define('PDT_PASS',         'xxx');
+define('PDT_INT_ID',       'xxx');
+define('PDT_BUS_ID_SPEI',  'xxx');
+define('PDT_BUS_ID_TC',    'xxx');
 
 define('DB_HOST', 'test.grupoideasmx.com');
 define('DB_NAME', 'grupoide_pagalaescuela');
 define('DB_USER', 'grupoide_leonel');
-define('DB_PASS', 'M4imvdG#O&NQ');
+define('DB_PASS', 'xxx');
 
 // ─── URLs de Pagadetodo ───────────────────────────────────────────────────────
 define('PDT_URL_CLABE',    'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');
@@ -37,8 +37,8 @@ define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local
 // IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
 // y dale a Pagadetodo la URL con ?token=ESE_TOKEN. Sin esto, cualquiera podía
 // forjar un pago SPEI llamando directo a este endpoint.
-define('WEBHOOK_SPEI_TOKEN', 'CAMBIA_ESTO_POR_UN_TOKEN_ALEATORIO_LARGO_2026');
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=CAMBIA_ESTO_POR_UN_TOKEN_ALEATORIO_LARGO_2026');
+define('WEBHOOK_SPEI_TOKEN', 'xxx');
+define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=xxx');
 
 // ─── Configuración del super-admin ───────────────────────────────────────────
 define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
@@ -51,7 +51,7 @@ define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
 // ─── Clave secreta para firmar tokens de sesión (HMAC) ───────────────────────
 // IMPORTANTE: en producción, cambia este valor por una cadena aleatoria larga
 // y única, y no la subas a un repositorio público.
-define('APP_TOKEN_SECRET', 'CAMBIA_ESTA_CLAVE_POR_UNA_ALEATORIA_Y_LARGA_EN_PRODUCCION_2026');
+define('APP_TOKEN_SECRET', 'xxx');
 define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
 
 // ─── Zona horaria ────────────────────────────────────────────────────────────
@@ -60,8 +60,8 @@ date_default_timezone_set('America/Mexico_City');
 // ─── Credenciales del PAC (Ej. Facturama) ────────────────────────────────────
 // Usa las credenciales de Sandbox para desarrollo y las reales para producción.
 define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
-define('PAC_USER',    'tu_usuario_pac');
-define('PAC_PASS',    'tu_password_pac');
+define('PAC_USER',    'xxx');
+define('PAC_PASS',    'xxx');
 
 // ─── Credenciales de Facturapi ───────────────────────────────────────────────
-define('FACTURAPI_KEY', 'sk_test_oC5ZzoaR5Hvmig4maAfxbcevwPoMPNDbZHQg8s3zEr');
+define('FACTURAPI_KEY', 'xxx');
