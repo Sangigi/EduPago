@@ -240,3 +240,62 @@ RAW:
 2026-08-12 11:48:36 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
 2026-08-12 11:48:37 | generar_referencia_efectivo -> folio=ITM-0058 total=50 ref=000005986556917
 2026-08-12 11:48:38 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 13:53:54 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:53:59 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:54:03 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:56:44 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:57:36 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 13:57:36 | generar_referencia_efectivo -> folio=ITM-0059 total=50 ref=000006086564656
+2026-08-12 14:18:46 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:18:46 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:18:47 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:50:39 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 14:50:39 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:51:16 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:51:16 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 14:51:17 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:12:04 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:21:40 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:21:40 | generar_referencia_efectivo -> folio=ITM-0060 total=50 ref=000006186569700
+2026-08-12 15:26:28 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:26:28 | generar_referencia_efectivo -> folio=ITM-0061 total=50 ref=000006286569988
+2026-08-12 15:26:32 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000628656998816","ReferenceEmisor":"000006286569988","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453437","Date":"2026-08-12T15:26:29.9628067-06:00","Clabe":null}
+2026-08-12 15:33:37 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:33:40 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:52:33 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:52:33 | generar_referencia_efectivo -> folio=ITM-0062 total=50 ref=000006386571553
+2026-08-12 15:52:38 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000638657155316","ReferenceEmisor":"000006386571553","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453438","Date":"2026-08-12T15:52:35.2638673-06:00","Clabe":null}
+2026-08-12 15:54:11 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:54:12 | generar_referencia_efectivo -> folio=ITM-0063 total=50 ref=000006486571652
+2026-08-12 15:54:20 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000648657165215","ReferenceEmisor":"000006486571652","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453439","Date":"2026-08-12T15:54:17.6240841-06:00","Clabe":null}
+2026-08-12 15:58:04 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:58:04 | generar_referencia_efectivo -> folio=ITM-0064 total=50 ref=000006586571884
+2026-08-12 15:58:08 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000658657188414","ReferenceEmisor":"000006586571884","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453440","Date":"2026-08-12T15:58:05.6004678-06:00","Clabe":null}
+2026-08-12 16:10:31 | generar_referencia_efectivo -> folio=ITM-0065 total=50 ref=000006686572631
+2026-08-12 16:10:34 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000668657263117","ReferenceEmisor":"000006686572631","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453441","Date":"2026-08-12T16:10:32.1675811-06:00","Clabe":null}
+2026-08-12 16:16:05 | generar_liga -> folio=ITM-0067 total=50 ref=0000572965418
+2026-08-12 16:16:07 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 16:16:25 | generar_referencia_efectivo -> folio=ITM-0069 total=50 ref=000007086572985
+2026-08-12 16:16:29 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000708657298513","ReferenceEmisor":"000007086572985","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453443","Date":"2026-08-12T16:16:26.187887-06:00","Clabe":null}
+2026-08-12 16:35:17 | generar_referencia_efectivo -> folio=ITM-0070 total=50 ref=000007186574117
+2026-08-12 16:35:22 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000718657411719","ReferenceEmisor":"000007186574117","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453447","Date":"2026-08-12T16:35:19.4481629-06:00","Clabe":null}
