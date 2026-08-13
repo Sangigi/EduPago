@@ -3967,6 +3967,8 @@ switch ($action) {
 
             $pdo->commit();
 
+            registrar_log($pdo, $usuario_actual, 'plantel_creado', "Plantel '$nombre' creado bajo escuela #$escuela_padre_id (cuenta: $email)", $escuela_padre_id);
+
 
 
             // Retornar los objetos exactos que espera el frontend
@@ -4185,6 +4187,8 @@ switch ($action) {
 
             $pdo->commit();
 
+            registrar_log($pdo, $usuario_actual, 'plantel_editado', "Plantel #$id '$nombre' editado");
+
 
 
             respond([
@@ -4333,6 +4337,67 @@ switch ($action) {
 
         respond(['success' => true, 'activa' => (bool) $row['activa']]);
 
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'cambiar_plan_escuela':
+        // Endpoint ligero para cambiar SOLO el plan (usado desde el <select>
+        // inline en Suscripciones.js) — no exige nombre/clave como editar_escuela.
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede cambiar el plan de un colegio.']);
+        }
+        $id   = intval($input['id'] ?? 0);
+        $plan = trim($input['plan'] ?? '');
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        if (!in_array($plan, array_keys(PLANES_LIMITES), true)) {
+            respond(['success' => false, 'error' => 'Plan inválido']);
+        }
+        $chk = $pdo->prepare("SELECT nombre, plan FROM escuelas WHERE id = ?");
+        $chk->execute([$id]);
+        $esc = $chk->fetch();
+        if (!$esc) respond(['success' => false, 'error' => 'Colegio no encontrado']);
+
+        $pdo->prepare("UPDATE escuelas SET plan = ? WHERE id = ?")->execute([$plan, $id]);
+        registrar_log($pdo, $usuario_actual, 'escuela_plan_cambiado', "Colegio '{$esc['nombre']}' #$id: plan {$esc['plan']} → $plan", $id);
+
+        respond(['success' => true, 'id' => $id, 'plan' => $plan]);
+    break;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'buscar_global':
+        // Búsqueda cruzando TODAS las escuelas — solo superadmin. Sirve para
+        // soporte: "no encuentro a mi hijo/mi cuenta" sin adivinar en qué
+        // colegio está.
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede usar la búsqueda global.']);
+        }
+        $q = trim($input['q'] ?? $_GET['q'] ?? '');
+        if (mb_strlen($q) < 3) {
+            respond(['success' => false, 'error' => 'Escribe al menos 3 caracteres para buscar.']);
+        }
+        $like = "%$q%";
+
+        $stmtCli = $pdo->prepare(
+            "SELECT cl.id, cl.nombre, cl.matricula, cl.email, cl.escuela_id, es.nombre AS escuela_nombre
+             FROM clientes cl JOIN escuelas es ON es.id = cl.escuela_id
+             WHERE cl.nombre LIKE ? OR cl.matricula LIKE ? OR cl.email LIKE ? OR cl.curp LIKE ?
+             LIMIT 20"
+        );
+        $stmtCli->execute([$like, $like, $like, $like]);
+        $alumnos = $stmtCli->fetchAll();
+
+        $stmtUsu = $pdo->prepare(
+            "SELECT u.id, u.nombre, u.email, u.rol, u.escuela_id, u.activo, es.nombre AS escuela_nombre
+             FROM usuarios u LEFT JOIN escuelas es ON es.id = u.escuela_id
+             WHERE u.nombre LIKE ? OR u.email LIKE ?
+             LIMIT 20"
+        );
+        $stmtUsu->execute([$like, $like]);
+        $usuarios = $stmtUsu->fetchAll();
+
+        respond(['success' => true, 'alumnos' => $alumnos, 'usuarios' => $usuarios]);
     break;
 
 
@@ -4570,6 +4635,8 @@ switch ($action) {
             else $duplicadas++;
 
         }
+
+        registrar_log($pdo, $usuario_actual, 'clabes_importadas', "$insertadas importadas, $duplicadas duplicadas ignoradas", $escuela_id);
 
         respond(['success' => true, 'insertadas' => $insertadas, 'duplicadas' => $duplicadas]);
 
@@ -4850,6 +4917,8 @@ switch ($action) {
         );
 
         $stmt->execute(array_merge([$escuela_id], $ids));
+
+        registrar_log($pdo, $usuario_actual, 'clabes_eliminadas', $stmt->rowCount() . ' CLABE(s) eliminadas del pool', $escuela_id);
 
         respond(['success' => true, 'eliminadas' => $stmt->rowCount()]);
 

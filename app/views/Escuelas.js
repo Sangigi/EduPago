@@ -46,6 +46,9 @@ function Escuelas({
     { value: 'mixto', label: 'Mixto' },
   ];
   const [modal, setModal] = useState(null);
+  const [qEsc, setQEsc] = useState('');
+  const [filtroPlanEsc, setFiltroPlanEsc] = useState('');
+  const [filtroEstadoEsc, setFiltroEstadoEsc] = useState('');
   const [form, setForm] = useState(EMPTY);
   const [escuelaPltId, setEscuelaPltId] = useState(null); // escuela cuyo modal de planteles está abierto
   const [plantelesPanel, setPlantelesPanel] = useState(null); // null = cargando/no pedido aún; [] = ya cargó y no hay
@@ -402,12 +405,45 @@ function Escuelas({
         children: "+ Nueva escuela"
       }, void 0, false)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+      children: [/*#__PURE__*/_jsxDEV("input", {
+        className: "form-input",
+        style: { maxWidth: 260 },
+        placeholder: "Buscar por nombre o clave…",
+        value: qEsc,
+        onChange: e => setQEsc(e.target.value)
+      }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+        className: "form-select",
+        style: { maxWidth: 160, fontSize: 12.5 },
+        value: filtroPlanEsc,
+        onChange: e => setFiltroPlanEsc(e.target.value),
+        children: [/*#__PURE__*/_jsxDEV("option", { value: "", children: "Todos los planes" }, void 0, false),
+        /*#__PURE__*/_jsxDEV("option", { value: "basico", children: "Básico" }, void 0, false),
+        /*#__PURE__*/_jsxDEV("option", { value: "avanzado", children: "Avanzado" }, void 0, false),
+        /*#__PURE__*/_jsxDEV("option", { value: "pro", children: "Pro" }, void 0, false)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("select", {
+        className: "form-select",
+        style: { maxWidth: 150, fontSize: 12.5 },
+        value: filtroEstadoEsc,
+        onChange: e => setFiltroEstadoEsc(e.target.value),
+        children: [/*#__PURE__*/_jsxDEV("option", { value: "", children: "Todos los estados" }, void 0, false),
+        /*#__PURE__*/_jsxDEV("option", { value: "activa", children: "Activas" }, void 0, false),
+        /*#__PURE__*/_jsxDEV("option", { value: "inactiva", children: "Inactivas" }, void 0, false)]
+      }, void 0, true)]
+    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
       style: {
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
         gap: 18
       },
-      children: data.escuelas.filter(esc => !esc.es_plantel).map(esc => {
+      children: data.escuelas.filter(esc => !esc.es_plantel).filter(esc => {
+        const texto = qEsc.trim().toLowerCase();
+        if (texto && !esc.nombre.toLowerCase().includes(texto) && !(esc.clave || '').toLowerCase().includes(texto)) return false;
+        if (filtroPlanEsc && (esc.plan || '').toLowerCase() !== filtroPlanEsc) return false;
+        if (filtroEstadoEsc === 'activa' && !esc.activa) return false;
+        if (filtroEstadoEsc === 'inactiva' && esc.activa) return false;
+        return true;
+      }).map(esc => {
         const m = metricasEscuela(esc.id);
         return /*#__PURE__*/_jsxDEV("div", {
           className: "card",

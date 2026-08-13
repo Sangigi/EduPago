@@ -86,6 +86,12 @@ const NAV_ITEMS = [{
   section: 'superadmin',
   roles: ['superadmin']
 }, {
+  id: 'busqueda_global',
+  label: 'Búsqueda Global',
+  icon: 'search',
+  section: 'superadmin',
+  roles: ['superadmin']
+}, {
   id: 'logs',
   label: 'Logs del Sistema',
   icon: 'reportes',
@@ -125,6 +131,7 @@ const TITLES = {
   escuelas: 'Colegios / Inquilinos',
   suscripciones: 'Suscripciones',
   logs: 'Logs del Sistema',
+  busqueda_global: 'Búsqueda Global',
   superreportes: 'Métricas Globales',
   usuarios: 'Gestión de Usuarios',
   miequipo: 'Mi Equipo'
@@ -1102,6 +1109,20 @@ function App() {
           false
         );
 
+
+      case 'busqueda_global':
+
+        return /*#__PURE__*/_jsxDEV(
+          BusquedaGlobal,
+          {
+            onIrAEscuela: id => {
+              setEscuelaActiva(id);
+              setView('dashboard');
+            }
+          },
+          void 0,
+          false
+        );
 
       case 'logs':
 

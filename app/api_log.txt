@@ -301,3 +301,10 @@ RAW:
 2026-08-12 16:35:22 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000718657411719","ReferenceEmisor":"000007186574117","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453447","Date":"2026-08-12T16:35:19.4481629-06:00","Clabe":null}
 2026-08-13 13:43:02 | generar_liga -> folio=ITM-0075 total=150 ref=0000650182439
 2026-08-13 13:43:04 | generar_liga FALLÓ -> respuesta: {"Message":"Error."} | http_code: 500 | payload_enviado: {"User":"lR0iJO34LG","Password":"***","IntegrationID":"106","SchoolID":"000002","PaymentTypes":"401","Id":"0650182439","Description":"Pago escolar ITM-0075","Amount":15000,"Reference":"0000650182439","ExpirationDate":"2026-08-14"}
+2026-08-13 14:13:57 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-13 14:13:59 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-13 14:14:05 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
