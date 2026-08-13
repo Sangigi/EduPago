@@ -1,0 +1,310 @@
+2026-05-25 16:28:34 | generar_liga -> folio=COB-0007 total=13
+2026-05-25 16:28:35 | generar_liga RESP: {"code":"18","message":"El importe ingresado debe ser minimo de $50.00 y máximo $15,000.00.","url":null,"reference":null,"referenceEmisor":null}
+2026-05-25 16:28:52 | generar_clabe -> folio=COB-0008 total=13
+2026-05-25 16:28:55 | generar_clabe RESP: {"Clabe":"646180633000000780","Account":"000081779748132","Message":"Exitosa","Error":"","Folio":"25211","Date":"2026-05-25T17:28:53.663"}
+2026-05-25 16:29:07 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:29:17 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:29:27 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:29:37 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:29:47 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:29:57 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:30:07 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:30:17 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:30:27 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:30:37 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:30:47 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:30:57 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:31:07 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:31:17 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:31:27 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:31:37 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:31:47 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:31:57 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:32:07 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:32:17 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:32:27 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:32:37 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:32:47 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:32:57 | verificar_spei clabe=646180633000000780 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000780'."}
+2026-05-25 16:36:11 | generar_liga -> folio=COB-0010 total=1800
+2026-05-25 16:36:15 | generar_liga RESP: {"code":"success","message":"","url":"https://qa5.mitec.com.mx/p/i/SSOU9B5N","reference":"0000600000007485719951","referenceEmisor":"000000748571995"}
+2026-05-25 16:36:45 | generar_liga -> folio=COB-0012 total=10
+2026-05-25 16:36:46 | generar_liga RESP: {"code":"18","message":"El importe ingresado debe ser minimo de $50.00 y máximo $15,000.00.","url":null,"reference":null,"referenceEmisor":null}
+2026-05-25 16:56:45 | generar_clabe -> folio=COB-0012 total=950
+2026-05-25 16:56:47 | generar_clabe RESP: {"Clabe":"646180633000000793","Account":"000121779749805","Message":"Exitosa","Error":"","Folio":"25212","Date":"2026-05-25T17:56:46.205"}
+2026-05-25 16:56:58 | verificar_spei clabe=646180633000000793 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000793'."}
+2026-05-25 16:57:08 | verificar_spei clabe=646180633000000793 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000793'."}
+2026-05-25 16:57:12 | verificar_spei clabe=646180633000000793 -> {"Message":"No se ha encontrado ningún recurso HTTP que coincida con la URI de la solicitud 'https://pagadetodo.mx/Pagadetodo/Service/ConsultarClabe?User=p9E5Vdu5Ya&Password=Ak63MKo%231%2F&IntegrationID=124&BusinessID=000060&Clabe=646180633000000793'."}
+2026-05-25 17:04:56 | generar_liga -> folio=COB-0013 total=44000
+2026-05-25 17:04:57 | generar_liga RESP: {"code":"18","message":"El importe ingresado debe ser minimo de $50.00 y máximo $15,000.00.","url":null,"reference":null,"referenceEmisor":null}
+2026-05-29 09:38:34 | generar_clabe -> folio=COB-0014 total=1900
+2026-05-29 09:38:37 | generar_clabe RESP: {"Clabe":"646180633000000829","Account":"000141780069114","Message":"Exitosa","Error":"","Folio":"25245","Date":"2026-05-29T10:38:35.254"}
+2026-05-29 16:55:05 | generar_clabe -> folio=COB-0016 total=1110
+2026-05-29 16:55:08 | generar_clabe RESP: {"Clabe":"646180633000000832","Account":"000161780095305","Message":"Exitosa","Error":"","Folio":"25261","Date":"2026-05-29T17:55:06.148"}
+2026-06-03 11:09:26 | obtener_clabe -> folio=ITM-0006 total=700 ref=ITM-0006
+2026-06-03 11:10:11 | obtener_clabe -> folio=ITM-0007 total=2800 ref=ITM-0007
+2026-06-03 11:14:35 | generar_liga -> folio=ITM-0009 total=950
+2026-06-03 11:14:38 | generar_liga RESP: {"code":"success","message":"","url":"https://qa5.mitec.com.mx/p/i/A2M9N3M4","reference":"0000600000005068756651","referenceEmisor":"000000506875665"}
+2026-06-03 11:41:45 | obtener_clabe -> folio=ASD-0001 total=123 ref=ASD-0001
+2026-06-03 11:42:52 | obtener_clabe -> folio=ASD-0002 total=123 ref=ASD-0002
+2026-06-03 14:03:26 | obtener_clabe -> folio=ITM-0001 total=2 ref=ITM-0001
+2026-06-04 15:41:16 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-04 15:42:05 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-04 16:19:58 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-04 16:25:46 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-04 16:26:17 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-04 16:26:17 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-04 16:26:44 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-04 16:28:57 | simular_spei -> ref=ITM-0001 monto=88.00
+2026-06-05 10:06:51 | simular_spei -> ref=ITM-0001 monto=2.00
+2026-06-05 10:07:20 | obtener_clabe -> ref=ITM-0002 total=10
+2026-06-05 10:07:59 | ERROR PAC: 
+2026-06-05 10:08:05 | ERROR PAC: 
+2026-06-05 10:14:46 | ERROR PAC: 
+2026-06-05 10:37:14 | ERROR Facturapi: {"message":"La versión 1 de Facturapi ya no está disponible a partir del 1 de abril de 2023. Por favor actualiza a la versión 2 de la API, que soporta la versión de CFDI 4.0.","status":410,"ok":false}
+2026-06-05 10:41:14 | ERROR Facturapi: {"message":"La versión 1 de Facturapi ya no está disponible a partir del 1 de abril de 2023. Por favor actualiza a la versión 2 de la API, que soporta la versión de CFDI 4.0.","status":410,"ok":false}
+2026-06-05 10:42:11 | ERROR Facturapi: {"message":"La versión 1 de Facturapi ya no está disponible a partir del 1 de abril de 2023. Por favor actualiza a la versión 2 de la API, que soporta la versión de CFDI 4.0.","status":410,"ok":false}
+2026-06-05 10:55:28 | ERROR Facturapi: {"message":"La versión 1 de Facturapi ya no está disponible a partir del 1 de abril de 2023. Por favor actualiza a la versión 2 de la API, que soporta la versión de CFDI 4.0.","status":410,"ok":false}
+2026-06-05 10:58:09 | ERROR Facturapi: {"message":"\"customer.address\" is required","status":400,"path":"customer.address","ok":false}
+2026-06-05 11:30:48 | verificar_spei PAGADO ref=ITM-0001 monto=2.00
+2026-06-05 11:37:09 | obtener_clabe -> ref=ITM-0003 total=28
+2026-06-05 11:37:17 | simular_spei -> ref=ITM-0003 monto=28.00
+2026-06-05 11:37:19 | verificar_spei PAGADO ref=ITM-0003 monto=28.00
+2026-06-05 11:37:19 | verificar_spei PAGADO ref=ITM-0003 monto=28.00
+2026-06-05 11:59:28 | simular_spei -> ref=ASDAD monto=1.00
+2026-06-05 12:28:03 | obtener_clabe -> ref=ITM-0001 total=200
+2026-06-05 12:28:55 | ERROR Facturapi: {"message":"\"customer.address\" is required","status":400,"path":"customer.address","ok":false}
+2026-06-05 12:28:59 | ERROR Facturapi: {"message":"\"customer.address\" is required","status":400,"path":"customer.address","ok":false}
+2026-06-05 12:36:02 | ERROR Facturapi: {"message":"\"customer.address\" is required","status":400,"path":"customer.address","ok":false}
+2026-06-05 12:41:09 | generar_cfdi -> EXITOSO cobro:1 uuid:9aa82b4a-8b46-4d33-968c-7ef402619400
+2026-06-05 12:52:25 | descargar_cfdi -> id=6a231844a8f4ed5396335c8f tipo=pdf http=200
+2026-06-05 12:52:52 | descargar_cfdi -> id=6a231844a8f4ed5396335c8f tipo=xml http=200
+2026-06-05 12:53:14 | descargar_cfdi -> id=6a231844a8f4ed5396335c8f tipo=pdf http=200
+2026-06-05 12:58:42 | descargar_cfdi -> id=6a231844a8f4ed5396335c8f tipo=pdf http=200
+2026-06-05 12:59:14 | descargar_cfdi -> id=6a231844a8f4ed5396335c8f tipo=pdf http=200
+2026-06-05 16:00:31 | obtener_clabe -> ref=ITM-2026-0001 total=800
+2026-06-08 10:37:20 | descargar_cfdi -> id=6a231844a8f4ed5396335c8f tipo=pdf http=200
+2026-06-08 10:40:33 | simular_spei -> ref=ASD monto=12.00
+2026-06-08 11:44:42 | ERROR Facturapi: {"message":"El campo \"tax_id\" es obligatorio y debe ser un RFC válido","status":400,"ok":false}
+2026-06-08 11:45:01 | ERROR Facturapi: {"message":"No se encontró el código postal \"123123\". Verifica que sea correcto.","status":400,"ok":false}
+2026-06-08 11:45:07 | generar_cfdi -> EXITOSO cobro:2 uuid:769abf00-7922-43e8-a6ec-99c658fc4dd2
+2026-06-08 11:45:20 | descargar_cfdi -> id=6a26ffa314008df7c3a2d6bd tipo=pdf http=200
+2026-06-09 13:59:18 | obtener_clabe -> ref=ITM-2026-0001 total=200
+2026-06-09 13:59:36 | generar_liga -> folio=ITM-0006 total=200
+2026-06-09 13:59:58 | obtener_clabe -> ref=ITM-0007 total=400
+2026-06-09 14:00:22 | simular_spei -> ref=ITM-0007 monto=400.00
+2026-06-09 14:00:29 | verificar_spei PAGADO ref=ITM-0007 monto=400.00
+2026-06-09 14:01:48 | obtener_clabe -> ref=ITM-0008 total=400
+2026-06-09 14:02:03 | simular_spei -> ref=ITM-0008 monto=400.00
+2026-06-09 14:02:51 | simular_spei -> ref=ITM-2026-0001 monto=200.00
+2026-06-09 17:30:51 | verificar_spei PAGADO ref=ITM-2026-0001 monto=200.00
+2026-06-09 17:30:51 | verificar_spei PAGADO ref=ITM-0008 monto=400.00
+2026-06-10 09:34:42 | obtener_clabe -> ref=ITM-0009 total=600
+2026-06-15 09:28:35 | verificar_spei PAGADO ref=ITM-0009 clabe=646180633010000055 monto=2.00
+2026-06-15 16:52:15 | generar_liga -> folio=ITM-0008 total=950
+2026-06-15 16:52:41 | generar_clabe_individual -> alumno_id=1 matricula=ITM-2024-001 nombre=Ana García López
+2026-06-15 16:52:42 | ERROR generar_clabe_individual: respuesta sin Clabe -> {"Clabe":null,"Account":null,"Message":"El formato de la referencia es incorrecto.","Error":"22","Folio":null,"Date":null}
+2026-06-15 16:52:43 | generar_clabe_individual -> alumno_id=1 matricula=ITM-2024-001 nombre=Ana García López
+2026-06-15 16:52:43 | ERROR generar_clabe_individual: respuesta sin Clabe -> {"Clabe":null,"Account":null,"Message":"El formato de la referencia es incorrecto.","Error":"22","Folio":null,"Date":null}
+2026-06-15 16:52:44 | generar_clabe_individual -> alumno_id=1 matricula=ITM-2024-001 nombre=Ana García López
+2026-06-15 16:52:45 | ERROR generar_clabe_individual: respuesta sin Clabe -> {"Clabe":null,"Account":null,"Message":"El formato de la referencia es incorrecto.","Error":"22","Folio":null,"Date":null}
+2026-06-15 16:52:46 | generar_clabe_individual -> alumno_id=2 matricula=ITM-2024-002 nombre=Pedro García López
+2026-06-15 16:52:47 | ERROR generar_clabe_individual: respuesta sin Clabe -> {"Clabe":null,"Account":null,"Message":"El formato de la referencia es incorrecto.","Error":"22","Folio":null,"Date":null}
+2026-06-15 16:52:53 | generar_clabe_individual -> alumno_id=1 matricula=ITM-2024-001 nombre=Ana García López
+2026-06-15 16:52:53 | ERROR generar_clabe_individual: respuesta sin Clabe -> {"Clabe":null,"Account":null,"Message":"El formato de la referencia es incorrecto.","Error":"22","Folio":null,"Date":null}
+2026-06-15 16:53:05 | generar_clabe_individual -> alumno_id=1 matricula=ITM-2024-001 nombre=Ana García López
+2026-06-15 16:53:05 | ERROR generar_clabe_individual: respuesta sin Clabe -> {"Clabe":null,"Account":null,"Message":"El formato de la referencia es incorrecto.","Error":"22","Folio":null,"Date":null}
+2026-06-15 16:57:10 | generar_clabe_individual -> alumno_id=1 matricula=ITM-2024-001 nombre=Ana García López
+2026-06-15 16:57:11 | ERROR generar_clabe_individual: respuesta sin Clabe -> {"Clabe":null,"Account":null,"Message":"El formato de la referencia es incorrecto.","Error":"22","Folio":null,"Date":null}
+2026-06-22 16:03:20 | generar_liga -> folio=ITM-0007 total=1000
+2026-06-23 10:35:13 | generar_liga -> folio=ITM-0008 total=3500
+2026-06-23 10:40:54 | generar_liga -> folio=ITM-0011 total=28000
+2026-06-25 16:22:28 | ERROR Facturapi: {"message":"Tu periodo de prueba ha expirado. Visita https://dashboard.facturapi.io/account/subscription/overview para contratar una suscripción y continuar con tu integración.","status":402,"ok":false}
+2026-06-25 17:27:11 | ERROR Facturapi: {"message":"Tu periodo de prueba ha expirado. Visita https://dashboard.facturapi.io/account/subscription/overview para contratar una suscripción y continuar con tu integración.","status":402,"ok":false}
+2026-06-25 17:30:00 | ERROR Facturapi: {"message":"Tu periodo de prueba ha expirado. Visita https://dashboard.facturapi.io/account/subscription/overview para contratar una suscripción y continuar con tu integración.","status":402,"ok":false}
+2026-06-25 17:30:33 | ERROR Facturapi: {"message":"Tu periodo de prueba ha expirado. Visita https://dashboard.facturapi.io/account/subscription/overview para contratar una suscripción y continuar con tu integración.","status":402,"ok":false}
+2026-07-07 13:05:13 | ERROR Facturapi: {"message":"Tu periodo de prueba ha expirado. Visita https://dashboard.facturapi.io/account/subscription/overview para contratar una suscripción y continuar con tu integración.","status":402,"code":"subscription_required","ok":false}
+2026-07-07 13:09:40 | ERROR Facturapi: {"message":"\"items[0].product.description\" is not allowed to be empty","status":400,"code":"invalid_request","errors":[{"code":"invalid_request","message":"\"items[0].product.description\" is not allowed to be empty","path":"items.0.product.description","location":"body"}],"location":"body","path":"items.0.product.description","ok":false}
+2026-07-07 17:50:09 | generar_cfdi -> EXITOSO cobro:15 uuid:b3a1b7d4-6902-4c4d-889d-a8ea61d3fa8a
+2026-07-07 17:50:23 | descargar_cfdi -> id=6a4d90b12f3709d611827b3c tipo=pdf http=200
+2026-07-09 10:20:36 | generar_cfdi -> EXITOSO cobro:15 uuid:6e974142-6de9-4771-8a7a-b95b08de7092
+2026-07-09 10:21:02 | descargar_cfdi -> id=6a4fca53a61e98879ca574d5 tipo=xml http=200
+2026-07-09 10:21:09 | descargar_cfdi -> id=6a4fca53a61e98879ca574d5 tipo=pdf http=200
+2026-07-09 13:42:23 | generar_liga -> folio=ITM-0017 total=2997
+2026-07-09 13:43:45 | generar_liga -> folio=ITM-0018 total=3000
+2026-07-09 13:44:29 | generar_liga -> folio=ITM-0019 total=24500
+2026-07-09 13:45:17 | generar_liga -> folio=ITM-0020 total=24500
+2026-07-09 13:47:36 | generar_liga -> folio=ITM-0021 total=25499
+2026-07-15 17:30:02 | generar_liga -> folio=ITM-0024 total=123
+2026-07-15 17:31:22 | generar_liga -> folio=ITM-0027 total=123
+2026-07-15 17:31:41 | caja_abrir -> caja_id=1 sucursal=1 usuario=2 monto=45000
+2026-07-15 20:42:48 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-07-16 12:24:53 | caja_cerrar -> caja_id=1 esperado=45000 cierre=0.04 diff=-44999.96
+2026-08-04 08:40:10 | generar_liga -> folio=ITM-0028 total=1800
+2026-08-05 16:23:41 | generar_liga -> folio=ITM-0030 total=246
+2026-08-06 14:01:17 | generar_liga -> folio=ITM-0033 total=738
+2026-08-06 14:01:20 | generar_liga -> folio=ITM-0034 total=738
+2026-08-07 10:27:11 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-07 10:27:11 | generar_liga -> folio=ITM-0036 total=2952
+2026-08-11 17:53:44 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:05:17 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:05:18 | generar_liga -> folio=ITM-0038 total=2800 ref=0000500318299
+2026-08-11 20:05:19 | generar_liga FALLÓ -> {"code":"3","message":"El ID de la integracion no existe.","url":null,"reference":null,"referenceEmisor":null}
+2026-08-11 20:05:35 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:05:36 | generar_liga -> folio=ITM-0039 total=2800 ref=0000500336384
+2026-08-11 20:05:36 | generar_liga FALLÓ -> {"code":"3","message":"El ID de la integracion no existe.","url":null,"reference":null,"referenceEmisor":null}
+2026-08-11 20:05:49 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-11 20:06:22 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:52:07 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:18 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:35 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:35 | generar_referencia_efectivo -> folio=ITM-0043 total=50 ref=000004486550015
+2026-08-12 09:53:36 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"Su cuenta no tiene acceso, por favor comuníquese con los administradores.","Error":"401","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 09:53:51 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 09:53:51 | generar_referencia_efectivo -> folio=ITM-0044 total=50 ref=000004586550031
+2026-08-12 09:53:52 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"Su cuenta no tiene acceso, por favor comuníquese con los administradores.","Error":"401","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:04:00 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:04:00 | generar_referencia_efectivo -> folio=ITM-0045 total=50 ref=000004686550640
+2026-08-12 10:04:01 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"Su cuenta no tiene acceso, por favor comuníquese con los administradores.","Error":"401","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:04:14 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:04:14 | generar_liga -> folio=ITM-0046 total=50 ref=0000550654803
+2026-08-12 10:04:15 | generar_liga FALLÓ -> {"code":"1","message":"El usuario y\/o contraseña son invalidos.","url":null,"reference":null,"referenceEmisor":null}
+2026-08-12 10:06:45 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:06:45 | generar_referencia_efectivo -> folio=ITM-0047 total=50 ref=000004886550805
+2026-08-12 10:06:46 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:06:54 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:06:54 | generar_liga -> folio=ITM-0048 total=50 ref=0000550814558
+2026-08-12 10:06:55 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 10:17:07 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:17:07 | generar_referencia_efectivo -> folio=ITM-0049 total=50 ref=000005086551427
+2026-08-12 10:17:08 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 10:17:28 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 10:17:28 | generar_liga -> folio=ITM-0050 total=50 ref=0000551448573
+2026-08-12 10:17:29 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 10:54:04 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:08 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:14 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:15 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:30 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:54:31 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:58:12 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 10:58:47 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:15:10 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:15:13 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:16:24 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:16:25 | generar_referencia_efectivo -> folio=ITM-0051 total=50 ref=000005286554985
+2026-08-12 11:16:26 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:16:44 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:17:32 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:17:51 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:17:51 | generar_liga -> folio=ITM-0054 total=50 ref=0000555071958
+2026-08-12 11:17:52 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 11:25:14 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:28:58 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:29:54 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:29:55 | generar_referencia_efectivo -> folio=ITM-0055 total=50 ref=000005686555795
+2026-08-12 11:29:55 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:33:33 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 11:34:25 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:34:25 | generar_referencia_efectivo -> folio=ITM-0056 total=50 ref=000005786556065
+2026-08-12 11:34:26 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:34:35 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:34:36 | generar_referencia_efectivo -> folio=ITM-0057 total=50 ref=000005886556076
+2026-08-12 11:34:36 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 11:48:36 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 11:48:37 | generar_referencia_efectivo -> folio=ITM-0058 total=50 ref=000005986556917
+2026-08-12 11:48:38 | generar_referencia_efectivo FALLÓ -> {"Reference":null,"ReferenceEmisor":null,"BarCode":null,"PayFormat":null,"Message":"No tiene permiso para generar referencias, por favor comuníquese con los administradores.","Error":"404","Folio":null,"Date":null,"Clabe":null}
+2026-08-12 13:53:54 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:53:59 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:54:03 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:56:44 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 13:57:36 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 13:57:36 | generar_referencia_efectivo -> folio=ITM-0059 total=50 ref=000006086564656
+2026-08-12 14:18:46 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:18:46 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:18:47 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:50:39 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 14:50:39 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:51:16 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-12 14:51:16 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 14:51:17 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:12:04 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:21:40 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:21:40 | generar_referencia_efectivo -> folio=ITM-0060 total=50 ref=000006186569700
+2026-08-12 15:26:28 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:26:28 | generar_referencia_efectivo -> folio=ITM-0061 total=50 ref=000006286569988
+2026-08-12 15:26:32 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000628656998816","ReferenceEmisor":"000006286569988","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453437","Date":"2026-08-12T15:26:29.9628067-06:00","Clabe":null}
+2026-08-12 15:33:37 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:33:40 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-12 15:52:33 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:52:33 | generar_referencia_efectivo -> folio=ITM-0062 total=50 ref=000006386571553
+2026-08-12 15:52:38 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000638657155316","ReferenceEmisor":"000006386571553","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453438","Date":"2026-08-12T15:52:35.2638673-06:00","Clabe":null}
+2026-08-12 15:54:11 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:54:12 | generar_referencia_efectivo -> folio=ITM-0063 total=50 ref=000006486571652
+2026-08-12 15:54:20 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000648657165215","ReferenceEmisor":"000006486571652","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453439","Date":"2026-08-12T15:54:17.6240841-06:00","Clabe":null}
+2026-08-12 15:58:04 | cobro_items no disponible (¿falta migrar tabla?): SQLSTATE[42S02]: Base table or view not found: 1146 Table 'grupoide_pagalaescuela.cobro_items' doesn't exist
+2026-08-12 15:58:04 | generar_referencia_efectivo -> folio=ITM-0064 total=50 ref=000006586571884
+2026-08-12 15:58:08 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000658657188414","ReferenceEmisor":"000006586571884","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453440","Date":"2026-08-12T15:58:05.6004678-06:00","Clabe":null}
+2026-08-12 16:10:31 | generar_referencia_efectivo -> folio=ITM-0065 total=50 ref=000006686572631
+2026-08-12 16:10:34 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000668657263117","ReferenceEmisor":"000006686572631","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453441","Date":"2026-08-12T16:10:32.1675811-06:00","Clabe":null}
+2026-08-12 16:16:05 | generar_liga -> folio=ITM-0067 total=50 ref=0000572965418
+2026-08-12 16:16:07 | generar_liga FALLÓ -> {"Message":"Error."}
+2026-08-12 16:16:25 | generar_referencia_efectivo -> folio=ITM-0069 total=50 ref=000007086572985
+2026-08-12 16:16:29 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000708657298513","ReferenceEmisor":"000007086572985","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453443","Date":"2026-08-12T16:16:26.187887-06:00","Clabe":null}
+2026-08-12 16:35:17 | generar_referencia_efectivo -> folio=ITM-0070 total=50 ref=000007186574117
+2026-08-12 16:35:22 | generar_referencia_efectivo OK sin PayFormat -> {"Reference":"77787800000200000718657411719","ReferenceEmisor":"000007186574117","BarCode":null,"PayFormat":null,"Message":"Exitosa","Error":null,"Folio":"453447","Date":"2026-08-12T16:35:19.4481629-06:00","Clabe":null}
+2026-08-13 13:43:02 | generar_liga -> folio=ITM-0075 total=150 ref=0000650182439
+2026-08-13 13:43:04 | generar_liga FALLÓ -> respuesta: {"Message":"Error."} | http_code: 500 | payload_enviado: {"User":"lR0iJO34LG","Password":"***","IntegrationID":"106","SchoolID":"000002","PaymentTypes":"401","Id":"0650182439","Description":"Pago escolar ITM-0075","Amount":15000,"Reference":"0000650182439","ExpirationDate":"2026-08-14"}
+2026-08-13 14:13:57 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
+2026-08-13 14:13:59 | ❌ WEBHOOK SPEI: token inválido o ausente
+2026-08-13 14:14:05 | ❌ WEBHOOK LIGA: body vacío o formato desconocido
+Content-Type: desconocido
+RAW: 
