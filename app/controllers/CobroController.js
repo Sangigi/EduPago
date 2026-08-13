@@ -61,8 +61,8 @@ const CobroController = (() => {
     throw new Error(`SPEI no disponible: ${motivo} Asigna una CLABE individual desde la ficha del alumno.`);
   }
 
-  async function verificarSPEI(referencia, clabe) {
-    const resultado = await apiPost('verificar_spei', { referencia, clabe });
+  async function verificarSPEI(referencia, clabe, cobro_id) {
+    const resultado = await apiPost('verificar_spei', { referencia, clabe, cobro_id });
     if (!resultado.success) throw new Error(resultado.error || 'Error al verificar');
     return { pagado: resultado.pagado, monto: resultado.monto_pesos };
   }

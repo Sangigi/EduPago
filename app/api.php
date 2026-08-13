@@ -316,13 +316,15 @@ function curl_post($url, $payload, $headers = []) {
 
     ]);
 
-    $result = curl_exec($ch);
+    $result    = curl_exec($ch);
 
-    $err    = curl_error($ch);
+    $err       = curl_error($ch);
+
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
     curl_close($ch);
 
-    return ['body' => $result, 'error' => $err];
+    return ['body' => $result, 'error' => $err, 'http_code' => $http_code];
 
 }
 
@@ -584,25 +586,58 @@ switch ($action) {
 
         $referencia = strtoupper(trim($input['referencia'] ?? ''));
 
-        if (!$referencia) respond(['success' => false, 'error' => 'Referencia requerida']);
+        $cobro_id   = intval($input['cobro_id'] ?? 0);
+
+        if (!$referencia && !$cobro_id) respond(['success' => false, 'error' => 'Referencia o cobro_id requerido']);
 
 
 
-        // Solo verificar cobros que siguen pendientes — evita falsos positivos del polling
+        // ── Fuente de verdad: cobros.estado ─────────────────────────────
+        // pago_clabe.php (el servicio real que llama Cobroscontarjeta.com al
+        // confirmar un SPEI) marca directamente cobros.estado='pagado'. Antes
+        // este endpoint SOLO revisaba pagos_spei.json (usado nada más por el
+        // botón de "Simular pago" de pruebas), así que un pago SPEI real
+        // nunca se reflejaba en pantalla aunque sí se hubiera cobrado.
 
-        // cuando el cobro ya fue marcado como pagado manualmente antes.
+        if ($cobro_id) {
 
-        $stmt = $pdo->prepare("SELECT id, estado, total, auth_code FROM cobros WHERE referencia = ? AND estado = 'pendiente'");
+            $stmt = $pdo->prepare("SELECT id, estado, total, auth_code FROM cobros WHERE id = ?");
 
-        $stmt->execute([$referencia]);
+            $stmt->execute([$cobro_id]);
 
-        $cobro_pendiente = $stmt->fetch();
+        } else {
+
+            $stmt = $pdo->prepare("SELECT id, estado, total, auth_code FROM cobros WHERE referencia = ? ORDER BY id DESC LIMIT 1");
+
+            $stmt->execute([$referencia]);
+
+        }
+
+        $cobro = $stmt->fetch();
 
 
 
-        if ($cobro_pendiente) {
+        if ($cobro && $cobro['estado'] === 'pagado') {
 
-            // Revisar si llegó el pago en pagos_spei.json (webhook/simulacion)
+            respond([
+
+                'success'      => true,
+
+                'pagado'       => true,
+
+                'monto_pesos'  => $cobro['total'],
+
+                'autorizacion' => $cobro['auth_code'],
+
+            ]);
+
+        }
+
+
+
+        // ── Fallback: pagos_spei.json (solo para el botón "Simular pago SPEI") ──
+
+        if ($cobro && $cobro['estado'] === 'pendiente') {
 
             $archivo = __DIR__ . '/pagos_spei.json';
 
@@ -618,7 +653,7 @@ switch ($action) {
 
                     'pagado'        => true,
 
-                    'monto_pesos'   => $pago['monto_pesos'] ?? $cobro_pendiente['total'],
+                    'monto_pesos'   => $pago['monto_pesos'] ?? $cobro['total'],
 
                     'clave_rastreo' => $pago['clave_rastreo'] ?? null,
 
@@ -846,9 +881,11 @@ switch ($action) {
 
         if ($codigo_resp !== 'success' || !$url_pago) {
 
-            log_api("generar_liga FALLÓ -> " . json_encode($data_resp, JSON_UNESCAPED_UNICODE));
+            $payload_log = $payload; $payload_log['Password'] = '***';
 
-            respond(['success' => false, 'error' => $data_resp['message'] ?? 'Sin URL de pago', 'raw' => $data_resp]);
+            log_api("generar_liga FALLÓ -> respuesta: " . json_encode($data_resp, JSON_UNESCAPED_UNICODE) . " | http_code: " . ($res['http_code'] ?? '?') . " | payload_enviado: " . json_encode($payload_log, JSON_UNESCAPED_UNICODE));
+
+            respond(['success' => false, 'error' => $data_resp['message'] ?? ($data_resp['Message'] ?? 'Sin URL de pago'), 'raw' => $data_resp]);
 
         }
 

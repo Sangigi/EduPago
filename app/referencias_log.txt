@@ -86,3 +86,22 @@
 2026-08-12 16:35:47 | CONSULTA | OK: 77787800000200000718657411719 cobro_id:71 monto:5000
 2026-08-12 16:36:12 | PAGO | RAW: {"referencia":"77787800000200000718657411719","fecha":"2026-08-12T17:36:11Z","monto":"5000","transaccion":"101"}
 2026-08-12 16:36:12 | PAGO | OK: 77787800000200000718657411719 cobro_id:71 auth:14551001
+2026-08-13 13:35:12 | SPEI-CONSULTA | clabe no encontrada o inactiva: 646180633000001954
+2026-08-13 13:38:59 | SPEI-CONSULTA | clabe no encontrada o inactiva: 646180633000001967
+2026-08-13 13:39:08 | SPEI-CONSULTA | clabe no encontrada o inactiva: 646180633000001967
+2026-08-13 13:40:05 | SPEI-CONSULTA | OK: clabe:722969010049527128 cobro_id:24 monto:12300
+2026-08-13 13:40:29 | SPEI-CONSULTA | clabe no encontrada o inactiva: 646180633000001967
+2026-08-13 13:44:08 | SPEI-CONSULTA | OK: clabe:722969010049527128 cobro_id:24 monto:12300
+2026-08-13 13:44:11 | SPEI-CONSULTA | OK: clabe:722969010049527128 cobro_id:24 monto:12300
+2026-08-13 13:44:25 | SPEI-CONSULTA | OK: clabe:722969010049527128 cobro_id:24 monto:12300
+2026-08-13 13:47:16 | SPEI-CONSULTA | OK: clabe:646180633000001967 cobro_id:24 monto:12300
+2026-08-13 13:47:26 | SPEI-PAGO | RAW: {"clabe":"646180633000001967","fecha":"2026-08-13T14:47:25Z","monto":"5000","transaccion":"101"}
+2026-08-13 13:47:26 | SPEI-PAGO | monto no coincide: cobro_id:24 esperado:12300 recibido:5000
+2026-08-13 13:47:36 | SPEI-PAGO | RAW: {"clabe":"646180633000001967","fecha":"2026-08-13T14:47:35Z","monto":"15000","transaccion":"101"}
+2026-08-13 13:47:36 | SPEI-PAGO | monto no coincide: cobro_id:24 esperado:12300 recibido:15000
+2026-08-13 13:47:54 | SPEI-PAGO | RAW: {"clabe":"646180633000001967","fecha":"2026-08-13T14:47:54Z","monto":"15000","transaccion":"101"}
+2026-08-13 13:47:54 | SPEI-PAGO | monto no coincide: cobro_id:24 esperado:12300 recibido:15000
+2026-08-13 13:55:58 | SPEI-CONSULTA | clabe no encontrada o inactiva: 722969010049527128
+2026-08-13 13:56:06 | SPEI-CONSULTA | OK: clabe:646180633000001967 cobro_id:24 monto:12300
+2026-08-13 13:57:21 | SPEI-PAGO | RAW: {"clabe":"646180633000001967","fecha":"2026-08-13T14:57:20Z","monto":"15000","transaccion":"101"}
+2026-08-13 13:57:21 | SPEI-PAGO | monto no coincide: cobro_id:24 esperado:12300 recibido:15000

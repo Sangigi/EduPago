@@ -215,7 +215,7 @@ function Caja({
         // Polling automático: verificar cada 10 segundos por referencia y/o CLABE individual
         speiPollRef.current = setInterval(async () => {
           try {
-            const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe);
+            const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe, cobro.id);
             if (ver.pagado) {
               clearInterval(speiPollRef.current);
               CobroController.confirmarPago(cobro.id, { transaccion: ver.transaccion }).then(res => {
@@ -326,7 +326,7 @@ function Caja({
       const refSpei = cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.clabe;
       const clabeActiva = cobroActivo?.clabe;
       if (refSpei || clabeActiva) {
-        const ver = await CobroController.verificarSPEI(refSpei, clabeActiva);
+        const ver = await CobroController.verificarSPEI(refSpei, clabeActiva, cobroActivo?.id);
         if (ver.pagado) {
           clearInterval(speiPollRef.current);
           try { const res = await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); actualizarSaldoCliente(res); } catch(e) {}
