@@ -2724,7 +2724,7 @@ switch ($action) {
 
         // coló el cobro con metodo='' que encontramos en el dump).
 
-        $metodos_validos = ['Efectivo', 'EfectivoRef', 'TC', 'SPEI', 'CoDi'];
+        $metodos_validos = ['Efectivo', 'EfectivoRef', 'TC', 'SPEI', 'CoDi', 'Cheque'];
 
         if (!in_array($metodo, $metodos_validos, true)) {
 
@@ -2932,6 +2932,13 @@ switch ($action) {
 
         $transaccion = trim($input['transaccion'] ?? '');
 
+        // Datos del cheque (si el cobro se está confirmando como pago con
+        // cheque). Antes se recibían del frontend pero se descartaban por
+        // completo: no había columnas donde guardarlos.
+        $banco_cheque      = trim($input['banco_cheque']      ?? '') ?: null;
+        $num_cuenta_cheque = trim($input['num_cuenta_cheque'] ?? '') ?: null;
+        $num_cheque        = trim($input['num_cheque']        ?? '') ?: null;
+
 
 
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
@@ -2942,13 +2949,27 @@ switch ($action) {
 
 
 
-        $stmt = $pdo->prepare(
+        if ($banco_cheque !== null) {
 
-            "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code) WHERE id = ?"
+            $stmt = $pdo->prepare(
+                "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code),
+                                    banco_cheque = ?, num_cuenta_cheque = ?, num_cheque = ?
+                 WHERE id = ?"
+            );
 
-        );
+            $stmt->execute([$extra_auth, $banco_cheque, $num_cuenta_cheque, $num_cheque, $cobro_id]);
 
-        $stmt->execute([$extra_auth, $cobro_id]);
+        } else {
+
+            $stmt = $pdo->prepare(
+
+                "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code) WHERE id = ?"
+
+            );
+
+            $stmt->execute([$extra_auth, $cobro_id]);
+
+        }
 
 
 
