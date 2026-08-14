@@ -59,8 +59,11 @@ define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local
 // IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
 // y dale a Pagadetodo la URL con ?token=ESE_TOKEN. Sin esto, cualquiera podía
 // forjar un pago SPEI llamando directo a este endpoint.
-define('WEBHOOK_SPEI_TOKEN', '89db887107ac2a870665dedf6ff73ab70b6e9e8a4a0a655b');
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=89db887107ac2a870665dedf6ff73ab70b6e9e8a4a0a655b');
+// ROTADO 2026-08-14: el valor anterior quedó expuesto públicamente en GitHub.
+// Después de desplegar esto, hay que darle este mismo valor a Pagadetodo en su
+// configuración de webhook (?token=...), si no, sus notificaciones dejarán de pasar.
+define('WEBHOOK_SPEI_TOKEN', 'd415bc71bb74b30892b017848882bfa6897c8c2a0c8ca6519a432798955c0956');
+define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=' . WEBHOOK_SPEI_TOKEN);
 
 // ─── Webhook de Liga/CAI (EntregarPagoLigaToken) — Pagalaescuela ─────────────
 // Este endpoint NO lleva token en query string porque el protocolo de
@@ -86,7 +89,6 @@ define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
 
 // ─── Configuración del super-admin ───────────────────────────────────────────
 define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
-define('ADMIN_PASS',     'SuperAdmin2026!');  // Cambiar en producción
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 define('API_LOG_ENABLED', true);
@@ -95,7 +97,11 @@ define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
 // ─── Clave secreta para firmar tokens de sesión (HMAC) ───────────────────────
 // IMPORTANTE: en producción, cambia este valor por una cadena aleatoria larga
 // y única, y no la subas a un repositorio público.
-define('APP_TOKEN_SECRET', '53e1257058e22fd00c781128fa7d0f7d984cf3afaef74bd5');
+// ROTADO 2026-08-14: el valor anterior quedó expuesto públicamente en GitHub,
+// lo que permitía forjar tokens de sesión válidos para cualquier usuario (incluido
+// superadmin) sin necesidad de credenciales. Al desplegar esto, todas las sesiones
+// activas (tokens ya emitidos) quedan invalidadas automáticamente.
+define('APP_TOKEN_SECRET', 'be63ceed510fbe872bff19a84f8fca545bfddc244fde80ede1fc3338911d208d');
 define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
 
 // ─── Zona horaria ────────────────────────────────────────────────────────────
