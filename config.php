@@ -1,106 +1,111 @@
-<?php
-/**
- * EduPago — Configuración Central
- * Edita este archivo al subir a Hostinger.
- */
-
-// ─── Credenciales Pagadetodo ──────────────────────────────────────────────────
-define('PDT_USER',         'lR0iJO34LG');
-define('PDT_PASS',         '3>tNsg51*Y');
-define('PDT_INT_ID',       '125');
-define('PDT_BUS_ID_SPEI',  '000002');
-define('PDT_BUS_ID_TC',    '000002');
-
-define('DB_HOST', 'test.grupoideasmx.com');
-define('DB_NAME', 'grupoide_pagalaescuela');
-define('DB_USER', 'grupoide_leonel');
-define('DB_PASS', 'M4imvdG#O&NQ');
-
-// ─── URLs de Pagadetodo (SPEI + Efectivo/Referencias) ─────────────────────────
-define('PDT_URL_CLABE',      'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');
-define('PDT_URL_REFERENCIA', 'https://pagadetodo.mx/Pagadetodo/Service/GenerarReferenciaIndi');
-
-// ─── Credenciales/URLs Pagalaescuela (Pagos en línea + CAI) ──────────────────
-// IMPORTANTE: mismo User/Password que Pagadetodo (el correo dice que las
-// credenciales son las mismas para ambas plataformas), pero IntegrationID y
-// SchoolID son los que Cobroscontarjeta.com asignó específicamente para
-// Pagalaescuela — normalmente NO son el mismo valor que PDT_INT_ID/BUS_ID.
-define('PLE_USER',     PDT_USER);
-define('PLE_PASS',     PDT_PASS);
-define('PLE_INT_ID',   '106');      // <-- Reemplazar con el IntegrationID de Pagalaescuela del correo
-define('PLE_SCHOOL_ID','000002');   // <-- Reemplazar con el SchoolID de Pagalaescuela del correo
-
-// Liga con token: sirve para pago simple en línea Y deja el número de
-// tarjeta tokenizado, habilitando después los Cargos Automáticos (CAI) sin
-// pedirle tarjeta de nuevo al padre de familia.
-define('PLE_URL_LIGA_TOKEN',        'https://pagalaescuela.mx/Pagalaescuela/Service/GenerarLigaDomiciliacionIndi');
-define('PLE_URL_DOMICILIACION_PAGAR',    'https://pagalaescuela.mx/Pagalaescuela/Service/PagarDomiciliacionIndi');
-define('PLE_URL_DOMICILIACION_CANCELAR', 'https://pagalaescuela.mx/Pagalaescuela/Service/CancelarDomiciliacionIndi');
-
-// ─── CLABE FIJA (legado / fallback) ──────────────────────────────────────────
-// Se mantiene como respaldo, pero el sistema ahora genera una CLABE INDIVIDUAL
-// por cada alumno/familia vía PDT_URL_CLABE (GenerarClabeIndi).
-define('SPEI_CLABE_FIJA',  '646180633010000055'); // <-- Reemplazar con la CLABE real de STP
-define('SPEI_BANCO',       'STP — Sistema de Transferencias y Pagos');
-define('SPEI_BENEFICIARIO','Paga la Escuela S.A. de C.V.');
-
-// ─── CLABEs individuales (alta automática por alumno/familia) ────────────────
-// Cada CLABE generada se asigna y permanece ligada al alumno hasta que
-// se da de baja (deja la escuela), momento en que se libera/cancela.
-define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadetodo
-define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local de respaldo
-
-// ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
-// IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
-// y dale a Pagadetodo la URL con ?token=ESE_TOKEN. Sin esto, cualquiera podía
-// forjar un pago SPEI llamando directo a este endpoint.
-define('WEBHOOK_SPEI_TOKEN', '89db887107ac2a870665dedf6ff73ab70b6e9e8a4a0a655b');
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=89db887107ac2a870665dedf6ff73ab70b6e9e8a4a0a655b');
-
-// ─── Webhook de Liga/CAI (EntregarPagoLigaToken) — Pagalaescuela ─────────────
-// Este endpoint NO lleva token en query string porque el protocolo de
-// Cobroscontarjeta.com para EntregarPagoLigaToken no soporta parámetros
-// extra en la URL (la ruta debe ser exactamente /Service/EntregarPagoLigaToken).
-// La validación de origen se hace verificando que 'reference' exista en
-// nuestra tabla `cobros` y no esté ya pagada — igual patrón que webhook_spei.
-define('WEBHOOK_LIGA_URL', 'https://test.grupoideasmx.com/webhook_liga.php');
-
-// ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
-// El correo no especifica un BusinessID distinto para efectivo; se usa el
-// mismo que SPEI salvo que Cobroscontarjeta.com indique uno específico.
-define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
-
-// Token compartido para los 3 endpoints EMISOR de Referencias
-// (ConsultaReferencia / PagoReferencia / CancelaPago). Cobroscontarjeta.com
-// no manda un token propio en este protocolo (a diferencia de SPEI, aquí
-// nosotros SOMOS el emisor expuesto), así que este token es solo para que
-// tú puedas probar manualmente sin exponer los endpoints a cualquiera;
-// dale la URL sin token a Cobroscontarjeta.com tal como pide su doc
-// (ellos llaman /Service/ConsultaReferencia/?r=REFERENCIA tal cual).
-define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
-
-// ─── Configuración del super-admin ───────────────────────────────────────────
-define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
-define('ADMIN_PASS',     'SuperAdmin2026!');  // Cambiar en producción
-
-// ─── Logging ──────────────────────────────────────────────────────────────────
-define('API_LOG_ENABLED', true);
-define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
-
-// ─── Clave secreta para firmar tokens de sesión (HMAC) ───────────────────────
-// IMPORTANTE: en producción, cambia este valor por una cadena aleatoria larga
-// y única, y no la subas a un repositorio público.
-define('APP_TOKEN_SECRET', '53e1257058e22fd00c781128fa7d0f7d984cf3afaef74bd5');
-define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
-
-// ─── Zona horaria ────────────────────────────────────────────────────────────
-date_default_timezone_set('America/Mexico_City');
-
-// ─── Credenciales del PAC (Ej. Facturama) ────────────────────────────────────
-// Usa las credenciales de Sandbox para desarrollo y las reales para producción.
-define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
-define('PAC_USER',    'tu_usuario_pac');
-define('PAC_PASS',    'tu_password_pac');
-
-// ─── Credenciales de Facturapi ───────────────────────────────────────────────
+<?php
+/**
+ * EduPago — Configuración Central
+ * Edita este archivo al subir a Hostinger.
+ */
+
+// ─── Credenciales Pagadetodo ──────────────────────────────────────────────────
+define('PDT_USER',         'lR0iJO34LG');
+define('PDT_PASS',         '3>tNsg51*Y');
+define('PDT_INT_ID',       '125');
+define('PDT_BUS_ID_SPEI',  '000002');
+define('PDT_BUS_ID_TC',    '000002');
+
+define('DB_HOST', 'test.grupoideasmx.com');
+define('DB_NAME', 'grupoide_pagalaescuela');
+define('DB_USER', 'grupoide_leonel');
+define('DB_PASS', 'M4imvdG#O&NQ');
+
+// ─── URLs de Pagadetodo (SPEI + Efectivo/Referencias) ─────────────────────────
+define('PDT_URL_CLABE',      'https://pagadetodo.mx/Pagadetodo/Service/GenerarClabeIndi');
+define('PDT_URL_REFERENCIA', 'https://pagadetodo.mx/Pagadetodo/Service/GenerarReferenciaIndi');
+
+// ─── Credenciales/URLs Pagalaescuela (Pagos en línea + CAI) ──────────────────
+// IMPORTANTE: mismo User/Password que Pagadetodo (el correo dice que las
+// credenciales son las mismas para ambas plataformas), pero IntegrationID y
+// SchoolID son los que Cobroscontarjeta.com asignó específicamente para
+// Pagalaescuela — normalmente NO son el mismo valor que PDT_INT_ID/BUS_ID.
+define('PLE_USER',     PDT_USER);
+define('PLE_PASS',     PDT_PASS);
+define('PLE_INT_ID',   '106');      // <-- Reemplazar con el IntegrationID de Pagalaescuela del correo
+define('PLE_SCHOOL_ID','000002');   // <-- Reemplazar con el SchoolID de Pagalaescuela del correo
+
+// Liga con token: sirve para pago simple en línea Y deja el número de
+// tarjeta tokenizado, habilitando después los Cargos Automáticos (CAI) sin
+// pedirle tarjeta de nuevo al padre de familia.
+define('PLE_URL_LIGA_TOKEN',        'https://pagalaescuela.mx/Pagalaescuela/Service/GenerarLigaDomiciliacionIndi');
+// Fallback SIN tokenización/CAI (IntegracionesLigas_V1_2). Si el servicio de
+// Domiciliación no está bien aprovisionado en Cobroscontarjeta.com para esta
+// cuenta (error 500 recurrente), este endpoint simple permite que el cobro
+// con tarjeta funcione igual, solo que sin dejar la tarjeta tokenizada.
+define('PLE_URL_LIGA_SIMPLE',       'https://pagalaescuela.mx/Pagalaescuela/Service/GenerarLigaIndi');
+define('PLE_URL_DOMICILIACION_PAGAR',    'https://pagalaescuela.mx/Pagalaescuela/Service/PagarDomiciliacionIndi');
+define('PLE_URL_DOMICILIACION_CANCELAR', 'https://pagalaescuela.mx/Pagalaescuela/Service/CancelarDomiciliacionIndi');
+
+// ─── CLABE FIJA (legado / fallback) ──────────────────────────────────────────
+// Se mantiene como respaldo, pero el sistema ahora genera una CLABE INDIVIDUAL
+// por cada alumno/familia vía PDT_URL_CLABE (GenerarClabeIndi).
+define('SPEI_CLABE_FIJA',  '646180633010000055'); // <-- Reemplazar con la CLABE real de STP
+define('SPEI_BANCO',       'STP — Sistema de Transferencias y Pagos');
+define('SPEI_BENEFICIARIO','Paga la Escuela S.A. de C.V.');
+
+// ─── CLABEs individuales (alta automática por alumno/familia) ────────────────
+// Cada CLABE generada se asigna y permanece ligada al alumno hasta que
+// se da de baja (deja la escuela), momento en que se libera/cancela.
+define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadetodo
+define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local de respaldo
+
+// ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
+// IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
+// y dale a Pagadetodo la URL con ?token=ESE_TOKEN. Sin esto, cualquiera podía
+// forjar un pago SPEI llamando directo a este endpoint.
+define('WEBHOOK_SPEI_TOKEN', '89db887107ac2a870665dedf6ff73ab70b6e9e8a4a0a655b');
+define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=89db887107ac2a870665dedf6ff73ab70b6e9e8a4a0a655b');
+
+// ─── Webhook de Liga/CAI (EntregarPagoLigaToken) — Pagalaescuela ─────────────
+// Este endpoint NO lleva token en query string porque el protocolo de
+// Cobroscontarjeta.com para EntregarPagoLigaToken no soporta parámetros
+// extra en la URL (la ruta debe ser exactamente /Service/EntregarPagoLigaToken).
+// La validación de origen se hace verificando que 'reference' exista en
+// nuestra tabla `cobros` y no esté ya pagada — igual patrón que webhook_spei.
+define('WEBHOOK_LIGA_URL', 'https://test.grupoideasmx.com/webhook_liga.php');
+
+// ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
+// El correo no especifica un BusinessID distinto para efectivo; se usa el
+// mismo que SPEI salvo que Cobroscontarjeta.com indique uno específico.
+define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
+
+// Token compartido para los 3 endpoints EMISOR de Referencias
+// (ConsultaReferencia / PagoReferencia / CancelaPago). Cobroscontarjeta.com
+// no manda un token propio en este protocolo (a diferencia de SPEI, aquí
+// nosotros SOMOS el emisor expuesto), así que este token es solo para que
+// tú puedas probar manualmente sin exponer los endpoints a cualquiera;
+// dale la URL sin token a Cobroscontarjeta.com tal como pide su doc
+// (ellos llaman /Service/ConsultaReferencia/?r=REFERENCIA tal cual).
+define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
+
+// ─── Configuración del super-admin ───────────────────────────────────────────
+define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
+define('ADMIN_PASS',     'SuperAdmin2026!');  // Cambiar en producción
+
+// ─── Logging ──────────────────────────────────────────────────────────────────
+define('API_LOG_ENABLED', true);
+define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
+
+// ─── Clave secreta para firmar tokens de sesión (HMAC) ───────────────────────
+// IMPORTANTE: en producción, cambia este valor por una cadena aleatoria larga
+// y única, y no la subas a un repositorio público.
+define('APP_TOKEN_SECRET', '53e1257058e22fd00c781128fa7d0f7d984cf3afaef74bd5');
+define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
+
+// ─── Zona horaria ────────────────────────────────────────────────────────────
+date_default_timezone_set('America/Mexico_City');
+
+// ─── Credenciales del PAC (Ej. Facturama) ────────────────────────────────────
+// Usa las credenciales de Sandbox para desarrollo y las reales para producción.
+define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
+define('PAC_USER',    'tu_usuario_pac');
+define('PAC_PASS',    'tu_password_pac');
+
+// ─── Credenciales de Facturapi ───────────────────────────────────────────────
 define('FACTURAPI_KEY', 'sk_test_oC5ZzoaR5Hvmig4maAfxbcevwPoMPNDbZHQg8s3zEr');
