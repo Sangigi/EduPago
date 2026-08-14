@@ -209,6 +209,24 @@ function UsuariosFormModal({
                       onChange: e => setForm(f => ({ ...f, password2: e.target.value }))
                     }, void 0, false)
                   ]
+                }, void 0, true),
+
+                /* Contraseña actual (solo al editar tu propio perfil, si cambias password o correo) */
+                modal === 'editar' && form.id === user.id && _jsxDEV("div", {
+                  className: "form-group",
+                  children: [
+                    _jsxDEV("label", {
+                      className: "form-label",
+                      children: "Tu contraseña actual (para confirmar los cambios)"
+                    }, void 0, false),
+                    _jsxDEV("input", {
+                      className: "form-input",
+                      type: "password",
+                      placeholder: "Requerida si cambias tu contraseña o correo",
+                      value: form.password_actual,
+                      onChange: e => setForm(f => ({ ...f, password_actual: e.target.value }))
+                    }, void 0, false)
+                  ]
                 }, void 0, true)
               ]
             }, void 0, true),
@@ -284,7 +302,7 @@ function Usuarios({ user, data }) {
   const { useState, useEffect } = React;
 
   const EMPTY_FORM = {
-    nombre: '', email: '', password: '', password2: '',
+    nombre: '', email: '', password: '', password2: '', password_actual: '',
     rol: '', escuela_id: '', familia_id: ''
   };
 
@@ -388,18 +406,22 @@ function Usuarios({ user, data }) {
   const abrirEditar = u => {
     setForm({
       id: u.id, nombre: u.nombre, email: u.email,
-      password: '', password2: '',
+      password: '', password2: '', password_actual: '',
       rol: u.rol, escuela_id: u.escuela_id || '', familia_id: u.familia_id || ''
     });
     setErrForm('');
     setModal('editar');
   };
+  const esPropioPerfil = form.id === user.id;
+
   const guardarEdicion = async () => {
     setErrForm('');
     if (!form.nombre || !form.email) return setErrForm('Nombre y correo son obligatorios.');
     if (form.rol === 'familia' && !form.familia_id) return setErrForm('La vinculación familiar es requerida.');
     if (form.password && form.password !== form.password2) return setErrForm('Las contraseñas no coinciden.');
     if (form.password && form.password.length < 6) return setErrForm('Contraseña mínimo 6 caracteres.');
+    if (esPropioPerfil && (form.password || form.email) && !form.password_actual)
+      return setErrForm('Ingresa tu contraseña actual para guardar estos cambios.');
     const payload = {
       ...form,
       escuela_id: form.escuela_id ? parseInt(form.escuela_id) : null,
