@@ -862,6 +862,60 @@ switch ($action) {
 
         $url_pago    = $data_resp['url'] ?? $data_resp['Url'] ?? $data_resp['URL'] ?? null;
 
+        $con_cai     = true; // esta liga sí deja tokenizada la tarjeta (CAI)
+
+
+
+        // ── Fallback: si Domiciliación/CAI truena (500 recurrente en esta
+        // cuenta, confirmado con varias pruebas en días distintos), se
+        // reintenta de inmediato con el servicio de liga SIMPLE (sin token).
+        // El cobro con tarjeta sigue funcionando; solo no queda la tarjeta
+        // guardada para Cargos Automáticos hasta que Cobroscontarjeta.com
+        // active Domiciliación para esta cuenta.
+        if (($codigo_resp !== 'success' || !$url_pago) && intval($res['http_code'] ?? 0) >= 500) {
+
+            $payload_log = $payload; $payload_log['Password'] = '***';
+
+            log_api("generar_liga -> Domiciliación falló (http:" . ($res['http_code'] ?? '?') . "), reintentando con liga simple sin CAI. payload: " . json_encode($payload_log, JSON_UNESCAPED_UNICODE));
+
+            $res2 = curl_post(PLE_URL_LIGA_SIMPLE, $payload);
+
+            if (!$res2['error']) {
+
+                $raw2 = json_decode($res2['body'], true) ?? [];
+
+                $data_resp2 = [];
+
+                foreach ($raw2 as $k => $v) { $data_resp2[trim($k)] = $v; }
+
+                $codigo_resp2 = $data_resp2['code'] ?? null;
+
+                $url_pago2    = $data_resp2['url'] ?? $data_resp2['Url'] ?? $data_resp2['URL'] ?? null;
+
+                if ($codigo_resp2 === 'success' && $url_pago2) {
+
+                    // Éxito con el fallback: usamos esta respuesta en vez de la fallida.
+
+                    $data_resp   = $data_resp2;
+
+                    $codigo_resp = $codigo_resp2;
+
+                    $url_pago    = $url_pago2;
+
+                    $con_cai     = false;
+
+                    log_api("generar_liga -> fallback SIN CAI exitoso, ref={$ref}");
+
+                } else {
+
+                    log_api("generar_liga -> fallback SIN CAI también falló: " . json_encode($data_resp2, JSON_UNESCAPED_UNICODE) . " http_code:" . ($res2['http_code'] ?? '?'));
+
+                }
+
+            }
+
+        }
+
 
 
         if ($codigo_resp !== 'success' || !$url_pago) {
@@ -891,6 +945,8 @@ switch ($action) {
             'referencia' => $ref,
 
             'cobro_id'   => intval($cobroRow['id']),
+
+            'con_cai'    => $con_cai,
 
             'qr_url'     => 'https://api.qrserver.com/v2/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
 
