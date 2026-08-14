@@ -88,7 +88,42 @@ function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela
 
 }
 
+// Devuelve el conjunto de escuela_id que un admin puede administrar: la suya propia
+// y, si es una escuela raíz (no un plantel), los planteles creados bajo ella.
+// Un admin de plantel (es_plantel=1) solo administra su propio plantel.
+// Superadmin no la necesita (ve/administra todo sin restricción de grupo).
+function escuelasDelGrupo($pdo, $escuela_id) {
+    $escuela_id = intval($escuela_id ?? 0);
+    if (!$escuela_id) return [];
+    $ids = [$escuela_id];
+    $stmt = $pdo->prepare("SELECT id FROM escuelas WHERE escuela_padre_id = ?");
+    $stmt->execute([$escuela_id]);
+    foreach ($stmt->fetchAll() as $row) $ids[] = intval($row['id']);
+    return $ids;
+}
 
+// Revisa si un usuario tiene historial que se rompería con un DELETE físico
+// (usuarios que creó, logs, recordatorios o turnos de caja a su nombre).
+// Si alguna tabla todavía no existe (falta migración), se asume sin referencias
+// en esa tabla en vez de tronar la petición.
+function usuarioTieneHistorial($pdo, $id) {
+    $checks = [
+        "SELECT COUNT(*) n FROM usuarios WHERE creado_por = ?",
+        "SELECT COUNT(*) n FROM logs_sistema WHERE usuario_id = ?",
+        "SELECT COUNT(*) n FROM recordatorios WHERE usuario_id = ?",
+        "SELECT COUNT(*) n FROM caja WHERE usuario_id = ?",
+    ];
+    foreach ($checks as $sql) {
+        try {
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$id]);
+            if (intval($stmt->fetch()['n'] ?? 0) > 0) return true;
+        } catch (\PDOException $e) {
+            // Tabla aún no migrada: no cuenta como referencia.
+        }
+    }
+    return false;
+}
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -3333,6 +3368,15 @@ switch ($action) {
 
     case 'crear_familia':
 
+        $rol_actual = $usuario_actual['rol'] ?? '';
+
+        // Antes no validaba rol ni dueño: cualquier usuario autenticado (hasta uno con
+        // rol 'familia') podía crear una familia en cualquier escuela.
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+        }
+
         $escuela_id = intval($input['escuela_id'] ?? 0);
 
         $nombre     = trim($input['nombre']       ?? '');
@@ -3343,11 +3387,18 @@ switch ($action) {
 
         $tel        = trim($input['telefono']     ?? '') ?: null;
 
-
-
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
 
+        if ($rol_actual === 'admin') {
 
+            $grupo_ids = escuelasDelGrupo($pdo, $usuario_actual['escuela_id'] ?? null);
+
+            if (!in_array($escuela_id, $grupo_ids)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No puedes crear familias fuera de tu escuela o tus planteles.']);
+            }
+
+        }
 
         $stmt = $pdo->prepare(
 
@@ -3359,8 +3410,6 @@ switch ($action) {
 
         $id = intval($pdo->lastInsertId());
 
-
-
         respond(['success' => true, 'familia' => array_merge($input, ['id' => $id, 'activa' => true])]);
 
     break;
@@ -3371,11 +3420,33 @@ switch ($action) {
 
     case 'editar_familia':
 
+        $rol_actual = $usuario_actual['rol'] ?? '';
+
+        // Antes no validaba rol ni dueño: cualquier usuario autenticado podía editar
+        // el contacto/correo/teléfono de cualquier familia, de cualquier escuela.
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+        }
+
         $id = intval($input['id'] ?? 0);
 
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
 
+        if ($rol_actual === 'admin') {
 
+            $chkFam = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
+            $chkFam->execute([$id]);
+            $famObjetivo = $chkFam->fetch();
+
+            $grupo_ids = escuelasDelGrupo($pdo, $usuario_actual['escuela_id'] ?? null);
+
+            if (!$famObjetivo || !in_array($famObjetivo['escuela_id'], $grupo_ids)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para editar esta familia.']);
+            }
+
+        }
 
         $campos = ['nombre','contacto','email','telefono'];
 
@@ -3394,8 +3465,6 @@ switch ($action) {
         }
 
         if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
-
-
 
         $vals[] = $id;
 
@@ -3423,7 +3492,12 @@ switch ($action) {
 
         $esc_actual = $usuario_actual['escuela_id'] ?? null;
 
-
+        // Antes esta acción no validaba rol: cualquier cajero o familia con su propio
+        // token podía listar a todos los usuarios de su escuela. Debe ser admin/superadmin.
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para ver usuarios.']);
+        }
 
         if ($rol_actual === 'superadmin') {
 
@@ -3443,6 +3517,12 @@ switch ($action) {
 
         } else {
 
+            // Un admin ve los usuarios de su escuela Y de los planteles asociados a ella
+            // (antes solo veía coincidencia exacta de escuela_id, sin incluir sus planteles).
+            $grupo_ids = escuelasDelGrupo($pdo, $esc_actual);
+            if (!$grupo_ids) $grupo_ids = [0];
+            $placeholders = implode(',', array_fill(0, count($grupo_ids), '?'));
+
             $stmt = $pdo->prepare(
 
                 "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
@@ -3453,13 +3533,13 @@ switch ($action) {
 
                  FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
 
-                 WHERE u.escuela_id = ? AND u.rol != 'superadmin'
+                 WHERE u.escuela_id IN ($placeholders) AND u.rol != 'superadmin'
 
                  ORDER BY u.rol, u.nombre"
 
             );
 
-            $stmt->execute([$esc_actual]);
+            $stmt->execute($grupo_ids);
 
         }
 
@@ -3501,9 +3581,11 @@ switch ($action) {
 
 
 
-        $roles_validos = ['admin','cajero','familia'];
-
-        if ($rol_actual === 'superadmin') $roles_validos[] = 'superadmin';
+        // Antes un admin podía crear otro 'admin' llamando la API directo (el frontend
+        // lo ocultaba, pero el backend no lo bloqueaba). Solo superadmin crea admin/superadmin.
+        $roles_validos = ($rol_actual === 'superadmin')
+            ? ['superadmin', 'admin', 'cajero', 'familia']
+            : ['cajero', 'familia'];
 
         if (!$nombre || !$email || !$password || !in_array($rol, $roles_validos)) {
 
@@ -3511,11 +3593,28 @@ switch ($action) {
 
         }
 
-        // Un admin solo puede crear usuarios dentro de su propia escuela
+        if ($rol !== 'familia') $fam_id = null;
 
+        // Un admin puede crear usuarios en su propia escuela o en cualquiera de sus
+        // planteles asociados; si no manda escuela_id, o manda una fuera de su grupo,
+        // se usa su propia escuela por defecto.
         if ($rol_actual === 'admin') {
 
-            $esc_id = $usuario_actual['escuela_id'] ?? null;
+            $grupo_ids = escuelasDelGrupo($pdo, $usuario_actual['escuela_id'] ?? null);
+
+            if (!$esc_id || !in_array($esc_id, $grupo_ids)) {
+
+                $esc_id = $usuario_actual['escuela_id'] ?? null;
+
+            }
+
+        } elseif ($esc_id) {
+
+            $chkEsc = $pdo->prepare("SELECT id FROM escuelas WHERE id = ?");
+
+            $chkEsc->execute([$esc_id]);
+
+            if (!$chkEsc->fetch()) respond(['success' => false, 'error' => 'La escuela indicada no existe']);
 
         }
 
@@ -3579,8 +3678,9 @@ switch ($action) {
 
 
 
-        // Un admin solo puede tocar usuarios de su propia escuela (y nunca a un superadmin)
-
+        // Un admin solo puede tocar usuarios de su escuela o de sus planteles asociados
+        // (y nunca a un superadmin). Antes solo se permitía coincidencia exacta de
+        // escuela_id, sin incluir planteles.
         if ($rol_actual === 'admin') {
 
             $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
@@ -3589,7 +3689,9 @@ switch ($action) {
 
             $objetivo = $chk->fetch();
 
-            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+            $grupo_ids = escuelasDelGrupo($pdo, $usuario_actual['escuela_id'] ?? null);
+
+            if (!$objetivo || $objetivo['rol'] === 'superadmin' || !in_array($objetivo['escuela_id'], $grupo_ids)) {
 
                 http_response_code(403);
 
@@ -3628,6 +3730,34 @@ switch ($action) {
             $rol    = '';
 
             $esc_id = null;
+
+        }
+
+        // Si te estás editando a ti mismo y cambias password y/o correo, se exige la
+        // contraseña actual. Antes bastaba con tener un token de sesión válido (por
+        // ejemplo robado vía XSS) para tomar la cuenta cambiando ambos sin saber el
+        // password original.
+        if ($es_propio_perfil && ($password || $email)) {
+
+            $chkCred = $pdo->prepare("SELECT email, password_hash FROM usuarios WHERE id = ?");
+
+            $chkCred->execute([$id]);
+
+            $credActual = $chkCred->fetch();
+
+            $emailCambia = $email && $credActual && strcasecmp($email, $credActual['email']) !== 0;
+
+            if ($password || $emailCambia) {
+
+                $passActual = trim($input['password_actual'] ?? '');
+
+                if (!$passActual || !$credActual || !password_verify($passActual, $credActual['password_hash'])) {
+
+                    respond(['success' => false, 'error' => 'La contraseña actual es incorrecta.']);
+
+                }
+
+            }
 
         }
 
@@ -3719,7 +3849,9 @@ switch ($action) {
 
             $objetivo = $chk->fetch();
 
-            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+            $grupo_ids = escuelasDelGrupo($pdo, $usuario_actual['escuela_id'] ?? null);
+
+            if (!$objetivo || $objetivo['rol'] === 'superadmin' || !in_array($objetivo['escuela_id'], $grupo_ids)) {
 
                 http_response_code(403);
 
@@ -3773,7 +3905,9 @@ switch ($action) {
 
             $objetivo = $chk->fetch();
 
-            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+            $grupo_ids = escuelasDelGrupo($pdo, $usuario_actual['escuela_id'] ?? null);
+
+            if (!$objetivo || $objetivo['rol'] === 'superadmin' || !in_array($objetivo['escuela_id'], $grupo_ids)) {
 
                 http_response_code(403);
 
@@ -3788,6 +3922,15 @@ switch ($action) {
         $chkNombre->execute([$id]);
 
         $objetivoInfo = $chkNombre->fetch();
+
+        // El borrado físico deja huérfanas las referencias de auditoría (quién creó
+        // qué, logs, turnos de caja). Si el usuario ya tiene historial, se bloquea y
+        // se sugiere desactivar (toggle_usuario) en vez de eliminar.
+        if (usuarioTieneHistorial($pdo, $id)) {
+
+            respond(['success' => false, 'error' => 'Este usuario ya tiene historial (usuarios creados, cobros, turnos de caja o logs) y no se puede eliminar sin romper esos registros. Desactívalo en vez de eliminarlo.']);
+
+        }
 
         $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
 
