@@ -257,7 +257,6 @@ index 7585c8d..9c5b479 100644
 
     */
 
-diff --git a/controllers/AuthController.js b/controllers/AuthController.js
 index 4e8a73d..15e67c5 100644
 --- a/controllers/AuthController.js
 +++ b/controllers/AuthController.js
