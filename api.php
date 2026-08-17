@@ -2702,7 +2702,7 @@ switch ($action) {
 
         // coló el cobro con metodo='' que encontramos en el dump).
 
-        $metodos_validos = ['Efectivo', 'EfectivoRef', 'TC', 'SPEI', 'CoDi'];
+        $metodos_validos = ['Efectivo', 'EfectivoRef', 'TC', 'SPEI', 'CoDi', 'Cheque'];
 
         if (!in_array($metodo, $metodos_validos, true)) {
 
@@ -2910,6 +2910,19 @@ switch ($action) {
 
         $transaccion = trim($input['transaccion'] ?? '');
 
+        // Datos del cheque (si el cobro se está confirmando como pago con
+        // cheque). Antes se recibían del frontend pero se descartaban por
+        // completo: no había columnas donde guardarlos.
+        $banco_cheque      = trim($input['banco_cheque']      ?? '') ?: null;
+
+        $num_cuenta_cheque = trim($input['num_cuenta_cheque'] ?? '') ?: null;
+
+        $num_cheque        = trim($input['num_cheque']        ?? '') ?: null;
+
+        $fecha_cheque      = trim($input['fecha_cheque']      ?? '') ?: null;
+
+        $titular_cheque    = trim($input['titular_cheque']    ?? '') ?: null;
+
 
 
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
@@ -2920,13 +2933,28 @@ switch ($action) {
 
 
 
-        $stmt = $pdo->prepare(
+        if ($banco_cheque !== null) {
 
-            "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code) WHERE id = ?"
+            $stmt = $pdo->prepare(
+                "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code),
+                                    banco_cheque = ?, num_cuenta_cheque = ?, num_cheque = ?,
+                                    fecha_cheque = ?, titular_cheque = ?, estatus_cheque = 'recibido'
+                 WHERE id = ?"
+            );
 
-        );
+            $stmt->execute([$extra_auth, $banco_cheque, $num_cuenta_cheque, $num_cheque, $fecha_cheque, $titular_cheque, $cobro_id]);
 
-        $stmt->execute([$extra_auth, $cobro_id]);
+        } else {
+
+            $stmt = $pdo->prepare(
+
+                "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code) WHERE id = ?"
+
+            );
+
+            $stmt->execute([$extra_auth, $cobro_id]);
+
+        }
 
 
 
@@ -3026,6 +3054,56 @@ switch ($action) {
 
                  'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
 
+    break;
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MARCAR CHEQUE REBOTADO
+    //     Un cheque se registra como 'pagado' de inmediato (estatus_cheque =
+    //     'recibido'), pero puede rebotar días después por fondos
+    //     insuficientes. Esta acción regresa el cobro a 'pendiente' (para
+    //     que se vuelva a cobrar por otro medio) sin perder el historial de
+    //     los datos del cheque ni la razón (queda estatus_cheque='rebotado').
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'marcar_cheque_rebotado':
+
+        $cobro_id = intval($input['cobro_id'] ?? 0);
+
+        if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+
+        $stmt = $pdo->prepare("SELECT cliente_id, metodo, estatus_cheque FROM cobros WHERE id = ?");
+        $stmt->execute([$cobro_id]);
+        $cob_row = $stmt->fetch();
+
+        if (!$cob_row) respond(['success' => false, 'error' => 'Cobro no encontrado']);
+        if ($cob_row['metodo'] !== 'Cheque') respond(['success' => false, 'error' => 'Este cobro no fue pagado con cheque']);
+        if ($cob_row['estatus_cheque'] === 'rebotado') respond(['success' => false, 'error' => 'Este cheque ya estaba marcado como rebotado']);
+
+        $pdo->prepare("UPDATE cobros SET estado = 'pendiente', estatus_cheque = 'rebotado' WHERE id = ?")
+            ->execute([$cobro_id]);
+
+        $nuevo_saldo = 0; $cliente_id_afectado = null;
+
+        if (!empty($cob_row['cliente_id'])) {
+
+            $cliente_id_afectado = intval($cob_row['cliente_id']);
+
+            $pdo->prepare(
+                "UPDATE clientes SET saldo_pendiente = (
+                    SELECT COALESCE(SUM(total), 0) FROM cobros
+                    WHERE cliente_id = ? AND estado = 'pendiente'
+                ) WHERE id = ?"
+            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
+
+            $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
+            $rs->execute([$cliente_id_afectado]);
+            $nuevo_saldo = floatval($rs->fetchColumn());
+        }
+
+        registrar_log($pdo, $usuario_actual, 'cheque_rebotado', "Cheque del cobro #{$cobro_id} marcado como rebotado");
+
+        respond(['success' => true, 'cobro_id' => $cobro_id,
+                 'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
     break;
 
 
