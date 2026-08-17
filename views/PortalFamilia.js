@@ -1926,7 +1926,9 @@ function PortalFamilia({
             }, void 0, true)]
           }, void 0, true)
         }, void 0, false)]
-      }, void 0, true), tab === 'facturas' && /*#__PURE__*/_jsxDEV("div", {
+      
+      }, void 0, true)
+    }, void 0, false), tab === 'facturas' && /*#__PURE__*/_jsxDEV("div", {
         children: [/*#__PURE__*/_jsxDEV("div", {
           style: { fontSize: 13, color: PLC.muted, marginBottom: 14 },
           children: "Facturas (CFDI) generadas para tus pagos. Solo aparecen los cobros que ya fueron facturados."
@@ -2036,7 +2038,6 @@ function PortalFamilia({
             children: guardandoPass ? 'Guardando…' : 'Cambiar contraseña'
           }, void 0, false)]
         }, void 0, true)]
-      }, void 0, true)
-    }, void 0, false)]
+      }, void 0, true)]
   }, void 0, true);
 }
