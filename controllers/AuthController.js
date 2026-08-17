@@ -29,6 +29,7 @@ const AuthController = (() => {
   function getToken() { const s = getSession(); return s ? s.token : null; }
   function isSuperAdmin(user) { return user?.rol === 'superadmin'; }
   function isAdmin(user)      { return user?.rol === 'admin' || isSuperAdmin(user); }
+  function isDistribuidor(user) { return user?.rol === 'distribuidor'; }
 
   const DEMO_USERS = [
     { email:'super@pagalaescuela.mx', pass:'Admin2026!', label:'Super Admin' },
@@ -62,7 +63,7 @@ const AuthController = (() => {
 
   // Roles que puede crear según jerarquía
   function rolesQuePuedeCriar(user) {
-    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia'];
+    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia','distribuidor'];
     if (user?.rol === 'admin')      return ['cajero','familia'];
     return [];
   }
@@ -101,5 +102,5 @@ const AuthController = (() => {
     return res.activa;
   }
 
-  return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela };
+  return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, isDistribuidor, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela };
 })();
