@@ -835,9 +835,9 @@ switch ($action) {
 
             'Password'       => PLE_PASS,
 
-            'IntegrationID'  => PLE_INT_ID,
+            'IntegrationID'  => intval(PLE_INT_ID),
 
-            'SchoolID'       => PLE_SCHOOL_ID,
+            'SchoolID'       => intval(PLE_SCHOOL_ID),
 
             'PaymentTypes'   => '401', // Contado (único código válido en Sandbox)
 
@@ -977,9 +977,9 @@ switch ($action) {
 
             'Password'      => PLE_PASS,
 
-            'IntegrationID' => PLE_INT_ID,
+            'IntegrationID' => intval(PLE_INT_ID),
 
-            'SchoolID'      => PLE_SCHOOL_ID,
+            'SchoolID'      => intval(PLE_SCHOOL_ID),
 
             'Token'         => $cli['token_tarjeta'],
 
@@ -1061,9 +1061,9 @@ switch ($action) {
 
             'Password'      => PLE_PASS,
 
-            'IntegrationID' => PLE_INT_ID,
+            'IntegrationID' => intval(PLE_INT_ID),
 
-            'SchoolID'      => PLE_SCHOOL_ID,
+            'SchoolID'      => intval(PLE_SCHOOL_ID),
 
             'Token'         => $cli['token_tarjeta'],
 
