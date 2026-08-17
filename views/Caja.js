@@ -43,7 +43,9 @@ function Caja({
   const [chequeInfo, setChequeInfo] = useState({
     banco: '',
     num_cuenta: '',
-    num_cheque: ''
+    num_cheque: '',
+    fecha_cheque: '',
+    titular: ''
   });
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
@@ -270,7 +272,9 @@ function Caja({
       setChequeInfo({
         banco: '',
         num_cuenta: '',
-        num_cheque: ''
+        num_cheque: '',
+        fecha_cheque: new Date().toISOString().slice(0, 10),
+        titular: ''
       });
       setModal('cheque');
     } else if (metodo === 'EfectivoRef') {
@@ -380,7 +384,9 @@ function Caja({
     setChequeInfo({
       banco: '',
       num_cuenta: '',
-      num_cheque: ''
+      num_cheque: '',
+      fecha_cheque: '',
+      titular: ''
     });
   };
   const cerrarModal = () => {
@@ -1985,6 +1991,41 @@ function Caja({
               className: "form-group",
               children: [/*#__PURE__*/_jsxDEV("label", {
                 className: "form-label",
+                children: "Fecha del cheque"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                type: "date",
+                className: "form-input",
+                value: chequeInfo.fecha_cheque || '',
+                onChange: e => setChequeInfo(p => ({
+                  ...p,
+                  fecha_cheque: e.target.value
+                }))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              className: "form-group",
+              children: [/*#__PURE__*/_jsxDEV("label", {
+                className: "form-label",
+                children: "Titular / quien firma"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input",
+                placeholder: "Nombre en el cheque",
+                value: chequeInfo.titular || '',
+                onChange: e => setChequeInfo(p => ({
+                  ...p,
+                  titular: e.target.value
+                }))
+              }, void 0, false)]
+            }, void 0, true)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12
+            },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              className: "form-group",
+              children: [/*#__PURE__*/_jsxDEV("label", {
+                className: "form-label",
                 children: "Número de cuenta"
               }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
                 className: "form-input",
@@ -2029,7 +2070,7 @@ function Caja({
               name: "warning",
               size: 13,
               color: "#f59e0b"
-            }, void 0, false), " El cobro quedará pendiente hasta que el cheque sea compensado."]
+            }, void 0, false), " El cobro se marca pagado de inmediato. Si el cheque rebota, podrás marcarlo como \"Rebotado\" desde Cobros — el saldo regresará a pendiente automáticamente."]
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
@@ -2044,7 +2085,9 @@ function Caja({
               const extra = {
                 banco_cheque: chequeInfo.banco,
                 num_cuenta_cheque: chequeInfo.num_cuenta,
-                num_cheque: chequeInfo.num_cheque
+                num_cheque: chequeInfo.num_cheque,
+                fecha_cheque: chequeInfo.fecha_cheque,
+                titular_cheque: chequeInfo.titular
               };
               CobroController.confirmarPago(cobroActivo.id, extra).then(res => {
                 actualizarSaldoCliente(res);
