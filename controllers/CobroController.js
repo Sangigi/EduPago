@@ -119,6 +119,12 @@ const CobroController = (() => {
     return resultado;
   }
 
+  async function marcarChequeRebotado(cobroId) {
+    const resultado = await apiPost('marcar_cheque_rebotado', { cobro_id: cobroId });
+    if (!resultado.success) throw new Error(resultado.error);
+    return resultado;
+  }
+
   async function generarClabeIndividual({ alumno_id, matricula, nombre, email, escuela }) {
     const resultado = await apiPost('generar_clabe_individual', {
       alumno_id, matricula, nombre, email, escuela,
@@ -135,6 +141,6 @@ const CobroController = (() => {
   return {
     iniciarCobro, iniciarSPEI, verificarSPEI, iniciarTC, confirmarPago, cancelarCobro,
     generarClabeIndividual, liberarClabeIndividual,
-    cobrarCAI, cancelarCAI, iniciarEfectivoRef,
+    cobrarCAI, cancelarCAI, iniciarEfectivoRef, marcarChequeRebotado,
   };
 })();
