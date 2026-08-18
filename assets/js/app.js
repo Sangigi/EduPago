@@ -44,7 +44,7 @@ const NAV_ITEMS = [{
 
   id: 'caja',
 
-  label: 'Caja de cobros',
+  label: 'Ingresos',
 
   icon: 'caja',
 
@@ -240,7 +240,7 @@ const TITLES = {
 
   dashboard: 'Dashboard',
 
-  caja: 'Caja de cobros',
+  caja: 'Ingresos',
 
   corte_caja: 'Corte de caja',
 
