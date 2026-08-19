@@ -368,7 +368,7 @@ switch ($action) {
             // los dos casos sin romper nada cuando regrese a pagalaescuela.mx.
             'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
             'PaymentTypes'   => '401', // Contado (único código válido en Sandbox)
-            'Id'             => $id_pago,
+            'Id'             => intval($id_pago),
             'Description'    => substr($descripcion, 0, 50),
             'Amount'         => intval(round($total * 100)),
             'Reference'      => $ref,
