@@ -30,17 +30,28 @@ define('PLE_PASS',     PDT_PASS);
 define('PLE_INT_ID',   '106');      // <-- Reemplazar con el IntegrationID de Pagalaescuela del correo
 define('PLE_SCHOOL_ID','000002');   // <-- Reemplazar con el SchoolID de Pagalaescuela del correo
 
+// ── INTERRUPTOR DE AMBIENTE para Pago en Línea + CAI/Domiciliación ──────────
+// Aviso de Cobroscontarjeta.com (18-ago-2026): el Sandbox de Pagalaescuela
+// estaba mal configurado; mientras lo arreglan, activaron Pago en Línea y
+// Domiciliación en el Sandbox de PAGADETODO en su lugar. Los nombres de los
+// servicios (GenerarLigaIndi, GenerarLigaDomiciliacionIndi, etc.) y las
+// credenciales (PLE_USER/PASS/INT_ID/SCHOOL_ID) NO cambian — solo cambia el
+// dominio base. Para pasar a producción, cambia ÚNICAMENTE la línea de abajo
+// de 'pagadetodo.mx' a 'pagalaescuela.mx' y ya.
+define('PLE_HOST_BASE', 'https://pagadetodo.mx/Pagadetodo');
+// define('PLE_HOST_BASE', 'https://pagalaescuela.mx/Pagalaescuela'); // <- PRODUCCIÓN
+
 // Liga con token: sirve para pago simple en línea Y deja el número de
 // tarjeta tokenizado, habilitando después los Cargos Automáticos (CAI) sin
 // pedirle tarjeta de nuevo al padre de familia.
-define('PLE_URL_LIGA_TOKEN',        'https://pagalaescuela.mx/Pagalaescuela/Service/GenerarLigaDomiciliacionIndi');
+define('PLE_URL_LIGA_TOKEN',        PLE_HOST_BASE . '/Service/GenerarLigaDomiciliacionIndi');
 // Fallback SIN tokenización/CAI (IntegracionesLigas_V1_2). Si el servicio de
 // Domiciliación no está bien aprovisionado en Cobroscontarjeta.com para esta
 // cuenta (error 500 recurrente), este endpoint simple permite que el cobro
 // con tarjeta funcione igual, solo que sin dejar la tarjeta tokenizada.
-define('PLE_URL_LIGA_SIMPLE',       'https://pagalaescuela.mx/Pagalaescuela/Service/GenerarLigaIndi');
-define('PLE_URL_DOMICILIACION_PAGAR',    'https://pagalaescuela.mx/Pagalaescuela/Service/PagarDomiciliacionIndi');
-define('PLE_URL_DOMICILIACION_CANCELAR', 'https://pagalaescuela.mx/Pagalaescuela/Service/CancelarDomiciliacionIndi');
+define('PLE_URL_LIGA_SIMPLE',       PLE_HOST_BASE . '/Service/GenerarLigaIndi');
+define('PLE_URL_DOMICILIACION_PAGAR',    PLE_HOST_BASE . '/Service/PagarDomiciliacionIndi');
+define('PLE_URL_DOMICILIACION_CANCELAR', PLE_HOST_BASE . '/Service/CancelarDomiciliacionIndi');
 
 // ─── CLABE FIJA (legado / fallback) ──────────────────────────────────────────
 // Se mantiene como respaldo, pero el sistema ahora genera una CLABE INDIVIDUAL
