@@ -145,8 +145,23 @@ function UsuariosFormModal({
                   ]
                 }, void 0, true),
 
-                /* Escuela */
-                _jsxDEV("div", {
+                /* Escuela (o Zona, si es distribuidor) */
+                form.rol === 'distribuidor' ? _jsxDEV("div", {
+                  className: "form-group",
+                  children: [
+                    _jsxDEV("label", { className: "form-label", children: "Zona asignada" }, void 0, false),
+                    _jsxDEV("input", {
+                      className: "form-input",
+                      placeholder: "Ej. Noreste, CDMX Sur…",
+                      value: form.zona,
+                      onChange: e => setForm(f => ({ ...f, zona: e.target.value }))
+                    }, void 0, false),
+                    _jsxDEV("div", {
+                      style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 4 },
+                      children: "Informativa — un distribuidor no pertenece a ninguna escuela"
+                    }, void 0, false)
+                  ]
+                }, void 0, true) : _jsxDEV("div", {
                   className: "form-group",
                   children: [
                     _jsxDEV("label", {
@@ -267,7 +282,9 @@ function UsuariosFormModal({
                         " ·", ' ',
                         form.rol === 'familia' && form.familia_id
                           ? `Vínculo: ${obtenerNombreFamilia(parseInt(form.familia_id))}`
-                          : form.escuela_id ? nombreEscuela(parseInt(form.escuela_id)) : 'Global'
+                          : form.rol === 'distribuidor'
+                            ? `Zona: ${form.zona.trim() || 'sin asignar'}`
+                            : form.escuela_id ? nombreEscuela(parseInt(form.escuela_id)) : 'Global'
                       ]
                     }, void 0, true)
                   ]
@@ -303,7 +320,7 @@ function Usuarios({ user, data }) {
 
   const EMPTY_FORM = {
     nombre: '', email: '', password: '', password2: '', password_actual: '',
-    rol: '', escuela_id: '', familia_id: ''
+    rol: '', escuela_id: '', familia_id: '', zona: ''
   };
 
   const [usuarios, setUsuarios] = useState([]);
@@ -369,10 +386,11 @@ function Usuarios({ user, data }) {
   });
 
   const ROL_INFO = {
-    superadmin: { label: 'Super Admin', icon: 'shield',  color: 'var(--amber)', bg: 'var(--amber-glow)',  badge: 'badge-amber'  },
-    admin:      { label: 'Admin',       icon: 'escuelas', color: 'var(--accent)', bg: 'var(--accent-glow)', badge: 'badge-blue'   },
-    cajero:     { label: 'Cajero',      icon: 'cobros',  color: 'var(--green)', bg: 'var(--green-glow)',  badge: 'badge-green'  },
-    familia:    { label: 'Familia',     icon: 'home',    color: '#a855f7',      bg: 'rgba(168,85,247,.15)', badge: 'badge-purple' }
+    superadmin:   { label: 'Super Admin',  icon: 'shield',  color: 'var(--amber)', bg: 'var(--amber-glow)',    badge: 'badge-amber'  },
+    admin:        { label: 'Admin',        icon: 'escuelas', color: 'var(--accent)', bg: 'var(--accent-glow)', badge: 'badge-blue'   },
+    cajero:       { label: 'Cajero',       icon: 'cobros',  color: 'var(--green)', bg: 'var(--green-glow)',    badge: 'badge-green'  },
+    familia:      { label: 'Familia',      icon: 'home',    color: '#a855f7',      bg: 'rgba(168,85,247,.15)', badge: 'badge-purple' },
+    distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   }
   };
 
   /* ── Crear ── */
@@ -393,8 +411,9 @@ function Usuarios({ user, data }) {
       return setErrForm('La contraseña debe tener al menos 6 caracteres.');
     const payload = {
       ...form,
-      escuela_id: form.escuela_id ? parseInt(form.escuela_id) : null,
-      familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null
+      escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
+      familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null,
+      zona: form.rol === 'distribuidor' ? form.zona.trim() : ''
     };
     try { await AuthController.crearUsuario(user, payload, data.escuelas); }
     catch(e) { setErrForm(e.message); return; }
@@ -407,7 +426,7 @@ function Usuarios({ user, data }) {
     setForm({
       id: u.id, nombre: u.nombre, email: u.email,
       password: '', password2: '', password_actual: '',
-      rol: u.rol, escuela_id: u.escuela_id || '', familia_id: u.familia_id || ''
+      rol: u.rol, escuela_id: u.escuela_id || '', familia_id: u.familia_id || '', zona: u.zona || ''
     });
     setErrForm('');
     setModal('editar');
@@ -424,8 +443,9 @@ function Usuarios({ user, data }) {
       return setErrForm('Ingresa tu contraseña actual para guardar estos cambios.');
     const payload = {
       ...form,
-      escuela_id: form.escuela_id ? parseInt(form.escuela_id) : null,
-      familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null
+      escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
+      familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null,
+      zona: form.rol === 'distribuidor' ? form.zona.trim() : ''
     };
     try { await AuthController.editarUsuario(user, payload); }
     catch(e) { setErrForm(e.message); return; }
@@ -470,6 +490,7 @@ function Usuarios({ user, data }) {
           { rol: 'admin',      count: usuarios.filter(u => u.rol === 'admin').length },
           { rol: 'cajero',     count: usuarios.filter(u => u.cajero || u.rol === 'cajero').length },
           { rol: 'familia',    count: usuarios.filter(u => u.rol === 'familia').length },
+          { rol: 'distribuidor', count: usuarios.filter(u => u.rol === 'distribuidor').length },
           { label: 'Total activos', count: usuarios.filter(u => u.activo !== false).length, icon: 'check', color: 'var(--green)', bg: 'var(--green-glow)' }
         ].map((s, i) => {
           const info = s.rol ? ROL_INFO[s.rol] : null;
@@ -520,7 +541,7 @@ function Usuarios({ user, data }) {
           _jsxDEV("div", {
             style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' },
             children: [
-              ['todos', 'superadmin', 'admin', 'cajero', 'familia'].map(r =>
+              ['todos', 'superadmin', 'admin', 'cajero', 'familia', 'distribuidor'].map(r =>
                 _jsxDEV("button", {
                   className: `badge ${filtroRol === r ? ROL_INFO[r]?.badge || 'badge-blue' : 'badge-gray'}`,
                   style: {
@@ -606,9 +627,11 @@ function Usuarios({ user, data }) {
                                     _jsxDEV("div", { style: { fontSize: 10, color: 'var(--ink-4)', marginTop: 2 }, children: [emojiEscuela(u.escuela_id), " ", nombreEscuela(u.escuela_id)] }, void 0, true)
                                   ]
                                 }, void 0, true)
-                              : u.escuela_id
-                                ? _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-2)' }, children: [emojiEscuela(u.escuela_id), " ", nombreEscuela(u.escuela_id)] }, void 0, true)
-                                : _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-4)' }, children: "Global" }, void 0, false)
+                              : u.rol === 'distribuidor'
+                                ? _jsxDEV("span", { style: { fontSize: 12, color: '#84cc16' }, children: ["🌐 Zona: ", u.zona || 'sin asignar'] }, void 0, true)
+                                : u.escuela_id
+                                  ? _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-2)' }, children: [emojiEscuela(u.escuela_id), " ", nombreEscuela(u.escuela_id)] }, void 0, true)
+                                  : _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-4)' }, children: "Global" }, void 0, false)
                           }, void 0, false),
                           _jsxDEV("td", { children: _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: u.creado_por === null ? '⭐ Sistema' : creadorNombre(u.creado_por) }, void 0, false) }, void 0, false),
                           _jsxDEV("td", { style: { fontSize: 12, color: 'var(--ink-3)', fontFamily: 'var(--mono)' }, children: u.fecha_alta || '—' }, void 0, false),
@@ -665,7 +688,8 @@ function Usuarios({ user, data }) {
                 { rol: 'superadmin', desc: 'Crea admins, cajeros y familias · Acceso global administrativo completo.' },
                 { rol: 'admin',      desc: 'Gestiona cajeros y familias asignados a su mismo plantel escolar.' },
                 { rol: 'cajero',     desc: 'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.' },
-                { rol: 'familia',    desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' }
+                { rol: 'familia',    desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' },
+                { rol: 'distribuidor', desc: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.' }
               ].filter(item => item.rol !== 'superadmin' || user?.rol === 'superadmin').map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [

@@ -1624,7 +1624,7 @@ switch ($action) {
         if ($rol_actual === 'superadmin') {
             $stmt = $pdo->query(
                 "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
-                        u.familia_id, u.creado_por,
+                        u.familia_id, u.creado_por, u.zona,
                         e.nombre AS escuela_nombre
                  FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
                  ORDER BY u.rol, u.nombre"
@@ -1632,7 +1632,7 @@ switch ($action) {
         } else {
             $stmt = $pdo->prepare(
                 "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
-                        u.familia_id, u.creado_por,
+                        u.familia_id, u.creado_por, u.zona,
                         e.nombre AS escuela_nombre
                  FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
                  WHERE u.escuela_id = ? AND u.rol != 'superadmin'
@@ -1712,11 +1712,15 @@ switch ($action) {
         // familia_id puede enviarse como null explícitamente (limpiar vínculo) o como entero
         $fam_id_raw = $input['familia_id'] ?? '__NO_ENVIADO__';
         $fam_id   = ($fam_id_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (intval($fam_id_raw) ?: null);
-        // Nadie edita su propio rol/escuela (evita auto-ascenso a superadmin), y solo
-        // superadmin puede reasignar rol/escuela de terceros.
+        // zona puede enviarse como null/vacío explícito (limpiar) o como texto
+        $zona_raw = $input['zona'] ?? '__NO_ENVIADO__';
+        $zona     = ($zona_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (trim($zona_raw) ?: null);
+        // Nadie edita su propio rol/escuela/zona (evita auto-ascenso a superadmin), y solo
+        // superadmin puede reasignar rol/escuela/zona de terceros.
         if ($es_propio_perfil || $rol_actual !== 'superadmin') {
             $rol    = '';
             $esc_id = null;
+            $zona   = '__NO_ENVIADO__';
         }
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
@@ -1725,6 +1729,7 @@ switch ($action) {
         if ($rol)      { $sets[] = 'rol = ?';            $vals[] = $rol; }
         if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
         if ($fam_id !== '__NO_ENVIADO__') { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
+        if ($zona !== '__NO_ENVIADO__') { $sets[] = 'zona = ?'; $vals[] = $zona; }
         if ($sets) {
             $vals[] = $id;
             $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
@@ -1738,7 +1743,7 @@ switch ($action) {
             }
         }
         // Re-leer el usuario actualizado para devolverlo completo
-        $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por FROM usuarios u WHERE u.id = ?");
+        $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por, u.zona FROM usuarios u WHERE u.id = ?");
         $stmt->execute([$id]);
         $usuarioActualizado = $stmt->fetch();
         respond(['success' => true, 'usuario' => $usuarioActualizado]);
@@ -2656,6 +2661,112 @@ switch ($action) {
             'num_alumnos' => $num_alumnos, 'estado' => 'prospecto', 'comision_pct' => 5.00,
             'fecha_alta' => date('Y-m-d'), 'notas' => $notas,
         ]]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'distribuidor_comisiones':
+        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo distribuidores pueden ver este panel.']);
+        }
+        $dist_id = intval($usuario_actual['user_id'] ?? 0);
+        $rstmt = $pdo->prepare(
+            "SELECT r.id, r.escuela_id, r.nombre_colegio, r.comision_pct,
+                    e.nombre AS escuela_nombre
+             FROM distribuidor_referidos r
+             LEFT JOIN escuelas e ON e.id = r.escuela_id
+             WHERE r.distribuidor_id = ? AND r.estado = 'activo' AND r.escuela_id IS NOT NULL"
+        );
+        $rstmt->execute([$dist_id]);
+        $activos = $rstmt->fetchAll();
+        $escuela_ids = array_values(array_unique(array_map(fn($r) => intval($r['escuela_id']), $activos)));
+
+        // Historial de los últimos 12 meses (cobrado * % por escuela, sumado)
+        $meses_es = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        $meses = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $ts = strtotime("-$i months");
+            $meses[] = ['anio' => intval(date('Y', $ts)), 'mes' => intval(date('n', $ts)), 'label' => $meses_es[intval(date('n', $ts)) - 1]];
+        }
+        $cobrado_por_mes_escuela = [];
+        if ($escuela_ids) {
+            $in = implode(',', array_fill(0, count($escuela_ids), '?'));
+            $hstmt = $pdo->prepare(
+                "SELECT escuela_id, YEAR(fecha) AS anio, MONTH(fecha) AS mes, SUM(total) AS cobrado
+                 FROM cobros
+                 WHERE estado = 'pagado' AND escuela_id IN ($in) AND fecha >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+                 GROUP BY escuela_id, YEAR(fecha), MONTH(fecha)"
+            );
+            $hstmt->execute($escuela_ids);
+            foreach ($hstmt->fetchAll() as $row) {
+                $cobrado_por_mes_escuela[$row['anio'] . '-' . $row['mes']][intval($row['escuela_id'])] = floatval($row['cobrado']);
+            }
+        }
+        $pct_por_escuela = [];
+        foreach ($activos as $r) $pct_por_escuela[intval($r['escuela_id'])] = floatval($r['comision_pct']) / 100;
+
+        $historial = array_map(function($m) use ($cobrado_por_mes_escuela, $pct_por_escuela) {
+            $clave = $m['anio'] . '-' . $m['mes'];
+            $cobradoMes = $cobrado_por_mes_escuela[$clave] ?? [];
+            $comision = 0.0;
+            foreach ($cobradoMes as $eid => $cobrado) $comision += $cobrado * ($pct_por_escuela[$eid] ?? 0);
+            return ['mes' => $clave, 'label' => $m['label'], 'comision' => round($comision, 2)];
+        }, $meses);
+
+        // Detalle por colegio activo: mes en curso y acumulado del año
+        $mesClave = date('Y') . '-' . date('n');
+        $colegios = [];
+        foreach ($activos as $r) {
+            $eid = intval($r['escuela_id']);
+            $pct = $pct_por_escuela[$eid];
+            $cobradoMes = $cobrado_por_mes_escuela[$mesClave][$eid] ?? 0;
+            $cobradoAnio = 0.0;
+            foreach ($cobrado_por_mes_escuela as $clave => $porEscuela) {
+                if (str_starts_with($clave, date('Y') . '-')) $cobradoAnio += $porEscuela[$eid] ?? 0;
+            }
+            $colegios[] = [
+                'id'             => intval($r['id']),
+                'nombre'         => $r['escuela_nombre'] ?: $r['nombre_colegio'],
+                'comision_pct'   => floatval($r['comision_pct']),
+                'cobrado_mes'    => round($cobradoMes, 2),
+                'comision_mes'   => round($cobradoMes * $pct, 2),
+                'comision_anio'  => round($cobradoAnio * $pct, 2),
+            ];
+        }
+        respond(['success' => true, 'historial' => $historial, 'colegios' => $colegios]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'distribuidor_datos_pago':
+        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo distribuidores pueden ver este panel.']);
+        }
+        $dist_id = intval($usuario_actual['user_id'] ?? 0);
+        $stmt = $pdo->prepare("SELECT pago_banco AS banco, pago_clabe AS clabe, pago_titular AS titular FROM usuarios WHERE id = ?");
+        $stmt->execute([$dist_id]);
+        $datos = $stmt->fetch() ?: ['banco' => '', 'clabe' => '', 'titular' => ''];
+        respond(['success' => true, 'datos_pago' => [
+            'banco'   => $datos['banco'] ?? '',
+            'clabe'   => $datos['clabe'] ?? '',
+            'titular' => $datos['titular'] ?? '',
+        ]]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'distribuidor_guardar_datos_pago':
+        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo distribuidores pueden editar este panel.']);
+        }
+        $dist_id = intval($usuario_actual['user_id'] ?? 0);
+        $banco   = trim($input['banco'] ?? '') ?: null;
+        $clabe   = trim($input['clabe'] ?? '') ?: null;
+        $titular = trim($input['titular'] ?? '') ?: null;
+        if ($clabe && !preg_match('/^\d{18}$/', $clabe)) {
+            respond(['success' => false, 'error' => 'La CLABE debe tener exactamente 18 dígitos.']);
+        }
+        $pdo->prepare("UPDATE usuarios SET pago_banco = ?, pago_clabe = ?, pago_titular = ? WHERE id = ?")
+            ->execute([$banco, $clabe, $titular, $dist_id]);
+        registrar_log($pdo, $usuario_actual, 'distribuidor_datos_pago_actualizados', 'Distribuidor actualizó sus datos de pago');
+        respond(['success' => true]);
     break;
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
