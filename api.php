@@ -409,7 +409,7 @@ switch ($action) {
             'url'        => $url_pago,
             'referencia' => $ref,
             'cobro_id'   => intval($cobroRow['id']),
-            'qr_url'     => 'https://api.qrserver.com/v2/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
+            'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
         ]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
@@ -731,7 +731,7 @@ switch ($action) {
                 // Facturapi permite descargar el XML con una URL pública si configuras tu cuenta,
                 // o haciendo un GET a https://www.facturapi.io/v2/invoices/{id}/xml
                 'xml'            => '',
-                'qr_url'         => 'https://api.qrserver.com/v2/create-qr-code/?size=200x200&data=' . urlencode($response_data['verification_url'] ?? ''),
+                'qr_url'         => 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($response_data['verification_url'] ?? ''),
                 'nota'           => 'Timbrado exitoso con Facturapi.',
             ]);
         } else {
