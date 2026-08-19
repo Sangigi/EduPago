@@ -4,7 +4,12 @@
    action=distribuidor_datos / distribuidor_invitar_colegio /
    distribuidor_comisiones / distribuidor_datos_pago /
    distribuidor_guardar_datos_pago. La edición de perfil reutiliza
-   AuthController.editarUsuario (acción compartida editar_usuario). */
+   AuthController.editarUsuario (acción compartida editar_usuario).
+   Todo el archivo va envuelto en un IIFE: varios views declaran su propio
+   "const h = React.createElement" a nivel de script clásico (mismo scope
+   global), y una segunda declaración de la misma const revienta con
+   SyntaxError "Identifier 'h' has already been declared". */
+(function () {
 const h = React.createElement;
 
 const DIST_ESTADOS = {
@@ -628,3 +633,6 @@ function Distribuidor({ user, onLogout }) {
     }) : null,
   ]);
 }
+
+window.Distribuidor = Distribuidor;
+})();
