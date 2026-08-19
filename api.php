@@ -353,12 +353,16 @@ switch ($action) {
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
         if (!$cliente_id) $cliente_id = $cobroRow['cliente_id'] ? intval($cobroRow['cliente_id']) : null;
-        $id_pago = strval(mt_rand(1000000000, 2147483647));         // Id: numérico(10), dentro de rango int32 (evita overflow del lado de Cobroscontarjeta.com)
-        // Reference: la doc dice numérico(13), pero en la práctica el sandbox truena
-        // ("El formato de la referencia es incorrecto", code 22) con cualquier valor
-        // >2,147,483,647 — el mismo overflow de 32 bits que ya vimos con Id. Se acota
-        // al mismo rango por más que contradiga la doc.
-        $ref     = strval(mt_rand(1000000000, 2147483647));
+        // Id/Reference: formato confirmado contra el ÚNICO caso que alguna vez
+        // devolvió "code":"success" en este proyecto (ver api_log.txt / historial
+        // git de generar_liga, junio-2026): Id de 9 dígitos y Reference de 15
+        // dígitos, ambos con ceros a la izquierda y enviados como STRING (no como
+        // número JSON). Los intentos con Reference numérico sin ceros (10 o 13
+        // dígitos, con o sin comillas) fallaron todos con code 22 "El formato de
+        // la referencia es incorrecto".
+        $base    = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
+        $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
+        $ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
         $payload = [
             'User'           => PLE_USER,
             'Password'       => PLE_PASS,
@@ -372,14 +376,21 @@ switch ($action) {
             // los dos casos sin romper nada cuando regrese a pagalaescuela.mx.
             'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
             'PaymentTypes'   => '401', // Contado (único código válido en Sandbox)
-            'Id'             => intval($id_pago),
+            'Id'             => $id_pago,
             'Description'    => substr($descripcion, 0, 50),
             'Amount'         => intval(round($total * 100)),
-            'Reference'      => intval($ref), // numérico sin comillas — mismo patrón que Id/IntegrationID
+            'Reference'      => $ref,
             'ExpirationDate' => date('Y-m-d', strtotime('+1 day')),
         ];
         log_api("generar_liga -> folio={$folio} total={$total} ref={$ref}");
-        $res = curl_post(PLE_URL_LIGA_TOKEN, $payload);
+        // PLE_URL_LIGA_SIMPLE (GenerarLigaIndi) en vez de PLE_URL_LIGA_TOKEN
+        // (GenerarLigaDomiciliacionIndi): el endpoint de domiciliación/CAI nunca
+        // devolvió un solo "code":"success" pese a probar todos los formatos de
+        // Reference documentados; el simple es el único con éxito comprobado.
+        // Efecto secundario: no se tokeniza la tarjeta, así que "Cargo Automático"
+        // (cobrar_cai) no tendrá tarjetas nuevas que cobrar hasta que
+        // Cobroscontarjeta.com aprovisione bien la Domiciliación para esta cuenta.
+        $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload);
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
         $data_resp = [];
