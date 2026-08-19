@@ -354,7 +354,11 @@ switch ($action) {
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
         if (!$cliente_id) $cliente_id = $cobroRow['cliente_id'] ? intval($cobroRow['cliente_id']) : null;
         $id_pago = strval(mt_rand(1000000000, 2147483647));         // Id: numérico(10), dentro de rango int32 (evita overflow del lado de Cobroscontarjeta.com)
-        $ref     = strval(mt_rand(1000000000, 9999999999)) . strval(mt_rand(100, 999)); // Reference: numérico(13), nunca empieza en 0
+        // Reference: la doc dice numérico(13), pero en la práctica el sandbox truena
+        // ("El formato de la referencia es incorrecto", code 22) con cualquier valor
+        // >2,147,483,647 — el mismo overflow de 32 bits que ya vimos con Id. Se acota
+        // al mismo rango por más que contradiga la doc.
+        $ref     = strval(mt_rand(1000000000, 2147483647));
         $payload = [
             'User'           => PLE_USER,
             'Password'       => PLE_PASS,
@@ -418,7 +422,9 @@ switch ($action) {
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
-        $ref  = strval(mt_rand(1000000000, 9999999999)) . strval(mt_rand(100, 999)); // nunca empieza en 0
+        // Reference acotada a rango int32 (ver nota en generar_liga) para evitar
+        // "El formato de la referencia es incorrecto" (code 22).
+        $ref  = strval(mt_rand(1000000000, 2147483647));
         $payload = [
             'User'          => PLE_USER,
             'Password'      => PLE_PASS,
