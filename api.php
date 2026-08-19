@@ -371,7 +371,7 @@ switch ($action) {
             'Id'             => intval($id_pago),
             'Description'    => substr($descripcion, 0, 50),
             'Amount'         => intval(round($total * 100)),
-            'Reference'      => $ref,
+            'Reference'      => intval($ref), // numérico sin comillas — mismo patrón que Id/IntegrationID
             'ExpirationDate' => date('Y-m-d', strtotime('+1 day')),
         ];
         log_api("generar_liga -> folio={$folio} total={$total} ref={$ref}");
@@ -426,7 +426,7 @@ switch ($action) {
             'SchoolID'      => PLE_SCHOOL_ID_ACTIVO,
             'BusinessID'    => PLE_SCHOOL_ID_ACTIVO,
             'Token'         => $cli['token_tarjeta'],
-            'Reference'     => $ref,
+            'Reference'     => intval($ref), // numérico sin comillas — mismo patrón que Id/IntegrationID
             'Amount'        => intval(round($total * 100)),
             'ExpMonth'      => $cli['token_tarjeta_expmes'],
             'ExpYear'       => $cli['token_tarjeta_expanio'],
