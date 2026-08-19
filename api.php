@@ -353,7 +353,7 @@ switch ($action) {
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
         if (!$cliente_id) $cliente_id = $cobroRow['cliente_id'] ? intval($cobroRow['cliente_id']) : null;
-        $id_pago = strval(mt_rand(1000000000, 9999999999));        // Id: numérico(10), nunca empieza en 0
+        $id_pago = strval(mt_rand(1000000000, 2147483647));         // Id: numérico(10), dentro de rango int32 (evita overflow del lado de Cobroscontarjeta.com)
         $ref     = strval(mt_rand(1000000000, 9999999999)) . strval(mt_rand(100, 999)); // Reference: numérico(13), nunca empieza en 0
         $payload = [
             'User'           => PLE_USER,
