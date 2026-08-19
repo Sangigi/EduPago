@@ -35,6 +35,12 @@ function PortalFamilia({
   // ── Facturas ──
   const [descargandoFactura, setDescargandoFactura] = useState(null);
 
+  // ── Paginación: cobros pendientes en Inicio (por hijo) e Historial ──
+  const PEND_POR_PAGINA = 5;
+  const HIST_POR_PAGINA = 10;
+  const [paginaPends, setPaginaPends] = useState({}); // { [hijoId]: numeroPagina }
+  const [paginaHistorial, setPaginaHistorial] = useState(1);
+
   // ── Configuración: datos fiscales por hijo ──
   const [hijoFiscalId, setHijoFiscalId] = useState(null);
   const [formFiscal, setFormFiscal] = useState({});
@@ -158,7 +164,8 @@ function PortalFamilia({
       const res = await fetch('api.php?' + params.toString(), {
         headers: { 'Authorization': 'Bearer ' + user.token },
       });
-      if (!res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || contentType.includes('application/json')) {
         const json = await res.json().catch(() => null);
         alert('No se pudo descargar: ' + (json?.error || 'Error desconocido'));
         return;
@@ -801,6 +808,9 @@ function PortalFamilia({
           }, void 0, true)
         }, void 0, false), misHijos.map(hijo => {
           const pends = pendientesHj(hijo.id);
+          const pagPends = paginaPends[hijo.id] || 1;
+          const totalPagPends = Math.max(1, Math.ceil(pends.length / PEND_POR_PAGINA));
+          const pendsVisibles = pends.slice((pagPends - 1) * PEND_POR_PAGINA, pagPends * PEND_POR_PAGINA);
           return /*#__PURE__*/_jsxDEV("div", {
             style: card(),
             children: [/*#__PURE__*/_jsxDEV("div", {
@@ -873,7 +883,7 @@ function PortalFamilia({
                   marginBottom: 10
                 },
                 children: "Cobros pendientes"
-              }, void 0, false), pends.map(cob => /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, false), pendsVisibles.map(cob => /*#__PURE__*/_jsxDEV("div", {
                 style: {
                   display: 'flex',
                   alignItems: 'center',
@@ -921,7 +931,38 @@ function PortalFamilia({
                   },
                   children: fmt(cob.total)
                 }, void 0, false)]
-              }, cob.id, true))]
+              }, cob.id, true)), totalPagPends > 1 && /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: 10,
+                  marginTop: 8,
+                  fontSize: 11.5,
+                  color: PLC.muted
+                },
+                children: [/*#__PURE__*/_jsxDEV("span", {
+                  children: `Pagina ${pagPends} de ${totalPagPends}`
+                }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                  disabled: pagPends <= 1,
+                  onClick: () => setPaginaPends(p => ({ ...p, [hijo.id]: pagPends - 1 })),
+                  style: {
+                    padding: '4px 10px', borderRadius: 7, border: `1px solid ${PLC.border}`,
+                    background: PLC.card, color: PLC.navy, fontSize: 11.5, cursor: pagPends <= 1 ? 'default' : 'pointer',
+                    opacity: pagPends <= 1 ? .5 : 1
+                  },
+                  children: "‹ Anterior"
+                }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                  disabled: pagPends >= totalPagPends,
+                  onClick: () => setPaginaPends(p => ({ ...p, [hijo.id]: pagPends + 1 })),
+                  style: {
+                    padding: '4px 10px', borderRadius: 7, border: `1px solid ${PLC.border}`,
+                    background: PLC.card, color: PLC.navy, fontSize: 11.5, cursor: pagPends >= totalPagPends ? 'default' : 'pointer',
+                    opacity: pagPends >= totalPagPends ? .5 : 1
+                  },
+                  children: "Siguiente ›"
+                }, void 0, false)]
+              }, void 0, true)]
             }, void 0, true)]
           }, hijo.id, true);
         }), misHijos.length === 0 && /*#__PURE__*/_jsxDEV("div", {
@@ -1174,7 +1215,7 @@ function PortalFamilia({
                   },
                   children: "Sin cobros registrados"
                 }, void 0, false)
-              }, void 0, false), misCobros.map((cob, i) => /*#__PURE__*/_jsxDEV("tr", {
+              }, void 0, false), misCobros.slice((paginaHistorial - 1) * HIST_POR_PAGINA, paginaHistorial * HIST_POR_PAGINA).map((cob, i) => /*#__PURE__*/_jsxDEV("tr", {
                 style: {
                   borderBottom: `1px solid ${PLC.border}`,
                   background: i % 2 === 0 ? 'transparent' : 'rgba(40,45,101,.02)'
@@ -1255,6 +1296,38 @@ function PortalFamilia({
               }, cob.id, true))]
             }, void 0, true)]
           }, void 0, true)
+        }, void 0, false)]
+      }, void 0, true), tab === 'historial' && misCobros.length > HIST_POR_PAGINA && /*#__PURE__*/_jsxDEV("div", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 10,
+          padding: '10px 4px 4px',
+          fontSize: 12,
+          color: PLC.muted
+        },
+        children: [/*#__PURE__*/_jsxDEV("span", {
+          children: `Pagina ${paginaHistorial} de ${Math.max(1, Math.ceil(misCobros.length / HIST_POR_PAGINA))} · ${misCobros.length} cobros`
+        }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+          disabled: paginaHistorial <= 1,
+          onClick: () => setPaginaHistorial(p => Math.max(1, p - 1)),
+          style: {
+            padding: '5px 12px', borderRadius: 7, border: `1px solid ${PLC.border}`,
+            background: PLC.card, color: PLC.navy, fontSize: 12, cursor: paginaHistorial <= 1 ? 'default' : 'pointer',
+            opacity: paginaHistorial <= 1 ? .5 : 1
+          },
+          children: "‹ Anterior"
+        }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+          disabled: paginaHistorial >= Math.ceil(misCobros.length / HIST_POR_PAGINA),
+          onClick: () => setPaginaHistorial(p => p + 1),
+          style: {
+            padding: '5px 12px', borderRadius: 7, border: `1px solid ${PLC.border}`,
+            background: PLC.card, color: PLC.navy, fontSize: 12,
+            cursor: paginaHistorial >= Math.ceil(misCobros.length / HIST_POR_PAGINA) ? 'default' : 'pointer',
+            opacity: paginaHistorial >= Math.ceil(misCobros.length / HIST_POR_PAGINA) ? .5 : 1
+          },
+          children: "Siguiente ›"
         }, void 0, false)]
       }, void 0, true), tab === 'pagar' && /*#__PURE__*/_jsxDEV("div", {
         children: saldoTotal <= 0 ? /*#__PURE__*/_jsxDEV("div", {
@@ -1933,29 +2006,36 @@ function PortalFamilia({
           style: { fontSize: 13, color: PLC.muted, marginBottom: 14 },
           children: "Facturas (CFDI) generadas para tus pagos. Solo aparecen los cobros que ya fueron facturados."
         }, void 0, false), misCobros.filter(c => c.factura).length === 0 ? /*#__PURE__*/_jsxDEV("div", {
-          style: { padding: '30px 0', textAlign: 'center', color: PLC.muted, fontSize: 13 },
+          style: { ...card(), padding: '34px 20px', textAlign: 'center', color: PLC.muted, fontSize: 13 },
           children: "Todavía no tienes facturas generadas."
         }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
           style: { display: 'flex', flexDirection: 'column', gap: 10 },
           children: misCobros.filter(c => c.factura).map(cob => /*#__PURE__*/_jsxDEV("div", {
             style: {
+              ...card(),
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', background: 'rgba(255,255,255,.06)', borderRadius: 10, flexWrap: 'wrap', gap: 8
+              padding: '14px 16px', flexWrap: 'wrap', gap: 8
             },
             children: [/*#__PURE__*/_jsxDEV("div", {
               children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: [cob.folio, " · ", cob.cliente] }, void 0, true),
               /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: [cob.fecha, " · ", fmt(cob.total)] }, void 0, true)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              style: { display: 'flex', gap: 6 },
+              style: { display: 'flex', gap: 8 },
               children: [/*#__PURE__*/_jsxDEV("button", {
-                className: "btn btn-ghost btn-sm",
                 disabled: descargandoFactura === cob.id + '-pdf',
                 onClick: () => descargarFactura(cob, 'pdf'),
+                style: {
+                  padding: '8px 14px', borderRadius: 8, border: `1px solid ${PLC.border}`,
+                  background: PLC.card, color: PLC.navy, fontSize: 12.5, fontWeight: 600, cursor: 'pointer'
+                },
                 children: descargandoFactura === cob.id + '-pdf' ? 'Descargando…' : '⬇ PDF'
               }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-                className: "btn btn-ghost btn-sm",
                 disabled: descargandoFactura === cob.id + '-xml',
                 onClick: () => descargarFactura(cob, 'xml'),
+                style: {
+                  padding: '8px 14px', borderRadius: 8, border: `1px solid ${PLC.border}`,
+                  background: PLC.card, color: PLC.navy, fontSize: 12.5, fontWeight: 600, cursor: 'pointer'
+                },
                 children: descargandoFactura === cob.id + '-xml' ? 'Descargando…' : '⬇ XML'
               }, void 0, false)]
             }, void 0, true)]
@@ -1967,7 +2047,7 @@ function PortalFamilia({
           children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Datos fiscales" }, void 0, false),
           /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Estos datos se usan para generar el CFDI cuando pidas factura de un pago." }, void 0, false),
           misHijos.map(hijo => /*#__PURE__*/_jsxDEV("div", {
-            style: { background: 'rgba(255,255,255,.06)', borderRadius: 10, padding: 12, marginBottom: 8 },
+            style: { ...card(), padding: 14, marginBottom: 10 },
             children: hijoFiscalId === hijo.id ? /*#__PURE__*/_jsxDEV("div", {
               children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: PLC.text }, children: hijo.nombre }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
@@ -1992,7 +2072,7 @@ function PortalFamilia({
                   }, void 0, false),
                 ]
               }, void 0, true),
-              errorFiscal && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: '#ff8a8a', marginBottom: 8 }, children: errorFiscal }, void 0, false),
+              errorFiscal && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.red, marginBottom: 8 }, children: errorFiscal }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { style: { display: 'flex', gap: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: () => setHijoFiscalId(null), children: "Cancelar" }, void 0, false),
@@ -2012,7 +2092,7 @@ function PortalFamilia({
           misHijos.filter(h => h.token_tarjeta_estado === 'activo').length === 0 ? /*#__PURE__*/_jsxDEV("div", {
             style: { fontSize: 12.5, color: PLC.muted }, children: "No tienes ninguna tarjeta guardada."
           }, void 0, false) : misHijos.filter(h => h.token_tarjeta_estado === 'activo').map(hijo => /*#__PURE__*/_jsxDEV("div", {
-            style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,.06)', borderRadius: 10, padding: 12, marginBottom: 8 },
+            style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...card(), padding: 14, marginBottom: 10 },
             children: [/*#__PURE__*/_jsxDEV("div", {
               children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: hijo.nombre }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: ["Tarjeta guardada · vence ", hijo.token_tarjeta_expmes, "/", hijo.token_tarjeta_expanio] }, void 0, true)]
@@ -2020,7 +2100,7 @@ function PortalFamilia({
               className: "btn btn-ghost btn-sm",
               disabled: eliminandoTarjetaId === hijo.id,
               onClick: () => eliminarTarjeta(hijo.id),
-              style: { color: '#ff8a8a' },
+              style: { color: PLC.red },
               children: eliminandoTarjetaId === hijo.id ? 'Eliminando…' : 'Eliminar tarjeta'
             }, void 0, false)]
           }, hijo.id, true))]
@@ -2029,8 +2109,8 @@ function PortalFamilia({
           /*#__PURE__*/_jsxDEV("input", { className: "form-input", type: "password", placeholder: "Contraseña actual", value: formPass.actual, onChange: e => setFormPass(f => ({ ...f, actual: e.target.value })), style: { marginBottom: 8, width: '100%' } }, void 0, false),
           /*#__PURE__*/_jsxDEV("input", { className: "form-input", type: "password", placeholder: "Nueva contraseña (mín. 8 caracteres)", value: formPass.nueva, onChange: e => setFormPass(f => ({ ...f, nueva: e.target.value })), style: { marginBottom: 8, width: '100%' } }, void 0, false),
           /*#__PURE__*/_jsxDEV("input", { className: "form-input", type: "password", placeholder: "Confirmar nueva contraseña", value: formPass.confirmar, onChange: e => setFormPass(f => ({ ...f, confirmar: e.target.value })), style: { marginBottom: 8, width: '100%' } }, void 0, false),
-          errorPass && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: '#ff8a8a', marginBottom: 8 }, children: errorPass }, void 0, false),
-          okPass && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: '#8aff8a', marginBottom: 8 }, children: okPass }, void 0, false),
+          errorPass && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.red, marginBottom: 8 }, children: errorPass }, void 0, false),
+          okPass && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.green, marginBottom: 8 }, children: okPass }, void 0, false),
           /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary btn-sm",
             disabled: guardandoPass || !formPass.actual || !formPass.nueva,
