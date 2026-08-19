@@ -41,6 +41,17 @@ define('PLE_SCHOOL_ID','000002');   // <-- Reemplazar con el SchoolID de Pagalae
 define('PLE_HOST_BASE', 'https://pagadetodo.mx/Pagadetodo');
 // define('PLE_HOST_BASE', 'https://pagalaescuela.mx/Pagalaescuela'); // <- PRODUCCIÓN
 
+// Mientras el servicio corre en pagadetodo.mx, Cobroscontarjeta.com devuelve
+// código 26 ("no está vinculado este comercio a su integración") si se manda
+// el IntegrationID de Pagalaescuela (106): ese ID solo está enlazado del
+// lado de Pagalaescuela, no en Pagadetodo. En Pagadetodo, el IntegrationID
+// que SÍ está enlazado a BusinessID 000002 es el 125 (el mismo que ya
+// funciona para SPEI/Efectivo). Estas dos constantes eligen automáticamente
+// cuál usar según el host activo, así que no hay que tocar nada más cuando
+// PLE_HOST_BASE regrese a pagalaescuela.mx en producción.
+define('PLE_INT_ID_ACTIVO',    strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? PDT_INT_ID      : PLE_INT_ID);
+define('PLE_SCHOOL_ID_ACTIVO', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? PDT_BUS_ID_TC    : PLE_SCHOOL_ID);
+
 // Liga con token: sirve para pago simple en línea Y deja el número de
 // tarjeta tokenizado, habilitando después los Cargos Automáticos (CAI) sin
 // pedirle tarjeta de nuevo al padre de familia.
