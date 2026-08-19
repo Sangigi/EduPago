@@ -353,11 +353,8 @@ switch ($action) {
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
         if (!$cliente_id) $cliente_id = $cobroRow['cliente_id'] ? intval($cobroRow['cliente_id']) : null;
-        $ts      = intval(substr(time(), -6));
-        $rand    = rand(100, 999);
-        $base    = $ts . $rand;
-        $id_pago = str_pad($base, 10, '0', STR_PAD_LEFT); // Id: numérico(10)
-        $ref     = str_pad($base, 13, '0', STR_PAD_LEFT); // Reference: numérico(13)
+        $id_pago = strval(mt_rand(1000000000, 9999999999));        // Id: numérico(10), nunca empieza en 0
+        $ref     = strval(mt_rand(1000000000, 9999999999)) . strval(mt_rand(100, 999)); // Reference: numérico(13), nunca empieza en 0
         $payload = [
             'User'           => PLE_USER,
             'Password'       => PLE_PASS,
@@ -414,8 +411,7 @@ switch ($action) {
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
-        $ts   = intval(substr(time(), -6));
-        $ref  = str_pad($ts . rand(100, 999), 13, '0', STR_PAD_LEFT);
+        $ref  = strval(mt_rand(1000000000, 9999999999)) . strval(mt_rand(100, 999)); // nunca empieza en 0
         $payload = [
             'User'          => PLE_USER,
             'Password'      => PLE_PASS,
