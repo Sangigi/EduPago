@@ -233,7 +233,12 @@ function Facturacion({
       const res = await fetch('api.php?' + params.toString(), {
         headers: { 'Authorization': 'Bearer ' + token },
       });
-      if (!res.ok) {
+      // Chequeo doble: por status Y por Content-Type real. Si el backend
+      // regresa un error (aunque venga con HTTP 200 por accidente), el
+      // Content-Type sigue siendo JSON — así nunca se descarga un JSON de
+      // error disfrazado de PDF/XML.
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || contentType.includes('application/json')) {
         const json = await res.json().catch(() => null);
         alert('No se pudo descargar: ' + (json?.error || 'Error desconocido'));
         return;
