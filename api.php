@@ -744,8 +744,8 @@ switch ($action) {
         );
         $chkCfdi->execute([$cobro_id_cfdi]);
         $cobroCfdi = $chkCfdi->fetch();
-        if (!$cobroCfdi) respond(['success' => false, 'error' => 'Cobro no encontrado']);
-        if (!$cobroCfdi['facturapi_id']) respond(['success' => false, 'error' => 'Este cobro no tiene factura generada.']);
+        if (!$cobroCfdi) { http_response_code(404); respond(['success' => false, 'error' => 'Cobro no encontrado']); }
+        if (!$cobroCfdi['facturapi_id']) { http_response_code(400); respond(['success' => false, 'error' => 'Este cobro no tiene factura generada.']); }
         $rolCfdi = $usuario_actual['rol'] ?? '';
         $autorizado = false;
         if ($rolCfdi === 'superadmin') {
@@ -776,10 +776,16 @@ switch ($action) {
         $err       = curl_error($ch);
         curl_close($ch);
         if ($err) {
+            http_response_code(502);
             respond(['success' => false, 'error' => 'Error de red: ' . $err]);
         }
         if ($http_code !== 200) {
-            // Facturapi devolvió un error JSON — lo relay como JSON
+            // Facturapi devolvió un error JSON — lo relay como JSON, con el
+            // mismo código de estado para que el frontend no lo confunda
+            // con una descarga exitosa (antes siempre regresaba HTTP 200
+            // aunque el cuerpo fuera un error, y el navegador intentaba
+            // "abrir" ese JSON como si fuera el PDF).
+            http_response_code($http_code >= 400 && $http_code < 600 ? $http_code : 502);
             header('Content-Type: application/json; charset=UTF-8');
             $decoded = json_decode($binary, true);
             $msg = $decoded['message'] ?? "Facturapi respondió HTTP {$http_code}";
