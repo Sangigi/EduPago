@@ -50,6 +50,7 @@ function Caja({
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
   const speiPollRef = useRef(null);
+  const tcPollRef = useRef(null);
   const CATS_PERIODICAS = ['colegiatura', 'anualidad', 'inscripcion'];
   const CAT_LABELS_CAJA = {
     colegiatura: 'Colegiatura', anualidad: 'Anualidad', inscripcion: 'Inscripción',
@@ -261,6 +262,29 @@ function Caja({
       try {
         const liga = await CobroController.iniciarTC(cobro);
         setTcInfo(liga);
+
+        // Polling automático: igual que SPEI, revisa cada 10s si
+        // webhook_liga.php ya marcó este cobro (por su ID exacto, nunca por
+        // referencia compartida) como pagado, para no dejar al cajero
+        // esperando frente a un modal que nunca se actualiza solo.
+        if (tcPollRef.current) clearInterval(tcPollRef.current);
+        tcPollRef.current = setInterval(async () => {
+          try {
+            const ver = await CobroController.verificarCobro(cobro.id);
+            if (ver.pagado) {
+              clearInterval(tcPollRef.current);
+              const res = await CobroController.confirmarPago(cobro.id, { auth_code: String(ver.autorizacion || '') }).catch(() => null);
+              if (res) actualizarSaldoCliente(res);
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', auth_code: String(ver.autorizacion || c.auth_code || '') } : c) };
+                AppModel.save(upd);
+                return upd;
+              });
+              setModal('ticket');
+              resetCarrito();
+            }
+          } catch (e) {/* continuar polling */}
+        }, 10000);
       } catch (err) {
         setTcError(err.message);
       } finally {
@@ -393,6 +417,7 @@ function Caja({
     if (intervalRef.current) clearTimeout(intervalRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
     if (speiPollRef.current) clearInterval(speiPollRef.current);
+    if (tcPollRef.current) clearInterval(tcPollRef.current);
     setModal(null);
   };
 

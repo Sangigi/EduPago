@@ -30,7 +30,12 @@ const SpeiPoller = (() => {
         const resultado = await fetch('api.php?action=verificar_spei', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ referencia: ref, clabe }),
+          // cobro_id es obligatorio para que el backend compare por el cobro
+          // exacto — `ref` es la matrícula del alumno, compartida entre todos
+          // sus cobros, así que sin cobro_id un pago de OTRO cobro del mismo
+          // alumno podía confirmar por error este cobro pendiente sin que se
+          // hubiera pagado.
+          body:    JSON.stringify({ referencia: ref, clabe, cobro_id: cobro.id }),
         });
         const json = await resultado.json();
         if (json.success && json.pagado) {

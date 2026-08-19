@@ -273,7 +273,15 @@ switch ($action) {
             ]);
         }
         // ── Fallback: pagos_spei.json (solo para el botón "Simular pago SPEI") ──
-        if ($cobro && $cobro['estado'] === 'pendiente') {
+        // IMPORTANTE: solo se usa cuando NO se mandó cobro_id. `referencia` es la
+        // matrícula del alumno — NO es única por cobro (un alumno puede tener
+        // varios cobros con la misma referencia). Si se permite este fallback
+        // también en el path por cobro_id, un pago simulado (o cualquier otro
+        // cobro ya pagado que comparta la misma matrícula) confirma por error
+        // OTRO cobro pendiente distinto del que se está verificando — nunca se
+        // pagó, pero el sistema lo marcaba como pagado igual. Por eso este
+        // fallback queda restringido exclusivamente al path sin cobro_id.
+        if (!$cobro_id && $cobro && $cobro['estado'] === 'pendiente') {
             $archivo = __DIR__ . '/pagos_spei.json';
             $pagos   = file_exists($archivo) ? (json_decode(file_get_contents($archivo), true) ?? []) : [];
             $pago    = $pagos[strtoupper($referencia)] ?? null;

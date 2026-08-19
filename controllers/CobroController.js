@@ -67,6 +67,16 @@ const CobroController = (() => {
     return { pagado: resultado.pagado, monto: resultado.monto_pesos };
   }
 
+  // Verificación genérica por cobro_id — sirve para cualquier método (TC,
+  // SPEI, etc.), ya que solo revisa cobros.estado en el servidor. No manda
+  // referencia/clabe, así que nunca puede cruzarse con el pago de otro cobro
+  // del mismo alumno (a diferencia de verificar por referencia/matrícula).
+  async function verificarCobro(cobroId) {
+    const resultado = await apiPost('verificar_spei', { cobro_id: cobroId });
+    if (!resultado.success) throw new Error(resultado.error || 'Error al verificar');
+    return { pagado: resultado.pagado, monto: resultado.monto_pesos, autorizacion: resultado.autorizacion };
+  }
+
   async function iniciarTC(cobro) {
     const resultado = await apiPost('generar_liga', {
       folio:       cobro.folio,
@@ -139,7 +149,7 @@ const CobroController = (() => {
   }
 
   return {
-    iniciarCobro, iniciarSPEI, verificarSPEI, iniciarTC, confirmarPago, cancelarCobro,
+    iniciarCobro, iniciarSPEI, verificarSPEI, verificarCobro, iniciarTC, confirmarPago, cancelarCobro,
     generarClabeIndividual, liberarClabeIndividual,
     cobrarCAI, cancelarCAI, iniciarEfectivoRef, marcarChequeRebotado,
   };

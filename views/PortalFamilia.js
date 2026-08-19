@@ -260,10 +260,22 @@ function PortalFamilia({
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        const params = new URLSearchParams();
-        if (cobro.referencia_spei || cobro.referencia) params.set('referencia', cobro.referencia_spei || cobro.referencia);
-        if (cobro.clabe) params.set('clabe', cobro.clabe);
-        const r = await fetch(`api.php?action=verificar_spei&${params.toString()}`);
+        // POST con body JSON: api.php solo lee parámetros del body en POST
+        // ($input), nunca de query string en GET — con GET este poll nunca
+        // funcionaba (fallaba en silencio cada 10s).
+        // cobro_id es obligatorio: la referencia es la matrícula del alumno,
+        // compartida entre todos sus cobros — sin cobro_id el backend podía
+        // confirmar por error este cobro con el pago de OTRO cobro del mismo
+        // alumno que nunca se pagó.
+        const r = await fetch('api.php?action=verificar_spei', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            referencia: cobro.referencia_spei || cobro.referencia || '',
+            clabe: cobro.clabe || '',
+            cobro_id: cobro.id,
+          }),
+        });
         const json = await r.json();
         if (json.pagado) {
           clearInterval(pollRef.current);
