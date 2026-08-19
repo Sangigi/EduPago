@@ -358,15 +358,15 @@ switch ($action) {
         $payload = [
             'User'           => PLE_USER,
             'Password'       => PLE_PASS,
-            'IntegrationID'  => intval(PLE_INT_ID),
-            'SchoolID'       => PLE_SCHOOL_ID,
+            'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
+            'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
             // BusinessID: mientras el sandbox de Pago en Línea/CAI corre
             // temporalmente en pagadetodo.mx (aviso de Cobroscontarjeta.com
             // 18-ago-2026), su validador puede esperar el campo con el
             // vocabulario de "comercio" (BusinessID) en vez de "escuela"
             // (SchoolID). Se mandan ambos con el mismo valor para cubrir
             // los dos casos sin romper nada cuando regrese a pagalaescuela.mx.
-            'BusinessID'     => PLE_SCHOOL_ID,
+            'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
             'PaymentTypes'   => '401', // Contado (único código válido en Sandbox)
             'Id'             => $id_pago,
             'Description'    => substr($descripcion, 0, 50),
@@ -422,9 +422,9 @@ switch ($action) {
         $payload = [
             'User'          => PLE_USER,
             'Password'      => PLE_PASS,
-            'IntegrationID' => intval(PLE_INT_ID),
-            'SchoolID'      => PLE_SCHOOL_ID,
-            'BusinessID'    => PLE_SCHOOL_ID,
+            'IntegrationID' => intval(PLE_INT_ID_ACTIVO),
+            'SchoolID'      => PLE_SCHOOL_ID_ACTIVO,
+            'BusinessID'    => PLE_SCHOOL_ID_ACTIVO,
             'Token'         => $cli['token_tarjeta'],
             'Reference'     => $ref,
             'Amount'        => intval(round($total * 100)),
@@ -457,9 +457,9 @@ switch ($action) {
         $payload = [
             'User'          => PLE_USER,
             'Password'      => PLE_PASS,
-            'IntegrationID' => intval(PLE_INT_ID),
-            'SchoolID'      => PLE_SCHOOL_ID,
-            'BusinessID'    => PLE_SCHOOL_ID,
+            'IntegrationID' => intval(PLE_INT_ID_ACTIVO),
+            'SchoolID'      => PLE_SCHOOL_ID_ACTIVO,
+            'BusinessID'    => PLE_SCHOOL_ID_ACTIVO,
             'Token'         => $cli['token_tarjeta'],
             'Tkn_reference' => str_pad(strval($cliente_id), 13, '0', STR_PAD_LEFT),
         ];
