@@ -324,32 +324,28 @@ function PortalFamilia({
       setTimeout(() => setCopied(''), 2000);
     });
   };
-  const iniciarPolling = cobro => {
+  // Ya no se crea un cobro sintético para SPEI (ver pagarSaldo), así que no
+  // hay un cobro_id que verificar — en su lugar se revisa directamente si el
+  // saldo_pendiente REAL del alumno bajó desde que se abrió el modal.
+  const iniciarPollingSaldo = (clienteId, saldoAlAbrir) => {
     setPollStatus('waiting');
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        // POST con body JSON: api.php solo lee parámetros del body en POST
-        // ($input), nunca de query string en GET — con GET este poll nunca
-        // funcionaba (fallaba en silencio cada 10s).
-        // cobro_id es obligatorio: la referencia es la matrícula del alumno,
-        // compartida entre todos sus cobros — sin cobro_id el backend podía
-        // confirmar por error este cobro con el pago de OTRO cobro del mismo
-        // alumno que nunca se pagó.
-        const r = await fetch('api.php?action=verificar_spei', {
+        const token = AuthController.getToken ? AuthController.getToken() : '';
+        const r = await fetch('api.php?action=verificar_saldo_alumno', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            referencia: cobro.referencia_spei || cobro.referencia || '',
-            clabe: cobro.clabe || '',
-            cobro_id: cobro.id,
-          }),
+          headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+          body: JSON.stringify({ cliente_id: clienteId }),
         });
         const json = await r.json();
-        if (json.pagado) {
+        if (json.success && json.saldo_pendiente < saldoAlAbrir - 0.01) {
           clearInterval(pollRef.current);
           setPollStatus('confirmed');
-          setData(AppModel.load());
+          setData(prev => ({
+            ...prev,
+            clientes: prev.clientes.map(c => c.id === clienteId ? { ...c, saldo_pendiente: json.saldo_pendiente } : c),
+          }));
         }
       } catch (_) {}
     }, 10000);
@@ -364,85 +360,71 @@ function PortalFamilia({
     if (!hijoSeleccionado || hijoSeleccionado.saldo_pendiente <= 0) return;
     if (!escuela?.id) { alert('No se pudo determinar tu escuela. Recarga la página e intenta de nuevo.'); return; }
     setSpeiBloqueoFamilia(null);
+
     if (metodo === 'SPEI') {
       const tieneClabe = hijoSeleccionado.clabe_individual && hijoSeleccionado.clabe_individual_estado === 'activa';
       if (!tieneClabe) {
         setSpeiBloqueoFamilia(`${hijoSeleccionado.nombre} no tiene una CLABE SPEI activa asignada. Pídele al colegio que te asigne una, o paga con tarjeta.`);
         return;
       }
-    }
-    // Cobroscontarjeta.com tiene un tope de $15,000.00 por pago con tarjeta;
-    // sin este aviso previo, el pago fallaba en el servidor con un error
-    // genérico que no explicaba el motivo real.
-    if (metodo === 'TC' && hijoSeleccionado.saldo_pendiente > 15000) {
-      setSpeiBloqueoFamilia(`El pago con tarjeta tiene un máximo de $15,000.00 por transacción. El adeudo de ${hijoSeleccionado.nombre} es mayor — paga por SPEI, o pide al colegio que lo divida en pagos parciales.`);
-      return;
-    }
-    setLoading(true);
-    const conceptoTemporal = [{
-      id: 'SALDO_' + hijoSeleccionado.id,
-      nombre: `Liquidación de saldo — ${hijoSeleccionado.nombre}`,
-      precio: hijoSeleccionado.saldo_pendiente,
-      qty: 1,
-      emoji: ''
-    }];
-    const escuela_id = escuela.id;
-    let cobro;
-    try {
-      cobro = await CobroController.iniciarCobro({
-        carrito: conceptoTemporal,
-        cliente: hijoSeleccionado,
-        metodo,
-        escuela_id,
-      });
-    } catch(err) {
-      alert('Error al iniciar cobro: ' + err.message);
-      setLoading(false);
-      return;
-    }
-    const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
-    if (metodo === 'SPEI') {
+      // SPEI ya NO crea ningún cobro nuevo: la CLABE del alumno es fija y
+      // pago_clabe.php cobra automáticamente TODO lo que esté realmente
+      // pendiente en cuanto llega la transferencia. Antes se creaba aquí un
+      // cobro sintético "Liquidación de saldo" cada vez que se abría este
+      // modal, usando el saldo que tuviera el navegador en ese momento — si
+      // ese saldo ya estaba desactualizado (ej. justo después de haberse
+      // pagado, antes de que la pantalla se refrescara), el resultado era
+      // cobrar la misma deuda dos veces.
+      setLoading(true);
       try {
-        const spei = await CobroController.iniciarSPEI(cobro, escuela, hijoSeleccionado);
-        const cobrosUp = newData.cobros.map(c => c.id === cobro.id ? {
-          ...c,
-          clabe: spei.clabe,
-          banco: spei.banco,
-          referencia_spei: spei.referencia,
-          clabe_es_individual: !!spei.esIndividual
-        } : c);
-        const dataFinal = {
-          ...newData,
-          cobros: cobrosUp
-        };
-        setData(dataFinal);
-        AppModel.save(dataFinal);
+        const spei = await CobroController.iniciarSPEI({ referencia: '' }, escuela, hijoSeleccionado);
         const cobroFinal = {
-          ...cobro,
+          cliente: hijoSeleccionado.nombre,
+          total: hijoSeleccionado.saldo_pendiente,
           clabe: spei.clabe,
-          referencia_spei: spei.referencia,
           banco: spei.banco,
-          clabe_es_individual: !!spei.esIndividual
+          referencia_spei: spei.referencia,
+          clabe_es_individual: !!spei.esIndividual,
         };
         setCobroActivo(cobroFinal);
         setModal('spei');
-        iniciarPolling(cobroFinal);
+        iniciarPollingSaldo(hijoSeleccionado.id, hijoSeleccionado.saldo_pendiente);
       } catch (err) {
         alert('Error al generar instrucciones SPEI: ' + err.message);
       }
-    } else if (metodo === 'TC') {
-      try {
-        setData(newData);
-        AppModel.save(newData);
-        const liga = await CobroController.iniciarTC(cobro);
-        window.location.href = liga.url;
-      } catch (err) {
-        // Antes se mostraba un mensaje genérico que ocultaba la razón real
-        // (ej. "Monto máximo $15,000.00" de Cobroscontarjeta.com) — con
-        // saldos altos el pago con tarjeta parecía "no funcionar" sin dar
-        // ninguna pista de por qué.
-        alert('No se pudo iniciar el pago con tarjeta: ' + err.message);
-      }
+      setLoading(false);
+      return;
+    }
+
+    // TC (tarjeta) — Cobroscontarjeta.com tiene un tope de $15,000.00 por
+    // transacción; sin este aviso previo, el pago fallaba en el servidor con
+    // un error genérico que no explicaba el motivo real.
+    if (hijoSeleccionado.saldo_pendiente > 15000) {
+      setSpeiBloqueoFamilia(`El pago con tarjeta tiene un máximo de $15,000.00 por transacción. El adeudo de ${hijoSeleccionado.nombre} es mayor — paga por SPEI, o pide al colegio que lo divida en pagos parciales.`);
+      return;
+    }
+    // Tarjeta necesita un cobro real con folio para generar la liga de pago
+    // — se usa el adeudo TAL CUAL ya existe en el sistema, nunca se crea uno
+    // nuevo aquí (mismo motivo que arriba: evitar duplicar la deuda). Si hay
+    // más de un concepto pendiente por separado, tarjeta no puede pagarlos
+    // juntos en una sola liga (para eso está SPEI, que sí suma todo).
+    const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
+    if (cobrosPendientesHijo.length !== 1) {
+      setSpeiBloqueoFamilia(cobrosPendientesHijo.length === 0
+        ? 'No se encontró el cobro pendiente de este alumno. Recarga la página e intenta de nuevo.'
+        : `${hijoSeleccionado.nombre} tiene ${cobrosPendientesHijo.length} conceptos pendientes por separado. Tarjeta solo puede pagar uno a la vez — usa SPEI para pagarlos juntos.`);
+      return;
+    }
+    setLoading(true);
+    try {
+      const liga = await CobroController.iniciarTC(cobrosPendientesHijo[0]);
+      window.location.href = liga.url;
+    } catch (err) {
+      // Antes se mostraba un mensaje genérico que ocultaba la razón real
+      // (ej. "Monto máximo $15,000.00" de Cobroscontarjeta.com) — con
+      // saldos altos el pago con tarjeta parecía "no funcionar" sin dar
+      // ninguna pista de por qué.
+      alert('No se pudo iniciar el pago con tarjeta: ' + err.message);
     }
     setLoading(false);
   };

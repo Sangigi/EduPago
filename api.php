@@ -299,6 +299,29 @@ switch ($action) {
         respond(['success' => true, 'pagado' => false]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+    // Revisa el saldo_pendiente actual de un alumno — usado por el Portal de
+    // Familia para saber si un pago SPEI ya se acreditó, SIN necesitar crear
+    // un cobro sintético "Liquidación de saldo" primero (ver 'crear_cobro':
+    // crear uno nuevo cada vez que se abre el modal de pago, usando un saldo
+    // que podía estar desactualizado en el navegador, terminaba cobrando dos
+    // veces la misma deuda).
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'verificar_saldo_alumno':
+        $cliente_id_saldo = intval($input['cliente_id'] ?? 0);
+        if (!$cliente_id_saldo) respond(['success' => false, 'error' => 'cliente_id requerido']);
+        $stmtSaldo = $pdo->prepare("SELECT saldo_pendiente, familia_id FROM clientes WHERE id = ?");
+        $stmtSaldo->execute([$cliente_id_saldo]);
+        $rowSaldo = $stmtSaldo->fetch();
+        if (!$rowSaldo) respond(['success' => false, 'error' => 'Alumno no encontrado']);
+        if (($usuario_actual['rol'] ?? '') === 'familia') {
+            if ($rowSaldo['familia_id'] === null || intval($rowSaldo['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No puedes consultar este alumno.']);
+            }
+        }
+        respond(['success' => true, 'saldo_pendiente' => floatval($rowSaldo['saldo_pendiente'])]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
     // 3. SIMULAR PAGO SPEI (para testing sin webhook real)
     //    Acepta clabe_destino opcional para simular un depósito a la CLABE
     //    individual del alumno (si no se manda, usa la CLABE fija legado).
