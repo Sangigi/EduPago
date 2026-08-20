@@ -41,8 +41,9 @@ function PortalFamilia({
   const [paginaPends, setPaginaPends] = useState({}); // { [hijoId]: numeroPagina }
   const [paginaHistorial, setPaginaHistorial] = useState(1);
 
-  // ── Configuración: datos fiscales por hijo ──
-  const [hijoFiscalId, setHijoFiscalId] = useState(null);
+  // ── Configuración: datos fiscales de la familia (del tutor que paga, no ──
+  // ── de cada hijo — un solo RFC/razón social por familia, no uno por hijo) ──
+  const [editandoFiscal, setEditandoFiscal] = useState(false);
   const [formFiscal, setFormFiscal] = useState({});
   const [guardandoFiscal, setGuardandoFiscal] = useState(false);
   const [errorFiscal, setErrorFiscal] = useState('');
@@ -55,6 +56,16 @@ function PortalFamilia({
   const [guardandoPass, setGuardandoPass] = useState(false);
   const [errorPass, setErrorPass] = useState('');
   const [okPass, setOkPass] = useState('');
+
+  // ── Configuración: mis datos (tutor de la cuenta) ──
+  const [editandoMisDatos, setEditandoMisDatos] = useState(false);
+  const [formMisDatos, setFormMisDatos] = useState({ nombre: '', email: '', telefono: '', contacto: '' });
+  const [guardandoMisDatos, setGuardandoMisDatos] = useState(false);
+  const [errorMisDatos, setErrorMisDatos] = useState('');
+  const [okMisDatos, setOkMisDatos] = useState('');
+  const [userOverride, setUserOverride] = useState(null);
+  const userEfectivo = userOverride ? { ...user, ...userOverride } : user;
+  const miFamilia = data.familias?.find(f => f.id === user.familia_id) || null;
 
   const REGIMENES_SAT = [
     { value: '', label: 'Sin especificar' },
@@ -72,27 +83,28 @@ function PortalFamilia({
     { value: 'S01', label: 'S01 - Sin efectos fiscales' },
   ];
 
-  const abrirFiscal = hijo => {
-    setHijoFiscalId(hijo.id);
+  const abrirFiscal = () => {
+    setEditandoFiscal(true);
     setErrorFiscal('');
     setFormFiscal({
-      rfc_factura: hijo.rfc_factura || '',
-      razon_social_factura: hijo.razon_social_factura || '',
-      cp_factura: hijo.cp_factura || '',
-      domicilio_factura: hijo.domicilio_factura || '',
-      regimen_factura: hijo.regimen_factura || '',
-      uso_cfdi_defecto: hijo.uso_cfdi_defecto || '',
+      rfc_factura: miFamilia?.rfc_factura || '',
+      razon_social_factura: miFamilia?.razon_social_factura || '',
+      cp_factura: miFamilia?.cp_factura || '',
+      domicilio_factura: miFamilia?.domicilio_factura || '',
+      regimen_factura: miFamilia?.regimen_factura || '',
+      uso_cfdi_defecto: miFamilia?.uso_cfdi_defecto || '',
     });
   };
 
-  const guardarFiscal = async hijoId => {
+  const guardarFiscal = async () => {
+    if (!user.familia_id) { setErrorFiscal('Tu cuenta no está ligada a una familia.'); return; }
     setGuardandoFiscal(true);
     setErrorFiscal('');
     try {
-      const res = await fetch('api.php?action=editar_cliente', {
+      const res = await fetch('api.php?action=editar_familia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
-        body: JSON.stringify({ id: hijoId, ...formFiscal }),
+        body: JSON.stringify({ id: user.familia_id, ...formFiscal }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -100,12 +112,63 @@ function PortalFamilia({
         setGuardandoFiscal(false);
         return;
       }
-      setData({ ...data, clientes: data.clientes.map(c => c.id === hijoId ? { ...c, ...json.cliente } : c) });
-      setHijoFiscalId(null);
+      setData({ ...data, familias: data.familias.map(f => f.id === user.familia_id ? { ...f, ...json.familia } : f) });
+      setEditandoFiscal(false);
     } catch (e) {
       setErrorFiscal('Error de conexión: ' + e.message);
     }
     setGuardandoFiscal(false);
+  };
+
+  const abrirMisDatos = () => {
+    setEditandoMisDatos(true);
+    setErrorMisDatos('');
+    setOkMisDatos('');
+    setFormMisDatos({
+      nombre: userEfectivo.nombre || '',
+      email: userEfectivo.email || '',
+      telefono: miFamilia?.telefono || '',
+      contacto: miFamilia?.contacto || '',
+    });
+  };
+
+  const guardarMisDatos = async () => {
+    setGuardandoMisDatos(true);
+    setErrorMisDatos('');
+    setOkMisDatos('');
+    try {
+      const resUsuario = await fetch('api.php?action=editar_usuario', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
+        body: JSON.stringify({ id: user.id, nombre: formMisDatos.nombre, email: formMisDatos.email }),
+      });
+      const jsonUsuario = await resUsuario.json();
+      if (!jsonUsuario.success) {
+        setErrorMisDatos(jsonUsuario.error || 'No se pudo guardar tu perfil');
+        setGuardandoMisDatos(false);
+        return;
+      }
+      setUserOverride(prev => ({ ...prev, nombre: jsonUsuario.usuario.nombre, email: jsonUsuario.usuario.email }));
+      if (user.familia_id) {
+        const resFamilia = await fetch('api.php?action=editar_familia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
+          body: JSON.stringify({ id: user.familia_id, telefono: formMisDatos.telefono, contacto: formMisDatos.contacto }),
+        });
+        const jsonFamilia = await resFamilia.json();
+        if (!jsonFamilia.success) {
+          setErrorMisDatos(jsonFamilia.error || 'Se guardó tu perfil, pero no el teléfono de contacto');
+          setGuardandoMisDatos(false);
+          return;
+        }
+        setData({ ...data, familias: data.familias.map(f => f.id === user.familia_id ? { ...f, ...jsonFamilia.familia } : f) });
+      }
+      setOkMisDatos('Datos guardados');
+      setEditandoMisDatos(false);
+    } catch (e) {
+      setErrorMisDatos('Error de conexión: ' + e.message);
+    }
+    setGuardandoMisDatos(false);
   };
 
   const eliminarTarjeta = async hijoId => {
@@ -293,7 +356,7 @@ function PortalFamilia({
     setLoading(true);
     const conceptoTemporal = [{
       id: 'SALDO_GLOBAL',
-      nombre: `Liquidación de saldo — ${user.nombre}`,
+      nombre: `Liquidación de saldo — ${userEfectivo.nombre}`,
       precio: saldoTotal,
       qty: 1,
       emoji: ''
@@ -303,7 +366,7 @@ function PortalFamilia({
     try {
       cobro = await CobroController.iniciarCobro({
         carrito: conceptoTemporal,
-        cliente: { nombre: user.nombre, tipo: 'familia', id: user.familia_id },
+        cliente: { nombre: userEfectivo.nombre, tipo: 'familia', id: user.familia_id },
         metodo,
         escuela_id,
       });
@@ -498,7 +561,7 @@ function PortalFamilia({
               fontSize: 13,
               fontWeight: 600
             },
-            children: user.nombre
+            children: userEfectivo.nombre
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             style: {
               color: 'rgba(255,255,255,.5)',
@@ -520,7 +583,7 @@ function PortalFamilia({
             fontSize: 14,
             flexShrink: 0
           },
-          children: user.nombre.charAt(0).toUpperCase()
+          children: userEfectivo.nombre.charAt(0).toUpperCase()
         }, void 0, false), onLogout && /*#__PURE__*/_jsxDEV("button", {
           onClick: onLogout,
           title: "Cerrar sesión",
@@ -599,7 +662,7 @@ function PortalFamilia({
             color: PLC.white,
             marginBottom: 22
           },
-          children: user.nombre
+          children: userEfectivo.nombre
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           style: {
             display: 'flex',
@@ -2056,13 +2119,46 @@ function PortalFamilia({
       }, void 0, true), tab === 'config' && /*#__PURE__*/_jsxDEV("div", {
         style: { display: 'flex', flexDirection: 'column', gap: 18 },
         children: [/*#__PURE__*/_jsxDEV("div", {
-          children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Datos fiscales" }, void 0, false),
-          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Estos datos se usan para generar el CFDI cuando pidas factura de un pago." }, void 0, false),
-          misHijos.map(hijo => /*#__PURE__*/_jsxDEV("div", {
-            style: { ...card(), padding: 14, marginBottom: 10 },
-            children: hijoFiscalId === hijo.id ? /*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: PLC.text }, children: hijo.nombre }, void 0, false),
+          children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Mis datos" }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Información de contacto del tutor/a de la cuenta." }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", {
+            style: { ...card(), padding: 14 },
+            children: editandoMisDatos ? /*#__PURE__*/_jsxDEV("div", {
+              children: [/*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+                children: [
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Nombre", value: formMisDatos.nombre, onChange: e => setFormMisDatos(f => ({ ...f, nombre: e.target.value })) }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", type: "email", placeholder: "Correo", value: formMisDatos.email, onChange: e => setFormMisDatos(f => ({ ...f, email: e.target.value })) }, void 0, false),
+                ]
+              }, void 0, true),
               /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+                children: [
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Teléfono", value: formMisDatos.telefono, onChange: e => setFormMisDatos(f => ({ ...f, telefono: e.target.value })) }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Nombre de contacto (si es distinto)", value: formMisDatos.contacto, onChange: e => setFormMisDatos(f => ({ ...f, contacto: e.target.value })) }, void 0, false),
+                ]
+              }, void 0, true),
+              errorMisDatos && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.red, marginBottom: 8 }, children: errorMisDatos }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { style: { display: 'flex', gap: 8 },
+                children: [
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: () => setEditandoMisDatos(false), children: "Cancelar" }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary btn-sm", disabled: guardandoMisDatos, onClick: guardarMisDatos, children: guardandoMisDatos ? 'Guardando…' : 'Guardar' }, void 0, false),
+                ]
+              }, void 0, true)]
+            }, void 0, true) : /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: userEfectivo.nombre }, void 0, false),
+                /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: [userEfectivo.email, miFamilia?.telefono ? ` · ${miFamilia.telefono}` : ''] }, void 0, true),
+                okMisDatos && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.green, marginTop: 2 }, children: okMisDatos }, void 0, false)]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: abrirMisDatos, children: "Editar" }, void 0, false)]
+            }, void 0, true)
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Datos fiscales" }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Un solo RFC/razón social por familia — se usa para generar el CFDI de cualquier pago de tus hijos." }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", {
+            style: { ...card(), padding: 14 },
+            children: editandoFiscal ? /*#__PURE__*/_jsxDEV("div", {
+              children: [/*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "RFC", value: formFiscal.rfc_factura, onChange: e => setFormFiscal(f => ({ ...f, rfc_factura: e.target.value.toUpperCase() })), style: { fontFamily: 'var(--mono)' } }, void 0, false),
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Razón social", value: formFiscal.razon_social_factura, onChange: e => setFormFiscal(f => ({ ...f, razon_social_factura: e.target.value })) }, void 0, false),
@@ -2087,18 +2183,18 @@ function PortalFamilia({
               errorFiscal && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.red, marginBottom: 8 }, children: errorFiscal }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { style: { display: 'flex', gap: 8 },
                 children: [
-                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: () => setHijoFiscalId(null), children: "Cancelar" }, void 0, false),
-                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary btn-sm", disabled: guardandoFiscal, onClick: () => guardarFiscal(hijo.id), children: guardandoFiscal ? 'Guardando…' : 'Guardar' }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: () => setEditandoFiscal(false), children: "Cancelar" }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary btn-sm", disabled: guardandoFiscal, onClick: guardarFiscal, children: guardandoFiscal ? 'Guardando…' : 'Guardar' }, void 0, false),
                 ]
               }, void 0, true)]
             }, void 0, true) : /*#__PURE__*/_jsxDEV("div", {
               style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
               children: [/*#__PURE__*/_jsxDEV("div", {
-                children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: hijo.nombre }, void 0, false),
-                /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: hijo.rfc_factura ? `RFC: ${hijo.rfc_factura}` : 'Sin datos fiscales capturados' }, void 0, true)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirFiscal(hijo), children: "Editar" }, void 0, false)]
+                style: { fontSize: 11.5, color: PLC.muted },
+                children: miFamilia?.rfc_factura ? `RFC: ${miFamilia.rfc_factura}` : 'Sin datos fiscales capturados'
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: abrirFiscal, children: "Editar" }, void 0, false)]
             }, void 0, true)
-          }, hijo.id, true))]
+          }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Tarjeta guardada" }, void 0, false),
           misHijos.filter(h => h.token_tarjeta_estado === 'activo').length === 0 ? /*#__PURE__*/_jsxDEV("div", {

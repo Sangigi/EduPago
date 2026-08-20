@@ -1772,7 +1772,7 @@ function App() {
 
                     data,
 
-                    d,
+                    typeof d === 'function' ? d(dataScopeed) : d,
 
                     escuelaActiva
 
@@ -1852,7 +1852,7 @@ function App() {
 
                     data,
 
-                    d,
+                    typeof d === 'function' ? d(dataScopeed) : d,
 
                     escuelaActiva
 
@@ -1908,7 +1908,7 @@ function App() {
 
                     data,
 
-                    d,
+                    typeof d === 'function' ? d(dataScopeed) : d,
 
                     escuelaActiva
 
@@ -1964,7 +1964,7 @@ function App() {
 
                     data,
 
-                    d,
+                    typeof d === 'function' ? d(dataScopeed) : d,
 
                     escuelaActiva
 
@@ -2014,7 +2014,7 @@ function App() {
 
                     data,
 
-                    d,
+                    typeof d === 'function' ? d(dataScopeed) : d,
 
                     escuelaActiva
 
@@ -2064,7 +2064,7 @@ function App() {
 
                     data,
 
-                    d,
+                    typeof d === 'function' ? d(dataScopeed) : d,
 
                     escuelaActiva
 
@@ -2112,7 +2112,7 @@ function App() {
 
                     data,
 
-                    d,
+                    typeof d === 'function' ? d(dataScopeed) : d,
 
                     escuelaActiva
 

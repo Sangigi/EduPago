@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/mailer.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
@@ -703,12 +704,31 @@ switch ($action) {
         // 3. Manejo de la respuesta
         if ($http_code >= 200 && $http_code < 300 && isset($response_data['id'])) {
             $uuid = $response_data['uuid'] ?? 'PENDIENTE';
-            // Guardar datos fiscales en el cliente para pre-rellenar en futuros CFDIs
+            // Guardar datos fiscales para pre-rellenar futuros CFDIs. El dato
+            // fiscal (RFC/razón social/domicilio) es del tutor que paga, no
+            // del alumno — se guarda en `familias` cuando el cliente tiene
+            // familia_id; solo se guarda en `clientes` como respaldo para
+            // clientes "generales" sin familia asociada.
             if ($cobro_id) {
-                $cobro_row = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
+                $cobro_row = $pdo->prepare("SELECT c.cliente_id, cl.familia_id FROM cobros c LEFT JOIN clientes cl ON cl.id = c.cliente_id WHERE c.id = ?");
                 $cobro_row->execute([$cobro_id]);
                 $cr = $cobro_row->fetch();
-                if ($cr && $cr['cliente_id']) {
+                if ($cr && $cr['familia_id']) {
+                    try {
+                        $pdo->prepare(
+                            "UPDATE familias SET
+                                rfc_factura           = ?,
+                                razon_social_factura  = ?,
+                                cp_factura            = ?,
+                                domicilio_factura     = ?,
+                                regimen_factura       = ?,
+                                uso_cfdi_defecto      = ?
+                             WHERE id = ?"
+                        )->execute([$rfc, $razon, $cp_receptor, $domicilio, $regimen, $uso, $cr['familia_id']]);
+                    } catch (\PDOException $e) {
+                        log_api("generar_cfdi -> no se pudo guardar fiscal en familias (¿falta migrar columnas?): " . $e->getMessage());
+                    }
+                } elseif ($cr && $cr['cliente_id']) {
                     $pdo->prepare(
                         "UPDATE clientes SET
                             rfc_factura           = ?,
@@ -833,6 +853,77 @@ switch ($action) {
         log_api("descargar_cfdi -> id={$facturapi_id} tipo={$tipo} http={$http_code}");
         echo $binary;
         exit;
+    // ══════════════════════════════════════════════════════════════════════════
+    // ENVIAR FACTURA POR CORREO — reusa el mismo PDF que descargar_cfdi, pero
+    // en vez de mandarlo al navegador lo adjunta a un correo. Mismo control de
+    // permisos que descargar_cfdi (superadmin/admin-cajero de su escuela/
+    // familia dueña del alumno).
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'enviar_factura_correo':
+        $cobro_id_mail = intval($input['cobro_id'] ?? 0);
+        $email_destino = trim($input['email'] ?? '');
+        if (!$cobro_id_mail) respond(['success' => false, 'error' => 'cobro_id requerido']);
+        if (!$email_destino || !filter_var($email_destino, FILTER_VALIDATE_EMAIL)) {
+            respond(['success' => false, 'error' => 'Correo destino inválido']);
+        }
+        $chkMail = $pdo->prepare(
+            "SELECT co.facturapi_id, co.escuela_id, co.folio, co.total, cl.familia_id, e.nombre AS escuela_nombre
+             FROM cobros co
+             LEFT JOIN clientes cl ON cl.id = co.cliente_id
+             LEFT JOIN escuelas e ON e.id = co.escuela_id
+             WHERE co.id = ?"
+        );
+        $chkMail->execute([$cobro_id_mail]);
+        $cobroMail = $chkMail->fetch();
+        if (!$cobroMail) { http_response_code(404); respond(['success' => false, 'error' => 'Cobro no encontrado']); }
+        if (!$cobroMail['facturapi_id']) { http_response_code(400); respond(['success' => false, 'error' => 'Este cobro no tiene factura generada.']); }
+        $rolMail = $usuario_actual['rol'] ?? '';
+        $autorizadoMail = false;
+        if ($rolMail === 'superadmin') {
+            $autorizadoMail = true;
+        } elseif (in_array($rolMail, ['admin', 'cajero'])) {
+            $autorizadoMail = intval($cobroMail['escuela_id']) === intval($usuario_actual['escuela_id'] ?? -1);
+        } elseif ($rolMail === 'familia') {
+            $autorizadoMail = $cobroMail['familia_id'] !== null && intval($cobroMail['familia_id']) === intval($usuario_actual['familia_id'] ?? -1);
+        }
+        if (!$autorizadoMail) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para enviar esta factura.']);
+        }
+        $ch = curl_init("https://www.facturapi.io/v2/invoices/{$cobroMail['facturapi_id']}/pdf");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . FACTURAPI_KEY],
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_FOLLOWLOCATION => true,
+        ]);
+        $pdfBinario = curl_exec($ch);
+        $httpCodeMail = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $errMail = curl_error($ch);
+        curl_close($ch);
+        if ($errMail || $httpCodeMail !== 200) {
+            log_api("enviar_factura_correo -> error al descargar PDF de Facturapi: " . ($errMail ?: "http {$httpCodeMail}"));
+            respond(['success' => false, 'error' => 'No se pudo obtener el PDF de la factura para enviarlo.']);
+        }
+        $escuelaNombreMail = $cobroMail['escuela_nombre'] ?: 'tu escuela';
+        $htmlMail = '<p>Hola,</p>' .
+            '<p>Adjunto encontrarás la factura de tu pago con folio <strong>' . htmlspecialchars($cobroMail['folio']) . '</strong> ' .
+            'por un total de <strong>$' . number_format(floatval($cobroMail['total']), 2) . ' MXN</strong> en ' . htmlspecialchars($escuelaNombreMail) . '.</p>' .
+            '<p>Este es un correo automático, por favor no respondas a esta dirección.</p>';
+        $resMail = enviar_correo(
+            $email_destino,
+            'Tu factura de ' . $escuelaNombreMail . ' — folio ' . $cobroMail['folio'],
+            $htmlMail,
+            [[ 'nombre' => "cfdi-{$cobroMail['facturapi_id']}.pdf", 'contenido' => $pdfBinario, 'mime' => 'application/pdf' ]]
+        );
+        if (!$resMail['success']) {
+            log_api("enviar_factura_correo -> FALLÓ envío a {$email_destino}: " . $resMail['error']);
+            respond(['success' => false, 'error' => $resMail['error']]);
+        }
+        log_api("enviar_factura_correo -> OK cobro:{$cobro_id_mail} destino:{$email_destino}");
+        respond(['success' => true]);
+    break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'cargar_datos':
         // Carga el estado del usuario actual desde la DB.
@@ -1640,9 +1731,10 @@ switch ($action) {
                 http_response_code(403);
                 respond(['success' => false, 'error' => 'No puedes editar la información de este alumno.']);
             }
-            $campos = ['direccion', 'contacto_emergencia', 'tel_emergencia', 'telefono', 'email',
-                       'rfc_factura', 'razon_social_factura', 'cp_factura', 'domicilio_factura',
-                       'regimen_factura', 'uso_cfdi_defecto'];
+            // Los datos fiscales (RFC/razón social/domicilio fiscal) ya NO se
+            // editan por alumno — pertenecen al tutor/familia que paga (ver
+            // case 'editar_familia'), no a cada hijo individualmente.
+            $campos = ['direccion', 'contacto_emergencia', 'tel_emergencia', 'telefono', 'email'];
         } else {
             $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id',
                        'direccion','contacto_emergencia','tel_emergencia',
@@ -1700,9 +1792,35 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_familia':
+        // Antes este case no validaba rol/pertenencia en absoluto: cualquier
+        // usuario autenticado (incluida una familia ajena) podía editar
+        // nombre/contacto/email/teléfono — y ahora RFC/domicilio fiscal —
+        // de CUALQUIER familia de CUALQUIER escuela con solo mandar su id.
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
-        $campos = ['nombre','contacto','email','telefono'];
+        $rol_actual_fam = $usuario_actual['rol'] ?? '';
+        $es_familia_propia = $rol_actual_fam === 'familia' && intval($usuario_actual['familia_id'] ?? -1) === $id;
+        if (!in_array($rol_actual_fam, ['superadmin', 'admin']) && !$es_familia_propia) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para editar esta familia.']);
+        }
+        if ($rol_actual_fam === 'admin') {
+            $chkFam = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
+            $chkFam->execute([$id]);
+            $famObjetivo = $chkFam->fetch();
+            if (!$famObjetivo || intval($famObjetivo['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para editar esta familia.']);
+            }
+        }
+        // Una familia edita sus propios datos de contacto y fiscales, pero
+        // nunca su 'nombre' (identidad del expediente) — eso queda para
+        // admin/superadmin, igual que en editar_cliente.
+        $campos = $es_familia_propia
+            ? ['contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
+               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto']
+            : ['nombre', 'contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
+               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto'];
         $sets = []; $vals = [];
         foreach ($campos as $c) {
             if (array_key_exists($c, $input)) {
@@ -1712,9 +1830,20 @@ switch ($action) {
         }
         if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
         $vals[] = $id;
-        $stmt = $pdo->prepare("UPDATE familias SET " . implode(', ', $sets) . " WHERE id = ?");
-        $stmt->execute($vals);
-        respond(['success' => true, 'familia' => $input]);
+        try {
+            $stmt = $pdo->prepare("UPDATE familias SET " . implode(', ', $sets) . " WHERE id = ?");
+            $stmt->execute($vals);
+        } catch (\PDOException $e) {
+            // Las columnas fiscales (rfc_factura, etc.) son nuevas — si la
+            // migración ALTER TABLE aún no corrió en esta base, avisa claro
+            // en vez de tronar con un error de MySQL crudo.
+            respond(['success' => false, 'error' => 'No se pudo guardar: faltan columnas fiscales en la tabla familias (aplica la migración pendiente).']);
+        }
+        $stmt2 = $pdo->prepare("SELECT * FROM familias WHERE id = ?");
+        $stmt2->execute([$id]);
+        $familiaActualizada = $stmt2->fetch(PDO::FETCH_ASSOC);
+        $familiaActualizada['activa'] = (bool)($familiaActualizada['activa'] ?? true);
+        respond(['success' => true, 'familia' => $familiaActualizada]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'listar_usuarios':
@@ -1820,6 +1949,12 @@ switch ($action) {
             $rol    = '';
             $esc_id = null;
             $zona   = '__NO_ENVIADO__';
+        }
+        // Nadie edita su propio familia_id (evita que un usuario rol 'familia'
+        // se reasigne a otra familia y vea/edite alumnos ajenos); solo
+        // admin/superadmin lo cambian sobre TERCEROS.
+        if ($es_propio_perfil) {
+            $fam_id = '__NO_ENVIADO__';
         }
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
@@ -2235,22 +2370,45 @@ switch ($action) {
         $plan       = trim($input['plan']       ?? 'basico');
         if (!in_array($plan, array_keys(PLANES_LIMITES), true)) $plan = PLAN_FALLBACK;
         if (!$nombre || !$clave) respond(['success' => false, 'error' => 'Nombre y clave son obligatorios']);
+        // El email es obligatorio: es con lo que se crea la cuenta admin de
+        // este colegio — sin esto, nadie podría iniciar sesión en él nunca
+        // (antes crear_escuela solo insertaba en `escuelas`, sin usuario).
+        if (!$email) respond(['success' => false, 'error' => 'El correo es obligatorio: con él se crea la cuenta admin del colegio']);
         $chk = $pdo->prepare("SELECT id FROM escuelas WHERE clave = ?");
         $chk->execute([$clave]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'Ya existe un colegio con esa clave']);
-        $stmt = $pdo->prepare(
-            "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion, logo_emoji, activa, es_plantel, plan, fecha_alta)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, CURDATE())"
-        );
-        $stmt->execute([$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji, $plan]);
-        $nuevo_id = intval($pdo->lastInsertId());
-        registrar_log($pdo, $usuario_actual, 'escuela_creada', "Colegio '$nombre' ($clave)", $nuevo_id);
+        $chkEmail = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chkEmail->execute([$email]);
+        if ($chkEmail->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare(
+                "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion, logo_emoji, activa, es_plantel, plan, fecha_alta)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, CURDATE())"
+            );
+            $stmt->execute([$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji, $plan]);
+            $nuevo_id = intval($pdo->lastInsertId());
+            // Cuenta de usuario admin del colegio, mismo patrón que crear_plantel.
+            $password_temporal = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
+            $hash = password_hash($password_temporal, PASSWORD_BCRYPT);
+            $stmtU = $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, creado_por)
+                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?)"
+            );
+            $nombre_admin = 'Admin ' . $nombre;
+            $stmtU->execute([$nuevo_id, $nombre_admin, $email, $hash, $usuario_actual['user_id'] ?? null]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Error al crear el colegio: ' . $e->getMessage()]);
+        }
+        registrar_log($pdo, $usuario_actual, 'escuela_creada', "Colegio '$nombre' ($clave), cuenta admin: $email", $nuevo_id);
         respond(['success' => true, 'escuela' => [
             'id' => $nuevo_id, 'nombre' => $nombre, 'clave' => $clave, 'rfc' => $rfc, 'rvoe' => $rvoe,
             'telefono' => $telefono, 'email' => $email, 'direccion' => $direccion,
             'logo_emoji' => $logo_emoji, 'activa' => true, 'es_plantel' => false,
             'escuela_padre_id' => null, 'plan' => $plan, 'fecha_alta' => date('Y-m-d'),
-        ]]);
+        ], 'admin_email' => $email, 'admin_password_temporal' => $password_temporal]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_escuela':

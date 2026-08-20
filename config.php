@@ -112,6 +112,14 @@ define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
 // ─── Configuración del super-admin ───────────────────────────────────────────
 define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
 
+// ─── Envío de correo (facturas, notificaciones) ──────────────────────────────
+// Usa la función mail() nativa de PHP (Hostinger la soporta sin configuración
+// adicional). Sin SMTP autenticado/SPF/DKIM la entregabilidad es limitada (puede
+// caer en spam) — si more adelante se contrata un SMTP real, solo hay que
+// cambiar la implementación de enviar_correo() en mailer.php, no los llamadores.
+define('MAIL_FROM_EMAIL', 'no-responder@pagalaescuela.mx');
+define('MAIL_FROM_NAME',  'Paga la Escuela');
+
 // ─── Logging ──────────────────────────────────────────────────────────────────
 define('API_LOG_ENABLED', true);
 define('API_LOG_FILE',    __DIR__ . '/api_log.txt');

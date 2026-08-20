@@ -47,6 +47,16 @@ function Caja({
     fecha_cheque: '',
     titular: ''
   });
+  // Facturar compra (desde la pantalla de "Cobro completado")
+  const [facturaPanel, setFacturaPanel] = useState(null); // null | 'form'
+  const [facturaForm, setFacturaForm] = useState({
+    rfc: '', razon_social: '', cp_receptor: '', domicilio: '', regimen: '616', uso_cfdi: 'D10', email: ''
+  });
+  const [facturaLoading, setFacturaLoading] = useState(false);
+  const [facturaError, setFacturaError] = useState(null);
+  const [correoDestino, setCorreoDestino] = useState('');
+  const [enviandoCorreo, setEnviandoCorreo] = useState(false);
+  const [correoMsg, setCorreoMsg] = useState(null); // { ok: bool, texto: string }
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
   const speiPollRef = useRef(null);
@@ -436,6 +446,92 @@ function Caja({
       fecha_cheque: '',
       titular: ''
     });
+    setFacturaPanel(null);
+    setFacturaError(null);
+    setCorreoDestino('');
+    setCorreoMsg(null);
+  };
+
+  /* ── FACTURAR COMPRA (desde el ticket) ── */
+  // Resuelve el cliente/familia del cobro directamente desde `data`, sin
+  // depender de `clienteSel` (que ya se limpió en varios flujos de cobro
+  // automático antes de que el usuario llegue a ver el ticket).
+  const resolverClienteFactura = () => {
+    if (!cobroActivo) return { cliente: null, familia: null };
+    const cliente = data.clientes.find(c => c.id === cobroActivo.cliente_id) || null;
+    const familia = cliente?.familia_id ? data.familias.find(f => f.id === cliente.familia_id) : null;
+    return { cliente, familia };
+  };
+  const abrirFacturar = () => {
+    const { cliente, familia } = resolverClienteFactura();
+    // Los datos fiscales viven en la familia (tutor) cuando el alumno
+    // pertenece a una; si no, se usa el respaldo a nivel alumno (clientes
+    // "generales" sin familia asociada).
+    const fiscal = familia?.rfc_factura ? familia : cliente;
+    setFacturaForm({
+      rfc: fiscal?.rfc_factura || '',
+      razon_social: fiscal?.razon_social_factura || '',
+      cp_receptor: fiscal?.cp_factura || '',
+      domicilio: fiscal?.domicilio_factura || '',
+      regimen: fiscal?.regimen_factura || '616',
+      uso_cfdi: fiscal?.uso_cfdi_defecto || 'D10',
+      email: familia?.email || cliente?.email || '',
+    });
+    setCorreoDestino(familia?.email || cliente?.email || '');
+    setFacturaError(null);
+    setFacturaPanel('form');
+  };
+  const generarFactura = async () => {
+    if (!facturaForm.rfc || !facturaForm.razon_social || !facturaForm.cp_receptor) {
+      setFacturaError('RFC, razón social y código postal son obligatorios.');
+      return;
+    }
+    setFacturaLoading(true);
+    setFacturaError(null);
+    const { cliente } = resolverClienteFactura();
+    try {
+      const res = await CobroController.generarCFDI({
+        cobro_id: cobroActivo.id,
+        rfc: facturaForm.rfc,
+        razon_social: facturaForm.razon_social,
+        cp_receptor: facturaForm.cp_receptor,
+        domicilio: facturaForm.domicilio,
+        regimen: facturaForm.regimen,
+        uso_cfdi: facturaForm.uso_cfdi,
+        email: facturaForm.email,
+        total: cobroActivo.total,
+        descripcion: (cobroActivo.items || []).map(i => i.nombre).filter(Boolean).join(', ') || 'Servicios educativos',
+        nombre_alumno: cliente?.nombre || '',
+        curp_alumno: cliente?.curp || '',
+        nivel_educativo: cliente?.nivel_educativo_sat || '',
+        rvoe: escuela?.rvoe || '',
+      });
+      const cobroConFactura = { ...cobroActivo, factura: true, facturapi_id: res.facturapi_id, uuid: res.uuid, folio_fiscal: res.folio_fiscal };
+      setCobroActivo(cobroConFactura);
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, factura: true, facturapi_id: res.facturapi_id } : c) };
+        AppModel.save(upd);
+        return upd;
+      });
+      setFacturaPanel(null);
+    } catch (e) {
+      setFacturaError(e.message);
+    } finally {
+      setFacturaLoading(false);
+    }
+  };
+  const enviarCorreoFactura = async () => {
+    if (!correoDestino) return;
+    setEnviandoCorreo(true);
+    setCorreoMsg(null);
+    try {
+      await CobroController.enviarFacturaCorreo(cobroActivo.id, correoDestino);
+      setCorreoMsg({ ok: true, texto: 'Factura enviada a ' + correoDestino });
+    } catch (e) {
+      setCorreoMsg({ ok: false, texto: e.message });
+    } finally {
+      setEnviandoCorreo(false);
+    }
   };
   const cerrarModal = () => {
     if (intervalRef.current) clearTimeout(intervalRef.current);
@@ -495,6 +591,18 @@ function Caja({
       }, `${r}-${c}`, false) : null))]
     }, void 0, true);
   };
+  const REGIMENES_FACTURA = [
+    { value: '616', label: '616 — Sin obligaciones fiscales (personas físicas)' },
+    { value: '601', label: '601 — General Personas Morales' },
+    { value: '612', label: '612 — Personas Físicas con Actividades Empresariales' },
+    { value: '626', label: '626 — RESICO' },
+  ];
+  const USOS_CFDI_FACTURA = [
+    { value: 'D10', label: 'D10 — Pagos por servicios educativos (recomendado)' },
+    { value: 'G01', label: 'G01 — Adquisición de mercancías' },
+    { value: 'G03', label: 'G03 — Gastos en general' },
+    { value: 'S01', label: 'S01 — Sin efectos fiscales' },
+  ];
   const METODOS = [{
     id: 'TC',
     label: 'Tarjeta',
@@ -1841,7 +1949,7 @@ function Caja({
           }, void 0, true)
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-body",
-          children: /*#__PURE__*/_jsxDEV("div", {
+          children: [/*#__PURE__*/_jsxDEV("div", {
             className: "ticket",
             children: [/*#__PURE__*/_jsxDEV("div", {
               style: {
@@ -1934,7 +2042,86 @@ function Caja({
               },
               children: "¡Gracias por su pago!"
             }, void 0, false)]
-          }, void 0, true)
+          }, void 0, true), facturaPanel === 'form' ? /*#__PURE__*/_jsxDEV("div", {
+            style: { marginTop: 14, padding: 14, background: 'var(--glass-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border-glow)' },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { fontWeight: 600, fontSize: 13, marginBottom: 10 },
+              children: "Datos fiscales para la factura"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "RFC *", value: facturaForm.rfc,
+                onChange: e => setFacturaForm(f => ({ ...f, rfc: e.target.value.toUpperCase() })),
+                style: { fontFamily: 'var(--mono)' }
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "Razón social *", value: facturaForm.razon_social,
+                onChange: e => setFacturaForm(f => ({ ...f, razon_social: e.target.value }))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "C.P. *", value: facturaForm.cp_receptor,
+                onChange: e => setFacturaForm(f => ({ ...f, cp_receptor: e.target.value }))
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "Domicilio fiscal", value: facturaForm.domicilio,
+                onChange: e => setFacturaForm(f => ({ ...f, domicilio: e.target.value }))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("select", {
+                className: "form-select", value: facturaForm.regimen,
+                onChange: e => setFacturaForm(f => ({ ...f, regimen: e.target.value })),
+                children: REGIMENES_FACTURA.map(r => /*#__PURE__*/_jsxDEV("option", { value: r.value, children: r.label }, r.value, false))
+              }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+                className: "form-select", value: facturaForm.uso_cfdi,
+                onChange: e => setFacturaForm(f => ({ ...f, uso_cfdi: e.target.value })),
+                children: USOS_CFDI_FACTURA.map(u => /*#__PURE__*/_jsxDEV("option", { value: u.value, children: u.label }, u.value, false))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("input", {
+              className: "form-input", placeholder: "Correo para enviarla (opcional)", value: facturaForm.email,
+              onChange: e => setFacturaForm(f => ({ ...f, email: e.target.value })),
+              style: { width: '100%', marginBottom: 8 }
+            }, void 0, false), facturaError && /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 12, color: 'var(--red)', marginBottom: 8 },
+              children: facturaError
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'flex', gap: 8 },
+              children: [/*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-secondary btn-sm",
+                onClick: () => setFacturaPanel(null),
+                children: "Cancelar"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-primary btn-sm",
+                disabled: facturaLoading,
+                onClick: generarFactura,
+                children: facturaLoading ? 'Generando…' : 'Generar factura'
+              }, void 0, false)]
+            }, void 0, true)]
+          }, void 0, true) : cobroActivo.factura ? /*#__PURE__*/_jsxDEV("div", {
+            style: { marginTop: 14, padding: 14, background: 'var(--glass-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border-glow)' },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { fontWeight: 600, fontSize: 13, marginBottom: 6, color: 'var(--green)' },
+              children: "✓ Factura generada"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 10 },
+              children: "Ya está disponible para descarga en el portal de la familia (si el alumno tiene familia asociada)."
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'flex', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "Correo destino", value: correoDestino,
+                onChange: e => setCorreoDestino(e.target.value),
+                style: { flex: 1 }
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-primary btn-sm",
+                disabled: enviandoCorreo || !correoDestino,
+                onClick: enviarCorreoFactura,
+                children: enviandoCorreo ? 'Enviando…' : 'Enviar por correo'
+              }, void 0, false)]
+            }, void 0, true), correoMsg && /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 12, color: correoMsg.ok ? 'var(--green)' : 'var(--red)' },
+              children: correoMsg.texto
+            }, void 0, false)]
+          }, void 0, true) : null]
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: [/*#__PURE__*/_jsxDEV("button", {
@@ -1945,6 +2132,14 @@ function Caja({
               size: 14,
               color: "currentColor"
             }, void 0, false), " Imprimir"]
+          }, void 0, true), !cobroActivo.factura && facturaPanel !== 'form' && /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: abrirFacturar,
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "reportes",
+              size: 14,
+              color: "currentColor"
+            }, void 0, false), " Facturar compra"]
           }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
             onClick: () => {
