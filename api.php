@@ -2970,6 +2970,60 @@ switch ($action) {
         respond(['success' => true, 'escuela' => $esc]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+    case 'eliminar_escuela':
+        // Solo permite borrar un colegio (no plantel) que nunca tuvo actividad
+        // real — mismo criterio que eliminar_plantel: si ya tiene alumnos,
+        // cobros, planteles o CLABEs asignadas, se pierde historial real de
+        // dinero/alumnos, así que se bloquea y se sugiere desactivar en su lugar.
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede eliminar colegios.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ?");
+        $stmt->execute([$id]);
+        $escDel = $stmt->fetch();
+        if (!$escDel) respond(['success' => false, 'error' => 'Colegio no encontrado']);
+        if ((bool)$escDel['es_plantel']) {
+            respond(['success' => false, 'error' => 'Esto es un plantel, no un colegio — elimínalo desde "Eliminar plantel" en su colegio principal.']);
+        }
+        $cntPlanteles = $pdo->prepare("SELECT COUNT(*) AS n FROM escuelas WHERE escuela_padre_id = ? AND es_plantel = 1");
+        $cntPlanteles->execute([$id]);
+        $nPlanteles = intval($cntPlanteles->fetch()['n'] ?? 0);
+        $cntAlumnos = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ?");
+        $cntAlumnos->execute([$id]);
+        $nAlumnos = intval($cntAlumnos->fetch()['n'] ?? 0);
+        $cntCobros = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros WHERE escuela_id = ?");
+        $cntCobros->execute([$id]);
+        $nCobros = intval($cntCobros->fetch()['n'] ?? 0);
+        $cntClabes = $pdo->prepare("SELECT COUNT(*) AS n FROM clabe_pool WHERE escuela_id = ?");
+        $cntClabes->execute([$id]);
+        $nClabes = intval($cntClabes->fetch()['n'] ?? 0);
+        if ($nPlanteles > 0 || $nAlumnos > 0 || $nCobros > 0 || $nClabes > 0) {
+            $motivos = array_filter([
+                $nPlanteles > 0 ? "$nPlanteles plantel(es)" : null,
+                $nAlumnos > 0   ? "$nAlumnos alumno(s)"      : null,
+                $nCobros > 0    ? "$nCobros cobro(s)"        : null,
+                $nClabes > 0    ? "$nClabes CLABE(s) en el pool" : null,
+            ]);
+            respond(['success' => false, 'error' => 'Este colegio ya tiene ' . implode(', ', $motivos) . ' — no se puede eliminar sin perder ese historial. Desactívalo en su lugar (o quita/reasigna eso primero si de verdad quieres borrarlo).']);
+        }
+        try {
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM usuarios WHERE escuela_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM familias WHERE escuela_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM productos WHERE escuela_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM escuelas WHERE id = ?")->execute([$id]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            respond(['success' => false, 'error' => 'No se pudo eliminar: ' . $e->getMessage()]);
+        }
+        registrar_log($pdo, $usuario_actual, 'escuela_eliminada', "Colegio #$id '{$escDel['nombre']}' eliminado (sin historial)");
+        respond(['success' => true, 'id' => $id]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
     // POOL DE CLABEs SPEI
     // ══════════════════════════════════════════════════════════════════════════
     case 'importar_clabes':

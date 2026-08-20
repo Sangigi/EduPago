@@ -284,6 +284,16 @@ function Escuelas({
       alert('No se pudo actualizar el estado de la escuela: ' + e.message);
     }
   };
+  const eliminarEscuela = async id => {
+    if (!confirm('¿Eliminar este colegio? Solo se puede si nunca tuvo alumnos, cobros, planteles ni CLABEs asignadas. Esta acción no se puede deshacer.')) return;
+    try {
+      const res = await apiPost('eliminar_escuela', { id });
+      if (!res.success) { alert(res.error || 'No se pudo eliminar el colegio'); return; }
+      setData(prevData => ({ ...prevData, escuelas: (prevData.escuelas || []).filter(e => e.id !== id) }));
+    } catch (e) {
+      alert('Error de conexión al eliminar el colegio: ' + e.message);
+    }
+  };
   const metricasEscuela = id => {
     const cobros = data.cobros.filter(c => c.escuela_id === id);
     const alumnos = data.clientes.filter(c => c.escuela_id === id && c.activo);
@@ -695,6 +705,15 @@ function Escuelas({
                 color: "currentColor"
               }, void 0, false) : /*#__PURE__*/_jsxDEV(Icon, {
                 name: "eyeOff",
+                size: 14,
+                color: "currentColor"
+              }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              className: "btn btn-secondary btn-sm",
+              title: "Eliminar colegio (solo si nunca tuvo actividad)",
+              onClick: () => eliminarEscuela(esc.id),
+              children: /*#__PURE__*/_jsxDEV(Icon, {
+                name: "trash",
                 size: 14,
                 color: "currentColor"
               }, void 0, false)
