@@ -3,29 +3,28 @@
  * EduPago — Servicio de Autorización de Pago (SPEI)
  * Doc: IntegracionesSpei_V1_4, sección "Servicio de Autorización de Pago"
  *
- * Cobroscontarjeta.com llama: POST https://TU_DOMINIO/pago_clabe.php
+ * Cobroscontarjeta.com llama: POST https://TU_DOMINIO/webhooks/pago_clabe.php
  * Body: { clabe, fecha, monto, transaccion }
  * Respuesta esperada: HTTP 200 + JSON { codigo, autorizacion, mensaje, transaccion, fecha }
  *
  * Configurar en Sandbox → EndPoint → Pago por SPEI → "Pagar clabe".
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/db.php';
-require_once __DIR__ . '/lib/helpers_pagos.php';
-require_once __DIR__ . '/lib/webhook_helpers.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/helpers_pagos.php';
+require_once __DIR__ . '/../lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
 function responder_pago_clabe($codigo, $mensaje, $autorizacion = '', $transaccion = '') {
-    echo json_encode([
+    webhook_responder([
         'codigo'       => $codigo,
         'autorizacion' => $autorizacion,
         'mensaje'      => $mensaje,
         'transaccion'  => strval($transaccion),
         'fecha'        => date('Y-m-d'),
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+    ]);
 }
 
 function log_pago_clabe($msg) {

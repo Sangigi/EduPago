@@ -3,7 +3,7 @@
  * EduPago — Servicio de Consulta de Referencia (efectivo OXXO/terceros)
  * Doc: IntegracionesReferencias_V1_4, sección "Servicio de Consulta de Referencia"
  *
- * Cobroscontarjeta.com llama: GET https://TU_DOMINIO/consulta_referencia.php?r=REFERENCIA
+ * Cobroscontarjeta.com llama: GET https://TU_DOMINIO/webhooks/consulta_referencia.php?r=REFERENCIA
  * Body de la petición: vacío (según doc).
  * Respuesta esperada: HTTP 200 + JSON { codigo, mensaje, monto, referencia, transaccion, parcial }
  *
@@ -11,22 +11,21 @@
  * el Sandbox → EndPoint → Comercios → "Consultar referencia".
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/db.php';
-require_once __DIR__ . '/lib/webhook_helpers.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
 function responder_consulta($codigo, $mensaje, $monto = 0, $referencia = '', $transaccion = 0) {
-    echo json_encode([
+    webhook_responder([
         'codigo'      => $codigo,
         'mensaje'     => $mensaje,
         'monto'       => strval($monto),
         'referencia'  => $referencia,
         'transaccion' => strval($transaccion),
         'parcial'     => true, // el manual exige que siempre vaya en true
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+    ]);
 }
 
 function log_ref($msg) {

@@ -38,8 +38,31 @@
 - Crearlos desde Usuarios → rol: Familia → seleccionar familia vinculada
 
 ### 4. Webhook SPEI
-- Dar la URL `https://tudominio.com/webhook_spei.php` a Pagadetodo
+- Dar la URL `https://tudominio.com/webhooks/webhook_spei.php` a Pagadetodo
 - Verificar que el archivo sea accesible sin autenticación
+
+### 4.1 ⚠️ Los 10 endpoints de pago se movieron a `webhooks/` — ACTUALIZAR EN EL SANDBOX
+Antes vivían en la raíz del proyecto. Se movieron a una carpeta `webhooks/` para no mezclarlos con el resto del backend. **Esto NO funciona solo — hay que actualizar la URL configurada en el Sandbox de Cobroscontarjeta.com/Pagadetodo para cada uno de los 10**, o ese endpoint empezará a responder 404 en cuanto subas los archivos nuevos.
+
+Secuencia recomendada para no perder notificaciones reales durante el cambio:
+1. Sube los archivos nuevos (con la carpeta `webhooks/`) al servidor.
+2. Inmediatamente después, entra al Sandbox y actualiza las 10 URLs de la tabla de abajo (agregando `/webhooks/` antes del nombre del archivo — todo lo demás de la URL se queda igual).
+3. Haz una prueba real (o de sandbox) de cada método de pago que uses activamente para confirmar que el webhook correspondiente sigue llegando.
+
+| Archivo | Dónde se configura en el Sandbox | URL nueva (con tu dominio real) |
+|---|---|---|
+| `webhook_spei.php` | Ya cubierto arriba (campo del webhook de Pagadetodo) | `.../webhooks/webhook_spei.php?token=...` |
+| `webhook_liga.php` | Pagalaescuela → EntregarPagoLigaToken | `.../webhooks/webhook_liga.php` |
+| `pago_referencia.php` | EndPoint → Comercios → "Pagar referencia" | `.../webhooks/pago_referencia.php` |
+| `cancela_pago_referencia.php` | EndPoint → Comercios → "Cancelar pago" | `.../webhooks/cancela_pago_referencia.php` |
+| `consulta_referencia.php` | EndPoint → Comercios → "Consultar referencia" | `.../webhooks/consulta_referencia.php` |
+| `entregar_referencia.php` | EndPoint → Comercios → "Entregar referencia" | `.../webhooks/entregar_referencia.php` |
+| `pago_clabe.php` | EndPoint → Pago por SPEI → "Pagar clabe" | `.../webhooks/pago_clabe.php` |
+| `cancela_pago_spei.php` | EndPoint → Pago por SPEI → "Cancelar pago" | `.../webhooks/cancela_pago_spei.php` |
+| `consulta_clabe.php` | EndPoint → Pago por SPEI → "Consultar clabe" | `.../webhooks/consulta_clabe.php` |
+| `entregar_clabe.php` | EndPoint → Pago por SPEI → "Entregar clabe" | `.../webhooks/entregar_clabe.php` |
+
+`config.php` (`WEBHOOK_URL`, `WEBHOOK_LIGA_URL`) ya se actualizó con el prefijo `/webhooks/` — solo son constantes informativas (no se leen en ningún flujo de pago), pero conviene que reflejen la URL real que le das a Pagadetodo.
 
 ### 5. Base de datos — migraciones
 - Correr `migracion_2026_08_20_suscripciones.sql` una sola vez (phpMyAdmin o consola MySQL de Hostinger) **antes** de subir el `api.php` nuevo — agrega `fecha_vencimiento_plan` / `ultimo_recordatorio_plan` a `escuelas`.
@@ -82,11 +105,12 @@
 - Las 29 llamadas `fetch()` sueltas directamente en las vistas (que no pasan por ningún controller) quedaron sin tocar — es una limpieza aparte, de mayor superficie y riesgo, no incluida en esta pasada.
 - JS-only, no requiere migración. Probar: login/logout (ruta 401), y una acción de escritura por cada dominio (caja, cliente, cobro, producto, usuario).
 
-### 5.3f Backend reorganizado en `lib/` + logging de webhooks consolidado
-- Los archivos internos que nunca se llaman por URL directa (`db.php`, `mailer.php`, `helpers_pagos.php`, y el nuevo `webhook_helpers.php`) se movieron a una carpeta `lib/`, para que la raíz del proyecto deje de mezclar "cosas que un proveedor de pagos llama por URL fija" con "librerías internas". Se actualizaron todos los `require_once` (10 archivos) — verificado con `php -l` en cada uno.
-- **A propósito NO se movieron** los 10 endpoints de pago (`webhook_liga.php`, `webhook_spei.php`, `pago_referencia.php`, `cancela_pago_referencia.php`, `cancela_pago_spei.php`, `pago_clabe.php`, `consulta_referencia.php`, `consulta_clabe.php`, `entregar_referencia.php`, `entregar_clabe.php`) ni `api.php`/`config.php`: los 10 primeros tienen su URL configurada tal cual en el Sandbox de Cobroscontarjeta.com/Pagadetodo — moverlos rompería esos webhooks hasta que actualices la URL allá. Si algún día quieres agruparlos (ej. en `webhooks/`), es un cambio coordinado con el proveedor, no lo hagas solo editando el repo.
+### 5.3f Backend reorganizado en `lib/` + `webhooks/` + logging/respuestas consolidados
+- Los archivos internos que nunca se llaman por URL directa (`db.php`, `mailer.php`, `helpers_pagos.php`, y el nuevo `webhook_helpers.php`) se movieron a una carpeta `lib/`. Se actualizaron todos los `require_once` — verificado con `php -l` **y** con una ejecución real por CLI de varios endpoints (no basta con `php -l`: un `require_once` a una ruta que ya no existe es un error que solo aparece en tiempo de ejecución, no de sintaxis — así se encontró y corrigió un bug real: `lib/db.php` tenía su propio `require_once __DIR__ . '/config.php'` interno que quedó roto por el movimiento, lo que habría tronado TODO lo que usa `db.php`, incluyendo `api.php`).
+- Los 10 endpoints de pago (`webhook_liga.php`, `webhook_spei.php`, `pago_referencia.php`, `cancela_pago_referencia.php`, `cancela_pago_spei.php`, `pago_clabe.php`, `consulta_referencia.php`, `consulta_clabe.php`, `entregar_referencia.php`, `entregar_clabe.php`) se movieron a una carpeta `webhooks/` — **esto requiere actualizar la URL en el Sandbox de Cobroscontarjeta.com/Pagadetodo para cada uno, ver sección 4.1**, no es automático.
 - Además, esos mismos 10 archivos reimplementaban, cada uno, su propia función de "escribe una línea con fecha a un archivo de log" (`log_api_liga`, `log_ref_pago`, `log_ref_cancela`, `log_cancela_spei`, `log_clabe`, `log_ref`, `log_pago_clabe`, o líneas sueltas de `file_put_contents` en `webhook_spei.php`/`webhook_liga.php`). Se centralizó la mecánica de escritura en `lib/webhook_helpers.php` → `webhook_log($archivo, $mensaje)`; cada archivo conserva su propia función con su nombre, su condición de activado y su archivo de destino tal cual estaban (solo delegan la escritura real).
-- **A propósito NO se tocó** ningún formateador de respuesta (`responder_liga`, `responder` de SPEI, `responder_pago`, `responder_cancela`, etc.): cada uno habla un protocolo JSON distinto y específico del proveedor — unificarlos arriesgaría romper ese contrato externo con dinero real de por medio.
+- Los 8 formateadores de respuesta (`responder_liga`, `responder` de SPEI, `responder_pago`, `responder_cancela`, `responder_cancela_spei`, `responder_consulta`, `responder_consulta_clabe`, `responder_pago_clabe`) también repetían el mismo mecanismo (`echo json_encode([...], JSON_UNESCAPED_UNICODE); exit;`). Se centralizó ESE mecanismo en `webhook_helpers.php` → `webhook_responder($payload)` — pero a propósito **no se unificó el contenido del JSON**: cada `responder_*` sigue armando su propio arreglo con los campos exactos que su proveedor/endpoint espera (`codigo`/`autorizacion`/`transaccion`/`fecha` en unos, `success`/`mensaje` en otros). Unificar los CAMPOS habría arriesgado romper el contrato externo con dinero real de por medio; unificar solo el "envíalo y corta" no cambia ni un campo de lo que cada proveedor recibe.
+- Efecto secundario menor del movimiento a `webhooks/`: `webhook_liga.php` escribe dos archivos de diagnóstico crudo (`debug_webhook.txt`, `webhook_log.txt`) usando su propia carpeta como referencia — ahora aparecerán dentro de `webhooks/` en vez de en la raíz. Los logs importantes (`api_log.txt`, `referencias_log.txt`) NO se movieron, siguen en la raíz (se definen desde `config.php`, que no cambió de lugar).
 - No requiere migración SQL.
 
 ### 5.4 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
@@ -120,11 +144,15 @@ lib/                    ← Librerías internas (nunca se llaman por URL directa
   db.php                ←   Conexión PDO
   mailer.php            ←   Cliente SMTP (enviar_correo)
   helpers_pagos.php     ←   recalcular_saldo_pendiente()
-  webhook_helpers.php   ←   webhook_log() — escritura compartida de logs de webhooks
+  webhook_helpers.php   ←   webhook_log() + webhook_responder() compartidos
 
-webhook_liga.php, webhook_spei.php,          ← Endpoints de pago con URL fija configurada
-pago_referencia.php, cancela_pago_*.php,     ← en el Sandbox de Cobroscontarjeta.com/Pagadetodo.
-consulta_*.php, entregar_*.php               ← NO mover sin coordinar el cambio de URL allá.
+webhooks/               ← Endpoints de pago con URL fija en el Sandbox de Cobroscontarjeta.com/
+  webhook_liga.php,     ←   Pagadetodo — mover/renombrar CUALQUIERA de estos 10 requiere
+  webhook_spei.php,     ←   actualizar la URL correspondiente en el Sandbox (ver sección 4.1).
+  pago_referencia.php,
+  cancela_pago_*.php,
+  consulta_*.php,
+  entregar_*.php
 
 assets/css/main.css     ← Estilos (paleta Pagalaescuela)
 assets/js/app.js        ← Router principal React (carga/mezcla datos, sesión)

@@ -20,10 +20,10 @@
  * adivinar una referencia numérica de 13 dígitos que generamos nosotros.
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/db.php';
-require_once __DIR__ . '/lib/helpers_pagos.php';
-require_once __DIR__ . '/lib/webhook_helpers.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/helpers_pagos.php';
+require_once __DIR__ . '/../lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -32,8 +32,7 @@ $ts  = date('Y-m-d H:i:s');
 if (!ip_permitida_pago_sin_token()) {
     if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, '❌ WEBHOOK LIGA rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     header('Content-Type: application/json; charset=UTF-8');
-    echo json_encode(['success' => false, 'mensaje' => 'No autorizado'], JSON_UNESCAPED_UNICODE);
-    exit;
+    webhook_responder(['success' => false, 'mensaje' => 'No autorizado']);
 }
 
 $raw = file_get_contents('php://input');
@@ -63,8 +62,7 @@ if (API_LOG_ENABLED) {
 function responder_liga($ok, $msg) {
     // Cobroscontarjeta.com no exige un formato de respuesta estricto para
     // este webhook (solo espera 200 OK); devolvemos algo simple y claro.
-    echo json_encode(['success' => $ok, 'mensaje' => $msg], JSON_UNESCAPED_UNICODE);
-    exit;
+    webhook_responder(['success' => $ok, 'mensaje' => $msg]);
 }
 
 $data = json_decode($raw, true);

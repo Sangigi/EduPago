@@ -6,8 +6,8 @@
  * Configurar en Sandbox → EndPoint → Pago por SPEI → "Entregar clabe".
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/webhook_helpers.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -17,4 +17,4 @@ if (defined('REFERENCIA_LOG_FILE')) {
     webhook_log(REFERENCIA_LOG_FILE, "SPEI-ENTREGAR | {$_SERVER['REQUEST_METHOD']} | RAW: {$raw}");
 }
 
-echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+webhook_responder(['success' => true]);

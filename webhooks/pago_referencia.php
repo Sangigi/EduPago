@@ -18,7 +18,7 @@
 
 
 
- * Cobroscontarjeta.com llama: POST https://TU_DOMINIO/pago_referencia.php
+ * Cobroscontarjeta.com llama: POST https://TU_DOMINIO/webhooks/pago_referencia.php
 
 
 
@@ -46,13 +46,13 @@
 
 
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/../config.php';
 
 
 
-require_once __DIR__ . '/lib/db.php';
-require_once __DIR__ . '/lib/helpers_pagos.php';
-require_once __DIR__ . '/lib/webhook_helpers.php';
+require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/helpers_pagos.php';
+require_once __DIR__ . '/../lib/webhook_helpers.php';
 
 
 
@@ -68,53 +68,16 @@ header('Content-Type: application/json; charset=UTF-8');
 
 
 function responder_pago($codigo, $mensaje, $autorizacion = '', $transaccion = '') {
-
-
-
-    echo json_encode([
-
-
-
-        'codigo'            => $codigo,
-
-
-
-        'autorizacion'      => $autorizacion,
-
-
-
-        'mensaje'           => $mensaje,
-
-
-
-        'transaccion'       => strval($transaccion),
-
-
-
-        'fecha'             => date('Y-m-d'),
-
-
-
-        'notificacion_sms'  => '',
-
-
-
-        'mensaje_sms'       => '',
-
-
-
-        'mensaje_ticket'    => '',
-
-
-
-    ], JSON_UNESCAPED_UNICODE);
-
-
-
-    exit;
-
-
-
+    webhook_responder([
+        'codigo' => $codigo,
+        'autorizacion' => $autorizacion,
+        'mensaje' => $mensaje,
+        'transaccion' => strval($transaccion),
+        'fecha' => date('Y-m-d'),
+        'notificacion_sms' => '',
+        'mensaje_sms' => '',
+        'mensaje_ticket' => '',
+    ]);
 }
 
 

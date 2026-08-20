@@ -85,7 +85,7 @@ define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local
 // Después de desplegar esto, hay que darle este mismo valor a Pagadetodo en su
 // configuración de webhook (?token=...), si no, sus notificaciones dejarán de pasar.
 define('WEBHOOK_SPEI_TOKEN', 'd415bc71bb74b30892b017848882bfa6897c8c2a0c8ca6519a432798955c0956');
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=' . WEBHOOK_SPEI_TOKEN);
+define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhooks/webhook_spei.php?token=' . WEBHOOK_SPEI_TOKEN);
 
 // ─── Webhook de Liga/CAI (EntregarPagoLigaToken) — Pagalaescuela ─────────────
 // Este endpoint NO lleva token en query string porque el protocolo de
@@ -93,7 +93,7 @@ define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=' . 
 // extra en la URL (la ruta debe ser exactamente /Service/EntregarPagoLigaToken).
 // La validación de origen se hace verificando que 'reference' exista en
 // nuestra tabla `cobros` y no esté ya pagada — igual patrón que webhook_spei.
-define('WEBHOOK_LIGA_URL', 'https://test.grupoideasmx.com/webhook_liga.php');
+define('WEBHOOK_LIGA_URL', 'https://test.grupoideasmx.com/webhooks/webhook_liga.php');
 
 // ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
 // El correo no especifica un BusinessID distinto para efectivo; se usa el

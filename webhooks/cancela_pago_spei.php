@@ -3,7 +3,7 @@
  * EduPago — Servicio de Cancelación de Pago (SPEI)
  * Doc: IntegracionesSpei_V1_4, sección "Servicio de Cancelación de Pago"
  *
- * Cobroscontarjeta.com llama: POST o DELETE https://TU_DOMINIO/cancela_pago_spei.php
+ * Cobroscontarjeta.com llama: POST o DELETE https://TU_DOMINIO/webhooks/cancela_pago_spei.php
  * Body: { clabe, fecha, monto, transaccion, autorizacion }
  * Solo puede cancelar un pago dentro del MISMO día en que se autorizó.
  *
@@ -11,17 +11,16 @@
  * "Recibir cancelación por" (POST o DELETE, el que elijas aquí).
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/db.php';
-require_once __DIR__ . '/lib/helpers_pagos.php';
-require_once __DIR__ . '/lib/webhook_helpers.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/helpers_pagos.php';
+require_once __DIR__ . '/../lib/webhook_helpers.php';
 
 date_default_timezone_set('America/Mexico_City');
 header('Content-Type: application/json; charset=UTF-8');
 
 function responder_cancela_spei($codigo, $mensaje) {
-    echo json_encode(['codigo' => $codigo, 'mensaje' => $mensaje], JSON_UNESCAPED_UNICODE);
-    exit;
+    webhook_responder(['codigo' => $codigo, 'mensaje' => $mensaje]);
 }
 
 function log_cancela_spei($msg) {

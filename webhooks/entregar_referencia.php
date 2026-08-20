@@ -15,8 +15,8 @@
  * Configurar en Sandbox → EndPoint → Comercios → "Entregar referencia".
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/webhook_helpers.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -29,4 +29,4 @@ if (defined('REFERENCIA_LOG_FILE')) {
 // No se requiere ninguna acción de negocio: la referencia ya se guardó en
 // `cobros` desde generar_referencia_efectivo (api.php) en el momento en que
 // EduPago llamó a GenerarReferenciaIndi. Solo confirmamos recepción.
-echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+webhook_responder(['success' => true]);

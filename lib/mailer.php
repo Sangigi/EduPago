@@ -5,7 +5,7 @@
  * SMTP directo por sockets (EHLO/STARTTLS/AUTH LOGIN/MAIL FROM/RCPT TO/DATA).
  *
  * Uso:
- *   require_once __DIR__ . '/mailer.php';
+ *   require_once __DIR__ . '/lib/mailer.php';
  *   $r = enviar_correo('familia@ejemplo.com', 'Asunto', '<p>Hola</p>');
  *   // Con adjuntos (ej. PDF de factura):
  *   $r = enviar_correo($email, $asunto, $html, [
