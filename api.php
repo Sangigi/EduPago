@@ -1498,6 +1498,80 @@ switch ($action) {
         respond(['success' => true, 'cliente' => array_merge($input, ['id' => $id, 'activo' => true, 'saldo_pendiente' => 0])]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+    // CONCEPTOS DE PAGO (productos) — antes solo se guardaban en localStorage
+    // del navegador (AppModel.save), por eso "desaparecían" al recargar contra
+    // otro navegador/dispositivo: nunca llegaban a la base de datos.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_producto':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para crear conceptos de pago.']);
+        }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $nombre     = trim($input['nombre']       ?? '');
+        $categoria  = trim($input['categoria']    ?? '') ?: 'otro';
+        $precio     = floatval($input['precio']   ?? 0);
+        $emoji      = trim($input['emoji']        ?? '');
+        $activo     = array_key_exists('activo', $input) ? (bool)$input['activo'] : true;
+        if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+        $stmt = $pdo->prepare(
+            "INSERT INTO productos (escuela_id, nombre, categoria, precio, emoji, activo)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([$escuela_id, $nombre, $categoria, $precio, $emoji, $activo ? 1 : 0]);
+        $id = intval($pdo->lastInsertId());
+        respond(['success' => true, 'producto' => [
+            'id' => $id, 'escuela_id' => $escuela_id, 'nombre' => $nombre,
+            'categoria' => $categoria, 'precio' => $precio, 'emoji' => $emoji, 'activo' => $activo,
+        ]]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_producto':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para editar conceptos de pago.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $campos = ['nombre', 'categoria', 'precio', 'emoji', 'activo'];
+        $sets = []; $vals = [];
+        foreach ($campos as $c) {
+            if (array_key_exists($c, $input)) {
+                $sets[] = "`$c` = ?";
+                $vals[] = $c === 'activo' ? ((bool)$input[$c] ? 1 : 0) : $input[$c];
+            }
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+        $vals[] = $id;
+        $stmt = $pdo->prepare("UPDATE productos SET " . implode(', ', $sets) . " WHERE id = ?");
+        $stmt->execute($vals);
+        $stmt2 = $pdo->prepare("SELECT * FROM productos WHERE id = ?");
+        $stmt2->execute([$id]);
+        $productoActualizado = $stmt2->fetch(PDO::FETCH_ASSOC);
+        if (!$productoActualizado) respond(['success' => false, 'error' => 'Producto no encontrado']);
+        $productoActualizado['activo'] = (bool)$productoActualizado['activo'];
+        $productoActualizado['precio'] = floatval($productoActualizado['precio']);
+        respond(['success' => true, 'producto' => $productoActualizado]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_producto_activo':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para modificar conceptos de pago.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $pdo->prepare("UPDATE productos SET activo = NOT activo WHERE id = ?")->execute([$id]);
+        $stmt2 = $pdo->prepare("SELECT activo FROM productos WHERE id = ?");
+        $stmt2->execute([$id]);
+        $row = $stmt2->fetch();
+        if (!$row) respond(['success' => false, 'error' => 'Producto no encontrado']);
+        respond(['success' => true, 'id' => $id, 'activo' => (bool)$row['activo']]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
     case 'eliminar_tarjeta_guardada':
         // Familia elimina la tarjeta guardada de SU hijo; admin/superadmin
         // pueden hacerlo por cualquier alumno de su escuela.

@@ -479,14 +479,6 @@ function Caja({
     label: 'SPEI',
     icon: 'bank'
   }, {
-    id: 'CoDi',
-    label: 'CoDi',
-    icon: 'phone'
-  }, {
-    id: 'Efectivo',
-    label: 'Efectivo en caja',
-    icon: 'pay'
-  }, {
     id: 'EfectivoRef',
     label: 'Efectivo (OXXO/tienda)',
     icon: 'pay'
