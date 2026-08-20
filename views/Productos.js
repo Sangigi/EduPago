@@ -24,7 +24,6 @@ function Productos({
     tipo: 'unico',
     periodicidad_meses: 1,
     fecha_inicio: '',
-    dia_ventana_inicio: 1,
     dia_ventana_fin: 5,
     penalizacion_tipo: '',
     penalizacion_valor: 0
@@ -45,7 +44,9 @@ function Productos({
     if (!form.nombre || form.precio === undefined) return;
     if (form.tipo === 'recurrente') {
       if (!form.fecha_inicio) return setErrForm('Define la fecha de inicio del cobro recurrente.');
-      if (form.dia_ventana_fin < form.dia_ventana_inicio) return setErrForm('El día final de la ventana de pago debe ser igual o posterior al día inicial.');
+      const diaInicioDerivado = new Date(form.fecha_inicio + 'T00:00:00').getDate();
+      if (diaInicioDerivado > 28) return setErrForm('Elige un día 1-28 en "Empieza a cobrarse" (los días 29-31 no existen en todos los meses).');
+      if (form.dia_ventana_fin < diaInicioDerivado) return setErrForm(`El día de cierre debe ser igual o posterior al día ${diaInicioDerivado} (el día en que abre, según la fecha de inicio).`);
       if (form.penalizacion_tipo && (!form.penalizacion_valor || form.penalizacion_valor <= 0)) return setErrForm('Define un valor de penalización mayor a cero, o quita el tipo de penalización.');
     }
     setGuardando(true);
@@ -419,26 +420,20 @@ function Productos({
                     type: "date",
                     value: form.fecha_inicio,
                     onChange: e => setForm(f => ({ ...f, fecha_inicio: e.target.value }))
+                  }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                    style: { fontSize: 10.5, color: 'var(--ink-4)', marginTop: 4 },
+                    children: form.fecha_inicio ? `La ventana sin recargo abre cada mes el día ${new Date(form.fecha_inicio + 'T00:00:00').getDate()} (el mismo día del mes que elegiste aquí).` : 'El día del mes que elijas será también el día en que abre la ventana sin recargo, cada periodo.'
                   }, void 0, false)]
                 }, void 0, true)]
               }, void 0, true),
               /*#__PURE__*/_jsxDEV("div", {
-                style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-                children: [/*#__PURE__*/_jsxDEV("div", {
-                  className: "form-group",
-                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Ventana de pago sin recargo: día" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                    className: "form-input", type: "number", min: 1, max: 28,
-                    value: form.dia_ventana_inicio,
-                    onChange: e => setForm(f => ({ ...f, dia_ventana_inicio: parseInt(e.target.value) || 1 }))
-                  }, void 0, false)]
-                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                  className: "form-group",
-                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "…al día" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                    className: "form-input", type: "number", min: 1, max: 28,
-                    value: form.dia_ventana_fin,
-                    onChange: e => setForm(f => ({ ...f, dia_ventana_fin: parseInt(e.target.value) || 5 }))
-                  }, void 0, false)]
-                }, void 0, true)]
+                className: "form-group",
+                style: { maxWidth: 220 },
+                children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Pagar sin recargo hasta el día" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                  className: "form-input", type: "number", min: 1, max: 28,
+                  value: form.dia_ventana_fin,
+                  onChange: e => setForm(f => ({ ...f, dia_ventana_fin: parseInt(e.target.value) || 5 }))
+                }, void 0, false)]
               }, void 0, true),
               /*#__PURE__*/_jsxDEV("div", {
                 style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },

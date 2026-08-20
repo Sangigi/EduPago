@@ -64,6 +64,9 @@ try {
         if ($mesesTranscurridos < 0 || $mesesTranscurridos % intval($prod['periodicidad_meses']) !== 0) {
             continue; // este mes calendario no corresponde a un periodo de cobro
         }
+        if ($hoyDiaMes < intval($prod['dia_ventana_inicio'])) {
+            continue; // este mes sí toca, pero aún no llega el día en que abre la ventana (no marca ultima_generacion: se reintenta mañana)
+        }
 
         $escStmt = $pdo->prepare("SELECT clave FROM escuelas WHERE id = ?");
         $escStmt->execute([$prod['escuela_id']]);

@@ -55,10 +55,16 @@ function validar_datos_recurrente($input) {
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_inicio)) {
         respond(['success' => false, 'error' => 'Fecha de inicio inválida para el concepto recurrente.']);
     }
-    $dia_ini = intval($input['dia_ventana_inicio'] ?? 1);
+    // El día en que abre la ventana de pago sin recargo NO se captura aparte:
+    // es el mismo día-del-mes que elegiste en "Empieza a cobrarse", para no
+    // pedir dos veces la misma información. Solo se captura el día de cierre.
+    $dia_ini = intval(date('j', strtotime($fecha_inicio)));
+    if ($dia_ini > 28) {
+        respond(['success' => false, 'error' => 'Elige un día 1-28 en "Empieza a cobrarse" (los días 29-31 no existen en todos los meses, y este concepto se repite mes con mes).']);
+    }
     $dia_fin = intval($input['dia_ventana_fin'] ?? 5);
-    if ($dia_ini < 1 || $dia_ini > 28 || $dia_fin < 1 || $dia_fin > 28 || $dia_fin < $dia_ini) {
-        respond(['success' => false, 'error' => 'La ventana de pago debe ir del día 1 al 28 (para que aplique en cualquier mes), con el día final igual o después del inicial.']);
+    if ($dia_fin < 1 || $dia_fin > 28 || $dia_fin < $dia_ini) {
+        respond(['success' => false, 'error' => 'El día de cierre de la ventana debe ser del 1 al 28, e igual o posterior al día en que empieza a cobrarse (día ' . $dia_ini . ').']);
     }
     $pen_tipo = trim($input['penalizacion_tipo'] ?? '') ?: null;
     $pen_valor = null;
