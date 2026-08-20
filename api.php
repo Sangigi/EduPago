@@ -588,6 +588,7 @@ switch ($action) {
         }
         // Guardar la Reference en el cobro para poder casarla con el webhook.
         $pdo->prepare("UPDATE cobros SET referencia = ? WHERE id = ?")->execute([$ref, $cobroRow['id']]);
+        registrar_log($pdo, $usuario_actual, 'liga_pago_generada', "Cobro #{$cobroRow['id']} folio {$folio}, total \${$total}, ref {$ref}", $cobroRow['escuela_id']);
         respond([
             'success'    => true,
             'url'        => $url_pago,
@@ -664,6 +665,7 @@ switch ($action) {
         }
         $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', referencia = ?, auth_code = ? WHERE id = ?")
             ->execute([$ref, $tx['auth'] ?? null, $cobroRow['id']]);
+        registrar_log($pdo, $usuario_actual, 'cargo_automatico_cobrado', "Cobro #{$cobroRow['id']} (alumno #{$cliente_id}), folio {$folio}, total \${$total}", $cli['escuela_id']);
         respond(['success' => true, 'cobro_id' => intval($cobroRow['id']), 'autorizacion' => $tx['auth'] ?? null]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
@@ -701,6 +703,7 @@ switch ($action) {
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
         $pdo->prepare("UPDATE clientes SET token_tarjeta_estado = 'cancelado' WHERE id = ?")->execute([$cliente_id]);
+        registrar_log($pdo, $usuario_actual, 'tarjeta_domiciliada_cancelada', "Alumno #{$cliente_id}", $cli['escuela_id']);
         respond(['success' => true, 'mensaje' => $raw['message'] ?? 'Tarjeta desvinculada']);
     break;
     // ══════════════════════════════════════════════════════════════════════════
@@ -754,6 +757,7 @@ switch ($action) {
             date('Y-m-d', strtotime('+3 days')),
             $cobroRow['id'],
         ]);
+        registrar_log($pdo, $usuario_actual, 'referencia_efectivo_generada', "Cobro #{$cobroRow['id']} folio {$folio}, total \${$total}, ref {$referencia_cct}");
         respond([
             'success'      => true,
             'cobro_id'     => intval($cobroRow['id']),
@@ -1758,6 +1762,7 @@ switch ($action) {
             $rs->execute([$cliente_id]);
             $nuevo_saldo_crear = floatval($rs->fetchColumn());
         }
+        registrar_log($pdo, $usuario_actual, 'cobro_creado', "Cobro #{$cobro_id} folio {$folio} para {$cliente_nombre}, total \${$total}, metodo {$metodo}", $escuela_id);
         respond([
             'success' => true,
             'cobro' => [
@@ -1860,6 +1865,7 @@ switch ($action) {
             $rs->execute([$cliente_id_afectado]);
             $nuevo_saldo = floatval($rs->fetchColumn());
         }
+        registrar_log($pdo, $usuario_actual, 'pago_confirmado_manual', "Cobro #{$cobro_id} confirmado como pagado a mano" . ($extra_auth ? " (auth/transacción: {$extra_auth})" : ''));
         respond(['success' => true, 'cobro_id' => $cobro_id, 'estado' => 'pagado',
                  'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
     break;
@@ -1901,6 +1907,7 @@ switch ($action) {
             $rs->execute([$cliente_id_afectado]);
             $nuevo_saldo = floatval($rs->fetchColumn());
         }
+        registrar_log($pdo, $usuario_actual, 'cobro_cancelado', "Cobro #{$cobro_id} cancelado");
         respond(['success' => true, 'cobro_id' => $cobro_id,
                  'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);
     break;
