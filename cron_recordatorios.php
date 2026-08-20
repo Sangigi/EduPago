@@ -4,14 +4,19 @@
  * de Hostinger). Ver PRODUCCION.md para cómo programarlo.
  *
  * Envía por correo:
+ *  0) Pagos recurrentes (productos.tipo='recurrente'): genera el cobro del
+ *     periodo (mensual/semestral/anual) para cada alumno activo, avisa 1 día
+ *     antes de que cierre la ventana de pago (día 1-5 del mes por defecto,
+ *     configurable por concepto), y aplica el recargo por pago tardío
+ *     (único, no escalable) una sola vez por cobro.
  *  1) Aviso de vencimiento de la suscripción (plan SaaS) del colegio, 7 y 5
  *     días antes de `escuelas.fecha_vencimiento_plan`.
- *  2) Recordatorios de cobros pendientes a la familia/cliente. Si el cobro
- *     tiene una fecha de vencimiento real, usa el mismo criterio de urgencia
- *     que views/Recordatorios.js (3 días antes, el día que vence, 1 día
- *     después). Si no (caso actual: crear_cobro no guarda vencimiento, solo
- *     fecha de creación), avisa: día 0 = aviso neutral de cobro nuevo, día 3
- *     = recordatorio, día 7 = urgente.
+ *  2) Recordatorios de cobros pendientes NO recurrentes a la familia/cliente.
+ *     Si el cobro tiene una fecha de vencimiento real, usa el mismo criterio
+ *     de urgencia que views/Recordatorios.js (3 días antes, el día que
+ *     vence, 1 día después). Si no (caso actual: crear_cobro no guarda
+ *     vencimiento, solo fecha de creación), avisa: día 0 = aviso neutral de
+ *     cobro nuevo, día 3 = recordatorio, día 7 = urgente.
  *
  * No requiere autenticación: no se expone a través del navegador/api.php,
  * solo se ejecuta por CLI.
@@ -36,6 +41,174 @@ $PLAN_INFO = [
 $hoyStr = date('Y-m-d');
 $hoyTs  = strtotime($hoyStr);
 $resumen = [];
+
+// ══════════════════════════════════════════════════════════════════════════
+// 0) PAGOS RECURRENTES: genera el cobro del periodo (colegiatura mensual/
+//    semestral/anual), avisa 1 día antes de que cierre la ventana sin
+//    recargo, y aplica el recargo por pago tardío (una sola vez por cobro).
+// ══════════════════════════════════════════════════════════════════════════
+try {
+    $hoyDiaMes = (int) date('j');
+    $mesActual = date('Y-m-01');
+
+    $stmtProd = $pdo->query("SELECT * FROM productos WHERE tipo = 'recurrente' AND activo = 1");
+    foreach ($stmtProd->fetchAll() as $prod) {
+        if (empty($prod['fecha_inicio']) || empty($prod['periodicidad_meses'])) continue;
+        if (strtotime($prod['fecha_inicio']) > strtotime($hoyStr)) continue; // todavía no empieza
+        if ($prod['ultima_generacion'] === $mesActual) continue; // ya se revisó/generó este mes
+
+        $mesInicio = date('Y-m-01', strtotime($prod['fecha_inicio']));
+        $mesesTranscurridos =
+            (intval(date('Y', strtotime($mesActual))) - intval(date('Y', strtotime($mesInicio)))) * 12
+            + (intval(date('n', strtotime($mesActual))) - intval(date('n', strtotime($mesInicio))));
+        if ($mesesTranscurridos < 0 || $mesesTranscurridos % intval($prod['periodicidad_meses']) !== 0) {
+            continue; // este mes calendario no corresponde a un periodo de cobro
+        }
+
+        $escStmt = $pdo->prepare("SELECT clave FROM escuelas WHERE id = ?");
+        $escStmt->execute([$prod['escuela_id']]);
+        $clave = $escStmt->fetch()['clave'] ?? 'ESC';
+
+        $stmtAlumnos = $pdo->prepare("SELECT id, nombre, email, familia_id FROM clientes WHERE escuela_id = ? AND tipo = 'alumno' AND activo = 1");
+        $stmtAlumnos->execute([$prod['escuela_id']]);
+        foreach ($stmtAlumnos->fetchAll() as $al) {
+            $chkGen = $pdo->prepare("SELECT 1 FROM pagos_recurrentes_generados WHERE producto_id = ? AND cliente_id = ? AND periodo = ?");
+            $chkGen->execute([$prod['id'], $al['id'], $mesActual]);
+            if ($chkGen->fetch()) continue; // este alumno ya tiene su cobro de este periodo
+
+            $cntStmt = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros WHERE escuela_id = ?");
+            $cntStmt->execute([$prod['escuela_id']]);
+            $folio = $clave . '-' . str_pad(intval($cntStmt->fetch()['n'] ?? 0) + 1, 4, '0', STR_PAD_LEFT);
+
+            try {
+                $pdo->beginTransaction();
+                $pdo->prepare(
+                    "INSERT INTO cobros (escuela_id, cliente_id, folio, total, metodo, estado, fecha)
+                     VALUES (?, ?, ?, ?, 'Pendiente', 'pendiente', CURDATE())"
+                )->execute([$prod['escuela_id'], $al['id'], $folio, $prod['precio']]);
+                $cobroId = intval($pdo->lastInsertId());
+                $pdo->prepare(
+                    "INSERT INTO pagos_recurrentes_generados (producto_id, cliente_id, periodo, cobro_id) VALUES (?, ?, ?, ?)"
+                )->execute([$prod['id'], $al['id'], $mesActual, $cobroId]);
+                try {
+                    $pdo->prepare(
+                        "INSERT INTO cobro_items (cobro_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
+                         VALUES (?, ?, ?, 1, ?, ?)"
+                    )->execute([$cobroId, $prod['id'], $prod['nombre'], $prod['precio'], $prod['precio']]);
+                } catch (\PDOException $eItem) { /* cobro_items es opcional (ver crear_cobro), no crítico */ }
+                $pdo->commit();
+
+                $emailAl = $al['email'];
+                if (!$emailAl && $al['familia_id']) {
+                    $famStmt = $pdo->prepare("SELECT email FROM familias WHERE id = ?");
+                    $famStmt->execute([$al['familia_id']]);
+                    $emailAl = $famStmt->fetch()['email'] ?? null;
+                }
+                if ($emailAl) {
+                    $totalFmt = '$' . number_format((float)$prod['precio'], 2) . ' MXN';
+                    $asunto = "Nuevo cobro: " . $prod['nombre'];
+                    $html = "
+                        <p>Hola,</p>
+                        <p>Se generó el cobro de <strong>" . htmlspecialchars($prod['nombre']) . "</strong> por <strong>$totalFmt</strong> para " . htmlspecialchars($al['nombre']) . ".</p>
+                        <p>Tienes del día {$prod['dia_ventana_inicio']} al {$prod['dia_ventana_fin']} de este mes para pagarlo sin recargo.</p>
+                        <p>— Pagalaescuela</p>
+                    ";
+                    $r = enviar_correo($emailAl, $asunto, $html);
+                    if ($r['success']) {
+                        $pdo->prepare(
+                            "INSERT INTO recordatorios (escuela_id, cobro_id, cliente, fecha, canal) VALUES (?, ?, ?, ?, 'email_automatico') ON DUPLICATE KEY UPDATE canal = canal"
+                        )->execute([$prod['escuela_id'], $cobroId, $al['nombre'], $hoyStr]);
+                        $resumen[] = "OK cobro recurrente generado #$cobroId ({$prod['nombre']}) -> $emailAl";
+                    } else {
+                        $resumen[] = "ERROR correo de cobro recurrente #$cobroId: " . $r['error'];
+                    }
+                } else {
+                    $resumen[] = "AVISO: cobro recurrente #$cobroId generado sin correo de destino (alumno #{$al['id']} sin email propio ni familiar).";
+                }
+            } catch (\PDOException $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                // Probable carrera con otra corrida del cron en paralelo; el UNIQUE
+                // KEY de pagos_recurrentes_generados evita duplicar el cobro.
+            }
+        }
+        $pdo->prepare("UPDATE productos SET ultima_generacion = ? WHERE id = ?")->execute([$mesActual, $prod['id']]);
+    }
+
+    // --- Aviso 1 día antes de que cierre la ventana de pago sin recargo ---
+    $stmtPreVenc = $pdo->query(
+        "SELECT co.id, co.total, co.escuela_id, cl.email AS cliente_email, cl.nombre AS cliente_nombre, fa.email AS familia_email,
+                p.nombre AS producto_nombre, p.dia_ventana_fin
+         FROM cobros co
+         JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
+         JOIN productos p ON p.id = prg.producto_id
+         LEFT JOIN clientes cl ON cl.id = co.cliente_id
+         LEFT JOIN familias fa ON fa.id = cl.familia_id
+         WHERE co.estado = 'pendiente' AND co.recargo_aplicado = 0"
+    );
+    foreach ($stmtPreVenc->fetchAll() as $c) {
+        if ($hoyDiaMes !== intval($c['dia_ventana_fin']) - 1) continue; // solo el día antes de que cierre
+        $emailDestino = $c['cliente_email'] ?: $c['familia_email'];
+        if (!$emailDestino) continue;
+        $chk = $pdo->prepare("SELECT 1 FROM recordatorios WHERE cobro_id = ? AND fecha = ?");
+        $chk->execute([$c['id'], $hoyStr]);
+        if ($chk->fetch()) continue;
+        $totalFmt = '$' . number_format((float)$c['total'], 2) . ' MXN';
+        $asunto = "Mañana vence tu plazo para pagar sin recargo";
+        $html = "
+            <p>Hola,</p>
+            <p>Mañana (día {$c['dia_ventana_fin']}) es el último día para pagar <strong>" . htmlspecialchars($c['producto_nombre']) . "</strong> (<strong>$totalFmt</strong>) sin recargo.</p>
+            <p>— Pagalaescuela</p>
+        ";
+        $r = enviar_correo($emailDestino, $asunto, $html);
+        if ($r['success']) {
+            $pdo->prepare("INSERT INTO recordatorios (escuela_id, cobro_id, cliente, fecha, canal) VALUES (?, ?, ?, ?, 'email_automatico') ON DUPLICATE KEY UPDATE canal = canal")
+                ->execute([$c['escuela_id'], $c['id'], $c['cliente_nombre'], $hoyStr]);
+            $resumen[] = "OK aviso pre-vencimiento cobro #{$c['id']} -> $emailDestino";
+        } else {
+            $resumen[] = "ERROR aviso pre-vencimiento cobro #{$c['id']}: " . $r['error'];
+        }
+    }
+
+    // --- Recargo por pago tardío (único, no escalable — se aplica una sola vez) ---
+    $stmtPend = $pdo->query(
+        "SELECT co.id, co.total, co.escuela_id, cl.email AS cliente_email, cl.nombre AS cliente_nombre, fa.email AS familia_email,
+                p.nombre AS producto_nombre, p.dia_ventana_fin, p.penalizacion_tipo, p.penalizacion_valor
+         FROM cobros co
+         JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
+         JOIN productos p ON p.id = prg.producto_id
+         LEFT JOIN clientes cl ON cl.id = co.cliente_id
+         LEFT JOIN familias fa ON fa.id = cl.familia_id
+         WHERE co.estado = 'pendiente' AND co.recargo_aplicado = 0 AND p.penalizacion_tipo IS NOT NULL"
+    );
+    foreach ($stmtPend->fetchAll() as $row) {
+        if ($hoyDiaMes <= intval($row['dia_ventana_fin'])) continue; // todavía dentro de la ventana sin recargo
+        $recargo = $row['penalizacion_tipo'] === 'porcentaje'
+            ? round(floatval($row['total']) * floatval($row['penalizacion_valor']) / 100, 2)
+            : floatval($row['penalizacion_valor']);
+        if ($recargo <= 0) continue;
+        $pdo->prepare("UPDATE cobros SET total = total + ?, recargo_aplicado = 1, recargo_monto = ? WHERE id = ?")
+            ->execute([$recargo, $recargo, $row['id']]);
+        $nuevoTotal = floatval($row['total']) + $recargo;
+        $emailDestino = $row['cliente_email'] ?: $row['familia_email'];
+        if ($emailDestino) {
+            $asunto = "Se aplicó un recargo a tu pago pendiente";
+            $html = "
+                <p>Hola,</p>
+                <p>El pago de <strong>" . htmlspecialchars($row['producto_nombre']) . "</strong> venció el día {$row['dia_ventana_fin']} sin recibirse, así que se aplicó un recargo de <strong>$" . number_format($recargo, 2) . " MXN</strong>.</p>
+                <p>Tu nuevo total a pagar es <strong>$" . number_format($nuevoTotal, 2) . " MXN</strong>.</p>
+                <p>— Pagalaescuela</p>
+            ";
+            $r = enviar_correo($emailDestino, $asunto, $html);
+            if ($r['success']) {
+                $pdo->prepare("INSERT INTO recordatorios (escuela_id, cobro_id, cliente, fecha, canal) VALUES (?, ?, ?, ?, 'email_automatico') ON DUPLICATE KEY UPDATE canal = canal")
+                    ->execute([$row['escuela_id'], $row['id'], $row['cliente_nombre'], $hoyStr]);
+            }
+        }
+        $resumen[] = "Recargo aplicado a cobro #{$row['id']}: +\$" . number_format($recargo, 2);
+    }
+} catch (\PDOException $e) {
+    $resumen[] = "ERROR generando/penalizando pagos recurrentes (¿falta correr migracion_2026_08_20_pagos_recurrentes.sql?): " . $e->getMessage();
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 // 1) VENCIMIENTO DE SUSCRIPCIÓN (plan SaaS)
@@ -93,7 +266,8 @@ try {
          FROM cobros co
          LEFT JOIN clientes cl ON cl.id = co.cliente_id
          LEFT JOIN familias fa ON fa.id = cl.familia_id
-         WHERE co.estado = 'pendiente'"
+         LEFT JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
+         WHERE co.estado = 'pendiente' AND prg.id IS NULL"
     );
     foreach ($stmt->fetchAll() as $c) {
         // crear_cobro nunca guarda una fecha de vencimiento real (columna
@@ -166,7 +340,7 @@ try {
         }
     }
 } catch (\PDOException $e) {
-    $resumen[] = "ERROR consultando cobros pendientes: " . $e->getMessage();
+    $resumen[] = "ERROR consultando cobros pendientes (¿falta correr migracion_2026_08_20_pagos_recurrentes.sql?): " . $e->getMessage();
 }
 
 $lineaLog = date('Y-m-d H:i:s') . " | Cron recordatorios:\n  " . (empty($resumen) ? '(sin novedades)' : implode("\n  ", $resumen)) . "\n\n";

@@ -33,6 +33,53 @@ function siguiente_vencimiento_mensual($fechaBase) {
     $primerDiaSiguiente = date('Y-m-01', strtotime($fechaBase . ' +1 month'));
     return date('Y-m-t', strtotime($primerDiaSiguiente));
 }
+// ── Conceptos de pago recurrentes (colegiatura mensual/semestral/anual) ────
+// Valida y normaliza los campos de recurrencia de un producto; usado tanto
+// por crear_producto como editar_producto para no duplicar las reglas.
+// Llama a respond() (termina la petición) si algo es inválido.
+function validar_datos_recurrente($input) {
+    $tipo = trim($input['tipo'] ?? 'unico');
+    if (!in_array($tipo, ['unico', 'recurrente'], true)) $tipo = 'unico';
+    if ($tipo !== 'recurrente') {
+        return [
+            'tipo' => 'unico', 'periodicidad_meses' => null, 'fecha_inicio' => null,
+            'dia_ventana_inicio' => 1, 'dia_ventana_fin' => 5,
+            'penalizacion_tipo' => null, 'penalizacion_valor' => null,
+        ];
+    }
+    $periodicidad = intval($input['periodicidad_meses'] ?? 0);
+    if (!in_array($periodicidad, [1, 6, 12], true)) {
+        respond(['success' => false, 'error' => 'Periodicidad inválida: debe ser mensual (1), semestral (6) o anual (12).']);
+    }
+    $fecha_inicio = trim($input['fecha_inicio'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_inicio)) {
+        respond(['success' => false, 'error' => 'Fecha de inicio inválida para el concepto recurrente.']);
+    }
+    $dia_ini = intval($input['dia_ventana_inicio'] ?? 1);
+    $dia_fin = intval($input['dia_ventana_fin'] ?? 5);
+    if ($dia_ini < 1 || $dia_ini > 28 || $dia_fin < 1 || $dia_fin > 28 || $dia_fin < $dia_ini) {
+        respond(['success' => false, 'error' => 'La ventana de pago debe ir del día 1 al 28 (para que aplique en cualquier mes), con el día final igual o después del inicial.']);
+    }
+    $pen_tipo = trim($input['penalizacion_tipo'] ?? '') ?: null;
+    $pen_valor = null;
+    if ($pen_tipo !== null) {
+        if (!in_array($pen_tipo, ['porcentaje', 'monto_fijo'], true)) {
+            respond(['success' => false, 'error' => 'Tipo de penalización inválido.']);
+        }
+        $pen_valor = floatval($input['penalizacion_valor'] ?? 0);
+        if ($pen_valor <= 0) {
+            respond(['success' => false, 'error' => 'Define un valor de penalización mayor a cero, o deja el tipo de penalización vacío para no penalizar.']);
+        }
+        if ($pen_tipo === 'porcentaje' && $pen_valor > 100) {
+            respond(['success' => false, 'error' => 'El porcentaje de penalización no puede ser mayor a 100.']);
+        }
+    }
+    return [
+        'tipo' => 'recurrente', 'periodicidad_meses' => $periodicidad, 'fecha_inicio' => $fecha_inicio,
+        'dia_ventana_inicio' => $dia_ini, 'dia_ventana_fin' => $dia_fin,
+        'penalizacion_tipo' => $pen_tipo, 'penalizacion_valor' => $pen_valor,
+    ];
+}
 // Registra una acción sensible en logs_sistema. Nunca debe tumbar la
 // petición si la tabla aún no existe (falta correr la migración) — se
 // degrada a silencio + nota en api_log.txt, igual que hicimos con
@@ -1916,16 +1963,21 @@ switch ($action) {
         $emoji      = trim($input['emoji']        ?? '');
         $activo     = array_key_exists('activo', $input) ? (bool)$input['activo'] : true;
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+        $rec = validar_datos_recurrente($input);
         $stmt = $pdo->prepare(
-            "INSERT INTO productos (escuela_id, nombre, categoria, precio, emoji, activo)
-             VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO productos (escuela_id, nombre, categoria, precio, emoji, activo, tipo, periodicidad_meses, fecha_inicio, dia_ventana_inicio, dia_ventana_fin, penalizacion_tipo, penalizacion_valor)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$escuela_id, $nombre, $categoria, $precio, $emoji, $activo ? 1 : 0]);
+        $stmt->execute([
+            $escuela_id, $nombre, $categoria, $precio, $emoji, $activo ? 1 : 0,
+            $rec['tipo'], $rec['periodicidad_meses'], $rec['fecha_inicio'],
+            $rec['dia_ventana_inicio'], $rec['dia_ventana_fin'], $rec['penalizacion_tipo'], $rec['penalizacion_valor'],
+        ]);
         $id = intval($pdo->lastInsertId());
-        respond(['success' => true, 'producto' => [
+        respond(['success' => true, 'producto' => array_merge([
             'id' => $id, 'escuela_id' => $escuela_id, 'nombre' => $nombre,
             'categoria' => $categoria, 'precio' => $precio, 'emoji' => $emoji, 'activo' => $activo,
-        ]]);
+        ], $rec)]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_producto':
@@ -1942,6 +1994,15 @@ switch ($action) {
             if (array_key_exists($c, $input)) {
                 $sets[] = "`$c` = ?";
                 $vals[] = $c === 'activo' ? ((bool)$input[$c] ? 1 : 0) : $input[$c];
+            }
+        }
+        // El formulario de Productos.js siempre manda 'tipo' junto con el resto
+        // de campos de recurrencia — si viene, se revalida y actualiza el set completo.
+        if (array_key_exists('tipo', $input)) {
+            $rec = validar_datos_recurrente($input);
+            foreach ($rec as $campoRec => $valorRec) {
+                $sets[] = "`$campoRec` = ?";
+                $vals[] = $valorRec;
             }
         }
         if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);

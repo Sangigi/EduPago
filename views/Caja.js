@@ -80,7 +80,7 @@ function Caja({
     beca: 'Beca / Descuento', otro: 'Otro'
   };
   const productosBase = data.productos.filter(p =>
-    p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
+    p.activo && p.tipo !== 'recurrente' && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
   );
   // Aplica clasificación seleccionada
   const productosFiltrados = (() => {

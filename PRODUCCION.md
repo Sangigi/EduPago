@@ -41,8 +41,9 @@
 - Dar la URL `https://tudominio.com/webhook_spei.php` a Pagadetodo
 - Verificar que el archivo sea accesible sin autenticación
 
-### 5. Base de datos — migración de suscripciones
+### 5. Base de datos — migraciones
 - Correr `migracion_2026_08_20_suscripciones.sql` una sola vez (phpMyAdmin o consola MySQL de Hostinger) **antes** de subir el `api.php` nuevo — agrega `fecha_vencimiento_plan` / `ultimo_recordatorio_plan` a `escuelas`.
+- Correr también `migracion_2026_08_20_pagos_recurrentes.sql` — agrega los campos de recurrencia/penalización a `productos` y `cobros`, y crea la tabla `pagos_recurrentes_generados`. Sin esto, los conceptos recurrentes (Productos → tipo "Recurrente") no se generan ni se penalizan.
 
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.

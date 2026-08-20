@@ -20,15 +20,34 @@ function Productos({
     categoria: 'colegiatura',
     precio: 0,
     emoji: '',
-    activo: true
+    activo: true,
+    tipo: 'unico',
+    periodicidad_meses: 1,
+    fecha_inicio: '',
+    dia_ventana_inicio: 1,
+    dia_ventana_fin: 5,
+    penalizacion_tipo: '',
+    penalizacion_valor: 0
   };
+  const PERIODICIDADES = [
+    { value: 1, label: 'Mensual' },
+    { value: 6, label: 'Semestral' },
+    { value: 12, label: 'Anual' }
+  ];
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [q, setQ] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [errForm, setErrForm] = useState('');
   const lista = data.productos.filter(p => !q || p.nombre.toLowerCase().includes(q.toLowerCase()) || p.categoria.toLowerCase().includes(q.toLowerCase()));
   const guardar = async () => {
+    setErrForm('');
     if (!form.nombre || form.precio === undefined) return;
+    if (form.tipo === 'recurrente') {
+      if (!form.fecha_inicio) return setErrForm('Define la fecha de inicio del cobro recurrente.');
+      if (form.dia_ventana_fin < form.dia_ventana_inicio) return setErrForm('El día final de la ventana de pago debe ser igual o posterior al día inicial.');
+      if (form.penalizacion_tipo && (!form.penalizacion_valor || form.penalizacion_valor <= 0)) return setErrForm('Define un valor de penalización mayor a cero, o quita el tipo de penalización.');
+    }
     setGuardando(true);
     try {
       if (form.id) {
@@ -99,6 +118,7 @@ function Productos({
           className: "btn btn-primary",
           onClick: () => {
             setForm(EMPTY);
+            setErrForm('');
             setModal('form');
           },
           children: "+ Nuevo concepto"
@@ -197,6 +217,9 @@ function Productos({
                   marginTop: 1
                 },
                 children: CAT_LABELS[p.categoria] || p.categoria
+              }, void 0, false), p.tipo === 'recurrente' && /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 10.5, color: 'var(--accent, #bdcf00)', marginTop: 2, fontWeight: 600 },
+                children: "🔁 " + (PERIODICIDADES.find(pe => pe.value === p.periodicidad_meses)?.label || 'Recurrente') + ` · día ${p.dia_ventana_inicio}-${p.dia_ventana_fin}`
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -228,8 +251,13 @@ function Productos({
               },
               onClick: () => {
                 setForm({
-                  ...p
+                  ...EMPTY,
+                  ...p,
+                  fecha_inicio: p.fecha_inicio || '',
+                  penalizacion_tipo: p.penalizacion_tipo || '',
+                  penalizacion_valor: p.penalizacion_valor || 0
                 });
+                setErrForm('');
                 setModal('form');
               },
               children: [/*#__PURE__*/_jsxDEV(Icon, {
@@ -352,7 +380,99 @@ function Productos({
                 }
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            className: "form-group",
+            style: { marginTop: 12 },
+            children: [/*#__PURE__*/_jsxDEV("label", {
+              className: "form-label",
+              children: "Tipo de concepto"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'flex', gap: 8 },
+              children: [
+                { value: 'unico', label: 'Único (se agrega en caja)' },
+                { value: 'recurrente', label: 'Recurrente (automático)' }
+              ].map(op => /*#__PURE__*/_jsxDEV("button", {
+                type: "button",
+                className: "btn btn-sm " + (form.tipo === op.value ? 'btn-primary' : 'btn-secondary'),
+                style: { flex: 1 },
+                onClick: () => setForm(f => ({ ...f, tipo: op.value })),
+                children: op.label
+              }, op.value, false))
+            }, void 0, true)]
+          }, void 0, true), form.tipo === 'recurrente' && /*#__PURE__*/_jsxDEV("div", {
+            style: { marginTop: 12, padding: 12, borderRadius: 'var(--radius-sm)', background: 'var(--glass-light)', display: 'flex', flexDirection: 'column', gap: 12 },
+            children: [
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+                children: [/*#__PURE__*/_jsxDEV("div", {
+                  className: "form-group",
+                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Periodicidad" }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+                    className: "form-select",
+                    value: form.periodicidad_meses,
+                    onChange: e => setForm(f => ({ ...f, periodicidad_meses: parseInt(e.target.value) })),
+                    children: PERIODICIDADES.map(p => /*#__PURE__*/_jsxDEV("option", { value: p.value, children: p.label }, p.value, false))
+                  }, void 0, false)]
+                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                  className: "form-group",
+                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Empieza a cobrarse" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                    className: "form-input",
+                    type: "date",
+                    value: form.fecha_inicio,
+                    onChange: e => setForm(f => ({ ...f, fecha_inicio: e.target.value }))
+                  }, void 0, false)]
+                }, void 0, true)]
+              }, void 0, true),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+                children: [/*#__PURE__*/_jsxDEV("div", {
+                  className: "form-group",
+                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Ventana de pago sin recargo: día" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                    className: "form-input", type: "number", min: 1, max: 28,
+                    value: form.dia_ventana_inicio,
+                    onChange: e => setForm(f => ({ ...f, dia_ventana_inicio: parseInt(e.target.value) || 1 }))
+                  }, void 0, false)]
+                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                  className: "form-group",
+                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "…al día" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                    className: "form-input", type: "number", min: 1, max: 28,
+                    value: form.dia_ventana_fin,
+                    onChange: e => setForm(f => ({ ...f, dia_ventana_fin: parseInt(e.target.value) || 5 }))
+                  }, void 0, false)]
+                }, void 0, true)]
+              }, void 0, true),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+                children: [/*#__PURE__*/_jsxDEV("div", {
+                  className: "form-group",
+                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Penalización por pago tardío" }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+                    className: "form-select",
+                    value: form.penalizacion_tipo,
+                    onChange: e => setForm(f => ({ ...f, penalizacion_tipo: e.target.value })),
+                    children: [
+                      /*#__PURE__*/_jsxDEV("option", { value: "", children: "Sin penalización" }, "", false),
+                      /*#__PURE__*/_jsxDEV("option", { value: "porcentaje", children: "Porcentaje del pago" }, "porcentaje", false),
+                      /*#__PURE__*/_jsxDEV("option", { value: "monto_fijo", children: "Monto fijo (MXN)" }, "monto_fijo", false)
+                    ]
+                  }, void 0, false)]
+                }, void 0, true), form.penalizacion_tipo && /*#__PURE__*/_jsxDEV("div", {
+                  className: "form-group",
+                  children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: form.penalizacion_tipo === 'porcentaje' ? '% de recargo' : 'Monto fijo de recargo' }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                    className: "form-input", type: "number", min: 0, step: "0.01",
+                    value: form.penalizacion_valor,
+                    onChange: e => setForm(f => ({ ...f, penalizacion_valor: parseFloat(e.target.value) || 0 })),
+                    style: { fontFamily: 'var(--mono)' }
+                  }, void 0, false)]
+                }, void 0, true)]
+              }, void 0, true),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 11.5, color: 'var(--ink-4)' },
+                children: "Se genera un cobro pendiente para cada alumno activo en la fecha que toque, y se avisa por correo al padre/tutor (o al alumno si tiene correo propio)."
+              }, void 0, false)
+            ]
+          }, void 0, true), errForm && /*#__PURE__*/_jsxDEV("div", {
+            style: { marginTop: 10, fontSize: 12.5, color: 'var(--red, #e5484d)' },
+            children: errForm
+          }, void 0, false)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: [/*#__PURE__*/_jsxDEV("button", {
