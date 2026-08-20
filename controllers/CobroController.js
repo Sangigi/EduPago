@@ -2,23 +2,9 @@
  * CONTROLLER — CobroController v4 (Conectado a DB)
  */
 const CobroController = (() => {
-  const API = 'api.php';
   const SPEI_BANCO_DEFAULT = 'STP — Sistema de Transferencias y Pagos';
 
-  async function apiPost(action, body) {
-    const token = AuthController.getToken();
-    const res = await fetch(`${API}?action=${action}`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) { AuthController.logout(); window.location.reload(); throw new Error('Sesión expirada. Inicia sesión de nuevo.'); }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
+  const apiPost = ApiClient.post;
 
   async function iniciarCobro({ carrito, cliente, metodo, escuela_id, caja_id, sucursal_id }) {
     // La API debe tener un endpoint `crear_cobro` que reciba esto e inserte en MySQL

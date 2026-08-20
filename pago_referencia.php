@@ -50,8 +50,9 @@ require_once __DIR__ . '/config.php';
 
 
 
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/helpers_pagos.php';
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/webhook_helpers.php';
 
 
 
@@ -123,17 +124,8 @@ function responder_pago($codigo, $mensaje, $autorizacion = '', $transaccion = ''
 
 
 function log_ref_pago($msg) {
-
-
-
     if (defined('REFERENCIA_LOG_FILE')) {
-
-
-
-        file_put_contents(REFERENCIA_LOG_FILE, date('Y-m-d H:i:s') . ' | PAGO | ' . $msg . "\n", FILE_APPEND);
-
-
-
+        webhook_log(REFERENCIA_LOG_FILE, 'PAGO | ' . $msg);
     }
 
 

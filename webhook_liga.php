@@ -21,15 +21,16 @@
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/helpers_pagos.php';
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
 $ts  = date('Y-m-d H:i:s');
 
 if (!ip_permitida_pago_sin_token()) {
-    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ WEBHOOK LIGA rechazado por IP no permitida: " . ($_SERVER['REMOTE_ADDR'] ?? '?') . "\n", FILE_APPEND);
+    if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, '❌ WEBHOOK LIGA rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode(['success' => false, 'mensaje' => 'No autorizado'], JSON_UNESCAPED_UNICODE);
     exit;
@@ -80,12 +81,11 @@ if (!is_array($data)) {
 
 if (!is_array($data) || empty($data)) {
     if (API_LOG_ENABLED) {
-        file_put_contents(
+        webhook_log(
             API_LOG_FILE,
-            "{$ts} | ❌ WEBHOOK LIGA: body vacío o formato desconocido\n" .
+            "❌ WEBHOOK LIGA: body vacío o formato desconocido\n" .
             "Content-Type: " . ($_SERVER['CONTENT_TYPE'] ?? 'desconocido') . "\n" .
-            "RAW: {$raw}\n",
-            FILE_APPEND
+            "RAW: {$raw}"
         );
     }
 
@@ -103,7 +103,7 @@ $cc_expyear  = trim($data['cc_expyear'] ?? '');
 $nb_error    = trim($data['nb_error'] ?? '');
 
 if (!$reference) {
-    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ WEBHOOK LIGA: sin 'reference' en el body\n", FILE_APPEND);
+    if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ WEBHOOK LIGA: sin 'reference' en el body");
     responder_liga(false, 'Falta reference');
 }
 
@@ -130,7 +130,7 @@ try {
     }
     if (!$cobro) {
         $log_msg = "⚠ LIGA HUÉRFANA | ref:{$reference} folio_cct:{$foliocpagos} response:{$response}";
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | {$log_msg}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
         responder_liga(true, 'Recibido, sin cobro pendiente para esa referencia');
     }
 
@@ -139,14 +139,14 @@ try {
         if ($cobro['auth_code'] === $auth) {
             responder_liga(true, 'Ya estaba confirmado (reintento idempotente)');
         }
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ⚠ LIGA reintento con distinto auth | cobro_id:{$cobro['id']} previo:{$cobro['auth_code']} nuevo:{$auth}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "⚠ LIGA reintento con distinto auth | cobro_id:{$cobro['id']} previo:{$cobro['auth_code']} nuevo:{$auth}");
         responder_liga(true, 'Cobro ya confirmado previamente');
     }
 
     if ($response !== 'approved') {
         // denied / error: dejamos el cobro pendiente para que caja pueda
         // reintentar generando una liga nueva; solo se loguea el rechazo.
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ LIGA rechazada | ref:{$reference} response:{$response} nb_error:{$nb_error}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA rechazada | ref:{$reference} response:{$response} nb_error:{$nb_error}");
         responder_liga(true, 'Pago no aprobado, registrado');
     }
 
@@ -158,12 +158,12 @@ try {
     // webhook_spei.php y pago_referencia.php, un monto ausente o que no
     // coincide (tolerancia de 1 centavo) RECHAZA la confirmación.
     if ($amount === null || floatval($amount) <= 0) {
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ LIGA sin monto válido, se rechaza | ref:{$reference}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA sin monto válido, se rechaza | ref:{$reference}");
         responder_liga(false, 'Falta el monto pagado (amount)');
     }
     $monto_recibido = floatval($amount);
     if (abs($monto_recibido - floatval($cobro['total'])) > 0.01) {
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ LIGA monto no coincide, se rechaza | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_recibido}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA monto no coincide, se rechaza | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_recibido}");
         responder_liga(false, 'El monto pagado no coincide con el cobro pendiente');
     }
 
@@ -191,11 +191,11 @@ try {
 
 } catch (\Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ ERROR webhook_liga: " . $e->getMessage() . "\n", FILE_APPEND);
+    if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, '❌ ERROR webhook_liga: ' . $e->getMessage());
     responder_liga(false, 'Error de sistema');
 }
 
 function log_api_liga($msg) {
     if (!API_LOG_ENABLED) return;
-    file_put_contents(API_LOG_FILE, date('Y-m-d H:i:s') . ' | ' . $msg . "\n", FILE_APPEND);
+    webhook_log(API_LOG_FILE, $msg);
 }

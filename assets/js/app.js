@@ -640,119 +640,32 @@ function App() {
 
       if (json.success) {
 
-
-
-        /*
-
-         * Mezcla los datos de la DB
-
-         * con la estructura base de AppModel.
-
-         */
-
-        const base = AppModel.load();
-
-
-
-        const merged = {
-
-          ...base,
-
-
-
-          escuelas:
-
-            (json.escuelas || []).length
-
-              ? json.escuelas
-
-              : (base.escuelas || []),
-
-
-
-          resumen_escuelas:
-
-            json.resumen_escuelas || {},
-
-
-
-          clientes:
-
-            json.clientes || [],
-
-
-
-          clientes_total:
-
-            json.clientes_total,
-
-
-
-          clientes_pagina:
-
-            json.clientes_pagina,
-
-
-
-          clientes_por_pagina:
-
-            json.clientes_por_pagina,
-
-
-
-          planteles:
-
-            json.planteles || [],
-
-
-
-          resumen_planteles:
-
-            json.resumen_planteles || {},
-
-
-
-          familias:
-
-            json.familias || [],
-
-
-
-          productos:
-
-            (json.productos || []).length
-
-              ? json.productos
-
-              : (base.productos || []),
-
-
-
-          cobros:
-
-            json.cobros || [],
-
-
-
-          recordatorios:
-
-            json.recordatorios ||
-
-            base.recordatorios ||
-
-            []
-
+        // Antes se mezclaba con AppModel.load() (un store de localStorage de
+        // antes de que existiera el backend real): si la API regresaba una
+        // lista vacía de escuelas/productos/recordatorios, se rellenaba con
+        // lo último guardado en localStorage en vez de reflejar el estado
+        // real — y ese resultado mezclado se volvía a guardar en AppModel,
+        // perpetuando datos viejos. Ahora se confía siempre en la respuesta
+        // real de la API, sin mezcla con caché local.
+        const datosApi = {
+          escuelas: json.escuelas || [],
+          resumen_escuelas: json.resumen_escuelas || {},
+          clientes: json.clientes || [],
+          clientes_total: json.clientes_total,
+          clientes_pagina: json.clientes_pagina,
+          clientes_por_pagina: json.clientes_por_pagina,
+          planteles: json.planteles || [],
+          resumen_planteles: json.resumen_planteles || {},
+          familias: json.familias || [],
+          productos: json.productos || [],
+          cobros: json.cobros || [],
+          recordatorios: json.recordatorios || [],
         };
 
-
-
-        AppModel.save(merged);
-
-
-
-        return merged;
+        return datosApi;
 
       }
+
 
 
 

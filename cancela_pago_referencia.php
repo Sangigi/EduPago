@@ -12,8 +12,9 @@
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/helpers_pagos.php';
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/webhook_helpers.php';
 
 date_default_timezone_set('America/Mexico_City');
 header('Content-Type: application/json; charset=UTF-8');
@@ -25,7 +26,7 @@ function responder_cancela($codigo, $mensaje) {
 
 function log_ref_cancela($msg) {
     if (defined('REFERENCIA_LOG_FILE')) {
-        file_put_contents(REFERENCIA_LOG_FILE, date('Y-m-d H:i:s') . ' | CANCELA | ' . $msg . "\n", FILE_APPEND);
+        webhook_log(REFERENCIA_LOG_FILE, 'CANCELA | ' . $msg);
     }
 }
 

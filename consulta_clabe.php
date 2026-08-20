@@ -24,7 +24,8 @@
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -42,7 +43,7 @@ function responder_consulta_clabe($codigo, $mensaje, $monto = 0, $clabe = '', $t
 
 function log_clabe($msg) {
     if (defined('REFERENCIA_LOG_FILE')) {
-        file_put_contents(REFERENCIA_LOG_FILE, date('Y-m-d H:i:s') . ' | SPEI-CONSULTA | ' . $msg . "\n", FILE_APPEND);
+        webhook_log(REFERENCIA_LOG_FILE, 'SPEI-CONSULTA | ' . $msg);
     }
 }
 

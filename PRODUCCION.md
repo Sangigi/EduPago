@@ -66,6 +66,29 @@
 - Se agregó `registrar_log()` a las 7 (con acciones descriptivas: `liga_pago_generada`, `cargo_automatico_cobrado`, `tarjeta_domiciliada_cancelada`, `referencia_efectivo_generada`, `cobro_creado`, `pago_confirmado_manual`, `cobro_cancelado`). `verificar_spei` se dejó fuera a propósito: es una consulta de solo lectura (no modifica nada), registrarla solo generaría ruido en `logs_sistema` sin valor de auditoría.
 - No requiere migración SQL (la tabla y la función ya existían).
 
+### 5.3c Deduplicado: check "admin no puede tocar un usuario de otra escuela ni a un superadmin"
+- Este check estaba copiado casi idéntico en 4 acciones (`editar_usuario`, `toggle_usuario`, `cerrar_sesiones_usuario`, `eliminar_usuario`). Se centralizó en `validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id, $mensaje)` (api.php, junto a `validar_email_opcional`) — misma lógica exacta, sin cambios de comportamiento.
+- No requiere migración SQL.
+
+### 5.3d Frontend: se quitó la mezcla de datos reales con `AppModel` (localStorage)
+- `models/AppModel.js` es un store de localStorage de antes de que existiera el backend real. `assets/js/app.js` (función `cargarDatosDesdeAPI`) mezclaba la respuesta real de la API con `AppModel.load()`: si la API regresaba `escuelas`, `productos` o `recordatorios` vacíos, se rellenaba con lo último guardado en localStorage en vez de reflejar el estado real — y ese resultado mezclado se volvía a guardar en `AppModel`, perpetuando datos viejos en pantalla.
+- Se quitó la mezcla: ahora `cargarDatosDesdeAPI` siempre confía en la respuesta real de la API, sin caché local de por medio. Los usos de `AppModel.load()` como respaldo cuando la API no responde (sesión 401, error de red, o sin sesión) se dejaron intactos a propósito — no es el mismo problema (es un respaldo ante falla, no una mezcla silenciosa con datos válidos).
+- Las ~9 vistas que todavía llaman `AppModel.save(...)` quedaron sin tocar por ahora (son escrituras inofensivas a un store que ya nadie lee para mostrar datos reales) — limpiarlas es la Fase 5 del plan de refactor.
+- JS-only, no requiere migración.
+
+### 5.3e Frontend: consolidados los 5 `apiPost()` duplicados en `ApiClient.js`
+- `AuthController.js`, `CajaController.js`, `ClienteController.js`, `CobroController.js` y `ProductosController.js` reimplementaban, cada uno, la misma función `apiPost` (fetch + header de auth + logout en 401 + error si HTTP no-ok) — copiada 5 veces casi línea por línea.
+- Se centralizó en `assets/js/ApiClient.js` (nuevo, cargado en `index.html` antes de los controllers) → `ApiClient.post(action, body)`. Cada controller ahora solo hace `const apiPost = ApiClient.post;` — ningún call site (`apiPost('crear_cobro', ...)`, etc.) cambió, mismo comportamiento exacto.
+- Las 29 llamadas `fetch()` sueltas directamente en las vistas (que no pasan por ningún controller) quedaron sin tocar — es una limpieza aparte, de mayor superficie y riesgo, no incluida en esta pasada.
+- JS-only, no requiere migración. Probar: login/logout (ruta 401), y una acción de escritura por cada dominio (caja, cliente, cobro, producto, usuario).
+
+### 5.3f Backend reorganizado en `lib/` + logging de webhooks consolidado
+- Los archivos internos que nunca se llaman por URL directa (`db.php`, `mailer.php`, `helpers_pagos.php`, y el nuevo `webhook_helpers.php`) se movieron a una carpeta `lib/`, para que la raíz del proyecto deje de mezclar "cosas que un proveedor de pagos llama por URL fija" con "librerías internas". Se actualizaron todos los `require_once` (10 archivos) — verificado con `php -l` en cada uno.
+- **A propósito NO se movieron** los 10 endpoints de pago (`webhook_liga.php`, `webhook_spei.php`, `pago_referencia.php`, `cancela_pago_referencia.php`, `cancela_pago_spei.php`, `pago_clabe.php`, `consulta_referencia.php`, `consulta_clabe.php`, `entregar_referencia.php`, `entregar_clabe.php`) ni `api.php`/`config.php`: los 10 primeros tienen su URL configurada tal cual en el Sandbox de Cobroscontarjeta.com/Pagadetodo — moverlos rompería esos webhooks hasta que actualices la URL allá. Si algún día quieres agruparlos (ej. en `webhooks/`), es un cambio coordinado con el proveedor, no lo hagas solo editando el repo.
+- Además, esos mismos 10 archivos reimplementaban, cada uno, su propia función de "escribe una línea con fecha a un archivo de log" (`log_api_liga`, `log_ref_pago`, `log_ref_cancela`, `log_cancela_spei`, `log_clabe`, `log_ref`, `log_pago_clabe`, o líneas sueltas de `file_put_contents` en `webhook_spei.php`/`webhook_liga.php`). Se centralizó la mecánica de escritura en `lib/webhook_helpers.php` → `webhook_log($archivo, $mensaje)`; cada archivo conserva su propia función con su nombre, su condición de activado y su archivo de destino tal cual estaban (solo delegan la escritura real).
+- **A propósito NO se tocó** ningún formateador de respuesta (`responder_liga`, `responder` de SPEI, `responder_pago`, `responder_cancela`, etc.): cada uno habla un protocolo JSON distinto y específico del proveedor — unificarlos arriesgaría romper ese contrato externo con dinero real de por medio.
+- No requiere migración SQL.
+
 ### 5.4 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
 - **`usuarios.zona` / `planteles.zona` (texto) vs `zona_id` (FK a la tabla `zonas`)**: es una migración a normalizado que ya está en curso desde antes, NO un descuido. Hoy solo las filas nuevas (distribuidores #11/#12) tienen `zona_id` poblado — el resto de usuarios/planteles viejos sigue con `zona_id = NULL` y solo el texto libre. **No borres las columnas `zona` (texto) todavía** — primero hay que backfillear `zona_id` en todas las filas viejas cruzando contra `zonas.nombre`, confirmar que quedó 100% poblado, y solo entonces dropear el texto.
 - **`escuelas.clabe_fija`**: legado, reemplazado por el sistema de `clabe_pool` (CLABEs individuales). Confirmado que ningún archivo PHP la lee ya (ni siquiera los webhooks de SPEI/CLABE) — es segura de eliminar cuando quieras, no es urgente.
@@ -88,12 +111,28 @@
 
 ## Estructura de archivos
 ```
-index.html          ← Entrada principal (no requiere build)
-config.php          ← ⚠ Credenciales (no versionar)
-api.php             ← Backend PHP unificado
-webhook_spei.php    ← Receptor de notificaciones SPEI
-assets/css/main.css ← Estilos (paleta Pagalaescuela)
-assets/js/app.jsx   ← Router principal React
-views/Login.jsx     ← Pantalla de login (admin + familias)
-views/PortalFamilia.jsx ← Portal de padres de familia
+index.html              ← Entrada principal (no requiere build, carga todo por <script src>)
+config.php              ← ⚠ Credenciales (no versionar)
+api.php                 ← Backend PHP unificado (un switch($action) grande)
+cron_recordatorios.php  ← Job diario (Hostinger Cron Jobs) — recordatorios + archivado de logs
+
+lib/                    ← Librerías internas (nunca se llaman por URL directa)
+  db.php                ←   Conexión PDO
+  mailer.php            ←   Cliente SMTP (enviar_correo)
+  helpers_pagos.php     ←   recalcular_saldo_pendiente()
+  webhook_helpers.php   ←   webhook_log() — escritura compartida de logs de webhooks
+
+webhook_liga.php, webhook_spei.php,          ← Endpoints de pago con URL fija configurada
+pago_referencia.php, cancela_pago_*.php,     ← en el Sandbox de Cobroscontarjeta.com/Pagadetodo.
+consulta_*.php, entregar_*.php               ← NO mover sin coordinar el cambio de URL allá.
+
+assets/css/main.css     ← Estilos (paleta Pagalaescuela)
+assets/js/app.js        ← Router principal React (carga/mezcla datos, sesión)
+assets/js/ApiClient.js  ← Cliente HTTP compartido (fetch + auth + logout en 401)
+controllers/*.js        ← Un controller por dominio (Auth, Caja, Cliente, Cobro, Productos)
+models/AppModel.js      ← Remanente de localStorage (legado, en limpieza — ver 5.3d)
+views/*.js              ← Una vista por pantalla (Login, PortalFamilia, Cobros, Escuelas...)
+views/components/       ← Componentes compartidos (Badge, Icons, EmojiPicker)
+
+migracion_*.sql         ← Migraciones manuales (correr una vez en phpMyAdmin, ver sección 5)
 ```

@@ -41,17 +41,7 @@ const AuthController = (() => {
 
 
   // ── Gestión de usuarios (llaman a api.php) ──────────────────────────────
-  async function apiPost(action, body = {}) {
-    const token = getToken();
-    const res = await fetch('api.php?action=' + action, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) { logout(); window.location.reload(); throw new Error('Sesión expirada. Inicia sesión de nuevo.'); }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
-  }
+  const apiPost = ApiClient.post;
 
   // Carga usuarios desde la API (o devuelve [] si falla)
   async function getUsuarios(user) {

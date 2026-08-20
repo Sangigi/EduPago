@@ -3,9 +3,9 @@
  * EduPago — Backend API v4 (Segura con DB)
  */
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/mailer.php';
-require_once __DIR__ . '/helpers_pagos.php';
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/mailer.php';
+require_once __DIR__ . '/lib/helpers_pagos.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
@@ -220,6 +220,21 @@ function validar_email_opcional($valor) {
         respond(['success' => false, 'error' => 'El correo electrónico no es válido.']);
     }
     return $valor;
+}
+// Un admin (no superadmin) solo puede administrar usuarios de su propia
+// escuela, y nunca a un superadmin — este check estaba copiado casi
+// idéntico en 4 sitios (editar_usuario, toggle_usuario,
+// cerrar_sesiones_usuario, eliminar_usuario). No hace nada si $rol_actual
+// no es 'admin' (superadmin ya pasó el check de rol antes de llegar aquí).
+function validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id, $mensaje = 'No tienes permiso para esta acción.') {
+    if ($rol_actual !== 'admin') return;
+    $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+    $chk->execute([$id]);
+    $objetivo = $chk->fetch();
+    if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => $mensaje]);
+    }
 }
 function curl_post($url, $payload, $headers = []) {
     $ch = curl_init($url);
@@ -2541,15 +2556,7 @@ switch ($action) {
             respond(['success' => false, 'error' => 'No tienes permiso para editar este usuario.']);
         }
         // Un admin solo puede tocar usuarios de su propia escuela (y nunca a un superadmin)
-        if ($rol_actual === 'admin') {
-            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
-            $chk->execute([$id]);
-            $objetivo = $chk->fetch();
-            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para editar este usuario.']);
-            }
-        }
+        validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id, 'No tienes permiso para editar este usuario.');
         $nombre   = trim($input['nombre']  ?? '');
         $email    = trim($input['email']   ?? '');
         $password = trim($input['password'] ?? '');
@@ -2658,15 +2665,7 @@ switch ($action) {
         if ($id === intval($usuario_actual['user_id'] ?? 0)) {
             respond(['success' => false, 'error' => 'No puedes desactivarte a ti mismo.']);
         }
-        if ($rol_actual === 'admin') {
-            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
-            $chk->execute([$id]);
-            $objetivo = $chk->fetch();
-            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
-            }
-        }
+        validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id);
         $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
         $stmt->execute([$id]);
         registrar_log($pdo, $usuario_actual, 'usuario_activo_toggle', "Usuario #$id");
@@ -2685,15 +2684,7 @@ switch ($action) {
         }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
-        if ($rol_actual === 'admin') {
-            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
-            $chk->execute([$id]);
-            $objetivo = $chk->fetch();
-            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
-            }
-        }
+        validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id);
         $pdo->prepare("UPDATE usuarios SET sesion_valida_desde = NOW() WHERE id = ?")->execute([$id]);
         registrar_log($pdo, $usuario_actual, 'usuario_sesiones_cerradas', "Usuario #$id: sesiones forzadas a cerrar");
         respond(['success' => true]);
@@ -2710,15 +2701,7 @@ switch ($action) {
         if ($id === intval($usuario_actual['user_id'] ?? 0)) {
             respond(['success' => false, 'error' => 'No puedes eliminarte a ti mismo.']);
         }
-        if ($rol_actual === 'admin') {
-            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
-            $chk->execute([$id]);
-            $objetivo = $chk->fetch();
-            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
-            }
-        }
+        validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id);
         $chkNombre = $pdo->prepare("SELECT nombre, email FROM usuarios WHERE id = ?");
         $chkNombre->execute([$id]);
         $objetivoInfo = $chkNombre->fetch();

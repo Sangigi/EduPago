@@ -27,9 +27,9 @@ if (php_sapi_name() !== 'cli') {
 }
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/mailer.php';
-require_once __DIR__ . '/helpers_pagos.php';
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/mailer.php';
+require_once __DIR__ . '/lib/helpers_pagos.php';
 
 // Debe reflejar PLANES_LIMITES en api.php — la única fuente de verdad real
 // (límites/permisos) es el backend; aquí solo se usa para el texto del correo.

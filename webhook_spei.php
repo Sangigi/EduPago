@@ -15,8 +15,9 @@
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/helpers_pagos.php';
+require_once __DIR__ . '/lib/db.php';
+require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/webhook_helpers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -47,11 +48,11 @@ function responder($codigo, $msg, $transaccion = '0') {
 // ?token=TU_TOKEN a Pagadetodo (o el header X-Webhook-Token si lo soportan).
 $token_recibido = $_GET['token'] ?? ($_SERVER['HTTP_X_WEBHOOK_TOKEN'] ?? '');
 if (!defined('WEBHOOK_SPEI_TOKEN') || !WEBHOOK_SPEI_TOKEN) {
-    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ WEBHOOK_SPEI_TOKEN no configurado en config.php\n", FILE_APPEND);
+    if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, '❌ WEBHOOK_SPEI_TOKEN no configurado en config.php');
     responder(99, 'Webhook no configurado');
 }
 if (!hash_equals(WEBHOOK_SPEI_TOKEN, (string) $token_recibido)) {
-    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ WEBHOOK SPEI: token inválido o ausente\n", FILE_APPEND);
+    if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, '❌ WEBHOOK SPEI: token inválido o ausente');
     responder(40, 'No autorizado');
 }
 
@@ -85,7 +86,7 @@ try {
 
     if (!$cobro) {
         $log_msg = "⚠ SPEI HUÉRFANO | ref:{$concepto_limpio} rastreo:{$clave_rastreo} monto:{$monto_pesos}";
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | {$log_msg}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
         // No se marca error 99 (eso reintenta el webhook indefinidamente); se
         // confirma recepción pero sin tocar nada, para revisión manual.
         responder(0, 'Recibido, sin cobro pendiente para esa referencia', $clave_rastreo);
@@ -97,7 +98,7 @@ try {
             responder(0, 'Ya estaba confirmado (reintento idempotente)', $clave_rastreo);
         }
         $log_msg = "⚠ SPEI reintento con distinta clave_rastreo | cobro_id:{$cobro['id']} previa:{$cobro['auth_code']} nueva:{$clave_rastreo}";
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | {$log_msg}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
         responder(0, 'Cobro ya confirmado previamente', $clave_rastreo);
     }
 
@@ -110,7 +111,7 @@ try {
     // folio existiera y estuviera pendiente.
     if (abs(floatval($cobro['total']) - $monto_pesos) > 0.01) {
         $log_msg = "❌ SPEI MONTO NO COINCIDE | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_pesos}";
-        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | {$log_msg}\n", FILE_APPEND);
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
         responder(30, 'Monto no coincide con el cobro pendiente');
     }
 
@@ -126,10 +127,10 @@ try {
     }
 
     $log_msg = "✓ SPEI CONFIRMADO en DB | cobro_id:{$cobro['id']} rastreo:{$clave_rastreo} monto:{$monto_pesos}";
-    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | {$log_msg}\n", FILE_APPEND);
+    if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
     responder(0, 'Pago procesado correctamente', $clave_rastreo);
 
 } catch (\PDOException $e) {
-    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ ERROR DB WEBHOOK: " . $e->getMessage() . "\n", FILE_APPEND);
+    if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, '❌ ERROR DB WEBHOOK: ' . $e->getMessage());
     responder(99, 'Error de base de datos interno');
 }
