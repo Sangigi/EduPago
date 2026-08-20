@@ -6,6 +6,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/mailer.php';
 require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/facturapi.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
@@ -907,27 +908,13 @@ switch ($action) {
             "payment_method" => "PUE"
         ];
         // 2. Ejecutamos la petición cURL a Facturapi
-        $ch = curl_init('https://www.facturapi.io/v2/invoices');
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . FACTURAPI_KEY
-            ],
-            CURLOPT_POSTFIELDS     => json_encode($payload_facturapi),
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_SSL_VERIFYPEER => false, // Cambiar a true en producción estricta
-        ]);
-        $result = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err = curl_error($ch);
-        curl_close($ch);
-        if ($err) {
-            log_api("ERROR cURL Facturapi: " . $err);
+        $res = facturapi_request('invoices', 'POST', $payload_facturapi);
+        $http_code = $res['http_code'];
+        if ($res['error']) {
+            log_api("ERROR cURL Facturapi: " . $res['error']);
             respond(['success' => false, 'error' => 'Error de red al contactar al PAC.']);
         }
-        $response_data = json_decode($result, true);
+        $response_data = json_decode($res['body'], true);
         // 3. Manejo de la respuesta
         if ($http_code >= 200 && $http_code < 300 && isset($response_data['id'])) {
             $uuid = $response_data['uuid'] ?? 'PENDIENTE';
@@ -1037,24 +1024,12 @@ switch ($action) {
             respond(['success' => false, 'error' => 'No tienes permiso para descargar esta factura.']);
         }
         $facturapi_id = $cobroCfdi['facturapi_id'];
-        $url_facturapi = "https://www.facturapi.io/v2/invoices/{$facturapi_id}/{$tipo}";
-        $ch = curl_init($url_facturapi);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . FACTURAPI_KEY
-            ],
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_FOLLOWLOCATION => true,
-        ]);
-        $binary   = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err       = curl_error($ch);
-        curl_close($ch);
-        if ($err) {
+        $res = facturapi_request("invoices/{$facturapi_id}/{$tipo}");
+        $binary    = $res['body'];
+        $http_code = $res['http_code'];
+        if ($res['error']) {
             http_response_code(502);
-            respond(['success' => false, 'error' => 'Error de red: ' . $err]);
+            respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         }
         if ($http_code !== 200) {
             // Facturapi devolvió un error JSON — lo relay como JSON, con el
@@ -1117,18 +1092,10 @@ switch ($action) {
             http_response_code(403);
             respond(['success' => false, 'error' => 'No tienes permiso para enviar esta factura.']);
         }
-        $ch = curl_init("https://www.facturapi.io/v2/invoices/{$cobroMail['facturapi_id']}/pdf");
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . FACTURAPI_KEY],
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_FOLLOWLOCATION => true,
-        ]);
-        $pdfBinario = curl_exec($ch);
-        $httpCodeMail = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $errMail = curl_error($ch);
-        curl_close($ch);
+        $res = facturapi_request("invoices/{$cobroMail['facturapi_id']}/pdf");
+        $pdfBinario   = $res['body'];
+        $httpCodeMail = $res['http_code'];
+        $errMail      = $res['error'];
         if ($errMail || $httpCodeMail !== 200) {
             log_api("enviar_factura_correo -> error al descargar PDF de Facturapi: " . ($errMail ?: "http {$httpCodeMail}"));
             respond(['success' => false, 'error' => 'No se pudo obtener el PDF de la factura para enviarlo.']);

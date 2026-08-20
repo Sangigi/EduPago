@@ -113,6 +113,12 @@ Secuencia recomendada para no perder notificaciones reales durante el cambio:
 - Efecto secundario menor del movimiento a `webhooks/`: `webhook_liga.php` escribe dos archivos de diagnóstico crudo (`debug_webhook.txt`, `webhook_log.txt`) usando su propia carpeta como referencia — ahora aparecerán dentro de `webhooks/` en vez de en la raíz. Los logs importantes (`api_log.txt`, `referencias_log.txt`) NO se movieron, siguen en la raíz (se definen desde `config.php`, que no cambió de lugar).
 - No requiere migración SQL.
 
+### 5.3g Centralizado el cliente de Facturapi.io + corregido `CURLOPT_SSL_VERIFYPEER`
+- Las 3 llamadas a Facturapi.io (`generar_cfdi`, `descargar_cfdi`, `enviar_factura_correo` en `api.php`) reimplementaban, cada una, su propio bloque `curl_init`/`curl_setopt_array`/`curl_exec`/`curl_close` — y las 3 tenían `CURLOPT_SSL_VERIFYPEER => false` puesto a mano, a diferencia de `curl_post()` (usado para Pagadetodo/Cobroscontarjeta.com), que ya usa `true`. Un endpoint HTTPS validando certificados en `false` acepta un certificado falso/interceptado sin avisar — real, aunque de menor severidad que los hallazgos de fraude de la auditoría de seguridad de esta sesión.
+- Se centralizó en `lib/facturapi.php` → `facturapi_request($ruta, $metodo, $payload)`, con `CURLOPT_SSL_VERIFYPEER => true`.
+- ⚠️ **Prueba esto antes de confiar en ello en producción**: pasar de `false` a `true` puede fallar si el bundle de certificados CA del servidor de Hostinger está desactualizado. Genera una factura real de prueba (`generar_cfdi`), descárgala (`descargar_cfdi`, ambos tipos xml/pdf) y envíala por correo (`enviar_factura_correo`) — si alguna falla con un error de SSL/certificado, es el hosting, no el código; en ese caso avísame para volver a `false` temporalmente mientras se resuelve con Hostinger.
+- No requiere migración SQL.
+
 ### 5.4 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
 - **`usuarios.zona` / `planteles.zona` (texto) vs `zona_id` (FK a la tabla `zonas`)**: es una migración a normalizado que ya está en curso desde antes, NO un descuido. Hoy solo las filas nuevas (distribuidores #11/#12) tienen `zona_id` poblado — el resto de usuarios/planteles viejos sigue con `zona_id = NULL` y solo el texto libre. **No borres las columnas `zona` (texto) todavía** — primero hay que backfillear `zona_id` en todas las filas viejas cruzando contra `zonas.nombre`, confirmar que quedó 100% poblado, y solo entonces dropear el texto.
 - **`escuelas.clabe_fija`**: legado, reemplazado por el sistema de `clabe_pool` (CLABEs individuales). Confirmado que ningún archivo PHP la lee ya (ni siquiera los webhooks de SPEI/CLABE) — es segura de eliminar cuando quieras, no es urgente.
@@ -145,6 +151,7 @@ lib/                    ← Librerías internas (nunca se llaman por URL directa
   mailer.php            ←   Cliente SMTP (enviar_correo)
   helpers_pagos.php     ←   recalcular_saldo_pendiente()
   webhook_helpers.php   ←   webhook_log() + webhook_responder() compartidos
+  facturapi.php         ←   facturapi_request() — cliente HTTP hacia Facturapi.io
 
 webhooks/               ← Endpoints de pago con URL fija en el Sandbox de Cobroscontarjeta.com/
   webhook_liga.php,     ←   Pagadetodo — mover/renombrar CUALQUIERA de estos 10 requiere
