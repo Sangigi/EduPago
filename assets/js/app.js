@@ -210,6 +210,18 @@ const NAV_ITEMS = [{
 
 }, {
 
+  id: 'comisiones',
+
+  label: 'Distribuidores y comisiones',
+
+  icon: 'reportes',
+
+  section: 'superadmin',
+
+  roles: ['superadmin']
+
+}, {
+
   id: 'miequipo',
 
   label: 'Mi equipo',
@@ -2319,6 +2331,34 @@ function App() {
         return /*#__PURE__*/_jsxDEV(
 
           Usuarios,
+
+          {
+
+            user: user,
+
+
+
+            data: dataSegura
+
+          },
+
+          void 0,
+
+          false
+
+        );
+
+
+
+
+
+      case 'comisiones':
+
+
+
+        return /*#__PURE__*/_jsxDEV(
+
+          Comisiones,
 
           {
 

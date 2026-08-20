@@ -32,6 +32,7 @@ function Escuelas({
     direccion: '',
     nivel_educativo: '',
     zona: '',
+    zona_id: '',
     responsable: '',
     tel: '',
     email: ''
@@ -55,10 +56,21 @@ function Escuelas({
   const [cargandoPlt, setCargandoPlt] = useState(false);
   const [filtroNivelPlt, setFiltroNivelPlt] = useState('');
   const [filtroZonaPlt, setFiltroZonaPlt] = useState('');
+  const [zonasCatalogo, setZonasCatalogo] = useState([]); // catálogo compartido de zonas ({id,nombre,activa})
+
+  const cargarZonas = async () => {
+    try {
+      const res = await apiPost('listar_zonas', {});
+      if (res.success) setZonasCatalogo(res.zonas || []);
+    } catch (e) {
+      // silencioso: el select simplemente quedará vacío
+    }
+  };
 
   const cargarPlantelesDe = async (escId) => {
     setCargandoPlt(true);
     setPlantelesPanel(null);
+    cargarZonas();
     try {
       const res = await apiPost('planteles_de_escuela', { escuela_id: escId });
       setPlantelesPanel(res.success ? (res.planteles || []) : []);
@@ -138,6 +150,7 @@ function Escuelas({
           direccion: formPlt.direccion,
           nivel_educativo: formPlt.nivel_educativo,
           zona: formPlt.zona,
+          zona_id: formPlt.zona_id ? parseInt(formPlt.zona_id) : null,
           responsable: formPlt.responsable,
           tel: formPlt.tel,
           email: formPlt.email
@@ -147,9 +160,14 @@ function Escuelas({
           setGuardandoPlt(false);
           return;
         }
+        // res.plantel (respuesta del backend) aún no incluye zona_id, solo el
+        // texto legado `zona` ya resuelto; completamos zona_id localmente con
+        // lo que se acaba de guardar para que el filtro/selector no quede obsoleto.
+        const zonaIdGuardada = formPlt.zona_id ? parseInt(formPlt.zona_id) : null;
+        const plantelActualizado = { ...res.plantel, zona_id: zonaIdGuardada };
         const planteles = data.planteles || [];
-        const newPlanteles = planteles.map(p => p.id === formPlt.id ? { ...p, ...res.plantel } : p);
-        setPlantelesPanel(prev => (prev || []).map(p => p.id === formPlt.id ? { ...p, ...res.plantel } : p));
+        const newPlanteles = planteles.map(p => p.id === formPlt.id ? { ...p, ...plantelActualizado } : p);
+        setPlantelesPanel(prev => (prev || []).map(p => p.id === formPlt.id ? { ...p, ...plantelActualizado } : p));
         let newEscuelas = data.escuelas || [];
         if (res.escuela_plantel) {
           newEscuelas = newEscuelas.map(e => e.id === res.escuela_plantel.id ? {
@@ -182,6 +200,7 @@ function Escuelas({
         direccion: formPlt.direccion,
         nivel_educativo: formPlt.nivel_educativo,
         zona: formPlt.zona,
+        zona_id: formPlt.zona_id ? parseInt(formPlt.zona_id) : null,
         responsable: formPlt.responsable,
         tel: formPlt.tel,
         email: formPlt.email
@@ -197,8 +216,11 @@ function Escuelas({
         direccion: formPlt.direccion || '', logo_emoji: '', clabe_fija: '',
         color: '#282d65', plan: 'pro', fecha_alta: new Date().toISOString().slice(0, 10)
       }];
-      const newPlanteles = [...(data.planteles || []), res.plantel];
-      setPlantelesPanel(prev => [...(prev || []), res.plantel]);
+      // res.plantel (respuesta del backend) aún no incluye zona_id, solo el
+      // texto legado `zona`; completamos zona_id localmente con lo enviado.
+      const plantelCreado = { ...res.plantel, zona_id: formPlt.zona_id ? parseInt(formPlt.zona_id) : null };
+      const newPlanteles = [...(data.planteles || []), plantelCreado];
+      setPlantelesPanel(prev => [...(prev || []), plantelCreado]);
       const newData = { ...data, escuelas: newEscuelas, planteles: newPlanteles };
       setData(newData);
       AppModel.save(newData);
@@ -892,10 +914,9 @@ function Escuelas({
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-body",
           children: [(() => {
-            const zonasDisponibles = Array.from(new Set((plantelesPanel || []).map(p => p.zona).filter(Boolean))).sort();
             const plantelesFiltrados = (plantelesPanel || []).filter(p =>
               (!filtroNivelPlt || p.nivel_educativo === filtroNivelPlt) &&
-              (!filtroZonaPlt || p.zona === filtroZonaPlt)
+              (!filtroZonaPlt || Number(p.zona_id) === Number(filtroZonaPlt))
             );
             return /*#__PURE__*/_jsxDEV(_Fragment, {
               children: [!cargandoPlt && (plantelesPanel || []).length > 0 && /*#__PURE__*/_jsxDEV("div", {
@@ -909,13 +930,13 @@ function Escuelas({
                     value: n.value,
                     children: n.value ? n.label : 'Todos los niveles'
                   }, n.value, false))
-                }, void 0, false), zonasDisponibles.length > 0 && /*#__PURE__*/_jsxDEV("select", {
+                }, void 0, false), zonasCatalogo.length > 0 && /*#__PURE__*/_jsxDEV("select", {
                   className: "form-select",
                   style: { fontSize: 12.5, padding: '6px 10px' },
                   value: filtroZonaPlt,
                   onChange: e => setFiltroZonaPlt(e.target.value),
                   children: [/*#__PURE__*/_jsxDEV("option", { value: "", children: "Todas las zonas" }, void 0, false),
-                  ...zonasDisponibles.map(z => /*#__PURE__*/_jsxDEV("option", { value: z, children: z }, z, false))]
+                  ...zonasCatalogo.map(z => /*#__PURE__*/_jsxDEV("option", { value: z.id, children: z.nombre }, z.id, false))]
                 }, void 0, true)]
               }, void 0, true), cargandoPlt && /*#__PURE__*/_jsxDEV("div", {
             className: "empty-state",
@@ -1101,12 +1122,17 @@ function Escuelas({
               children: [/*#__PURE__*/_jsxDEV("label", {
                 className: "form-label",
                 children: "Zona"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-                className: "form-input",
-                placeholder: "Ej: Norte, Centro, Sur",
-                value: formPlt.zona || '',
-                onChange: e => setFormPlt(p => ({ ...p, zona: e.target.value }))
-              }, void 0, false)]
+              }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+                className: "form-select",
+                value: formPlt.zona_id || '',
+                onChange: e => {
+                  const zid = e.target.value;
+                  const zSel = zonasCatalogo.find(z => String(z.id) === String(zid));
+                  setFormPlt(p => ({ ...p, zona_id: zid, zona: zSel ? zSel.nombre : '' }));
+                },
+                children: [/*#__PURE__*/_jsxDEV("option", { value: "", children: "— Sin zona —" }, void 0, false),
+                ...zonasCatalogo.map(z => /*#__PURE__*/_jsxDEV("option", { value: z.id, children: z.nombre }, z.id, false))]
+              }, void 0, true)]
             }, void 0, true)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
             style: {

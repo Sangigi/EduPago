@@ -475,7 +475,9 @@ function PortalFamilia({
         color: active ? PLC.navy : PLC.muted,
         borderBottom: `2px solid ${active ? PLC.lime : 'transparent'}`,
         marginBottom: -2,
-        transition: 'all .15s'
+        transition: 'all .15s',
+        flexShrink: 0,
+        whiteSpace: 'nowrap'
       },
       children: [/*#__PURE__*/_jsxDEV(Icon, {
         name: iconName,
@@ -490,10 +492,12 @@ function PortalFamilia({
     style: {
       height: '100vh',
       overflowY: 'auto',
+      overflowX: 'hidden',
       background: PLC.bg,
       fontFamily: "'DM Sans',system-ui,sans-serif"
     },
     children: [/*#__PURE__*/_jsxDEV("div", {
+      className: 'pf-header',
       style: {
         background: PLC.navy,
         padding: '0 24px',
@@ -542,12 +546,15 @@ function PortalFamilia({
           children: "by Libertyfin"
         }, void 0, false)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: 'pf-header-actions',
         style: {
           display: 'flex',
           alignItems: 'center',
-          gap: 10
+          gap: 10,
+          minWidth: 0
         },
         children: [escuela && /*#__PURE__*/_jsxDEV("div", {
+          className: 'pf-header-badge',
           style: {
             padding: '4px 12px',
             borderRadius: 20,
@@ -564,6 +571,7 @@ function PortalFamilia({
             lineHeight: 1.3
           },
           children: [/*#__PURE__*/_jsxDEV("div", {
+            className: 'pf-header-user-name',
             style: {
               color: PLC.white,
               fontSize: 13,
@@ -571,6 +579,7 @@ function PortalFamilia({
             },
             children: userEfectivo.nombre
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: 'pf-header-user-sub',
             style: {
               color: 'rgba(255,255,255,.5)',
               fontSize: 11
@@ -810,11 +819,15 @@ function PortalFamilia({
           }, void 0, true)]
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: 'pf-tabs',
         style: {
           display: 'flex',
           gap: 2,
           borderBottom: `2px solid ${PLC.border}`,
-          marginBottom: 22
+          marginBottom: 22,
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          whiteSpace: 'nowrap'
         },
         children: [tabBtn('inicio', 'Inicio', 'home'), tabBtn('hijos', 'Mis hijos', 'alumnos'), tabBtn('historial', 'Historial', 'history'), tabBtn('pagar', 'Pagar en línea', 'card'), tabBtn('facturas', 'Facturas', 'facturacion2'), tabBtn('config', 'Configuración', 'settings')]
       }, void 0, true), tab === 'inicio' && /*#__PURE__*/_jsxDEV("div", {

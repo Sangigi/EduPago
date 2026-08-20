@@ -2022,24 +2022,48 @@ switch ($action) {
     case 'listar_usuarios':
         $rol_actual = $usuario_actual['rol']       ?? '';
         $esc_actual = $usuario_actual['escuela_id'] ?? null;
-        if ($rol_actual === 'superadmin') {
-            $stmt = $pdo->query(
-                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
-                        u.familia_id, u.creado_por, u.zona,
-                        e.nombre AS escuela_nombre
-                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
-                 ORDER BY u.rol, u.nombre"
-            );
-        } else {
-            $stmt = $pdo->prepare(
-                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
-                        u.familia_id, u.creado_por, u.zona,
-                        e.nombre AS escuela_nombre
-                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
-                 WHERE u.escuela_id = ? AND u.rol != 'superadmin'
-                 ORDER BY u.rol, u.nombre"
-            );
-            $stmt->execute([$esc_actual]);
+        // zona_id es columna nueva (migracion_zonas.sql); si aún no corrió en
+        // esta base, se reintenta sin ella en vez de romper el listado.
+        try {
+            if ($rol_actual === 'superadmin') {
+                $stmt = $pdo->query(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona, u.zona_id,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     ORDER BY u.rol, u.nombre"
+                );
+            } else {
+                $stmt = $pdo->prepare(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona, u.zona_id,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     WHERE u.escuela_id = ? AND u.rol != 'superadmin'
+                     ORDER BY u.rol, u.nombre"
+                );
+                $stmt->execute([$esc_actual]);
+            }
+        } catch (\PDOException $e) {
+            if ($rol_actual === 'superadmin') {
+                $stmt = $pdo->query(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     ORDER BY u.rol, u.nombre"
+                );
+            } else {
+                $stmt = $pdo->prepare(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     WHERE u.escuela_id = ? AND u.rol != 'superadmin'
+                     ORDER BY u.rol, u.nombre"
+                );
+                $stmt->execute([$esc_actual]);
+            }
         }
         $usuarios = $stmt->fetchAll();
         respond(['success' => true, 'usuarios' => $usuarios]);
@@ -2066,22 +2090,42 @@ switch ($action) {
         if ($rol_actual === 'admin') {
             $esc_id = $usuario_actual['escuela_id'] ?? null;
         }
-        // Un distribuidor no pertenece a ninguna escuela; su "zona" es informativa
+        // Un distribuidor no pertenece a ninguna escuela; su "zona" es informativa.
+        // zona_id referencia el catálogo compartido `zonas` (usado también por
+        // planteles); zona (texto) se conserva en paralelo solo como respaldo
+        // legado, resuelta automáticamente del catálogo si se manda zona_id.
+        $zona_id = intval($input['zona_id'] ?? 0) ?: null;
         $zona = trim($input['zona'] ?? '') ?: null;
+        if ($zona_id) {
+            $zNom = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNom->execute([$zona_id]);
+            $zona = $zNom->fetchColumn() ?: $zona;
+        }
         if ($rol === 'distribuidor') { $esc_id = null; $fam_id = null; }
         // Verificar email único
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
         $creado_por = $usuario_actual["id"] ?? null;
-        $stmt = $pdo->prepare(
-            "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, activo, fecha_alta, familia_id, creado_por)"
-            . " VALUES (?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
-        );
-        $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol, $zona, $fam_id, $creado_por]);
+        $hash_pw = password_hash($password, PASSWORD_BCRYPT);
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, zona_id, activo, fecha_alta, familia_id, creado_por)"
+                . " VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
+            );
+            $stmt->execute([$esc_id, $nombre, $email, $hash_pw, $rol, $zona, $zona_id, $fam_id, $creado_por]);
+        } catch (\PDOException $e) {
+            // zona_id es columna nueva (migracion_zonas.sql) — si aún no corrió
+            // en esta base, no debe tumbar la creación de usuarios en general.
+            $stmt = $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, activo, fecha_alta, familia_id, creado_por)"
+                . " VALUES (?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
+            );
+            $stmt->execute([$esc_id, $nombre, $email, $hash_pw, $rol, $zona, $fam_id, $creado_por]);
+        }
         $id = intval($pdo->lastInsertId());
         registrar_log($pdo, $usuario_actual, 'usuario_creado', "Nuevo usuario '$nombre' ($email) con rol '$rol'", $esc_id);
-        respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "zona" => $zona, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
+        respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "zona" => $zona, "zona_id" => $zona_id, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_usuario':
@@ -2116,12 +2160,22 @@ switch ($action) {
         // zona puede enviarse como null/vacío explícito (limpiar) o como texto
         $zona_raw = $input['zona'] ?? '__NO_ENVIADO__';
         $zona     = ($zona_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (trim($zona_raw) ?: null);
+        // zona_id referencia el catálogo compartido `zonas`; si se manda, se
+        // resuelve también el texto legado 'zona' desde el catálogo.
+        $zona_id_raw = $input['zona_id'] ?? '__NO_ENVIADO__';
+        $zona_id = ($zona_id_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (intval($zona_id_raw) ?: null);
+        if ($zona_id !== '__NO_ENVIADO__' && $zona_id) {
+            $zNomEdit = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNomEdit->execute([$zona_id]);
+            $zona = $zNomEdit->fetchColumn() ?: $zona;
+        }
         // Nadie edita su propio rol/escuela/zona (evita auto-ascenso a superadmin), y solo
         // superadmin puede reasignar rol/escuela/zona de terceros.
         if ($es_propio_perfil || $rol_actual !== 'superadmin') {
             $rol    = '';
             $esc_id = null;
             $zona   = '__NO_ENVIADO__';
+            $zona_id = '__NO_ENVIADO__';
         }
         // Nadie edita su propio familia_id (evita que un usuario rol 'familia'
         // se reasigne a otra familia y vea/edite alumnos ajenos); solo
@@ -2137,9 +2191,19 @@ switch ($action) {
         if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
         if ($fam_id !== '__NO_ENVIADO__') { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
         if ($zona !== '__NO_ENVIADO__') { $sets[] = 'zona = ?'; $vals[] = $zona; }
+        if ($zona_id !== '__NO_ENVIADO__') { $sets[] = 'zona_id = ?'; $vals[] = $zona_id; }
         if ($sets) {
             $vals[] = $id;
-            $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+            try {
+                $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+            } catch (\PDOException $e) {
+                // zona_id es columna nueva (migracion_zonas.sql) — si aún no
+                // corrió en esta base, reintenta sin ella en vez de tronar.
+                $setsSinZonaId = array_values(array_filter($sets, fn($s) => strpos($s, 'zona_id') === false));
+                if (count($setsSinZonaId) === count($sets)) throw $e;
+                $valsSinZonaId = $vals; array_splice($valsSinZonaId, array_search('zona_id = ?', $sets), 1);
+                $pdo->prepare("UPDATE usuarios SET " . implode(', ', $setsSinZonaId) . " WHERE id = ?")->execute($valsSinZonaId);
+            }
             if ($rol || $esc_id !== null || $password) {
                 $cambios = array_filter([
                     $rol ? "rol → '$rol'" : null,
@@ -2150,8 +2214,13 @@ switch ($action) {
             }
         }
         // Re-leer el usuario actualizado para devolverlo completo
-        $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por, u.zona FROM usuarios u WHERE u.id = ?");
-        $stmt->execute([$id]);
+        try {
+            $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por, u.zona, u.zona_id FROM usuarios u WHERE u.id = ?");
+            $stmt->execute([$id]);
+        } catch (\PDOException $e) {
+            $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por, u.zona FROM usuarios u WHERE u.id = ?");
+            $stmt->execute([$id]);
+        }
         $usuarioActualizado = $stmt->fetch();
         respond(['success' => true, 'usuario' => $usuarioActualizado]);
     break;
@@ -2249,6 +2318,12 @@ switch ($action) {
         $email            = trim($input['email']       ?? '');
         $nivel_educativo  = trim($input['nivel_educativo'] ?? '') ?: null;
         $zona             = trim($input['zona']        ?? '') ?: null;
+        $zona_id          = intval($input['zona_id']   ?? 0) ?: null;
+        if ($zona_id) {
+            $zNomPlt = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNomPlt->execute([$zona_id]);
+            $zona = $zNomPlt->fetchColumn() ?: $zona;
+        }
         $rvoe             = trim($input['rvoe']        ?? '') ?: null;
         $niveles_validos  = ['preescolar', 'primaria', 'secundaria', 'preparatoria', 'universidad', 'mixto'];
         if ($nivel_educativo !== null && !in_array($nivel_educativo, $niveles_validos, true)) {
@@ -2294,10 +2369,10 @@ switch ($action) {
             $nueva_escuela_id = intval($pdo->lastInsertId());
             // 2. Insertar en planteles (para la UI de administración)
             $stmt2 = $pdo->prepare(
-                "INSERT INTO planteles (escuela_id, escuela_plantel_id, nombre, direccion, nivel_educativo, rvoe, zona, responsable, tel, activo)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+                "INSERT INTO planteles (escuela_id, escuela_plantel_id, nombre, direccion, nivel_educativo, rvoe, zona, zona_id, responsable, tel, activo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
             );
-            $stmt2->execute([$escuela_padre_id, $nueva_escuela_id, $nombre, $direccion, $nivel_educativo, $rvoe, $zona, $responsable, $tel]);
+            $stmt2->execute([$escuela_padre_id, $nueva_escuela_id, $nombre, $direccion, $nivel_educativo, $rvoe, $zona, $zona_id, $responsable, $tel]);
             $plantel_id = intval($pdo->lastInsertId());
             // 3. Crear la cuenta de usuario (Admin del plantel)
             $password_temporal = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
@@ -2329,6 +2404,7 @@ switch ($action) {
                     'nivel_educativo'    => $nivel_educativo,
                     'rvoe'               => $rvoe,
                     'zona'               => $zona,
+                    'zona_id'            => $zona_id,
                     'responsable'        => $responsable,
                     'tel'                => $tel,
                     'activo'             => true
@@ -2362,6 +2438,12 @@ switch ($action) {
         $email       = trim($input['email']          ?? '');
         $nivel_educativo = trim($input['nivel_educativo'] ?? '') ?: null;
         $zona            = trim($input['zona']        ?? '') ?: null;
+        $zona_id         = intval($input['zona_id']   ?? 0) ?: null;
+        if ($zona_id) {
+            $zNomPltEd = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNomPltEd->execute([$zona_id]);
+            $zona = $zNomPltEd->fetchColumn() ?: $zona;
+        }
         $rvoe            = trim($input['rvoe']        ?? '') ?: null;
         $niveles_validos = ['preescolar', 'primaria', 'secundaria', 'preparatoria', 'universidad', 'mixto'];
         if ($nivel_educativo !== null && !in_array($nivel_educativo, $niveles_validos, true)) {
@@ -2390,8 +2472,8 @@ switch ($action) {
             $pdo->beginTransaction();
             // 1. Tabla planteles
             $pdo->prepare(
-                "UPDATE planteles SET nombre = ?, direccion = ?, nivel_educativo = ?, rvoe = ?, zona = ?, responsable = ?, tel = ? WHERE id = ?"
-            )->execute([$nombre, $direccion, $nivel_educativo, $rvoe, $zona, $responsable, $tel, $id]);
+                "UPDATE planteles SET nombre = ?, direccion = ?, nivel_educativo = ?, rvoe = ?, zona = ?, zona_id = ?, responsable = ?, tel = ? WHERE id = ?"
+            )->execute([$nombre, $direccion, $nivel_educativo, $rvoe, $zona, $zona_id, $responsable, $tel, $id]);
             // 2. Escuela-cuenta del plantel
             $sets = ['nombre = ?', 'direccion = ?', 'telefono = ?'];
             $vals = [$nombre, $direccion, $tel];
@@ -2417,6 +2499,7 @@ switch ($action) {
                     'nivel_educativo'    => $nivel_educativo,
                     'rvoe'               => $rvoe,
                     'zona'               => $zona,
+                    'zona_id'            => $zona_id,
                     'responsable'        => $responsable,
                     'tel'                => $tel,
                     'activo'             => (bool)$plantel['activo'],
@@ -2987,6 +3070,13 @@ switch ($action) {
         $du = $pdo->prepare("SELECT nombre, zona FROM usuarios WHERE id = ?");
         $du->execute([$dist_id]);
         $distribuidor_row = $du->fetch() ?: ['nombre' => '', 'zona' => null];
+        // La zona real (catálogo) prevalece sobre el texto legado si ya está migrada.
+        try {
+            $duz = $pdo->prepare("SELECT z.nombre FROM usuarios u JOIN zonas z ON z.id = u.zona_id WHERE u.id = ?");
+            $duz->execute([$dist_id]);
+            $zonaCatalogo = $duz->fetchColumn();
+            if ($zonaCatalogo) $distribuidor_row['zona'] = $zonaCatalogo;
+        } catch (\PDOException $e) { /* zona_id aún no migrada en esta base */ }
         $rstmt = $pdo->prepare(
             "SELECT r.id, r.escuela_id, r.nombre_colegio, r.num_alumnos, r.estado, r.comision_pct, r.fecha_alta, r.notas,
                     e.nombre AS escuela_nombre
@@ -3209,6 +3299,147 @@ switch ($action) {
             ->execute([$banco, $clabe, $titular, $dist_id]);
         registrar_log($pdo, $usuario_actual, 'distribuidor_datos_pago_actualizados', 'Distribuidor actualizó sus datos de pago');
         respond(['success' => true]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // ZONAS — catálogo compartido entre distribuidores (usuarios.zona_id) y
+    // planteles (planteles.zona_id). Antes eran dos columnas de texto libre
+    // sin relación, con typos y variantes ("CDMX" vs "Ciudad de México") que
+    // hacían imposible un reporte real "por zona".
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'listar_zonas':
+        $stmtZonas = $pdo->prepare("SELECT id, nombre, activa FROM zonas WHERE activa = 1 ORDER BY nombre");
+        $stmtZonas->execute();
+        respond(['success' => true, 'zonas' => array_map(function($z) {
+            $z['id'] = intval($z['id']);
+            $z['activa'] = (bool)$z['activa'];
+            return $z;
+        }, $stmtZonas->fetchAll())]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_zona':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede crear zonas.']);
+        }
+        $nombreZona = trim($input['nombre'] ?? '');
+        if (!$nombreZona) respond(['success' => false, 'error' => 'El nombre de la zona es obligatorio']);
+        try {
+            $pdo->prepare("INSERT INTO zonas (nombre, activa) VALUES (?, 1)")->execute([$nombreZona]);
+        } catch (\PDOException $e) {
+            respond(['success' => false, 'error' => 'Ya existe una zona con ese nombre']);
+        }
+        respond(['success' => true, 'zona' => ['id' => intval($pdo->lastInsertId()), 'nombre' => $nombreZona, 'activa' => true]]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_zona':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede editar zonas.']);
+        }
+        $idZona = intval($input['id'] ?? 0);
+        if (!$idZona) respond(['success' => false, 'error' => 'id requerido']);
+        $sets = []; $vals = [];
+        if (array_key_exists('nombre', $input)) { $sets[] = 'nombre = ?'; $vals[] = trim($input['nombre']); }
+        if (array_key_exists('activa', $input)) { $sets[] = 'activa = ?'; $vals[] = $input['activa'] ? 1 : 0; }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+        $vals[] = $idZona;
+        try {
+            $pdo->prepare("UPDATE zonas SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        } catch (\PDOException $e) {
+            respond(['success' => false, 'error' => 'Ya existe una zona con ese nombre']);
+        }
+        respond(['success' => true]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMISIONES DE DISTRIBUIDORES (superadmin) — el cálculo de comisión ya
+    // existía (distribuidor_datos/distribuidor_comisiones), pero no había
+    // ninguna forma de cambiar el % después de crear el referido (quedaba
+    // fijo en 5.00 de por vida), ni de activarlo/vincularlo a una escuela
+    // real salvo editando la base de datos directamente.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'superadmin_listar_referidos':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede ver esto.']);
+        }
+        $stmtRef = $pdo->prepare(
+            "SELECT r.id, r.distribuidor_id, r.escuela_id, r.nombre_colegio, r.num_alumnos, r.estado,
+                    r.comision_pct, r.fecha_alta, r.notas,
+                    u.nombre AS distribuidor_nombre, u.email AS distribuidor_email,
+                    e.nombre AS escuela_nombre
+             FROM distribuidor_referidos r
+             LEFT JOIN usuarios u ON u.id = r.distribuidor_id
+             LEFT JOIN escuelas e ON e.id = r.escuela_id
+             ORDER BY r.fecha_alta DESC, r.id DESC"
+        );
+        $stmtRef->execute();
+        $referidosTodos = array_map(function($r) {
+            return [
+                'id'                 => intval($r['id']),
+                'distribuidor_id'    => intval($r['distribuidor_id']),
+                'distribuidor_nombre'=> $r['distribuidor_nombre'],
+                'distribuidor_email' => $r['distribuidor_email'],
+                'escuela_id'         => $r['escuela_id'] ? intval($r['escuela_id']) : null,
+                'escuela_nombre'     => $r['escuela_nombre'],
+                'nombre_colegio'     => $r['nombre_colegio'],
+                'num_alumnos'        => $r['num_alumnos'] !== null ? intval($r['num_alumnos']) : null,
+                'estado'             => $r['estado'],
+                'comision_pct'       => floatval($r['comision_pct']),
+                'fecha_alta'         => $r['fecha_alta'],
+                'notas'              => $r['notas'],
+            ];
+        }, $stmtRef->fetchAll());
+        respond(['success' => true, 'referidos' => $referidosTodos]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'superadmin_editar_referido':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede editar referidos.']);
+        }
+        $idRef = intval($input['id'] ?? 0);
+        if (!$idRef) respond(['success' => false, 'error' => 'id requerido']);
+        $estados_validos_ref = ['prospecto', 'demo_agendada', 'implementacion', 'activo'];
+        $sets = []; $vals = [];
+        if (array_key_exists('comision_pct', $input)) {
+            $pctRef = floatval($input['comision_pct']);
+            if ($pctRef < 0 || $pctRef > 100) respond(['success' => false, 'error' => 'La comisión debe estar entre 0 y 100']);
+            $sets[] = 'comision_pct = ?'; $vals[] = $pctRef;
+        }
+        if (array_key_exists('estado', $input)) {
+            if (!in_array($input['estado'], $estados_validos_ref, true)) respond(['success' => false, 'error' => 'Estado inválido']);
+            $sets[] = 'estado = ?'; $vals[] = $input['estado'];
+        }
+        if (array_key_exists('escuela_id', $input)) {
+            $escIdRef = intval($input['escuela_id'] ?? 0) ?: null;
+            $sets[] = 'escuela_id = ?'; $vals[] = $escIdRef;
+        }
+        if (array_key_exists('num_alumnos', $input)) {
+            $sets[] = 'num_alumnos = ?'; $vals[] = intval($input['num_alumnos'] ?? 0) ?: null;
+        }
+        if (array_key_exists('notas', $input)) {
+            $sets[] = 'notas = ?'; $vals[] = trim($input['notas'] ?? '') ?: null;
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+        $vals[] = $idRef;
+        $pdo->prepare("UPDATE distribuidor_referidos SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        registrar_log($pdo, $usuario_actual, 'referido_editado', "Referido #$idRef actualizado");
+        $stmt2Ref = $pdo->prepare(
+            "SELECT r.*, u.nombre AS distribuidor_nombre, e.nombre AS escuela_nombre
+             FROM distribuidor_referidos r
+             LEFT JOIN usuarios u ON u.id = r.distribuidor_id
+             LEFT JOIN escuelas e ON e.id = r.escuela_id
+             WHERE r.id = ?"
+        );
+        $stmt2Ref->execute([$idRef]);
+        $refActualizado = $stmt2Ref->fetch();
+        if ($refActualizado) {
+            $refActualizado['id'] = intval($refActualizado['id']);
+            $refActualizado['distribuidor_id'] = intval($refActualizado['distribuidor_id']);
+            $refActualizado['escuela_id'] = $refActualizado['escuela_id'] ? intval($refActualizado['escuela_id']) : null;
+            $refActualizado['comision_pct'] = floatval($refActualizado['comision_pct']);
+        }
+        respond(['success' => true, 'referido' => $refActualizado]);
     break;
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
