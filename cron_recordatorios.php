@@ -375,6 +375,30 @@ try {
     $resumen[] = "ERROR consultando cobros pendientes (¿falta correr migracion_2026_08_20_pagos_recurrentes.sql?): " . $e->getMessage();
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// 3) ARCHIVADO DE logs_sistema — es la tabla que más rápido crece en
+//    producción real (registra cada login exitoso, no solo los fallidos).
+//    Corre solo el día 1 de cada mes (no hace falta hacerlo a diario): mueve
+//    lo de más de 180 días a logs_sistema_archivo (mismo esquema, se crea
+//    sola la primera vez) y lo borra de la tabla "caliente". No se pierde
+//    nada del histórico, solo se saca del camino de listar_logs y de las
+//    consultas de rate-limiting de login (que solo miran los últimos minutos).
+// ══════════════════════════════════════════════════════════════════════════
+if ((int) date('j') === 1) {
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS logs_sistema_archivo LIKE logs_sistema");
+        $corteLogs = date('Y-m-d', strtotime('-180 days'));
+        $pdo->prepare("INSERT INTO logs_sistema_archivo SELECT * FROM logs_sistema WHERE fecha < ?")->execute([$corteLogs]);
+        $stmtDelLogs = $pdo->prepare("DELETE FROM logs_sistema WHERE fecha < ?");
+        $stmtDelLogs->execute([$corteLogs]);
+        if ($stmtDelLogs->rowCount() > 0) {
+            $resumen[] = "Archivado mensual de logs_sistema: {$stmtDelLogs->rowCount()} filas anteriores a $corteLogs movidas a logs_sistema_archivo.";
+        }
+    } catch (\PDOException $e) {
+        $resumen[] = "ERROR archivando logs_sistema: " . $e->getMessage();
+    }
+}
+
 $lineaLog = date('Y-m-d H:i:s') . " | Cron recordatorios:\n  " . (empty($resumen) ? '(sin novedades)' : implode("\n  ", $resumen)) . "\n\n";
 file_put_contents(CORREOS_LOG_FILE, $lineaLog, FILE_APPEND);
 echo $lineaLog;

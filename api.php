@@ -1474,9 +1474,22 @@ switch ($action) {
             $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM logs_sistema WHERE $where");
             $cnt->execute($params);
             $total_lg = intval($cnt->fetch()['n'] ?? 0);
-            $stmt = $pdo->prepare("SELECT * FROM logs_sistema WHERE $where ORDER BY id DESC LIMIT $por_pagina_lg OFFSET $offset_lg");
-            $stmt->execute($params);
-            $logs = $stmt->fetchAll();
+            // A offset alto (páginas muy avanzadas) MySQL tiene que leer y
+            // descartar el ancho completo de cada fila (incluye `detalle`,
+            // que es TEXT) solo para saltarla. Separar "qué ids caen en esta
+            // página" (solo toca la columna indexada) de "traer esas filas
+            // completas" evita ese desperdicio sin cambiar el contrato de la API.
+            $stmtIds = $pdo->prepare("SELECT id FROM logs_sistema WHERE $where ORDER BY id DESC LIMIT $por_pagina_lg OFFSET $offset_lg");
+            $stmtIds->execute($params);
+            $ids_lg = array_column($stmtIds->fetchAll(), 'id');
+            if (empty($ids_lg)) {
+                $logs = [];
+            } else {
+                $inIds_lg = implode(',', array_fill(0, count($ids_lg), '?'));
+                $stmt = $pdo->prepare("SELECT * FROM logs_sistema WHERE id IN ($inIds_lg) ORDER BY id DESC");
+                $stmt->execute($ids_lg);
+                $logs = $stmt->fetchAll();
+            }
         } catch (\PDOException $e) {
             respond(['success' => false, 'error' => 'La tabla logs_sistema aún no existe. Corre la migración (optimizacion_bd.sql, Bloque 0b).']);
         }
@@ -1550,18 +1563,33 @@ switch ($action) {
         $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id WHERE $where");
         $cnt->execute($params);
         $total_lc = intval($cnt->fetch()['n'] ?? 0);
-        $stmt = $pdo->prepare(
-            "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
-             FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id
+        // Mismo truco que en listar_logs: separar "qué ids caen en esta
+        // página" (el JOIN solo sirve aquí para poder filtrar/buscar) de
+        // "traer esas filas completas" — a offset alto ya no se lee y
+        // descarta el ancho completo de cada cobro solo para saltarlo.
+        $stmtIds = $pdo->prepare(
+            "SELECT co.id FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id
              WHERE $where ORDER BY co.id DESC LIMIT $por_pagina_lc OFFSET $offset_lc"
         );
-        $stmt->execute($params);
-        $lista_lc = array_map(function($c) {
-            $c['total']   = floatval($c['total']);
-            $c['factura'] = (bool)$c['factura'];
-            $c['cliente'] = $c['cliente'] ?? 'Cliente general';
-            return $c;
-        }, $stmt->fetchAll());
+        $stmtIds->execute($params);
+        $ids_lc = array_column($stmtIds->fetchAll(), 'id');
+        if (empty($ids_lc)) {
+            $lista_lc = [];
+        } else {
+            $inIds_lc = implode(',', array_fill(0, count($ids_lc), '?'));
+            $stmt = $pdo->prepare(
+                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+                 FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id
+                 WHERE co.id IN ($inIds_lc) ORDER BY co.id DESC"
+            );
+            $stmt->execute($ids_lc);
+            $lista_lc = array_map(function($c) {
+                $c['total']   = floatval($c['total']);
+                $c['factura'] = (bool)$c['factura'];
+                $c['cliente'] = $c['cliente'] ?? 'Cliente general';
+                return $c;
+            }, $stmt->fetchAll());
+        }
         respond([
             'success'   => true,
             'cobros'    => $lista_lc,

@@ -45,12 +45,21 @@
 - Correr `migracion_2026_08_20_suscripciones.sql` una sola vez (phpMyAdmin o consola MySQL de Hostinger) **antes** de subir el `api.php` nuevo — agrega `fecha_vencimiento_plan` / `ultimo_recordatorio_plan` a `escuelas`.
 - Correr también `migracion_2026_08_20_pagos_recurrentes.sql` — agrega los campos de recurrencia/penalización a `productos` y `cobros`, y crea la tabla `pagos_recurrentes_generados`. Sin esto, los conceptos recurrentes (Productos → tipo "Recurrente") no se generan ni se penalizan.
 - Correr también `migracion_2026_08_20_revocacion_sesiones.sql` — agrega `usuarios.sesion_valida_desde`, usada para poder invalidar tokens ya emitidos (al cambiar contraseña, o al forzar el cierre de sesión de alguien desde Usuarios). Sin esto, `verificar_token_auth()` en api.php tronaría con "columna desconocida".
+- Correr también `migracion_2026_08_20_fix_metodo_enum.sql` — corrige un bug real: `cron_recordatorios.php` generaba cobros con `metodo='Pendiente'`, valor que no existía en el ENUM de `cobros.metodo` y MySQL lo silenciaba a `''` (confirmado en producción: cobros #187-192). Agrega `'Pendiente'` al ENUM, corrige los registros ya afectados, y agrega el índice `idx_cobros_estado` que le faltaba a la tabla para no escanearla completa cada vez que el cron busca cobros pendientes.
+- Correr también `migracion_2026_08_20_plan_enum.sql` — convierte `escuelas.plan` de texto libre a `ENUM('basico','avanzado','pro')`, para que un typo no pueda dejar a un colegio con un plan inválido (el código ya tenía que defenderse de esto).
 
 ### 5.1 Seguridad — pendiente de tu parte (no se puede arreglar solo en código)
 - **Hacer privado el repo de GitHub** (`Sangigi/EduPago`) — está público con `config.php` completo expuesto.
 - **Rotar `DB_PASS` y `PDT_PASS`** — nunca se rotaron pese a estar expuestos desde la misma fuga que sí motivó rotar otros dos secretos.
 - Después de rotar: considera sacar `config.php` de git (`git rm --cached config.php` + `.gitignore`) para que la próxima vez que lo edites no se vuelva a subir con el bot de auto-commit.
 - `pago_referencia.php` / `cancela_pago_referencia.php` / `webhook_liga.php`: su protocolo con Cobroscontarjeta.com no admite token, así que la única defensa real es lista blanca de IP — pide la IP real a Cobroscontarjeta.com/Pagadetodo y agrégala en `config.php` → `IPS_PERMITIDAS_PAGOS_SIN_TOKEN` (hoy vacío = sin restricción).
+
+### 5.2 Limpieza de datos de prueba
+- Corre `reporte_datos_prueba.sql` (solo `SELECT`, no borra nada) en phpMyAdmin y revisa los resultados — agrupa alumnos/familias/colegios/cobros que parecen ser de las pruebas que hicimos juntos (emails `@example.com`, nombres como "q"/"123", el colegio "Instituto Tecnológico Naulcalpan" de prueba, cobros de $0.01). Con base en eso se genera `limpieza_datos_prueba.sql` con los `DELETE` que confirmes — no se borra nada sin que lo revises primero.
+
+### 5.3 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
+- **`usuarios.zona` / `planteles.zona` (texto) vs `zona_id` (FK a la tabla `zonas`)**: es una migración a normalizado que ya está en curso desde antes, NO un descuido. Hoy solo las filas nuevas (distribuidores #11/#12) tienen `zona_id` poblado — el resto de usuarios/planteles viejos sigue con `zona_id = NULL` y solo el texto libre. **No borres las columnas `zona` (texto) todavía** — primero hay que backfillear `zona_id` en todas las filas viejas cruzando contra `zonas.nombre`, confirmar que quedó 100% poblado, y solo entonces dropear el texto.
+- **`escuelas.clabe_fija`**: legado, reemplazado por el sistema de `clabe_pool` (CLABEs individuales). Confirmado que ningún archivo PHP la lee ya (ni siquiera los webhooks de SPEI/CLABE) — es segura de eliminar cuando quieras, no es urgente.
 
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
@@ -60,6 +69,13 @@
   php /home/TU_USUARIO/domains/tudominio.com/public_html/cron_recordatorios.php
   ```
 - Revisa `correos_log.txt` (se crea junto a `api.php`) para confirmar que los correos se están enviando.
+- El mismo cron ahora también archiva `logs_sistema` (ver 6.1) — no hace falta un segundo cron en Hostinger.
+
+### 6.1 Archivado automático de `logs_sistema`
+- `logs_sistema` es la tabla que más rápido crece (registra cada login exitoso, no solo los fallidos). `cron_recordatorios.php` ahora incluye una sección que corre solo el día 1 de cada mes: mueve las filas de más de 180 días a `logs_sistema_archivo` (la crea sola con `CREATE TABLE ... LIKE`, no requiere migración manual) y las borra de la tabla activa.
+- No se pierde histórico — solo se saca del camino de `listar_logs` (panel de Logs del superadmin) y de las consultas de rate-limiting de login, que solo miran los últimos minutos.
+- Si alguna vez necesitas revisar logs viejos, consúltalos directo en `logs_sistema_archivo` desde phpMyAdmin (no está expuesta en la UI).
+- Paginación de `listar_logs` y `listar_cobros`: se optimizó para que a offset alto (páginas muy avanzadas) MySQL no tenga que leer y descartar el ancho completo de cada fila solo para saltarla — primero busca los `id` de la página (solo toca la columna indexada) y después trae esas filas completas. No cambia la API ni el frontend, solo el rendimiento interno.
 
 ## Estructura de archivos
 ```
