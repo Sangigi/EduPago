@@ -297,6 +297,21 @@ function Escuelas({
   const metricasEscuela = id => {
     const cobros = data.cobros.filter(c => c.escuela_id === id);
     const alumnos = data.clientes.filter(c => c.escuela_id === id && c.activo);
+    // En esta pantalla (lista de colegios, sin entrar a ninguno) cargar_datos
+    // manda data.cobros/data.clientes VACÍOS a propósito (por costo/escala) —
+    // antes eso hacía que Alumnos/Cobros/Cobrado siempre mostraran 0 aquí,
+    // aunque el colegio sí tuviera actividad real. Se usa el resumen liviano
+    // por escuela (resumen_escuelas, que el backend ya manda siempre) como
+    // respaldo cuando no hay detalle completo cargado.
+    const resumen = (data.resumen_escuelas || {})[id];
+    const hayDetalle = data.cobros.length > 0 || data.clientes.length > 0;
+    if (!hayDetalle && resumen) {
+      return {
+        cobros: resumen.num_cobros_90d || 0,
+        alumnos: resumen.total_alumnos || 0,
+        cobrado: resumen.cobrado_90d || 0
+      };
+    }
     const pagados = cobros.filter(c => c.estado === 'pagado').reduce((a, c) => a + c.total, 0);
     return {
       cobros: cobros.length,
