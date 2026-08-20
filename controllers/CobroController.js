@@ -20,14 +20,16 @@ const CobroController = (() => {
     return res.json();
   }
 
-  async function iniciarCobro({ carrito, cliente, metodo, escuela_id }) {
+  async function iniciarCobro({ carrito, cliente, metodo, escuela_id, caja_id, sucursal_id }) {
     // La API debe tener un endpoint `crear_cobro` que reciba esto e inserte en MySQL
     const resultado = await apiPost('crear_cobro', {
       carrito,
       cliente_id: cliente?.id,
       metodo,
       escuela_id,
-      referencia: cliente?.matricula
+      referencia: cliente?.matricula,
+      caja_id,
+      sucursal_id,
     });
     if (!resultado.success) throw new Error(resultado.error || 'Error al crear cobro');
     // Propagar saldo actualizado para que Caja.js pueda actualizarlo en el estado

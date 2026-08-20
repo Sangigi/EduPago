@@ -21,6 +21,16 @@ function Caja({
   const [carrito, setCarrito] = useState([]);
   const [clienteSel, setClienteSel] = useState(null);
   const [metodo, setMetodo] = useState('TC');
+  // Candado de corte de caja: el POS exige un turno abierto (cajero/admin) —
+  // antes se podía cobrar todo el día sin abrir caja nunca, y aunque se
+  // abriera, las ventas no quedaban ligadas a ella (ver caja_id en cobrar()).
+  const [cajaEstadoCargando, setCajaEstadoCargando] = useState(true);
+  const [sucursalId, setSucursalId] = useState(null);
+  const [cajaAbierta, setCajaAbierta] = useState(null);
+  const [montoApertura, setMontoApertura] = useState('');
+  const [abriendoCaja, setAbriendoCaja] = useState(false);
+  const [errorCaja, setErrorCaja] = useState(null);
+  const requiereCajaAbierta = user?.rol === 'cajero' || user?.rol === 'admin';
   const [q, setQ] = useState('');
   const [clasificacion, setClasificacion] = useState('todos');
   const [qCliente, setQCliente] = useState('');
@@ -134,6 +144,50 @@ function Caja({
     }
   };
 
+  /* ── CANDADO DE CAJA: cargar sucursal + turno abierto al entrar al POS ── */
+  useEffect(() => {
+    if (!requiereCajaAbierta || !escuela?.id) {
+      setCajaEstadoCargando(false);
+      return;
+    }
+    let cancelado = false;
+    (async () => {
+      setCajaEstadoCargando(true);
+      setErrorCaja(null);
+      try {
+        const sucursales = await CajaController.listarSucursales(escuela.id);
+        const sid = sucursales?.[0]?.id || null;
+        if (cancelado) return;
+        setSucursalId(sid);
+        if (sid) {
+          const caja = await CajaController.estadoActual(sid);
+          if (!cancelado) setCajaAbierta(caja);
+        }
+      } catch (e) {
+        if (!cancelado) setErrorCaja(e.message);
+      } finally {
+        if (!cancelado) setCajaEstadoCargando(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [requiereCajaAbierta, escuela?.id]);
+
+  const abrirMiCaja = async () => {
+    const monto = parseFloat(montoApertura);
+    if (isNaN(monto) || monto < 0) { setErrorCaja('Ingresa un monto de apertura válido.'); return; }
+    setAbriendoCaja(true);
+    setErrorCaja(null);
+    try {
+      const caja = await CajaController.abrir({ sucursal_id: sucursalId, monto_apertura: monto, observaciones: '' });
+      setCajaAbierta(caja);
+      setMontoApertura('');
+    } catch (e) {
+      setErrorCaja(e.message);
+    } finally {
+      setAbriendoCaja(false);
+    }
+  };
+
   /* ── CARRITO ── */
   const addItem = p => {
     setCarrito(prev => {
@@ -156,6 +210,10 @@ function Caja({
   /* ── INICIAR COBRO ── */
   const cobrar = async () => {
     if (!carrito.length) return;
+    if (requiereCajaAbierta && !cajaAbierta) {
+      alert('No tienes una caja abierta. Abre tu turno antes de cobrar.');
+      return;
+    }
 
     // Validar SPEI antes de crear el cobro
     if (metodo === 'SPEI') {
@@ -176,7 +234,7 @@ function Caja({
     const escuela_id = escuela?.id ?? data.escuelas?.[0]?.id ?? 1;
     let cobro;
     try {
-      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id });
+      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id, caja_id: cajaAbierta?.id, sucursal_id: sucursalId });
     } catch(err) {
       alert('Error al crear cobro: ' + err.message);
       return;
@@ -620,6 +678,41 @@ function Caja({
     label: 'Cheque',
     icon: 'reportes'
   }];
+  if (requiereCajaAbierta && cajaEstadoCargando) {
+    return /*#__PURE__*/_jsxDEV("div", {
+      className: "empty-state",
+      style: { padding: 60 },
+      children: [/*#__PURE__*/_jsxDEV("span", { className: "spinner" }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        className: "empty-text", style: { marginTop: 14 }, children: "Cargando estado de caja…"
+      }, void 0, false)]
+    }, void 0, true);
+  }
+  if (requiereCajaAbierta && !cajaAbierta) {
+    return /*#__PURE__*/_jsxDEV("div", {
+      style: { maxWidth: 420, margin: '60px auto', textAlign: 'center' },
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        className: "empty-icon", children: /*#__PURE__*/_jsxDEV(Icon, { name: "caja", size: 40, color: "currentColor" }, void 0, false)
+      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        style: { fontSize: 16, fontWeight: 700, marginBottom: 6, marginTop: 10 },
+        children: "No tienes una caja abierta"
+      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        style: { fontSize: 13, color: 'var(--ink-3)', marginBottom: 18 },
+        children: "Antes de cobrar, abre tu turno de caja con el fondo inicial de efectivo."
+      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        className: "form-group",
+        children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Fondo de apertura" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+          className: "form-input", type: "number", placeholder: "0.00", value: montoApertura,
+          onChange: e => setMontoApertura(e.target.value), style: { fontFamily: 'var(--mono)', textAlign: 'center' }
+        }, void 0, false)]
+      }, void 0, true), errorCaja && /*#__PURE__*/_jsxDEV("div", {
+        style: { fontSize: 12.5, color: 'var(--red)', margin: '10px 0' }, children: errorCaja
+      }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+        className: "btn btn-primary", style: { width: '100%', marginTop: 10 },
+        disabled: abriendoCaja, onClick: abrirMiCaja,
+        children: abriendoCaja ? 'Abriendo…' : 'Abrir caja'
+      }, void 0, false)]
+    }, void 0, true);
+  }
   return /*#__PURE__*/_jsxDEV("div", {
     className: "pos-layout",
     children: [/*#__PURE__*/_jsxDEV("div", {

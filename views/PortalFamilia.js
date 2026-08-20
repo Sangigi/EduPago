@@ -23,6 +23,12 @@ function PortalFamilia({
   const [misCobros, setMisCobros] = useState([]);
   const [saldoTotal, setSaldoTotal] = useState(0);
   const [metodo, setMetodo] = useState('SPEI');
+  // El pago siempre es de UN alumno a la vez (un cobro necesita un cliente_id
+  // real de `clientes`; antes se mandaba el saldo combinado de la familia con
+  // el id de `familias` como cliente_id, lo que nunca actualizaba el saldo del
+  // alumno correcto — o corrompía el de uno ajeno con el mismo id numérico).
+  const [hijoPagoId, setHijoPagoId] = useState(null);
+  const [speiBloqueoFamilia, setSpeiBloqueoFamilia] = useState(null);
   const [modal, setModal] = useState(null);
   const [cobroActivo, setCobroActivo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -351,22 +357,34 @@ function PortalFamilia({
   useEffect(() => () => {
     if (pollRef.current) clearInterval(pollRef.current);
   }, []);
+  const hijosConSaldo = misHijos.filter(h => h.saldo_pendiente > 0);
+  const hijoSeleccionado = hijosConSaldo.find(h => h.id === hijoPagoId) || hijosConSaldo[0] || null;
+
   const pagarSaldo = async () => {
-    if (saldoTotal <= 0) return;
+    if (!hijoSeleccionado || hijoSeleccionado.saldo_pendiente <= 0) return;
+    if (!escuela?.id) { alert('No se pudo determinar tu escuela. Recarga la página e intenta de nuevo.'); return; }
+    setSpeiBloqueoFamilia(null);
+    if (metodo === 'SPEI') {
+      const tieneClabe = hijoSeleccionado.clabe_individual && hijoSeleccionado.clabe_individual_estado === 'activa';
+      if (!tieneClabe) {
+        setSpeiBloqueoFamilia(`${hijoSeleccionado.nombre} no tiene una CLABE SPEI activa asignada. Pídele al colegio que te asigne una, o paga con tarjeta.`);
+        return;
+      }
+    }
     setLoading(true);
     const conceptoTemporal = [{
-      id: 'SALDO_GLOBAL',
-      nombre: `Liquidación de saldo — ${userEfectivo.nombre}`,
-      precio: saldoTotal,
+      id: 'SALDO_' + hijoSeleccionado.id,
+      nombre: `Liquidación de saldo — ${hijoSeleccionado.nombre}`,
+      precio: hijoSeleccionado.saldo_pendiente,
       qty: 1,
       emoji: ''
     }];
-    const escuela_id = escuela?.id ?? 1;
+    const escuela_id = escuela.id;
     let cobro;
     try {
       cobro = await CobroController.iniciarCobro({
         carrito: conceptoTemporal,
-        cliente: { nombre: userEfectivo.nombre, tipo: 'familia', id: user.familia_id },
+        cliente: hijoSeleccionado,
         metodo,
         escuela_id,
       });
@@ -378,10 +396,7 @@ function PortalFamilia({
     const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
     if (metodo === 'SPEI') {
       try {
-        // Si la familia tiene un solo hijo activo con CLABE individual, se usa esa.
-        // Con varios hijos o sin CLABE, iniciarSPEI lanzará un error descriptivo.
-        const hijoUnico = misHijos.length === 1 ? misHijos[0] : null;
-        const spei = await CobroController.iniciarSPEI(cobro, escuela, hijoUnico);
+        const spei = await CobroController.iniciarSPEI(cobro, escuela, hijoSeleccionado);
         const cobrosUp = newData.cobros.map(c => c.id === cobro.id ? {
           ...c,
           clabe: spei.clabe,
@@ -1469,13 +1484,22 @@ function PortalFamilia({
               style: {
                 padding: '16px 20px'
               },
-              children: [misHijos.filter(h => h.saldo_pendiente > 0).map(h => /*#__PURE__*/_jsxDEV("div", {
+              children: [hijosConSaldo.length > 1 && /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: PLC.muted, marginBottom: 8 },
+                children: "Los pagos son por alumno — selecciona a quién le vas a pagar:"
+              }, void 0, false), hijosConSaldo.map(h => /*#__PURE__*/_jsxDEV("div", {
+                onClick: () => { setHijoPagoId(h.id); setSpeiBloqueoFamilia(null); },
                 style: {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '10px 0',
-                  borderBottom: `1px solid ${PLC.border}`
+                  padding: '10px 8px',
+                  marginBottom: 4,
+                  borderRadius: 8,
+                  cursor: hijosConSaldo.length > 1 ? 'pointer' : 'default',
+                  border: hijosConSaldo.length > 1 ? `2px solid ${hijoSeleccionado?.id === h.id ? PLC.navy : PLC.border}` : 'none',
+                  background: hijosConSaldo.length > 1 && hijoSeleccionado?.id === h.id ? 'rgba(40,45,101,.05)' : 'transparent',
+                  borderBottom: hijosConSaldo.length > 1 ? undefined : `1px solid ${PLC.border}`
                 },
                 children: [/*#__PURE__*/_jsxDEV("div", {
                   children: [/*#__PURE__*/_jsxDEV("div", {
@@ -1512,7 +1536,7 @@ function PortalFamilia({
                     fontSize: 15,
                     color: PLC.text
                   },
-                  children: "Total a pagar"
+                  children: "A pagar ahora"
                 }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontFamily: 'monospace',
@@ -1520,7 +1544,7 @@ function PortalFamilia({
                     fontSize: 20,
                     color: PLC.navy
                   },
-                  children: fmt(saldoTotal)
+                  children: fmt(hijoSeleccionado?.saldo_pendiente || 0)
                 }, void 0, false)]
               }, void 0, true)]
             }, void 0, true)]
@@ -1557,7 +1581,7 @@ function PortalFamilia({
                   marginBottom: 22
                 },
                 children: [/*#__PURE__*/_jsxDEV("div", {
-                  onClick: () => setMetodo('SPEI'),
+                  onClick: () => { setMetodo('SPEI'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
                     padding: '14px 16px',
@@ -1611,7 +1635,7 @@ function PortalFamilia({
                     color: PLC.green
                   }, void 0, false)]
                 }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                  onClick: () => setMetodo('TC'),
+                  onClick: () => { setMetodo('TC'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
                     padding: '14px 16px',
@@ -1665,9 +1689,16 @@ function PortalFamilia({
                     color: PLC.green
                   }, void 0, false)]
                 }, void 0, true)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+              }, void 0, true), speiBloqueoFamilia && /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  marginBottom: 14, padding: '10px 12px', borderRadius: 8,
+                  background: 'rgba(239,68,68,.08)', border: `1px solid ${PLC.red}`,
+                  fontSize: 12.5, color: PLC.text, lineHeight: 1.5
+                },
+                children: speiBloqueoFamilia
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
                 onClick: pagarSaldo,
-                disabled: loading,
+                disabled: loading || !hijoSeleccionado,
                 style: {
                   width: '100%',
                   padding: '14px 0',
@@ -1702,7 +1733,7 @@ function PortalFamilia({
                     name: "pay",
                     size: 18,
                     color: PLC.navy
-                  }, void 0, false), "Pagar ", fmt(saldoTotal), " con ", metodo === 'SPEI' ? 'SPEI' : 'Tarjeta']
+                  }, void 0, false), "Pagar ", fmt(hijoSeleccionado?.saldo_pendiente || 0), " con ", metodo === 'SPEI' ? 'SPEI' : 'Tarjeta']
                 }, void 0, true)
               }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                 style: {

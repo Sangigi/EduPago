@@ -1338,6 +1338,44 @@ switch ($action) {
         if (!in_array($metodo, $metodos_validos, true)) {
             respond(['success' => false, 'error' => 'Método de pago inválido']);
         }
+        // Validar que cliente_id sea un alumno real de esta escuela — sin esto
+        // se coló un bug donde el Portal de Familia mandaba el id de `familias`
+        // como si fuera un id de `clientes` (tablas con AUTO_INCREMENT
+        // independientes): el saldo del alumno correcto nunca se actualizaba,
+        // o peor, se recalculaba el de un alumno ajeno que compartiera ese
+        // mismo número de id por coincidencia.
+        if ($cliente_id) {
+            $chkCliCobro = $pdo->prepare("SELECT id, familia_id FROM clientes WHERE id = ? AND escuela_id = ?");
+            $chkCliCobro->execute([$cliente_id, $escuela_id]);
+            $cliCobro = $chkCliCobro->fetch();
+            if (!$cliCobro) respond(['success' => false, 'error' => 'cliente_id no corresponde a un alumno de esta escuela']);
+            // Un usuario rol 'familia' solo puede generar cobros de SUS PROPIOS hijos.
+            if (($usuario_actual['rol'] ?? '') === 'familia') {
+                if ($cliCobro['familia_id'] === null || intval($cliCobro['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
+                    http_response_code(403);
+                    respond(['success' => false, 'error' => 'No puedes generar cobros para este alumno.']);
+                }
+            }
+        }
+        // El corte de caja compara las ventas del día contra el efectivo/
+        // tarjeta contados; si un cobro del POS no trae caja_id, esas ventas
+        // quedan invisibles para el corte (antes SIEMPRE pasaba esto: el
+        // frontend nunca mandaba caja_id, así que el corte jamás reflejaba
+        // ventas reales). Para cajero/admin (los roles que operan el POS) se
+        // exige que exista una caja realmente abierta y sea SUYA — así el
+        // corte de caja deja de ser opcional: sin caja abierta, no se puede
+        // cobrar. Familia (portal) y superadmin no pasan por el POS físico.
+        $rol_actual_cobro = $usuario_actual['rol'] ?? '';
+        if (in_array($rol_actual_cobro, ['cajero', 'admin'], true)) {
+            if (!$caja_id_pos) {
+                respond(['success' => false, 'error' => 'No tienes una caja abierta. Abre tu turno en "Corte de caja" antes de cobrar.']);
+            }
+            $chkCaja = $pdo->prepare("SELECT id FROM caja WHERE id = ? AND usuario_id = ? AND estado = 'abierta'");
+            $chkCaja->execute([$caja_id_pos, intval($usuario_actual['user_id'])]);
+            if (!$chkCaja->fetch()) {
+                respond(['success' => false, 'error' => 'Tu caja no está abierta (o ya se cerró). Abre un nuevo turno en "Corte de caja" antes de cobrar.']);
+            }
+        }
         // Calcular total desde el carrito
         $total = 0;
         foreach ($carrito as $item) {
@@ -1426,6 +1464,17 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'confirmar_pago':
+        // Esta acción marca un cobro como pagado A MANO, sin pasar por ningún
+        // proveedor de pago ni webhook — es, literalmente, "confía en quien
+        // llame a este endpoint". Antes no tenía NINGÚN control de rol ni de
+        // pertenencia: cualquier usuario autenticado (incluida una cuenta
+        // 'familia') podía marcar CUALQUIER cobro de CUALQUIER escuela como
+        // pagado sin pagar un centavo.
+        $rol_actual_confirmar = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual_confirmar, ['superadmin', 'admin', 'cajero', 'familia'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para confirmar pagos.']);
+        }
         $cobro_id  = intval($input['cobro_id']  ?? 0);
         $auth_code = trim($input['auth_code']   ?? '');
         $transaccion = trim($input['transaccion'] ?? '');
@@ -1438,6 +1487,37 @@ switch ($action) {
         $fecha_cheque      = trim($input['fecha_cheque']      ?? '') ?: null;
         $titular_cheque    = trim($input['titular_cheque']    ?? '') ?: null;
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+        if (in_array($rol_actual_confirmar, ['admin', 'cajero'], true)) {
+            $chkEscCob = $pdo->prepare("SELECT escuela_id FROM cobros WHERE id = ?");
+            $chkEscCob->execute([$cobro_id]);
+            $escCob = $chkEscCob->fetch();
+            if (!$escCob || intval($escCob['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para confirmar este cobro.']);
+            }
+        }
+        // Familia: solo puede "confirmar" cobros de SUS PROPIOS hijos, y
+        // únicamente cuando el pago YA quedó marcado 'pagado' por el webhook
+        // real del proveedor (SPEI/TC) — este endpoint jamás debe ser lo que
+        // decide que un cobro está pagado cuando lo llama el propio cliente,
+        // o cualquier padre podría marcar su colegiatura como pagada gratis.
+        // El poller de familia solo llama a esto para refrescar auth_code/
+        // saldo después de que el webhook ya confirmó — nunca antes.
+        if ($rol_actual_confirmar === 'familia') {
+            $chkFamCob = $pdo->prepare(
+                "SELECT co.estado, cl.familia_id FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id WHERE co.id = ?"
+            );
+            $chkFamCob->execute([$cobro_id]);
+            $famCob = $chkFamCob->fetch();
+            if (!$famCob || $famCob['familia_id'] === null || intval($famCob['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No puedes confirmar este cobro.']);
+            }
+            if ($famCob['estado'] !== 'pagado') {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'Este pago todavía no ha sido confirmado por el banco/proveedor.']);
+            }
+        }
         $extra_auth = $auth_code ?: $transaccion ?: null;
         if ($banco_cheque !== null) {
             $stmt = $pdo->prepare(
@@ -1475,8 +1555,28 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'cancelar_cobro':
+        // Sin control de rol/pertenencia, cualquier usuario autenticado
+        // (incluida una cuenta 'familia') podía cancelar CUALQUIER cobro
+        // pendiente de CUALQUIER escuela — y como saldo_pendiente solo suma
+        // cobros 'pendiente', cancelar el propio adeudo lo hacía desaparecer
+        // sin pagar. Nunca se usa desde el Portal de Familia (solo desde
+        // views/Cobros.js, del lado admin/cajero).
+        $rol_actual_cancelar = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual_cancelar, ['superadmin', 'admin', 'cajero'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para cancelar cobros.']);
+        }
         $cobro_id = intval($input['cobro_id'] ?? 0);
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+        if (in_array($rol_actual_cancelar, ['admin', 'cajero'], true)) {
+            $chkEscCancel = $pdo->prepare("SELECT escuela_id FROM cobros WHERE id = ?");
+            $chkEscCancel->execute([$cobro_id]);
+            $escCancel = $chkEscCancel->fetch();
+            if (!$escCancel || intval($escCancel['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para cancelar este cobro.']);
+            }
+        }
         $stmt = $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?");
         $stmt->execute([$cobro_id]);
         // Recalcular saldo_pendiente del cliente vinculado
@@ -1508,12 +1608,21 @@ switch ($action) {
     //     los datos del cheque ni la razón (queda estatus_cheque='rebotado').
     // ══════════════════════════════════════════════════════════════════════════
     case 'marcar_cheque_rebotado':
+        $rol_actual_cheque = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual_cheque, ['superadmin', 'admin', 'cajero'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+        }
         $cobro_id = intval($input['cobro_id'] ?? 0);
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
-        $stmt = $pdo->prepare("SELECT cliente_id, metodo, estatus_cheque FROM cobros WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT cliente_id, metodo, estatus_cheque, escuela_id FROM cobros WHERE id = ?");
         $stmt->execute([$cobro_id]);
         $cob_row = $stmt->fetch();
         if (!$cob_row) respond(['success' => false, 'error' => 'Cobro no encontrado']);
+        if (in_array($rol_actual_cheque, ['admin', 'cajero'], true) && intval($cob_row['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para este cobro.']);
+        }
         if ($cob_row['metodo'] !== 'Cheque') respond(['success' => false, 'error' => 'Este cobro no fue pagado con cheque']);
         if ($cob_row['estatus_cheque'] === 'rebotado') respond(['success' => false, 'error' => 'Este cheque ya estaba marcado como rebotado']);
         $pdo->prepare("UPDATE cobros SET estado = 'pendiente', estatus_cheque = 'rebotado' WHERE id = ?")
@@ -2616,7 +2725,19 @@ switch ($action) {
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
         $stmt = $pdo->prepare("SELECT id, nombre, activa FROM sucursales WHERE escuela_id = ? AND activa = 1 ORDER BY nombre");
         $stmt->execute([$escuela_id]);
-        respond(['success' => true, 'sucursales' => $stmt->fetchAll()]);
+        $sucursales = $stmt->fetchAll();
+        // No hay ninguna UI para crear sucursales — sin esto, ninguna escuela
+        // (ni corte de caja ni el candado de caja abierta en el POS) podía
+        // funcionar nunca: "caja_estado"/"caja_abrir" exigen un sucursal_id
+        // real y la lista siempre venía vacía. Se autoprovisiona una única
+        // sucursal "Principal" la primera vez, transparente para escuelas de
+        // un solo punto de venta (la inmensa mayoría).
+        if (empty($sucursales)) {
+            $pdo->prepare("INSERT INTO sucursales (escuela_id, nombre, activa) VALUES (?, 'Principal', 1)")->execute([$escuela_id]);
+            $stmt->execute([$escuela_id]);
+            $sucursales = $stmt->fetchAll();
+        }
+        respond(['success' => true, 'sucursales' => $sucursales]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'caja_estado':

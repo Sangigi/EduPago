@@ -10,12 +10,17 @@
 -- o el gestor de base de datos de Hostinger) antes de subir el código nuevo,
 -- o los guardados de "Datos fiscales" del Portal de Familia fallarán con un
 -- error controlado ("faltan columnas fiscales...") hasta que corra esto.
--- Es seguro re-ejecutar: usa IF NOT EXISTS a través de una comprobación simple.
+--
+-- NOTA: el servidor de Hostinger no soporta "ADD COLUMN IF NOT EXISTS" (esa
+-- sintaxis requiere MySQL 8.0.29+ o MariaDB 10.0.2+ con el módulo habilitado).
+-- Este ALTER es de una sola vez: si ya lo corriste antes, NO lo vuelvas a
+-- correr tal cual (fallará con "Duplicate column name"); en ese caso comenta
+-- con -- las líneas de las columnas que ya existan.
 
 ALTER TABLE familias
-  ADD COLUMN IF NOT EXISTS rfc_factura VARCHAR(13) NULL,
-  ADD COLUMN IF NOT EXISTS razon_social_factura VARCHAR(255) NULL,
-  ADD COLUMN IF NOT EXISTS cp_factura VARCHAR(5) NULL,
-  ADD COLUMN IF NOT EXISTS domicilio_factura VARCHAR(255) NULL,
-  ADD COLUMN IF NOT EXISTS regimen_factura VARCHAR(10) NULL,
-  ADD COLUMN IF NOT EXISTS uso_cfdi_defecto VARCHAR(10) NULL;
+  ADD COLUMN rfc_factura VARCHAR(13) NULL,
+  ADD COLUMN razon_social_factura VARCHAR(255) NULL,
+  ADD COLUMN cp_factura VARCHAR(5) NULL,
+  ADD COLUMN domicilio_factura VARCHAR(255) NULL,
+  ADD COLUMN regimen_factura VARCHAR(10) NULL,
+  ADD COLUMN uso_cfdi_defecto VARCHAR(10) NULL;

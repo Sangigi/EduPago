@@ -1,0 +1,17 @@
+# EduPago — bloquea el acceso web directo a logs y datos sensibles.
+# Antes no existía ningún .htaccess: api_log.txt, debug_webhook.txt,
+# webhook_log.txt, referencias_log.txt, pagos_spei.json y clabes_alumnos.json
+# eran descargables por cualquiera que adivinara la URL (contienen
+# referencias de pago, folios, montos, y en el caso de CAI, tokens de
+# tarjeta). También bloquea config.php/db.php por si el servidor alguna vez
+# sirviera .php como texto plano en vez de ejecutarlo.
+<FilesMatch "\.(txt|json|log|sql|md)$">
+    Require all denied
+</FilesMatch>
+
+<Files "config.php">
+    Require all denied
+</Files>
+<Files "db.php">
+    Require all denied
+</Files>
