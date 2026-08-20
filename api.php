@@ -2243,32 +2243,12 @@ switch ($action) {
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
-<<<<<<< HEAD
         $creado_por = $usuario_actual["user_id"] ?? null;
         $stmt = $pdo->prepare(
             "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, activo, fecha_alta, familia_id, creado_por)"
             . " VALUES (?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
         );
         $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol, $zona, $fam_id, $creado_por]);
-=======
-        $creado_por = $usuario_actual["id"] ?? null;
-        $hash_pw = password_hash($password, PASSWORD_BCRYPT);
-        try {
-            $stmt = $pdo->prepare(
-                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, zona_id, activo, fecha_alta, familia_id, creado_por)"
-                . " VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
-            );
-            $stmt->execute([$esc_id, $nombre, $email, $hash_pw, $rol, $zona, $zona_id, $fam_id, $creado_por]);
-        } catch (\PDOException $e) {
-            // zona_id es columna nueva (migracion_zonas.sql) — si aún no corrió
-            // en esta base, no debe tumbar la creación de usuarios en general.
-            $stmt = $pdo->prepare(
-                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, activo, fecha_alta, familia_id, creado_por)"
-                . " VALUES (?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
-            );
-            $stmt->execute([$esc_id, $nombre, $email, $hash_pw, $rol, $zona, $fam_id, $creado_por]);
-        }
->>>>>>> f53d96692f55e31053daa2706700d6d15980fdbc
         $id = intval($pdo->lastInsertId());
         registrar_log($pdo, $usuario_actual, 'usuario_creado', "Nuevo usuario '$nombre' ($email) con rol '$rol'", $esc_id);
         respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "zona" => $zona, "zona_id" => $zona_id, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
