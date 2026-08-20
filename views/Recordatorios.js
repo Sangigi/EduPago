@@ -24,10 +24,16 @@ function Recordatorios({
   } = React;
   const [filtro, setFiltro] = useState('todos'); // todos | vencidos | proximos | recordados
 
-  const hoy = new Date();
+  // Medianoche local de hoy (no new Date() a secas): compara día calendario
+  // contra día calendario, sin la hora del momento metiendo ruido.
+  const hoy = new Date(new Date().toDateString());
   const diasDiff = fechaStr => {
     if (!fechaStr) return null;
-    const f = new Date(fechaStr);
+    // "YYYY-MM-DD" + T00:00:00 fuerza a que el navegador lo lea en hora LOCAL.
+    // Sin esto, new Date("2026-08-20") se interpreta como medianoche UTC, que
+    // en México (UTC-6) ya son las 6pm del día 19 — un cobro de HOY aparecía
+    // "vencido hace 1 día".
+    const f = new Date(fechaStr.slice(0, 10) + 'T00:00:00');
     return Math.round((hoy - f) / (1000 * 60 * 60 * 24));
   };
 
