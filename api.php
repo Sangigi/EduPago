@@ -1381,6 +1381,39 @@ switch ($action) {
         foreach ($carrito as $item) {
             $total += floatval($item['precio'] ?? 0) * intval($item['qty'] ?? 1);
         }
+        // Reusar un cobro pendiente existente en vez de crear uno nuevo, para
+        // métodos que dependen de una referencia externa (SPEI/TC/EfectivoRef):
+        // sin esto, cada clic en "Pagar" (ej. un padre reintentando desde el
+        // portal, o F5) creaba un cobro 'pendiente' NUEVO con un id distinto,
+        // dejando varios cobros pendientes acumulados para el mismo alumno.
+        // consulta_clabe.php/pago_clabe.php resuelven "el cobro pendiente más
+        // antiguo" de un alumno cuando la 'transaccion' no calza exacto — con
+        // varios pendientes de montos distintos, el banco terminaba
+        // comparando el pago contra un cobro viejo y equivocado, y siempre
+        // fallaba con "Monto inválido" aunque el monto pagado fuera correcto.
+        if ($cliente_id && in_array($metodo, ['SPEI', 'TC', 'EfectivoRef'], true)) {
+            $stmtDup = $pdo->prepare(
+                "SELECT * FROM cobros WHERE cliente_id = ? AND metodo = ? AND estado = 'pendiente'
+                 AND ABS(total - ?) < 0.01 ORDER BY id DESC LIMIT 1"
+            );
+            $stmtDup->execute([$cliente_id, $metodo, $total]);
+            $dup = $stmtDup->fetch();
+            if ($dup) {
+                $dup['total'] = floatval($dup['total']);
+                $dup['items'] = $carrito;
+                $stmtNombreDup = $pdo->prepare("SELECT nombre FROM clientes WHERE id = ?");
+                $stmtNombreDup->execute([$cliente_id]);
+                $dup['cliente'] = $stmtNombreDup->fetchColumn() ?: 'Cliente general';
+                $rsDup = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
+                $rsDup->execute([$cliente_id]);
+                respond([
+                    'success'     => true,
+                    'cobro'       => $dup,
+                    'cliente_id'  => $cliente_id,
+                    'nuevo_saldo' => floatval($rsDup->fetchColumn()),
+                ]);
+            }
+        }
         // Generar folio: CLA-ESC{esc_id}-{timestamp}
         $stmt = $pdo->prepare("SELECT clave FROM escuelas WHERE id = ?");
         $stmt->execute([$escuela_id]);

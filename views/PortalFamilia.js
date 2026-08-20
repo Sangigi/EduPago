@@ -371,6 +371,13 @@ function PortalFamilia({
         return;
       }
     }
+    // Cobroscontarjeta.com tiene un tope de $15,000.00 por pago con tarjeta;
+    // sin este aviso previo, el pago fallaba en el servidor con un error
+    // genérico que no explicaba el motivo real.
+    if (metodo === 'TC' && hijoSeleccionado.saldo_pendiente > 15000) {
+      setSpeiBloqueoFamilia(`El pago con tarjeta tiene un máximo de $15,000.00 por transacción. El adeudo de ${hijoSeleccionado.nombre} es mayor — paga por SPEI, o pide al colegio que lo divida en pagos parciales.`);
+      return;
+    }
     setLoading(true);
     const conceptoTemporal = [{
       id: 'SALDO_' + hijoSeleccionado.id,
@@ -430,7 +437,11 @@ function PortalFamilia({
         const liga = await CobroController.iniciarTC(cobro);
         window.location.href = liga.url;
       } catch (err) {
-        alert('Error al conectar con la pasarela de pago');
+        // Antes se mostraba un mensaje genérico que ocultaba la razón real
+        // (ej. "Monto máximo $15,000.00" de Cobroscontarjeta.com) — con
+        // saldos altos el pago con tarjeta parecía "no funcionar" sin dar
+        // ninguna pista de por qué.
+        alert('No se pudo iniciar el pago con tarjeta: ' + err.message);
       }
     }
     setLoading(false);
