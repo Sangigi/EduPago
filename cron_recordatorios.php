@@ -6,9 +6,12 @@
  * Envía por correo:
  *  1) Aviso de vencimiento de la suscripción (plan SaaS) del colegio, 7 y 5
  *     días antes de `escuelas.fecha_vencimiento_plan`.
- *  2) Recordatorios de cobros pendientes a la familia/cliente, con el mismo
- *     criterio de urgencia que ya usa views/Recordatorios.js (3 días antes,
- *     el día que vence, y 1 día después de vencido).
+ *  2) Recordatorios de cobros pendientes a la familia/cliente. Si el cobro
+ *     tiene una fecha de vencimiento real, usa el mismo criterio de urgencia
+ *     que views/Recordatorios.js (3 días antes, el día que vence, 1 día
+ *     después). Si no (caso actual: crear_cobro no guarda vencimiento, solo
+ *     fecha de creación), avisa: día 0 = aviso neutral de cobro nuevo, día 3
+ *     = recordatorio, día 7 = urgente.
  *
  * No requiere autenticación: no se expone a través del navegador/api.php,
  * solo se ejecuta por CLI.
@@ -93,18 +96,28 @@ try {
          WHERE co.estado = 'pendiente'"
     );
     foreach ($stmt->fetchAll() as $c) {
-        // Mismo fallback que views/Recordatorios.js: usa fecha_vencimiento si
-        // existe la columna; si no, usa la fecha de creación del cobro.
-        $fechaRef = $c['fecha_vencimiento'] ?? $c['fecha'] ?? null;
+        // crear_cobro nunca guarda una fecha de vencimiento real (columna
+        // fecha_vencimiento inexistente/NULL hoy) — solo existe `fecha` (creación).
+        // Sin fecha límite real no se puede avisar "vence hoy/antes de": se usa
+        // en cambio la antigüedad del cobro sin pagar (días desde que se cobró),
+        // con umbrales corridos para NO mandar nada el mismo día que se creó.
+        $tieneVencimientoReal = !empty($c['fecha_vencimiento']);
+        $fechaRef = $tieneVencimientoReal ? $c['fecha_vencimiento'] : ($c['fecha'] ?? null);
         if (!$fechaRef) continue;
         $emailDestino = $c['cliente_email'] ?: $c['familia_email'];
         if (!$emailDestino) continue;
 
-        $dias = (int) round(($hoyTs - strtotime($fechaRef)) / 86400); // >0 = vencido, <0 = faltan días
-        // Mismos umbrales de urgencia que la UI (Recordatorios.js: "urgente" desde
-        // 3 días antes). Solo se avisa en las transiciones clave para no spamear
-        // a diario: 3 días antes, el día que vence, y 1 día después de vencido.
-        if (!in_array($dias, [-3, 0, 1], true)) continue;
+        $dias = (int) round(($hoyTs - strtotime($fechaRef)) / 86400); // >0 = vencido/antiguo, <0 = faltan días
+        if ($tieneVencimientoReal) {
+            // Hay una fecha límite real: mismos umbrales que la UI (Recordatorios.js
+            // considera "urgente" desde 3 días antes). Solo en las transiciones clave.
+            if (!in_array($dias, [-3, 0, 1], true)) continue;
+        } else {
+            // No hay fecha límite real, solo fecha de creación: el día 0 manda un
+            // AVISO neutral de que se generó el cobro (no un reclamo de atraso),
+            // y luego se escala a recordatorio (3 días) y urgente (7 días).
+            if (!in_array($dias, [0, 3, 7], true)) continue;
+        }
 
         // Idempotencia: uq_recordatorio_dia (cobro_id + fecha) evita reenviar si
         // el cron corre más de una vez el mismo día, o si ya se marcó manual hoy.
@@ -114,7 +127,13 @@ try {
 
         $nombreCliente = $c['cliente_nombre'] ?: 'Cliente';
         $totalFmt = '$' . number_format((float)($c['total'] ?? 0), 2) . ' MXN';
-        if ($dias > 0) {
+        if (!$tieneVencimientoReal && $dias === 0) {
+            $asunto = "Tienes un nuevo cobro pendiente";
+            $textoFecha = "se generó hoy, " . date('d/m/Y', strtotime($fechaRef));
+        } elseif (!$tieneVencimientoReal) {
+            $asunto = "Recordatorio: tienes un pago pendiente";
+            $textoFecha = "sigue pendiente desde el " . date('d/m/Y', strtotime($fechaRef)) . ($dias >= 7 ? ' — por favor ponte al corriente' : '');
+        } elseif ($dias > 0) {
             $asunto = "Pago pendiente: tienes un cobro vencido";
             $textoFecha = "venció el " . date('d/m/Y', strtotime($fechaRef));
         } elseif ($dias === 0) {
