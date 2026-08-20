@@ -2971,16 +2971,19 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'eliminar_escuela':
-        // Solo permite borrar un colegio (no plantel) que nunca tuvo actividad
-        // real — mismo criterio que eliminar_plantel: si ya tiene alumnos,
-        // cobros, planteles o CLABEs asignadas, se pierde historial real de
-        // dinero/alumnos, así que se bloquea y se sugiere desactivar en su lugar.
+        // Por defecto solo borra un colegio (no plantel) que nunca tuvo
+        // actividad real. Si ya tiene datos, se puede forzar un borrado en
+        // cascada de TODO (alumnos, cobros, usuarios, etc.) — irreversible —
+        // pero solo si mandan confirmar_clave = la clave exacta del colegio,
+        // como segunda confirmación real (no basta con forzar=true a ciegas).
         if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
             http_response_code(403);
             respond(['success' => false, 'error' => 'Solo el super admin puede eliminar colegios.']);
         }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $forzar = !empty($input['forzar']);
+        $confirmar_clave = trim($input['confirmar_clave'] ?? '');
         $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ?");
         $stmt->execute([$id]);
         $escDel = $stmt->fetch();
@@ -2988,40 +2991,67 @@ switch ($action) {
         if ((bool)$escDel['es_plantel']) {
             respond(['success' => false, 'error' => 'Esto es un plantel, no un colegio — elimínalo desde "Eliminar plantel" en su colegio principal.']);
         }
-        $cntPlanteles = $pdo->prepare("SELECT COUNT(*) AS n FROM escuelas WHERE escuela_padre_id = ? AND es_plantel = 1");
-        $cntPlanteles->execute([$id]);
-        $nPlanteles = intval($cntPlanteles->fetch()['n'] ?? 0);
-        $cntAlumnos = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ?");
-        $cntAlumnos->execute([$id]);
-        $nAlumnos = intval($cntAlumnos->fetch()['n'] ?? 0);
-        $cntCobros = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros WHERE escuela_id = ?");
-        $cntCobros->execute([$id]);
-        $nCobros = intval($cntCobros->fetch()['n'] ?? 0);
-        $cntClabes = $pdo->prepare("SELECT COUNT(*) AS n FROM clabe_pool WHERE escuela_id = ?");
-        $cntClabes->execute([$id]);
-        $nClabes = intval($cntClabes->fetch()['n'] ?? 0);
-        if ($nPlanteles > 0 || $nAlumnos > 0 || $nCobros > 0 || $nClabes > 0) {
+        $stmtPlanteles = $pdo->prepare("SELECT id FROM escuelas WHERE escuela_padre_id = ? AND es_plantel = 1");
+        $stmtPlanteles->execute([$id]);
+        $idsPlanteles = array_map('intval', array_column($stmtPlanteles->fetchAll(), 'id'));
+        $idsGrupo = array_merge([$id], $idsPlanteles);
+        $inGrupo = implode(',', array_fill(0, count($idsGrupo), '?'));
+
+        $contar = function($tabla) use ($pdo, $idsGrupo, $inGrupo) {
+            $s = $pdo->prepare("SELECT COUNT(*) AS n FROM `$tabla` WHERE escuela_id IN ($inGrupo)");
+            $s->execute($idsGrupo);
+            return intval($s->fetch()['n'] ?? 0);
+        };
+        $nPlanteles = count($idsPlanteles);
+        $nAlumnos   = $contar('clientes');
+        $nCobros    = $contar('cobros');
+        $nClabes    = $contar('clabe_pool');
+        $nUsuarios  = $contar('usuarios');
+        $nFamilias  = $contar('familias');
+        $nProductos = $contar('productos');
+
+        $hayDatos = $nPlanteles > 0 || $nAlumnos > 0 || $nCobros > 0 || $nClabes > 0;
+        if ($hayDatos && !$forzar) {
             $motivos = array_filter([
                 $nPlanteles > 0 ? "$nPlanteles plantel(es)" : null,
                 $nAlumnos > 0   ? "$nAlumnos alumno(s)"      : null,
                 $nCobros > 0    ? "$nCobros cobro(s)"        : null,
                 $nClabes > 0    ? "$nClabes CLABE(s) en el pool" : null,
             ]);
-            respond(['success' => false, 'error' => 'Este colegio ya tiene ' . implode(', ', $motivos) . ' — no se puede eliminar sin perder ese historial. Desactívalo en su lugar (o quita/reasigna eso primero si de verdad quieres borrarlo).']);
+            respond([
+                'success' => false,
+                'error' => 'Este colegio ya tiene ' . implode(', ', $motivos) . ' — no se puede eliminar sin perder ese historial.',
+                'requiere_confirmacion_forzada' => true,
+                'clave_para_confirmar' => $escDel['clave'],
+            ]);
         }
+        if ($hayDatos && $forzar && $confirmar_clave !== $escDel['clave']) {
+            respond(['success' => false, 'error' => 'La clave de confirmación no coincide con la del colegio. No se eliminó nada.']);
+        }
+
         try {
             $pdo->beginTransaction();
-            $pdo->prepare("DELETE FROM usuarios WHERE escuela_id = ?")->execute([$id]);
-            $pdo->prepare("DELETE FROM familias WHERE escuela_id = ?")->execute([$id]);
-            $pdo->prepare("DELETE FROM productos WHERE escuela_id = ?")->execute([$id]);
-            $pdo->prepare("DELETE FROM escuelas WHERE id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM cobro_items WHERE cobro_id IN (SELECT id FROM cobros WHERE escuela_id IN ($inGrupo))")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM pagos_recurrentes_generados WHERE cobro_id IN (SELECT id FROM cobros WHERE escuela_id IN ($inGrupo)) OR producto_id IN (SELECT id FROM productos WHERE escuela_id IN ($inGrupo))")->execute(array_merge($idsGrupo, $idsGrupo));
+            $pdo->prepare("DELETE FROM recordatorios WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM cobros WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM clabe_pool WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM clientes WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM familias WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM productos WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM usuarios WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            $pdo->prepare("DELETE FROM planteles WHERE escuela_id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM escuelas WHERE id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->commit();
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             respond(['success' => false, 'error' => 'No se pudo eliminar: ' . $e->getMessage()]);
         }
-        registrar_log($pdo, $usuario_actual, 'escuela_eliminada', "Colegio #$id '{$escDel['nombre']}' eliminado (sin historial)");
-        respond(['success' => true, 'id' => $id]);
+        $resumenEliminado = $hayDatos
+            ? "$nPlanteles plantel(es), $nAlumnos alumno(s), $nCobros cobro(s), $nUsuarios usuario(s), $nFamilias familia(s), $nProductos producto(s), $nClabes CLABE(s)"
+            : 'sin historial';
+        registrar_log($pdo, $usuario_actual, 'escuela_eliminada', "Colegio #$id '{$escDel['nombre']}' eliminado" . ($hayDatos ? " FORZADO junto con: $resumenEliminado" : ' (sin historial)'));
+        respond(['success' => true, 'id' => $id, 'ids_planteles_eliminados' => $idsPlanteles, 'resumen_eliminado' => $hayDatos ? $resumenEliminado : null]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     // POOL DE CLABEs SPEI

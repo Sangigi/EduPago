@@ -284,12 +284,33 @@ function Escuelas({
       alert('No se pudo actualizar el estado de la escuela: ' + e.message);
     }
   };
-  const eliminarEscuela = async id => {
-    if (!confirm('¿Eliminar este colegio? Solo se puede si nunca tuvo alumnos, cobros, planteles ni CLABEs asignadas. Esta acción no se puede deshacer.')) return;
+  const eliminarEscuela = async (id, forzar = false, confirmar_clave = '') => {
+    if (!forzar && !confirm('¿Eliminar este colegio? Solo se puede sin perder historial si nunca tuvo alumnos, cobros, planteles ni CLABEs asignadas. Esta acción no se puede deshacer.')) return;
     try {
-      const res = await apiPost('eliminar_escuela', { id });
-      if (!res.success) { alert(res.error || 'No se pudo eliminar el colegio'); return; }
-      setData(prevData => ({ ...prevData, escuelas: (prevData.escuelas || []).filter(e => e.id !== id) }));
+      const res = await apiPost('eliminar_escuela', { id, forzar, confirmar_clave });
+      if (!res.success) {
+        if (res.requiere_confirmacion_forzada) {
+          // El colegio sí tiene datos: en vez de obligar a limpiar cada tabla
+          // a mano, se ofrece borrar TODO en cascada, pidiendo escribir la
+          // clave del colegio como segunda confirmación real.
+          const escrito = prompt(
+            `${res.error}\n\nSi de verdad quieres borrarlo TODO de forma permanente (alumnos, cobros, usuarios, etc. — no se puede deshacer), escribe la clave "${res.clave_para_confirmar}" para confirmar:`
+          );
+          if (escrito === null) return;
+          if (escrito.trim().toUpperCase() !== String(res.clave_para_confirmar).toUpperCase()) {
+            alert('La clave no coincide. No se eliminó nada.');
+            return;
+          }
+          return eliminarEscuela(id, true, escrito.trim());
+        }
+        alert(res.error || 'No se pudo eliminar el colegio');
+        return;
+      }
+      setData(prevData => ({
+        ...prevData,
+        escuelas: (prevData.escuelas || []).filter(e => e.id !== id && !(res.ids_planteles_eliminados || []).includes(e.id))
+      }));
+      if (res.resumen_eliminado) alert('Colegio eliminado junto con: ' + res.resumen_eliminado);
     } catch (e) {
       alert('Error de conexión al eliminar el colegio: ' + e.message);
     }

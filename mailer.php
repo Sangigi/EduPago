@@ -7,12 +7,16 @@
  * Uso:
  *   require_once __DIR__ . '/mailer.php';
  *   $r = enviar_correo('familia@ejemplo.com', 'Asunto', '<p>Hola</p>');
+ *   // Con adjuntos (ej. PDF de factura):
+ *   $r = enviar_correo($email, $asunto, $html, [
+ *     ['nombre' => 'factura.pdf', 'contenido' => $pdfBinario, 'mime' => 'application/pdf'],
+ *   ]);
  *   if (!$r['success']) { ... $r['error'] ... }
  *
  * Los errores también se registran en CORREOS_LOG_FILE (config.php).
  */
 
-function enviar_correo($destinatarios, $asunto, $htmlBody) {
+function enviar_correo($destinatarios, $asunto, $htmlBody, $adjuntos = []) {
     $destinatarios = is_array($destinatarios) ? $destinatarios : [$destinatarios];
     $destinatarios = array_values(array_unique(array_filter(array_map('trim', $destinatarios))));
     if (empty($destinatarios)) {
@@ -43,7 +47,7 @@ function enviar_correo($destinatarios, $asunto, $htmlBody) {
         }
 
         _smtp_comando($socket, "DATA", 354);
-        $mensaje = _construir_mensaje($destinatarios, $asunto, $htmlBody);
+        $mensaje = _construir_mensaje($destinatarios, $asunto, $htmlBody, $adjuntos);
         fwrite($socket, $mensaje . "\r\n.\r\n");
         _smtp_leer($socket, 250);
 
@@ -105,29 +109,60 @@ function _smtp_leer($socket, $codigosEsperados) {
     return $buffer;
 }
 
-function _construir_mensaje($destinatarios, $asunto, $htmlBody) {
+function _construir_mensaje($destinatarios, $asunto, $htmlBody, $adjuntos = []) {
     $fromNombre = _mime_encode(SMTP_FROM_NAME);
     $asuntoCod  = _mime_encode($asunto);
     $to = implode(', ', $destinatarios);
-    $boundaryFecha = date('r');
+    $fechaHdr = date('r');
     $messageId = '<' . bin2hex(random_bytes(16)) . '@' . substr(strrchr(SMTP_FROM_EMAIL, "@"), 1) . '>';
 
-    $headers = [
+    $headersBase = [
         "From: $fromNombre <" . SMTP_FROM_EMAIL . ">",
         "To: $to",
         "Subject: $asuntoCod",
-        "Date: $boundaryFecha",
+        "Date: $fechaHdr",
         "Message-ID: $messageId",
         "MIME-Version: 1.0",
-        "Content-Type: text/html; charset=UTF-8",
-        "Content-Transfer-Encoding: base64",
     ];
 
     // Base64 evita tener que escapar líneas que empiecen con "." (dot-stuffing)
     // o preocuparse por saltos de línea sueltos dentro del HTML.
-    $cuerpoCod = chunk_split(base64_encode($htmlBody));
+    $cuerpoHtml = chunk_split(base64_encode($htmlBody));
 
-    return implode("\r\n", $headers) . "\r\n\r\n" . $cuerpoCod;
+    $adjuntos = array_filter($adjuntos, fn($a) => !empty($a['contenido']));
+    if (empty($adjuntos)) {
+        $headers = array_merge($headersBase, [
+            "Content-Type: text/html; charset=UTF-8",
+            "Content-Transfer-Encoding: base64",
+        ]);
+        return implode("\r\n", $headers) . "\r\n\r\n" . $cuerpoHtml;
+    }
+
+    // Con adjuntos: multipart/mixed — una parte HTML + una parte por adjunto
+    // (ej. el PDF de una factura CFDI en enviar_factura_correo).
+    $boundary = 'pagalaescuela-' . bin2hex(random_bytes(12));
+    $headers = array_merge($headersBase, [
+        "Content-Type: multipart/mixed; boundary=\"$boundary\"",
+    ]);
+
+    $partes  = "--$boundary\r\n";
+    $partes .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $partes .= "Content-Transfer-Encoding: base64\r\n\r\n";
+    $partes .= $cuerpoHtml . "\r\n";
+
+    foreach ($adjuntos as $adj) {
+        $nombre    = $adj['nombre']    ?? 'adjunto.bin';
+        $contenido = $adj['contenido'] ?? '';
+        $mime      = $adj['mime']      ?? 'application/octet-stream';
+        $partes .= "--$boundary\r\n";
+        $partes .= "Content-Type: $mime; name=\"$nombre\"\r\n";
+        $partes .= "Content-Transfer-Encoding: base64\r\n";
+        $partes .= "Content-Disposition: attachment; filename=\"$nombre\"\r\n\r\n";
+        $partes .= chunk_split(base64_encode($contenido)) . "\r\n";
+    }
+    $partes .= "--$boundary--\r\n";
+
+    return implode("\r\n", $headers) . "\r\n\r\n" . $partes;
 }
 
 function _mime_encode($texto) {
