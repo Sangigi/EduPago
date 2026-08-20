@@ -197,8 +197,19 @@ try {
             ? round(floatval($row['total']) * floatval($row['penalizacion_valor']) / 100, 2)
             : floatval($row['penalizacion_valor']);
         if ($recargo <= 0) continue;
-        $pdo->prepare("UPDATE cobros SET total = total + ?, recargo_aplicado = 1, recargo_monto = ? WHERE id = ?")
-            ->execute([$recargo, $recargo, $row['id']]);
+        // Repite las mismas condiciones del SELECT en el propio UPDATE (compare-
+        // and-swap): sin esto, dos corridas del cron traslapadas —o un pago que
+        // llega justo entre el SELECT y este UPDATE— podían duplicar el recargo
+        // o inflar el total de un cobro que ya quedó "pagado".
+        $stmtRecargo = $pdo->prepare(
+            "UPDATE cobros SET total = total + ?, recargo_aplicado = 1, recargo_monto = ?
+             WHERE id = ? AND recargo_aplicado = 0 AND estado = 'pendiente'"
+        );
+        $stmtRecargo->execute([$recargo, $recargo, $row['id']]);
+        if ($stmtRecargo->rowCount() === 0) {
+            $resumen[] = "AVISO: cobro #{$row['id']} ya no era pendiente/sin recargo al momento de aplicarlo (otro proceso lo adelantó) — se omite.";
+            continue;
+        }
         if ($row['cliente_id']) {
             // El recargo sube `cobros.total` — hay que refrescar el saldo
             // cacheado en `clientes.saldo_pendiente` (lo que muestra/cobra

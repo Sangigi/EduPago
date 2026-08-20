@@ -26,6 +26,14 @@ require_once __DIR__ . '/db.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 $ts  = date('Y-m-d H:i:s');
+
+if (!ip_permitida_pago_sin_token()) {
+    if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ WEBHOOK LIGA rechazado por IP no permitida: " . ($_SERVER['REMOTE_ADDR'] ?? '?') . "\n", FILE_APPEND);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode(['success' => false, 'mensaje' => 'No autorizado'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $raw = file_get_contents('php://input');
 
 file_put_contents(
@@ -141,15 +149,21 @@ try {
         responder_liga(true, 'Pago no aprobado, registrado');
     }
 
-    // Validar monto (viene en pesos según la doc de este webhook — "Importe pagado").
-    if ($amount !== null && floatval($amount) > 0) {
-        $monto_recibido = floatval($amount);
-        if (abs($monto_recibido - floatval($cobro['total'])) > 0.01) {
-            if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ⚠ LIGA monto no coincide | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_recibido}\n", FILE_APPEND);
-            // No se rechaza: se confirma el cobro pero se deja evidencia para revisión manual,
-            // igual criterio que webhook_spei (evita dejar al padre de familia sin ticket por
-            // un redondeo/formato inesperado del proveedor).
-        }
+    // Validar monto (viene en pesos según la doc de este webhook — "Importe
+    // pagado"). ANTES: si el monto no coincidía, o si venía vacío/0, el cobro
+    // se confirmaba igual y solo se dejaba un log — cualquiera podía llamar a
+    // este webhook con response=approved sin `amount` (o con 0) y marcar como
+    // pagado un cobro sin que hubiera un cargo real. Ahora, igual que
+    // webhook_spei.php y pago_referencia.php, un monto ausente o que no
+    // coincide (tolerancia de 1 centavo) RECHAZA la confirmación.
+    if ($amount === null || floatval($amount) <= 0) {
+        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ LIGA sin monto válido, se rechaza | ref:{$reference}\n", FILE_APPEND);
+        responder_liga(false, 'Falta el monto pagado (amount)');
+    }
+    $monto_recibido = floatval($amount);
+    if (abs($monto_recibido - floatval($cobro['total'])) > 0.01) {
+        if (API_LOG_ENABLED) file_put_contents(API_LOG_FILE, "{$ts} | ❌ LIGA monto no coincide, se rechaza | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_recibido}\n", FILE_APPEND);
+        responder_liga(false, 'El monto pagado no coincide con el cobro pendiente');
     }
 
     $pdo->beginTransaction();

@@ -109,6 +109,25 @@ define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
 // (ellos llaman /Service/ConsultaReferencia/?r=REFERENCIA tal cual).
 define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
 
+// ─── IPs permitidas para los webhooks sin token (efectivo/tarjeta) ───────────
+// pago_referencia.php, cancela_pago_referencia.php y webhook_liga.php NO
+// pueden exigir un token compartido (el protocolo fijo de Cobroscontarjeta.com
+// para estos servicios no lo soporta — ver comentario arriba). La única
+// defensa real posible es restringir por IP de origen: pídele a
+// Cobroscontarjeta.com/Pagadetodo la(s) IP(s) desde donde llaman estos 3
+// endpoints y agrégalas aquí. Vacío = sin restricción (como está hoy, no
+// se rompe nada mientras no la llenes).
+define('IPS_PERMITIDAS_PAGOS_SIN_TOKEN', []); // ej. ['200.23.45.10', '200.23.45.11']
+
+// Verifica la IP de origen contra IPS_PERMITIDAS_PAGOS_SIN_TOKEN. Devuelve
+// true si la lista está vacía (sin restricción) o si la IP coincide.
+function ip_permitida_pago_sin_token() {
+    $lista = defined('IPS_PERMITIDAS_PAGOS_SIN_TOKEN') ? IPS_PERMITIDAS_PAGOS_SIN_TOKEN : [];
+    if (empty($lista)) return true;
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    return in_array($ip, $lista, true);
+}
+
 // ─── Configuración del super-admin ───────────────────────────────────────────
 define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
 

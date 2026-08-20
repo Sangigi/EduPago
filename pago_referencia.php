@@ -146,6 +146,11 @@ function log_ref_pago($msg) {
 
 
 
+if (!ip_permitida_pago_sin_token()) {
+    log_ref_pago("RECHAZADO por IP no permitida: " . ($_SERVER['REMOTE_ADDR'] ?? '?'));
+    responder_pago(40, 'No autorizado');
+}
+
 $raw  = file_get_contents('php://input');
 
 

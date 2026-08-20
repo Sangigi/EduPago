@@ -181,7 +181,10 @@ function verificar_token_auth() {
     return ['user_id' => intval($usuario['id']), 'rol' => $usuario['rol'], 'escuela_id' => $usuario['escuela_id'], 'familia_id' => $usuario['familia_id'] ? intval($usuario['familia_id']) : null];
 }
 $action = $_GET['action'] ?? '';
-$acciones_publicas = ['login', 'verificar_spei'];
+// 'verificar_spei' ya NO es pública: sin esto, cualquiera sin sesión podía
+// enumerar cobro_id secuenciales y leer estado/monto/autorización de
+// cualquier cobro del sistema, de cualquier escuela.
+$acciones_publicas = ['login'];
 if (!in_array($action, $acciones_publicas)) {
     $usuario_actual = verificar_token_auth();
 }
@@ -324,13 +327,31 @@ switch ($action) {
         // botón de "Simular pago" de pruebas), así que un pago SPEI real
         // nunca se reflejaba en pantalla aunque sí se hubiera cobrado.
         if ($cobro_id) {
-            $stmt = $pdo->prepare("SELECT id, estado, total, auth_code FROM cobros WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT id, estado, total, auth_code, escuela_id, cliente_id FROM cobros WHERE id = ?");
             $stmt->execute([$cobro_id]);
         } else {
-            $stmt = $pdo->prepare("SELECT id, estado, total, auth_code FROM cobros WHERE referencia = ? ORDER BY id DESC LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id, estado, total, auth_code, escuela_id, cliente_id FROM cobros WHERE referencia = ? ORDER BY id DESC LIMIT 1");
             $stmt->execute([$referencia]);
         }
         $cobro = $stmt->fetch();
+        // Pertenencia: antes esta acción era pública (sin token) y no
+        // validaba nada, permitiendo enumerar cobro_id de cualquier escuela.
+        if ($cobro) {
+            $rolSpei = $usuario_actual['rol'] ?? '';
+            if ($rolSpei !== 'superadmin' && intval($cobro['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
+            }
+            if ($rolSpei === 'familia') {
+                $stmtFamSpei = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
+                $stmtFamSpei->execute([$cobro['cliente_id']]);
+                $famSpei = $stmtFamSpei->fetch();
+                if (!$famSpei || intval($famSpei['familia_id'] ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
+                    http_response_code(403);
+                    respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
+                }
+            }
+        }
         if ($cobro && $cobro['estado'] === 'pagado') {
             respond([
                 'success'      => true,
@@ -438,18 +459,38 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'generar_liga':
         $folio       = trim($input['folio'] ?? '');
-        $total       = floatval($input['total'] ?? 0);
         $descripcion = $input['descripcion'] ?? 'Pago escolar';
         $cliente_id  = intval($input['cliente_id'] ?? 0) ?: null;
         if (!$folio) respond(['success' => false, 'error' => 'folio requerido']);
-        if ($total < 50) respond(['success' => false, 'error' => 'Monto mínimo $50.00 (mínimo de Cobroscontarjeta.com)']);
-        if ($total > 15000) respond(['success' => false, 'error' => 'Monto máximo $15,000.00 (máximo de Cobroscontarjeta.com)']);
         // Confirmar que el folio corresponde a un cobro real pendiente antes
         // de gastar una llamada al proveedor — evita generar ligas huérfanas.
-        $stmtCob = $pdo->prepare("SELECT id, cliente_id FROM cobros WHERE folio = ? AND estado = 'pendiente'");
+        $stmtCob = $pdo->prepare("SELECT id, cliente_id, escuela_id, total FROM cobros WHERE folio = ? AND estado = 'pendiente'");
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
+        // Verificar pertenencia: admin/cajero solo de su propia escuela, familia
+        // solo de sus propios hijos (antes no se validaba nada de esto — cualquier
+        // usuario autenticado podía generar la liga de pago de cualquier cobro).
+        $rolLiga = $usuario_actual['rol'] ?? '';
+        if ($rolLiga !== 'superadmin' && intval($cobroRow['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
+        }
+        if ($rolLiga === 'familia') {
+            $stmtFamChk = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
+            $stmtFamChk->execute([$cobroRow['cliente_id']]);
+            $famChk = $stmtFamChk->fetch();
+            if (!$famChk || intval($famChk['familia_id'] ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
+            }
+        }
+        // El monto a cobrar SIEMPRE sale del total real del cobro en BD, nunca
+        // del request — antes se usaba $input['total'] directo, permitiendo
+        // pagar cualquier adeudo real cobrando solo el mínimo permitido.
+        $total = floatval($cobroRow['total']);
+        if ($total < 50) respond(['success' => false, 'error' => 'Monto mínimo $50.00 (mínimo de Cobroscontarjeta.com)']);
+        if ($total > 15000) respond(['success' => false, 'error' => 'Monto máximo $15,000.00 (máximo de Cobroscontarjeta.com)']);
         if (!$cliente_id) $cliente_id = $cobroRow['cliente_id'] ? intval($cobroRow['cliente_id']) : null;
         // Id/Reference: formato confirmado contra el ÚNICO caso que alguna vez
         // devolvió "code":"success" en este proyecto (ver api_log.txt / historial
@@ -516,21 +557,42 @@ switch ($action) {
     //     automáticamente en webhook_liga.php tras un primer pago exitoso).
     // ══════════════════════════════════════════════════════════════════════════
     case 'cobrar_cai':
+        // Cargo automático: acción de staff (cobrar dinero de una tarjeta ya
+        // domiciliada), no autoservicio de familia — antes no exigía ningún rol.
+        $rolCai = $usuario_actual['rol'] ?? '';
+        if (!in_array($rolCai, ['superadmin', 'admin', 'cajero'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para cobrar cargos automáticos.']);
+        }
         $cliente_id = intval($input['cliente_id'] ?? 0);
         $folio      = trim($input['folio'] ?? '');
-        $total      = floatval($input['total'] ?? 0);
         if (!$cliente_id || !$folio) respond(['success' => false, 'error' => 'cliente_id y folio son requeridos']);
-        if ($total < 50 || $total > 15000) respond(['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)']);
-        $stmtCli = $pdo->prepare("SELECT token_tarjeta, token_tarjeta_expmes, token_tarjeta_expanio, token_tarjeta_estado FROM clientes WHERE id = ?");
+        $stmtCli = $pdo->prepare("SELECT escuela_id, token_tarjeta, token_tarjeta_expmes, token_tarjeta_expanio, token_tarjeta_estado FROM clientes WHERE id = ?");
         $stmtCli->execute([$cliente_id]);
         $cli = $stmtCli->fetch();
-        if (!$cli || $cli['token_tarjeta_estado'] !== 'activo' || !$cli['token_tarjeta']) {
+        if (!$cli) respond(['success' => false, 'error' => 'Alumno no encontrado']);
+        // Antes no se validaba que el alumno perteneciera a la escuela del
+        // usuario — un admin de otra escuela podía cobrar la tarjeta de
+        // cualquier alumno del sistema.
+        if ($rolCai !== 'superadmin' && intval($cli['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso sobre este alumno.']);
+        }
+        if ($cli['token_tarjeta_estado'] !== 'activo' || !$cli['token_tarjeta']) {
             respond(['success' => false, 'error' => 'El alumno no tiene una tarjeta domiciliada activa. Debe pagar una liga primero para tokenizar.']);
         }
-        $stmtCob = $pdo->prepare("SELECT id FROM cobros WHERE folio = ? AND estado = 'pendiente'");
-        $stmtCob->execute([$folio]);
+        // El cobro debe pertenecer a ESTE mismo alumno — antes solo se
+        // validaba folio+pendiente, permitiendo saldar el adeudo de un alumno
+        // cobrando la tarjeta domiciliada de otro completamente distinto.
+        $stmtCob = $pdo->prepare("SELECT id, total FROM cobros WHERE folio = ? AND estado = 'pendiente' AND cliente_id = ?");
+        $stmtCob->execute([$folio, $cliente_id]);
         $cobroRow = $stmtCob->fetch();
-        if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
+        if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio para este alumno']);
+        // El monto a cobrar sale del total real del cobro, nunca del request
+        // — antes $total venía de $input y se mandaba tal cual a la pasarela,
+        // desligado por completo de lo que el cobro realmente debía.
+        $total = floatval($cobroRow['total']);
+        if ($total < 50 || $total > 15000) respond(['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)']);
         // Reference acotada a rango int32 (ver nota en generar_liga) para evitar
         // "El formato de la referencia es incorrecto" (code 22).
         $ref  = strval(mt_rand(1000000000, 2147483647));
@@ -565,10 +627,22 @@ switch ($action) {
     case 'cancelar_cai':
         $cliente_id = intval($input['cliente_id'] ?? 0);
         if (!$cliente_id) respond(['success' => false, 'error' => 'cliente_id requerido']);
-        $stmtCli = $pdo->prepare("SELECT token_tarjeta FROM clientes WHERE id = ?");
+        $stmtCli = $pdo->prepare("SELECT escuela_id, familia_id, token_tarjeta FROM clientes WHERE id = ?");
         $stmtCli->execute([$cliente_id]);
         $cli = $stmtCli->fetch();
-        if (!$cli || !$cli['token_tarjeta']) respond(['success' => true, 'mensaje' => 'Sin tarjeta domiciliada']);
+        if (!$cli) respond(['success' => false, 'error' => 'Alumno no encontrado']);
+        // Pertenencia: la familia solo puede desvincular la tarjeta de SU hijo;
+        // admin/cajero solo de alumnos de su propia escuela — antes cualquier
+        // usuario autenticado podía cancelar/desvincular la tarjeta de cualquiera.
+        $rolCancelCai = $usuario_actual['rol'] ?? '';
+        $puedeCancelarCai = $rolCancelCai === 'superadmin'
+            || ($rolCancelCai === 'familia' && intval($cli['familia_id'] ?? -1) === intval($usuario_actual['familia_id'] ?? -2))
+            || (in_array($rolCancelCai, ['admin', 'cajero'], true) && intval($cli['escuela_id']) === intval($usuario_actual['escuela_id'] ?? -1));
+        if (!$puedeCancelarCai) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso sobre este alumno.']);
+        }
+        if (!$cli['token_tarjeta']) respond(['success' => true, 'mensaje' => 'Sin tarjeta domiciliada']);
         $payload = [
             'User'          => PLE_USER,
             'Password'      => PLE_PASS,
@@ -1105,8 +1179,17 @@ switch ($action) {
             ]);
         }
         // ── Clientes (alumnos) — paginado y con búsqueda opcional ──
+        // Si el rol es 'familia', se restringe a SUS propios hijos: antes se
+        // mandaban todos los alumnos de la escuela completa y el filtro "solo
+        // mis hijos" solo existía en el frontend (PortalFamilia.js), así que
+        // cualquier padre podía leer el listado completo llamando a la API
+        // directamente (nombre, teléfono, email, saldo_pendiente de terceros).
         $where_cli = 'escuela_id = ?';
         $params_cli = [$escuela_id_ver];
+        if ($rol === 'familia') {
+            $where_cli .= ' AND familia_id = ?';
+            $params_cli[] = $usuario_actual['familia_id'] ?? -1;
+        }
         if ($busqueda_clientes !== '') {
             $where_cli .= ' AND (nombre LIKE ? OR email LIKE ?)';
             $params_cli[] = "%$busqueda_clientes%";
@@ -1174,9 +1257,15 @@ switch ($action) {
                 );
             }
         }
-        // ── Familias ──
-        $stmt = $pdo->prepare("SELECT * FROM familias WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
-        $stmt->execute([$escuela_id_ver]);
+        // ── Familias ── (rol 'familia': solo la propia — antes veían el
+        // contacto/teléfono/email de TODAS las familias de la escuela)
+        if ($rol === 'familia') {
+            $stmt = $pdo->prepare("SELECT * FROM familias WHERE id = ? AND escuela_id = ?");
+            $stmt->execute([$usuario_actual['familia_id'] ?? -1, $escuela_id_ver]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM familias WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
+            $stmt->execute([$escuela_id_ver]);
+        }
         $familias_raw = $stmt->fetchAll();
         $familias = array_map(function($f) {
             $f['activa'] = (bool)$f['activa'];
@@ -1196,14 +1285,23 @@ switch ($action) {
         // "pendientes" en app.js, que necesitan el conjunto agregado, no una
         // página. La tabla paginada de Cobros.js usa el endpoint aparte
         // 'listar_cobros' (ver más abajo en el switch).
+        // Rol 'familia': solo cobros de SUS propios hijos — antes se mandaban
+        // los cobros (folios, montos, método, qué se compró) de TODAS las
+        // familias de la escuela, filtrado solo en el frontend.
+        $where_co_familia = '';
+        $params_co = [$escuela_id_ver];
+        if ($rol === 'familia') {
+            $where_co_familia = ' AND cl.familia_id = ?';
+            $params_co[] = $usuario_actual['familia_id'] ?? -1;
+        }
         $stmt = $pdo->prepare(
             "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
              FROM cobros co
              LEFT JOIN clientes cl ON cl.id = co.cliente_id
-             WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+             WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY){$where_co_familia}
              ORDER BY co.id DESC LIMIT $MAX_FILA"
         );
-        $stmt->execute([$escuela_id_ver]);
+        $stmt->execute($params_co);
         $cobros_raw = $stmt->fetchAll();
         $cobros = array_map(function($c) {
             $c['total']   = floatval($c['total']);
@@ -1241,11 +1339,13 @@ switch ($action) {
         // así el badge de "pendientes" y los totales del dashboard son
         // correctos aunque la escuela tenga más de $MAX_FILA cobros en 90 días).
         $res_co = $pdo->prepare(
-            "SELECT estado, COUNT(*) AS n, COALESCE(SUM(total),0) AS suma
-             FROM cobros WHERE escuela_id = ? AND fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-             GROUP BY estado"
+            "SELECT co.estado AS estado, COUNT(*) AS n, COALESCE(SUM(co.total),0) AS suma
+             FROM cobros co
+             LEFT JOIN clientes cl ON cl.id = co.cliente_id
+             WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY){$where_co_familia}
+             GROUP BY co.estado"
         );
-        $res_co->execute([$escuela_id_ver]);
+        $res_co->execute($params_co);
         $cobros_resumen = ['pagado' => ['n'=>0,'suma'=>0], 'pendiente' => ['n'=>0,'suma'=>0], 'cancelado' => ['n'=>0,'suma'=>0]];
         foreach ($res_co->fetchAll() as $row) {
             $cobros_resumen[$row['estado']] = ['n' => intval($row['n']), 'suma' => floatval($row['suma'])];
@@ -1342,13 +1442,25 @@ switch ($action) {
     case 'detalle_cobro':
         $cobro_id_det = intval($input['cobro_id'] ?? $_GET['cobro_id'] ?? 0);
         if (!$cobro_id_det) respond(['success' => false, 'error' => 'cobro_id requerido']);
-        $chk = $pdo->prepare("SELECT escuela_id FROM cobros WHERE id = ?");
+        $chk = $pdo->prepare("SELECT escuela_id, cliente_id FROM cobros WHERE id = ?");
         $chk->execute([$cobro_id_det]);
         $cobroRow = $chk->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'Cobro no encontrado']);
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin' && $cobroRow['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+        $rolDet = $usuario_actual['rol'] ?? '';
+        if ($rolDet !== 'superadmin' && $cobroRow['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
             http_response_code(403);
             respond(['success' => false, 'error' => 'No tienes permiso para ver este cobro.']);
+        }
+        // Antes solo se validaba la escuela: cualquier padre de familia podía
+        // ver el detalle de un cobro de OTRA familia de la misma escuela.
+        if ($rolDet === 'familia') {
+            $stmtFamDet = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
+            $stmtFamDet->execute([$cobroRow['cliente_id']]);
+            $famDet = $stmtFamDet->fetch();
+            if (!$famDet || intval($famDet['familia_id'] ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para ver este cobro.']);
+            }
         }
         try {
             $stmt = $pdo->prepare("SELECT * FROM cobro_items WHERE cobro_id = ? ORDER BY id");
@@ -1377,6 +1489,12 @@ switch ($action) {
         $buscar_lc    = trim($input['buscar'] ?? $_GET['buscar'] ?? '');
         $where = 'co.escuela_id = ?';
         $params = [$escuela_id_lc];
+        // Antes solo se validaba la escuela (arriba): un padre de familia podía
+        // paginar/buscar los cobros de TODAS las demás familias de su escuela.
+        if (($usuario_actual['rol'] ?? '') === 'familia') {
+            $where .= ' AND cl.familia_id = ?';
+            $params[] = $usuario_actual['familia_id'] ?? -1;
+        }
         if (in_array($estado_lc, ['pagado', 'pendiente', 'cancelado'])) {
             $where .= ' AND co.estado = ?';
             $params[] = $estado_lc;
@@ -2113,6 +2231,18 @@ switch ($action) {
             // case 'editar_familia'), no a cada hijo individualmente.
             $campos = ['direccion', 'contacto_emergencia', 'tel_emergencia', 'telefono', 'email'];
         } else {
+            // Admin: solo alumnos de su propia escuela — antes no se validaba
+            // esto y un admin podía editar (incluida la reasignación de
+            // familia_id) el alumno de CUALQUIER otra escuela con solo su id.
+            if ($rol_actual === 'admin') {
+                $chkEsc = $pdo->prepare("SELECT escuela_id FROM clientes WHERE id = ?");
+                $chkEsc->execute([$id]);
+                $objetivoEsc = $chkEsc->fetch();
+                if (!$objetivoEsc || intval($objetivoEsc['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                    http_response_code(403);
+                    respond(['success' => false, 'error' => 'No tienes permiso para editar este alumno.']);
+                }
+            }
             $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id',
                        'direccion','contacto_emergencia','tel_emergencia',
                        'doc_curp_url','doc_acta_url','doc_ine_tutor_url','nivel_educativo_sat'];
@@ -2141,13 +2271,25 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_cliente_activo':
-        if (!in_array($usuario_actual['rol'] ?? '', ['superadmin', 'admin'])) {
+        $rolToggleCli = $usuario_actual['rol'] ?? '';
+        if (!in_array($rolToggleCli, ['superadmin', 'admin'])) {
             http_response_code(403);
             respond(['success' => false, 'error' => 'El cajero no puede activar/desactivar alumnos.']);
         }
         $id     = intval($input['id']     ?? 0);
         $activo = $input['activar'] ? 1 : 0;
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        // Antes no se validaba pertenencia: un admin podía activar/desactivar
+        // el alumno de cualquier otra escuela con solo mandar su id.
+        if ($rolToggleCli === 'admin') {
+            $chkEscToggle = $pdo->prepare("SELECT escuela_id FROM clientes WHERE id = ?");
+            $chkEscToggle->execute([$id]);
+            $objetivoToggle = $chkEscToggle->fetch();
+            if (!$objetivoToggle || intval($objetivoToggle['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso sobre este alumno.']);
+            }
+        }
         $stmt = $pdo->prepare("UPDATE clientes SET activo = ? WHERE id = ?");
         $stmt->execute([$activo, $id]);
         respond(['success' => true, 'cliente' => ['id' => $id, 'activo' => (bool)$activo]]);
