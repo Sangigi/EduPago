@@ -1762,6 +1762,130 @@ switch ($action) {
         respond(['success' => true, 'cliente' => array_merge($input, ['id' => $id, 'activo' => true, 'saldo_pendiente' => 0])]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+    // IMPORTAR ALUMNOS POR CSV — alta masiva de familias/tutores + sus hijos en
+    // un solo lote. El frontend ya parseó el CSV a un arreglo de filas; aquí
+    // solo se procesa. Cada fila es un alumno; los hermanos se agrupan por
+    // tutor_email (si dos filas comparten el mismo correo de tutor, se
+    // vinculan a la MISMA familia en vez de crear una por cada hijo). Si el
+    // tutor_email no tiene ya una cuenta de acceso, se crea una con
+    // contraseña temporal (mismo patrón que crear_plantel/crear_escuela). Una
+    // fila con error NO aborta el lote completo — se reporta y se sigue.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'importar_alumnos':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para importar alumnos.']);
+        }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        if ($rol_actual === 'admin') $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
+        if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+        $filas = $input['filas'] ?? [];
+        if (!is_array($filas) || empty($filas)) respond(['success' => false, 'error' => 'No se recibieron filas para importar']);
+        if (count($filas) > 1000) respond(['success' => false, 'error' => 'Máximo 1000 filas por importación']);
+
+        $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");
+        $plan_esc->execute([$escuela_id]);
+        $plan_nombre = $plan_esc->fetch()['plan'] ?? PLAN_FALLBACK;
+        $limite = limitesDelPlan($plan_nombre)['max_alumnos'];
+        $cntAct = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ? AND activo = 1");
+        $cntAct->execute([$escuela_id]);
+        $alumnosActuales = intval($cntAct->fetch()['n'] ?? 0);
+
+        // Cache en memoria de familias resueltas/creadas DURANTE este lote,
+        // por tutor_email — para que dos filas del mismo CSV con el mismo
+        // correo de tutor se vinculen entre sí sin volver a consultar la BD.
+        $familiasPorEmail = [];
+        $creadas = 0; $reutilizadas = 0; $alumnosCreados = 0; $cuentasCreadas = [];
+        $errores = []; $clientesDetalle = []; $familiasDetalle = [];
+
+        foreach ($filas as $idx => $fila) {
+            $numFila = $idx + 2; // +2: fila 1 es encabezado, arrays son 0-based
+            try {
+                if ($limite !== null && $alumnosActuales >= $limite) {
+                    $errores[] = ['fila' => $numFila, 'error' => "Límite de $limite alumnos del plan ($plan_nombre) alcanzado — filas restantes no importadas."];
+                    continue;
+                }
+                $alumno_nombre = trim($fila['alumno_nombre'] ?? '');
+                if (!$alumno_nombre) { $errores[] = ['fila' => $numFila, 'error' => 'alumno_nombre es obligatorio']; continue; }
+                $matricula   = trim($fila['matricula']    ?? '') ?: null;
+                $grado       = trim($fila['grado']        ?? '') ?: null;
+                $curp        = trim($fila['curp']         ?? '') ?: null;
+                $alumno_email = trim($fila['alumno_email'] ?? '') ?: null;
+                $alumno_tel  = trim($fila['alumno_telefono'] ?? '') ?: null;
+                $nivel_sat   = trim($fila['nivel_educativo_sat'] ?? '') ?: null;
+                $tutor_nombre = trim($fila['tutor_nombre'] ?? '') ?: null;
+                $tutor_email  = trim($fila['tutor_email']  ?? '') ?: null;
+                $tutor_tel    = trim($fila['tutor_telefono'] ?? '') ?: null;
+
+                $familia_id = null;
+                if ($tutor_email) {
+                    $emailKey = strtolower($tutor_email);
+                    if (isset($familiasPorEmail[$emailKey])) {
+                        $familia_id = $familiasPorEmail[$emailKey];
+                    } else {
+                        // 1. ¿Ya existe una familia con este correo en esta escuela?
+                        $chkFam = $pdo->prepare("SELECT id FROM familias WHERE escuela_id = ? AND email = ? LIMIT 1");
+                        $chkFam->execute([$escuela_id, $tutor_email]);
+                        $famExistente = $chkFam->fetch();
+                        if ($famExistente) {
+                            $familia_id = intval($famExistente['id']);
+                            $reutilizadas++;
+                        } else {
+                            $pdo->prepare("INSERT INTO familias (escuela_id, nombre, contacto, email, telefono, activa) VALUES (?, ?, ?, ?, ?, 1)")
+                                ->execute([$escuela_id, $tutor_nombre ?: $alumno_nombre, $tutor_nombre, $tutor_email, $tutor_tel]);
+                            $familia_id = intval($pdo->lastInsertId());
+                            $creadas++;
+                            $familiasDetalle[] = ['id' => $familia_id, 'escuela_id' => $escuela_id, 'nombre' => $tutor_nombre ?: $alumno_nombre, 'contacto' => $tutor_nombre, 'email' => $tutor_email, 'telefono' => $tutor_tel, 'activa' => true];
+                            // Cuenta de acceso al portal, solo si ese correo no
+                            // tiene ya una cuenta de usuario en el sistema.
+                            $chkUsr = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+                            $chkUsr->execute([$tutor_email]);
+                            if (!$chkUsr->fetch()) {
+                                $passTemp = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
+                                $pdo->prepare(
+                                    "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, familia_id, activo, fecha_alta, creado_por)
+                                     VALUES (?, ?, ?, ?, 'familia', ?, 1, CURDATE(), ?)"
+                                )->execute([$escuela_id, $tutor_nombre ?: $alumno_nombre, $tutor_email, password_hash($passTemp, PASSWORD_BCRYPT), $familia_id, $usuario_actual['user_id'] ?? null]);
+                                $cuentasCreadas[] = ['email' => $tutor_email, 'password_temporal' => $passTemp, 'nombre' => $tutor_nombre ?: $alumno_nombre];
+                            }
+                        }
+                        $familiasPorEmail[$emailKey] = $familia_id;
+                    }
+                }
+
+                $stmtIns = $pdo->prepare(
+                    "INSERT INTO clientes (escuela_id, familia_id, tipo, nombre, grado, matricula, curp, email, telefono, nivel_educativo_sat, activo)
+                     VALUES (?, ?, 'alumno', ?, ?, ?, ?, ?, ?, ?, 1)"
+                );
+                $stmtIns->execute([$escuela_id, $familia_id, $alumno_nombre, $grado, $matricula, $curp, $alumno_email, $alumno_tel, $nivel_sat]);
+                $nuevoClienteId = intval($pdo->lastInsertId());
+                $clientesDetalle[] = [
+                    'id' => $nuevoClienteId, 'escuela_id' => $escuela_id, 'familia_id' => $familia_id,
+                    'tipo' => 'alumno', 'nombre' => $alumno_nombre, 'grado' => $grado, 'matricula' => $matricula,
+                    'curp' => $curp, 'email' => $alumno_email, 'telefono' => $alumno_tel, 'tel' => $alumno_tel,
+                    'nivel_educativo_sat' => $nivel_sat, 'activo' => true, 'saldo_pendiente' => 0,
+                ];
+                $alumnosCreados++;
+                $alumnosActuales++;
+            } catch (\Throwable $e) {
+                $errores[] = ['fila' => $numFila, 'error' => 'Error al importar: ' . $e->getMessage()];
+            }
+        }
+
+        registrar_log($pdo, $usuario_actual, 'alumnos_importados_csv', "$alumnosCreados alumnos, $creadas familias nuevas, $reutilizadas reutilizadas, " . count($errores) . " errores", $escuela_id);
+        respond([
+            'success' => true,
+            'alumnos_creados'   => $alumnosCreados,
+            'familias_creadas'  => $creadas,
+            'familias_reutilizadas' => $reutilizadas,
+            'cuentas_creadas'   => $cuentasCreadas,
+            'errores'           => $errores,
+            'clientes_detalle'  => $clientesDetalle,
+            'familias_detalle'  => $familiasDetalle,
+        ]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
     // CONCEPTOS DE PAGO (productos) — antes solo se guardaban en localStorage
     // del navegador (AppModel.save), por eso "desaparecían" al recargar contra
     // otro navegador/dispositivo: nunca llegaban a la base de datos.
@@ -2536,6 +2660,51 @@ switch ($action) {
         // para que no pueda iniciar sesión si el plantel está dado de baja.
         $pdo->prepare("UPDATE escuelas SET activa = ? WHERE id = ?")->execute([$nuevoEstado, $row['escuela_plantel_id']]);
         respond(['success' => true, 'activo' => (bool) $nuevoEstado]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // ELIMINAR PLANTEL — borrado real, no solo desactivar. Solo se permite si
+    // el plantel nunca tuvo actividad (sin alumnos ni cobros registrados);
+    // si ya tiene historial real, se rechaza y se sugiere desactivar en su
+    // lugar — borrarlo de verdad reventaría reportes/CFDIs ya emitidos.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'eliminar_plantel':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para eliminar planteles.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $stmt = $pdo->prepare("SELECT * FROM planteles WHERE id = ?");
+        $stmt->execute([$id]);
+        $plantelDel = $stmt->fetch();
+        if (!$plantelDel) respond(['success' => false, 'error' => 'Plantel no encontrado']);
+        if ($rol_actual === 'admin' && intval($usuario_actual['escuela_id'] ?? 0) !== intval($plantelDel['escuela_id'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo puedes eliminar planteles de tu propia escuela.']);
+        }
+        $escPlantelId = intval($plantelDel['escuela_plantel_id']);
+        $cntAlumnos = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ?");
+        $cntAlumnos->execute([$escPlantelId]);
+        $nAlumnos = intval($cntAlumnos->fetch()['n'] ?? 0);
+        $cntCobros = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros WHERE escuela_id = ?");
+        $cntCobros->execute([$escPlantelId]);
+        $nCobros = intval($cntCobros->fetch()['n'] ?? 0);
+        if ($nAlumnos > 0 || $nCobros > 0) {
+            respond(['success' => false, 'error' => "Este plantel ya tiene $nAlumnos alumno(s) y $nCobros cobro(s) registrados — no se puede eliminar sin perder ese historial. Desactívalo en su lugar."]);
+        }
+        try {
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM usuarios WHERE escuela_id = ? AND rol = 'admin'")->execute([$escPlantelId]);
+            $pdo->prepare("DELETE FROM planteles WHERE id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM escuelas WHERE id = ? AND es_plantel = 1")->execute([$escPlantelId]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            respond(['success' => false, 'error' => 'No se pudo eliminar: ' . $e->getMessage()]);
+        }
+        registrar_log($pdo, $usuario_actual, 'plantel_eliminado', "Plantel #$id eliminado (sin historial)");
+        respond(['success' => true]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_escuela':

@@ -254,6 +254,17 @@ function Escuelas({
       alert('No se pudo cambiar el estado del plantel: ' + e.message);
     }
   };
+  const eliminarPlantel = async pid => {
+    if (!confirm('¿Eliminar este plantel? Solo se puede si nunca tuvo alumnos ni cobros registrados. Esta acción no se puede deshacer.')) return;
+    try {
+      const res = await apiPost('eliminar_plantel', { id: pid });
+      if (!res.success) { alert(res.error || 'No se pudo eliminar el plantel'); return; }
+      setPlantelesPanel(prev => (prev || []).filter(p => p.id !== pid));
+      setData(prevData => ({ ...prevData, planteles: (prevData.planteles || []).filter(p => p.id !== pid) }));
+    } catch (e) {
+      alert('Error de conexión al eliminar el plantel: ' + e.message);
+    }
+  };
   const toggleActiva = async id => {
     // Optimista: refleja el cambio de inmediato en la UI
     const newData = {
@@ -1025,6 +1036,16 @@ function Escuelas({
                 color: "currentColor"
               }, void 0, false) : /*#__PURE__*/_jsxDEV(Icon, {
                 name: "eyeOff",
+                size: 13,
+                color: "currentColor"
+              }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              className: "btn btn-ghost btn-sm",
+              title: "Eliminar plantel (solo si nunca tuvo actividad)",
+              style: { color: 'var(--red)' },
+              onClick: () => eliminarPlantel(plt.id),
+              children: /*#__PURE__*/_jsxDEV(Icon, {
+                name: "trash",
                 size: 13,
                 color: "currentColor"
               }, void 0, false)
