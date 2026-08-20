@@ -19,6 +19,19 @@ const PLAN_FALLBACK = 'basico';
 function limitesDelPlan($nombrePlan) {
     return PLANES_LIMITES[$nombrePlan] ?? PLANES_LIMITES[PLAN_FALLBACK];
 }
+// ── Vencimiento de suscripción: ciclo de calendario mensual ────────────────
+// El primer periodo de un colegio nuevo se prorratea (vence a fin del mes en
+// curso); de ahí en adelante cada renovación cubre un mes calendario completo
+// (vence a fin del mes siguiente al de la fecha base). Ver Suscripciones.js.
+function fin_de_mes_actual() {
+    return date('Y-m-t');
+}
+function siguiente_vencimiento_mensual($fechaBase) {
+    // Normaliza al día 1 antes de sumar un mes: evita que "31 de enero + 1 mes"
+    // salte a marzo en vez de febrero.
+    $primerDiaSiguiente = date('Y-m-01', strtotime($fechaBase . ' +1 month'));
+    return date('Y-m-t', strtotime($primerDiaSiguiente));
+}
 // Registra una acción sensible en logs_sistema. Nunca debe tumbar la
 // petición si la tabla aún no existe (falta correr la migración) — se
 // degrada a silencio + nota en api_log.txt, igual que hicimos con
@@ -1697,7 +1710,7 @@ switch ($action) {
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
-        $creado_por = $usuario_actual["id"] ?? null;
+        $creado_por = $usuario_actual["user_id"] ?? null;
         $stmt = $pdo->prepare(
             "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, activo, fecha_alta, familia_id, creado_por)"
             . " VALUES (?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
@@ -1714,7 +1727,9 @@ switch ($action) {
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         // Solo admin/superadmin editan usuarios ajenos; cualquier usuario puede editar su propio perfil
         // (pero sin poder tocar su propio rol/escuela, eso se filtra abajo).
-        $es_propio_perfil = ($id === intval($usuario_actual['id'] ?? 0));
+        // OJO: verificar_token_auth() sólo pone 'user_id' en $usuario_actual (nunca 'id') —
+        // comparar contra 'id' aquí hacía que $es_propio_perfil fuera SIEMPRE false.
+        $es_propio_perfil = ($id === intval($usuario_actual['user_id'] ?? 0));
         if (!in_array($rol_actual, ['superadmin', 'admin']) && !$es_propio_perfil) {
             http_response_code(403);
             respond(['success' => false, 'error' => 'No tienes permiso para editar este usuario.']);
@@ -1746,6 +1761,21 @@ switch ($action) {
             $rol    = '';
             $esc_id = null;
             $zona   = '__NO_ENVIADO__';
+        }
+        // Si te editas a ti mismo y cambias tu contraseña o tu correo, debes confirmar
+        // tu contraseña actual (el frontend ya lo exige, pero antes no se validaba aquí:
+        // con solo el token, cualquiera podía cambiarse el password sin saber el actual).
+        if ($es_propio_perfil && ($password !== '' || $email !== '')) {
+            $password_actual_in = trim($input['password_actual'] ?? '');
+            if ($password_actual_in === '') {
+                respond(['success' => false, 'error' => 'Ingresa tu contraseña actual para guardar estos cambios.']);
+            }
+            $stmtPwChk = $pdo->prepare("SELECT password_hash FROM usuarios WHERE id = ?");
+            $stmtPwChk->execute([$usuario_actual['user_id'] ?? 0]);
+            $rowPwChk = $stmtPwChk->fetch();
+            if (!$rowPwChk || !password_verify($password_actual_in, $rowPwChk['password_hash'])) {
+                respond(['success' => false, 'error' => 'La contraseña actual no es correcta.']);
+            }
         }
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
@@ -1782,7 +1812,7 @@ switch ($action) {
         }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
-        if ($id === intval($usuario_actual['id'] ?? 0)) {
+        if ($id === intval($usuario_actual['user_id'] ?? 0)) {
             respond(['success' => false, 'error' => 'No puedes desactivarte a ti mismo.']);
         }
         if ($rol_actual === 'admin') {
@@ -1808,7 +1838,7 @@ switch ($action) {
         }
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
-        if ($id === intval($usuario_actual['id'] ?? 0)) {
+        if ($id === intval($usuario_actual['user_id'] ?? 0)) {
             respond(['success' => false, 'error' => 'No puedes eliminarte a ti mismo.']);
         }
         if ($rol_actual === 'admin') {
@@ -1925,7 +1955,7 @@ switch ($action) {
                  VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?)"
             );
             $nombre_admin = 'Admin ' . $nombre;
-            $stmt3->execute([$nueva_escuela_id, $nombre_admin, $email, $hash, $usuario_actual['id'] ?? null]);
+            $stmt3->execute([$nueva_escuela_id, $nombre_admin, $email, $hash, $usuario_actual['user_id'] ?? null]);
             $pdo->commit();
             registrar_log($pdo, $usuario_actual, 'plantel_creado', "Plantel '$nombre' creado bajo escuela #$escuela_padre_id (cuenta: $email)", $escuela_padre_id);
             // Retornar los objetos exactos que espera el frontend
@@ -2113,6 +2143,32 @@ switch ($action) {
         respond(['success' => true, 'id' => $id, 'plan' => $plan]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+    case 'renovar_suscripcion':
+        // El superadmin marca la suscripción de un colegio como pagada/renovada.
+        // No hay cobro automático de la mensualidad SaaS en este sistema (se
+        // factura/cobra aparte); esto solo mueve la fecha de vencimiento un mes
+        // calendario hacia adelante y reactiva los recordatorios para el próximo ciclo.
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede renovar una suscripción.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $chk = $pdo->prepare("SELECT nombre, fecha_vencimiento_plan FROM escuelas WHERE id = ? AND es_plantel = 0");
+        $chk->execute([$id]);
+        $esc = $chk->fetch();
+        if (!$esc) respond(['success' => false, 'error' => 'Colegio no encontrado']);
+        // Si ya vencía desde hace tiempo, no se acumulan meses atrasados: se
+        // renueva un mes completo a partir de hoy, no desde la fecha vieja.
+        $base = $esc['fecha_vencimiento_plan'];
+        if (!$base || strtotime($base) < strtotime(date('Y-m-d'))) $base = date('Y-m-d');
+        $nuevo_vencimiento = siguiente_vencimiento_mensual($base);
+        $pdo->prepare("UPDATE escuelas SET fecha_vencimiento_plan = ?, ultimo_recordatorio_plan = NULL WHERE id = ?")
+            ->execute([$nuevo_vencimiento, $id]);
+        registrar_log($pdo, $usuario_actual, 'suscripcion_renovada', "Colegio '{$esc['nombre']}' #$id: vencimiento → $nuevo_vencimiento", $id);
+        respond(['success' => true, 'id' => $id, 'fecha_vencimiento_plan' => $nuevo_vencimiento]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
     case 'buscar_global':
         // Búsqueda cruzando TODAS las escuelas — solo superadmin. Sirve para
         // soporte: "no encuentro a mi hijo/mi cuenta" sin adivinar en qué
@@ -2164,11 +2220,14 @@ switch ($action) {
         $chk = $pdo->prepare("SELECT id FROM escuelas WHERE clave = ?");
         $chk->execute([$clave]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'Ya existe un colegio con esa clave']);
+        // Primer periodo de la suscripción: prorrateado, vence a fin del mes en
+        // curso (a partir de ahí, cada renovación cubre un mes calendario completo).
+        $fecha_vencimiento_plan = fin_de_mes_actual();
         $stmt = $pdo->prepare(
-            "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion, logo_emoji, activa, es_plantel, plan, fecha_alta)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, CURDATE())"
+            "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion, logo_emoji, activa, es_plantel, plan, fecha_alta, fecha_vencimiento_plan)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, CURDATE(), ?)"
         );
-        $stmt->execute([$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji, $plan]);
+        $stmt->execute([$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji, $plan, $fecha_vencimiento_plan]);
         $nuevo_id = intval($pdo->lastInsertId());
         registrar_log($pdo, $usuario_actual, 'escuela_creada', "Colegio '$nombre' ($clave)", $nuevo_id);
         respond(['success' => true, 'escuela' => [
@@ -2176,6 +2235,7 @@ switch ($action) {
             'telefono' => $telefono, 'email' => $email, 'direccion' => $direccion,
             'logo_emoji' => $logo_emoji, 'activa' => true, 'es_plantel' => false,
             'escuela_padre_id' => null, 'plan' => $plan, 'fecha_alta' => date('Y-m-d'),
+            'fecha_vencimiento_plan' => $fecha_vencimiento_plan,
         ]]);
     break;
     // ══════════════════════════════════════════════════════════════════════════

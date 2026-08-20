@@ -593,6 +593,7 @@ function Usuarios({ user, data }) {
                     lista.map(u => {
                       const info = ROL_INFO[u.rol];
                       const puedeAcc = puedeEditar(u);
+                      const esUnoMismo = u.id === user.id;
                       return _jsxDEV("tr", {
                         children: [
                           _jsxDEV("td", {
@@ -644,10 +645,10 @@ function Usuarios({ user, data }) {
                             children: _jsxDEV("div", {
                               style: { display: 'flex', gap: 5 },
                               children: [
-                                puedeAcc && _jsxDEV(_Fragment, {
+                                (puedeAcc || esUnoMismo) && _jsxDEV(_Fragment, {
                                   children: [
-                                    _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(u), title: "Editar", children: _jsxDEV(Icon, { name: "edit", size: 14, color: "currentColor" }, void 0, false) }, void 0, false),
-                                    !u.es_semilla && _jsxDEV("button", {
+                                    _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(u), title: esUnoMismo ? "Editar mi perfil / cambiar mi contraseña" : "Editar", children: _jsxDEV(Icon, { name: "edit", size: 14, color: "currentColor" }, void 0, false) }, void 0, false),
+                                    puedeAcc && !u.es_semilla && !esUnoMismo && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => setConfirm({ tipo: 'toggle', userId: u.id }),
                                       title: u.activo === false ? 'Activar' : 'Desactivar',
@@ -655,7 +656,7 @@ function Usuarios({ user, data }) {
                                         ? _jsxDEV(Icon, { name: "eyeOff", size: 14, color: "currentColor" }, void 0, false)
                                         : _jsxDEV(Icon, { name: "shield", size: 14, color: "currentColor" }, void 0, false)
                                     }, void 0, false),
-                                    !u.es_semilla && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
+                                    puedeAcc && !u.es_semilla && !esUnoMismo && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => setConfirm({ tipo: 'eliminar', userId: u.id }),
                                       title: "Eliminar",
@@ -663,7 +664,7 @@ function Usuarios({ user, data }) {
                                     }, void 0, false)
                                   ]
                                 }, void 0, true),
-                                !puedeAcc && _jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', padding: '0 4px' }, children: "—" }, void 0, false)
+                                !puedeAcc && !esUnoMismo && _jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', padding: '0 4px' }, children: "—" }, void 0, false)
                               ]
                             }, void 0, true)
                           }, void 0, false)

@@ -488,7 +488,7 @@ function Caja({
     icon: 'pay'
   }, {
     id: 'EfectivoRef',
-    label: 'Efectivo (OXXO/tienda)',
+    label: 'Efectivo (tienda)',
     icon: 'pay'
   }, {
     id: 'Cheque',
@@ -1621,7 +1621,7 @@ function Caja({
               name: "pay",
               size: 18,
               color: "currentColor"
-            }, void 0, false), " Pago en efectivo (OXXO / tienda)"]
+            }, void 0, false), " Pago en efectivo (tienda)"]
           }, void 0, true), efvRefInfo && /*#__PURE__*/_jsxDEV("span", {
             className: "badge badge-green",
             children: [/*#__PURE__*/_jsxDEV(Icon, {
@@ -1780,7 +1780,7 @@ function Caja({
                   fontSize: 12,
                   color: 'var(--ink-2)'
                 },
-                children: "El cobro queda pendiente hasta que el cliente pague en OXXO/tienda. Se confirmará automáticamente."
+                children: "El cobro queda pendiente hasta que el cliente pague en tienda. Se confirmará automáticamente."
               }, void 0, false)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("p", {
               style: {

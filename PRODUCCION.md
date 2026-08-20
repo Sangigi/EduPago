@@ -41,6 +41,18 @@
 - Dar la URL `https://tudominio.com/webhook_spei.php` a Pagadetodo
 - Verificar que el archivo sea accesible sin autenticación
 
+### 5. Base de datos — migración de suscripciones
+- Correr `migracion_2026_08_20_suscripciones.sql` una sola vez (phpMyAdmin o consola MySQL de Hostinger) **antes** de subir el `api.php` nuevo — agrega `fecha_vencimiento_plan` / `ultimo_recordatorio_plan` a `escuelas`.
+
+### 6. Correo saliente (SMTP) y Cron de recordatorios
+- `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
+- ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.
+- En el panel de Hostinger → **Avanzado → Cron Jobs**, crear un cron diario (ej. todos los días a las 8:00 am) que ejecute:
+  ```
+  php /home/TU_USUARIO/domains/tudominio.com/public_html/cron_recordatorios.php
+  ```
+- Revisa `correos_log.txt` (se crea junto a `api.php`) para confirmar que los correos se están enviando.
+
 ## Estructura de archivos
 ```
 index.html          ← Entrada principal (no requiere build)
