@@ -1153,7 +1153,7 @@ function PortalFamilia({
             children: [/*#__PURE__*/_jsxDEV("div", {
               style: {
                 display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))',
                 gap: 10
               },
               children: [{
@@ -1212,14 +1212,14 @@ function PortalFamilia({
               style: { marginTop: 12, padding: 12, background: 'rgba(40,45,101,.03)', borderRadius: 8, border: `1px solid ${PLC.border}` },
               children: [
                 /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 8, color: PLC.text }, children: "Editar datos de contacto" }, void 0, false),
-                /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+                /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                   children: [
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Teléfono", value: formEditHijo.telefono, onChange: e => setFormEditHijo(f => ({ ...f, telefono: e.target.value })) }, void 0, false),
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Correo", type: "email", value: formEditHijo.email, onChange: e => setFormEditHijo(f => ({ ...f, email: e.target.value })) }, void 0, false),
                   ]
                 }, void 0, true),
                 /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Dirección del alumno", value: formEditHijo.direccion, onChange: e => setFormEditHijo(f => ({ ...f, direccion: e.target.value })), style: { marginBottom: 8, width: '100%' } }, void 0, false),
-                /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+                /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                   children: [
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Contacto de emergencia (nombre)", value: formEditHijo.contacto_emergencia, onChange: e => setFormEditHijo(f => ({ ...f, contacto_emergencia: e.target.value })) }, void 0, false),
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Teléfono de emergencia", value: formEditHijo.tel_emergencia, onChange: e => setFormEditHijo(f => ({ ...f, tel_emergencia: e.target.value })) }, void 0, false),
@@ -1508,10 +1508,14 @@ function PortalFamilia({
                   borderBottom: hijosConSaldo.length > 1 ? undefined : `1px solid ${PLC.border}`
                 },
                 children: [/*#__PURE__*/_jsxDEV("div", {
+                  style: { minWidth: 0, overflow: 'hidden' },
                   children: [/*#__PURE__*/_jsxDEV("div", {
                     style: {
                       fontWeight: 500,
-                      color: PLC.text
+                      color: PLC.text,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
                     },
                     children: h.nombre
                   }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
@@ -1525,7 +1529,9 @@ function PortalFamilia({
                   style: {
                     fontFamily: 'monospace',
                     fontWeight: 700,
-                    color: PLC.red
+                    color: PLC.red,
+                    flexShrink: 0,
+                    marginLeft: 8
                   },
                   children: fmt(h.saldo_pendiente)
                 }, void 0, false)]
@@ -1584,12 +1590,14 @@ function PortalFamilia({
                 style: {
                   display: 'flex',
                   gap: 12,
-                  marginBottom: 22
+                  marginBottom: 22,
+                  flexWrap: 'wrap'
                 },
                 children: [/*#__PURE__*/_jsxDEV("div", {
                   onClick: () => { setMetodo('SPEI'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
+                    minWidth: 140,
                     padding: '14px 16px',
                     borderRadius: 10,
                     cursor: 'pointer',
@@ -1644,6 +1652,7 @@ function PortalFamilia({
                   onClick: () => { setMetodo('TC'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
+                    minWidth: 140,
                     padding: '14px 16px',
                     borderRadius: 10,
                     cursor: 'pointer',
@@ -2161,13 +2170,13 @@ function PortalFamilia({
           /*#__PURE__*/_jsxDEV("div", {
             style: { ...card(), padding: 14 },
             children: editandoMisDatos ? /*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Nombre", value: formMisDatos.nombre, onChange: e => setFormMisDatos(f => ({ ...f, nombre: e.target.value })) }, void 0, false),
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", type: "email", placeholder: "Correo", value: formMisDatos.email, onChange: e => setFormMisDatos(f => ({ ...f, email: e.target.value })) }, void 0, false),
                 ]
               }, void 0, true),
-              /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Teléfono", value: formMisDatos.telefono, onChange: e => setFormMisDatos(f => ({ ...f, telefono: e.target.value })) }, void 0, false),
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Nombre de contacto (si es distinto)", value: formMisDatos.contacto, onChange: e => setFormMisDatos(f => ({ ...f, contacto: e.target.value })) }, void 0, false),
@@ -2181,12 +2190,13 @@ function PortalFamilia({
                 ]
               }, void 0, true)]
             }, void 0, true) : /*#__PURE__*/_jsxDEV("div", {
-              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
               children: [/*#__PURE__*/_jsxDEV("div", {
+                style: { minWidth: 0 },
                 children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: userEfectivo.nombre }, void 0, false),
                 /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: [userEfectivo.email, miFamilia?.telefono ? ` · ${miFamilia.telefono}` : ''] }, void 0, true),
                 okMisDatos && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.green, marginTop: 2 }, children: okMisDatos }, void 0, false)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: abrirMisDatos, children: "Editar" }, void 0, false)]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", style: { flexShrink: 0 }, onClick: abrirMisDatos, children: "Editar" }, void 0, false)]
             }, void 0, true)
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -2195,19 +2205,19 @@ function PortalFamilia({
           /*#__PURE__*/_jsxDEV("div", {
             style: { ...card(), padding: 14 },
             children: editandoFiscal ? /*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "RFC", value: formFiscal.rfc_factura, onChange: e => setFormFiscal(f => ({ ...f, rfc_factura: e.target.value.toUpperCase() })), style: { fontFamily: 'var(--mono)' } }, void 0, false),
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Razón social", value: formFiscal.razon_social_factura, onChange: e => setFormFiscal(f => ({ ...f, razon_social_factura: e.target.value })) }, void 0, false),
                 ]
               }, void 0, true),
-              /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 8 },
+              /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-1-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "C.P.", value: formFiscal.cp_factura, onChange: e => setFormFiscal(f => ({ ...f, cp_factura: e.target.value })) }, void 0, false),
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Domicilio fiscal", value: formFiscal.domicilio_factura, onChange: e => setFormFiscal(f => ({ ...f, domicilio_factura: e.target.value })) }, void 0, false),
                 ]
               }, void 0, true),
-              /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("select", { className: "form-select", value: formFiscal.regimen_factura, onChange: e => setFormFiscal(f => ({ ...f, regimen_factura: e.target.value })),
                     children: REGIMENES_SAT.map(r => /*#__PURE__*/_jsxDEV("option", { value: r.value, children: r.label }, r.value, false))
@@ -2225,11 +2235,11 @@ function PortalFamilia({
                 ]
               }, void 0, true)]
             }, void 0, true) : /*#__PURE__*/_jsxDEV("div", {
-              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
               children: [/*#__PURE__*/_jsxDEV("div", {
-                style: { fontSize: 11.5, color: PLC.muted },
+                style: { fontSize: 11.5, color: PLC.muted, minWidth: 0 },
                 children: miFamilia?.rfc_factura ? `RFC: ${miFamilia.rfc_factura}` : 'Sin datos fiscales capturados'
-              }, void 0, false), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: abrirFiscal, children: "Editar" }, void 0, false)]
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", style: { flexShrink: 0 }, onClick: abrirFiscal, children: "Editar" }, void 0, false)]
             }, void 0, true)
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -2237,15 +2247,16 @@ function PortalFamilia({
           misHijos.filter(h => h.token_tarjeta_estado === 'activo').length === 0 ? /*#__PURE__*/_jsxDEV("div", {
             style: { fontSize: 12.5, color: PLC.muted }, children: "No tienes ninguna tarjeta guardada."
           }, void 0, false) : misHijos.filter(h => h.token_tarjeta_estado === 'activo').map(hijo => /*#__PURE__*/_jsxDEV("div", {
-            style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...card(), padding: 14, marginBottom: 10 },
+            style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, ...card(), padding: 14, marginBottom: 10 },
             children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { minWidth: 0 },
               children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: hijo.nombre }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: ["Tarjeta guardada · vence ", hijo.token_tarjeta_expmes, "/", hijo.token_tarjeta_expanio] }, void 0, true)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-ghost btn-sm",
               disabled: eliminandoTarjetaId === hijo.id,
               onClick: () => eliminarTarjeta(hijo.id),
-              style: { color: PLC.red },
+              style: { color: PLC.red, flexShrink: 0 },
               children: eliminandoTarjetaId === hijo.id ? 'Eliminando…' : 'Eliminar tarjeta'
             }, void 0, false)]
           }, hijo.id, true))]

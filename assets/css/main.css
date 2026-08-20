@@ -1282,6 +1282,13 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .pf-tabs::-webkit-scrollbar { display: none; }
 
+.pf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+.pf-grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; }
+
+@media (max-width: 480px) {
+  .pf-grid-2, .pf-grid-1-2 { grid-template-columns: 1fr; }
+}
+
 
 
 @media (max-width: 640px) {
