@@ -51,6 +51,7 @@ function Caja({
   const timerRef = useRef(null);
   const speiPollRef = useRef(null);
   const tcPollRef = useRef(null);
+  const efvRefPollRef = useRef(null);
   const CATS_PERIODICAS = ['colegiatura', 'anualidad', 'inscripcion'];
   const CAT_LABELS_CAJA = {
     colegiatura: 'Colegiatura', anualidad: 'Anualidad', inscripcion: 'Inscripción',
@@ -314,6 +315,29 @@ function Caja({
       try {
         const ref = await CobroController.iniciarEfectivoRef(cobro);
         setEfvRefInfo(ref);
+
+        // Polling automático: igual que SPEI/TC, revisa cada 10s si el
+        // webhook de pago_referencia.php ya marcó este cobro como pagado,
+        // para no dejar al cajero esperando frente a un modal que nunca se
+        // actualiza solo.
+        if (efvRefPollRef.current) clearInterval(efvRefPollRef.current);
+        efvRefPollRef.current = setInterval(async () => {
+          try {
+            const ver = await CobroController.verificarCobro(cobro.id);
+            if (ver.pagado) {
+              clearInterval(efvRefPollRef.current);
+              const res = await CobroController.confirmarPago(cobro.id, { auth_code: String(ver.autorizacion || '') }).catch(() => null);
+              if (res) actualizarSaldoCliente(res);
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', auth_code: String(ver.autorizacion || c.auth_code || '') } : c) };
+                AppModel.save(upd);
+                return upd;
+              });
+              setModal('ticket');
+              resetCarrito();
+            }
+          } catch (e) {/* continuar polling */}
+        }, 10000);
       } catch (err) {
         setEfvRefError(err.message);
       } finally {
@@ -418,6 +442,7 @@ function Caja({
     if (timerRef.current) clearInterval(timerRef.current);
     if (speiPollRef.current) clearInterval(speiPollRef.current);
     if (tcPollRef.current) clearInterval(tcPollRef.current);
+    if (efvRefPollRef.current) clearInterval(efvRefPollRef.current);
     setModal(null);
   };
 
