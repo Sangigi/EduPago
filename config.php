@@ -144,7 +144,6 @@ define('PAC_USER',    'tu_usuario_pac');
 define('PAC_PASS',    'tu_password_pac');
 
 // ─── Credenciales de Facturapi ───────────────────────────────────────────────
-<<<<<<< HEAD
 define('FACTURAPI_KEY', 'sk_test_oC5ZzoaR5Hvmig4maAfxbcevwPoMPNDbZHQg8s3zEr');
 
 // ─── Correo saliente (SMTP) — recordatorios de vencimiento y cobros ──────────
@@ -154,10 +153,7 @@ define('SMTP_HOST',       'mail.pagalaescuela.com');
 define('SMTP_PORT',       465);
 define('SMTP_SECURE',     'ssl');
 define('SMTP_USER',       'contacto@pagalaescuela.com');
-define('SMTP_PASS',       'CAMBIAR_ESTA_CONTRASENA');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
+define('SMTP_PASS',       'P4g@L43sch00l');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
 define('SMTP_FROM_EMAIL', 'contacto@pagalaescuela.com');  // debe ser igual a SMTP_USER: muchos servidores rechazan un From distinto al autenticado
 define('SMTP_FROM_NAME',  'Pagalaescuela');
 define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');
-=======
-define('FACTURAPI_KEY', 'sk_test_CcqXrtSri4dxsxK4D2s8zCEriqD3J2Ee5Pb6ejQG49');
->>>>>>> f53d96692f55e31053daa2706700d6d15980fdbc
