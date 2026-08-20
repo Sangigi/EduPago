@@ -1392,6 +1392,14 @@ switch ($action) {
         // comparando el pago contra un cobro viejo y equivocado, y siempre
         // fallaba con "Monto inválido" aunque el monto pagado fuera correcto.
         if ($cliente_id && in_array($metodo, ['SPEI', 'TC', 'EfectivoRef'], true)) {
+            // Candado a nivel BD (no solo el SELECT de arriba) para cerrar la
+            // ventana de carrera: si un 503/timeout hace que el navegador
+            // reintente "Pagar" mientras la primera petición aún no terminaba
+            // de insertar, sin esto podían colarse dos cobros idénticos antes
+            // de que el chequeo de duplicado alcanzara a ver el primero. Se
+            // libera solo al terminar la petición (la conexión se cierra).
+            $lockKeyCobro = "crear_cobro_{$cliente_id}_{$metodo}_" . number_format($total, 2, '.', '');
+            $pdo->prepare("SELECT GET_LOCK(?, 10)")->execute([$lockKeyCobro]);
             $stmtDup = $pdo->prepare(
                 "SELECT * FROM cobros WHERE cliente_id = ? AND metodo = ? AND estado = 'pendiente'
                  AND ABS(total - ?) < 0.01 ORDER BY id DESC LIMIT 1"
