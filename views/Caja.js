@@ -21,6 +21,16 @@ function Caja({
   const [carrito, setCarrito] = useState([]);
   const [clienteSel, setClienteSel] = useState(null);
   const [metodo, setMetodo] = useState('TC');
+  // Candado de corte de caja: el POS exige un turno abierto (cajero/admin) —
+  // antes se podía cobrar todo el día sin abrir caja nunca, y aunque se
+  // abriera, las ventas no quedaban ligadas a ella (ver caja_id en cobrar()).
+  const [cajaEstadoCargando, setCajaEstadoCargando] = useState(true);
+  const [sucursalId, setSucursalId] = useState(null);
+  const [cajaAbierta, setCajaAbierta] = useState(null);
+  const [montoApertura, setMontoApertura] = useState('');
+  const [abriendoCaja, setAbriendoCaja] = useState(false);
+  const [errorCaja, setErrorCaja] = useState(null);
+  const requiereCajaAbierta = user?.rol === 'cajero' || user?.rol === 'admin';
   const [q, setQ] = useState('');
   const [clasificacion, setClasificacion] = useState('todos');
   const [qCliente, setQCliente] = useState('');
@@ -47,10 +57,21 @@ function Caja({
     fecha_cheque: '',
     titular: ''
   });
+  // Facturar compra (desde la pantalla de "Cobro completado")
+  const [facturaPanel, setFacturaPanel] = useState(null); // null | 'form'
+  const [facturaForm, setFacturaForm] = useState({
+    rfc: '', razon_social: '', cp_receptor: '', domicilio: '', regimen: '616', uso_cfdi: 'D10', email: ''
+  });
+  const [facturaLoading, setFacturaLoading] = useState(false);
+  const [facturaError, setFacturaError] = useState(null);
+  const [correoDestino, setCorreoDestino] = useState('');
+  const [enviandoCorreo, setEnviandoCorreo] = useState(false);
+  const [correoMsg, setCorreoMsg] = useState(null); // { ok: bool, texto: string }
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
   const speiPollRef = useRef(null);
   const tcPollRef = useRef(null);
+  const efvRefPollRef = useRef(null);
   const CATS_PERIODICAS = ['colegiatura', 'anualidad', 'inscripcion'];
   const CAT_LABELS_CAJA = {
     colegiatura: 'Colegiatura', anualidad: 'Anualidad', inscripcion: 'Inscripción',
@@ -123,6 +144,50 @@ function Caja({
     }
   };
 
+  /* ── CANDADO DE CAJA: cargar sucursal + turno abierto al entrar al POS ── */
+  useEffect(() => {
+    if (!requiereCajaAbierta || !escuela?.id) {
+      setCajaEstadoCargando(false);
+      return;
+    }
+    let cancelado = false;
+    (async () => {
+      setCajaEstadoCargando(true);
+      setErrorCaja(null);
+      try {
+        const sucursales = await CajaController.listarSucursales(escuela.id);
+        const sid = sucursales?.[0]?.id || null;
+        if (cancelado) return;
+        setSucursalId(sid);
+        if (sid) {
+          const caja = await CajaController.estadoActual(sid);
+          if (!cancelado) setCajaAbierta(caja);
+        }
+      } catch (e) {
+        if (!cancelado) setErrorCaja(e.message);
+      } finally {
+        if (!cancelado) setCajaEstadoCargando(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [requiereCajaAbierta, escuela?.id]);
+
+  const abrirMiCaja = async () => {
+    const monto = parseFloat(montoApertura);
+    if (isNaN(monto) || monto < 0) { setErrorCaja('Ingresa un monto de apertura válido.'); return; }
+    setAbriendoCaja(true);
+    setErrorCaja(null);
+    try {
+      const caja = await CajaController.abrir({ sucursal_id: sucursalId, monto_apertura: monto, observaciones: '' });
+      setCajaAbierta(caja);
+      setMontoApertura('');
+    } catch (e) {
+      setErrorCaja(e.message);
+    } finally {
+      setAbriendoCaja(false);
+    }
+  };
+
   /* ── CARRITO ── */
   const addItem = p => {
     setCarrito(prev => {
@@ -145,6 +210,10 @@ function Caja({
   /* ── INICIAR COBRO ── */
   const cobrar = async () => {
     if (!carrito.length) return;
+    if (requiereCajaAbierta && !cajaAbierta) {
+      alert('No tienes una caja abierta. Abre tu turno antes de cobrar.');
+      return;
+    }
 
     // Validar SPEI antes de crear el cobro
     if (metodo === 'SPEI') {
@@ -165,7 +234,7 @@ function Caja({
     const escuela_id = escuela?.id ?? data.escuelas?.[0]?.id ?? 1;
     let cobro;
     try {
-      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id });
+      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id, caja_id: cajaAbierta?.id, sucursal_id: sucursalId });
     } catch(err) {
       alert('Error al crear cobro: ' + err.message);
       return;
@@ -314,6 +383,29 @@ function Caja({
       try {
         const ref = await CobroController.iniciarEfectivoRef(cobro);
         setEfvRefInfo(ref);
+
+        // Polling automático: igual que SPEI/TC, revisa cada 10s si el
+        // webhook de pago_referencia.php ya marcó este cobro como pagado,
+        // para no dejar al cajero esperando frente a un modal que nunca se
+        // actualiza solo.
+        if (efvRefPollRef.current) clearInterval(efvRefPollRef.current);
+        efvRefPollRef.current = setInterval(async () => {
+          try {
+            const ver = await CobroController.verificarCobro(cobro.id);
+            if (ver.pagado) {
+              clearInterval(efvRefPollRef.current);
+              const res = await CobroController.confirmarPago(cobro.id, { auth_code: String(ver.autorizacion || '') }).catch(() => null);
+              if (res) actualizarSaldoCliente(res);
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', auth_code: String(ver.autorizacion || c.auth_code || '') } : c) };
+                AppModel.save(upd);
+                return upd;
+              });
+              setModal('ticket');
+              resetCarrito();
+            }
+          } catch (e) {/* continuar polling */}
+        }, 10000);
       } catch (err) {
         setEfvRefError(err.message);
       } finally {
@@ -412,12 +504,99 @@ function Caja({
       fecha_cheque: '',
       titular: ''
     });
+    setFacturaPanel(null);
+    setFacturaError(null);
+    setCorreoDestino('');
+    setCorreoMsg(null);
+  };
+
+  /* ── FACTURAR COMPRA (desde el ticket) ── */
+  // Resuelve el cliente/familia del cobro directamente desde `data`, sin
+  // depender de `clienteSel` (que ya se limpió en varios flujos de cobro
+  // automático antes de que el usuario llegue a ver el ticket).
+  const resolverClienteFactura = () => {
+    if (!cobroActivo) return { cliente: null, familia: null };
+    const cliente = data.clientes.find(c => c.id === cobroActivo.cliente_id) || null;
+    const familia = cliente?.familia_id ? data.familias.find(f => f.id === cliente.familia_id) : null;
+    return { cliente, familia };
+  };
+  const abrirFacturar = () => {
+    const { cliente, familia } = resolverClienteFactura();
+    // Los datos fiscales viven en la familia (tutor) cuando el alumno
+    // pertenece a una; si no, se usa el respaldo a nivel alumno (clientes
+    // "generales" sin familia asociada).
+    const fiscal = familia?.rfc_factura ? familia : cliente;
+    setFacturaForm({
+      rfc: fiscal?.rfc_factura || '',
+      razon_social: fiscal?.razon_social_factura || '',
+      cp_receptor: fiscal?.cp_factura || '',
+      domicilio: fiscal?.domicilio_factura || '',
+      regimen: fiscal?.regimen_factura || '616',
+      uso_cfdi: fiscal?.uso_cfdi_defecto || 'D10',
+      email: familia?.email || cliente?.email || '',
+    });
+    setCorreoDestino(familia?.email || cliente?.email || '');
+    setFacturaError(null);
+    setFacturaPanel('form');
+  };
+  const generarFactura = async () => {
+    if (!facturaForm.rfc || !facturaForm.razon_social || !facturaForm.cp_receptor) {
+      setFacturaError('RFC, razón social y código postal son obligatorios.');
+      return;
+    }
+    setFacturaLoading(true);
+    setFacturaError(null);
+    const { cliente } = resolverClienteFactura();
+    try {
+      const res = await CobroController.generarCFDI({
+        cobro_id: cobroActivo.id,
+        rfc: facturaForm.rfc,
+        razon_social: facturaForm.razon_social,
+        cp_receptor: facturaForm.cp_receptor,
+        domicilio: facturaForm.domicilio,
+        regimen: facturaForm.regimen,
+        uso_cfdi: facturaForm.uso_cfdi,
+        email: facturaForm.email,
+        total: cobroActivo.total,
+        descripcion: (cobroActivo.items || []).map(i => i.nombre).filter(Boolean).join(', ') || 'Servicios educativos',
+        nombre_alumno: cliente?.nombre || '',
+        curp_alumno: cliente?.curp || '',
+        nivel_educativo: cliente?.nivel_educativo_sat || '',
+        rvoe: escuela?.rvoe || '',
+      });
+      const cobroConFactura = { ...cobroActivo, factura: true, facturapi_id: res.facturapi_id, uuid: res.uuid, folio_fiscal: res.folio_fiscal };
+      setCobroActivo(cobroConFactura);
+      setData(prev => {
+        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, factura: true, facturapi_id: res.facturapi_id } : c) };
+        AppModel.save(upd);
+        return upd;
+      });
+      setFacturaPanel(null);
+    } catch (e) {
+      setFacturaError(e.message);
+    } finally {
+      setFacturaLoading(false);
+    }
+  };
+  const enviarCorreoFactura = async () => {
+    if (!correoDestino) return;
+    setEnviandoCorreo(true);
+    setCorreoMsg(null);
+    try {
+      await CobroController.enviarFacturaCorreo(cobroActivo.id, correoDestino);
+      setCorreoMsg({ ok: true, texto: 'Factura enviada a ' + correoDestino });
+    } catch (e) {
+      setCorreoMsg({ ok: false, texto: e.message });
+    } finally {
+      setEnviandoCorreo(false);
+    }
   };
   const cerrarModal = () => {
     if (intervalRef.current) clearTimeout(intervalRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
     if (speiPollRef.current) clearInterval(speiPollRef.current);
     if (tcPollRef.current) clearInterval(tcPollRef.current);
+    if (efvRefPollRef.current) clearInterval(efvRefPollRef.current);
     setModal(null);
   };
 
@@ -470,6 +649,18 @@ function Caja({
       }, `${r}-${c}`, false) : null))]
     }, void 0, true);
   };
+  const REGIMENES_FACTURA = [
+    { value: '616', label: '616 — Sin obligaciones fiscales (personas físicas)' },
+    { value: '601', label: '601 — General Personas Morales' },
+    { value: '612', label: '612 — Personas Físicas con Actividades Empresariales' },
+    { value: '626', label: '626 — RESICO' },
+  ];
+  const USOS_CFDI_FACTURA = [
+    { value: 'D10', label: 'D10 — Pagos por servicios educativos (recomendado)' },
+    { value: 'G01', label: 'G01 — Adquisición de mercancías' },
+    { value: 'G03', label: 'G03 — Gastos en general' },
+    { value: 'S01', label: 'S01 — Sin efectos fiscales' },
+  ];
   const METODOS = [{
     id: 'TC',
     label: 'Tarjeta',
@@ -479,14 +670,6 @@ function Caja({
     label: 'SPEI',
     icon: 'bank'
   }, {
-    id: 'CoDi',
-    label: 'CoDi',
-    icon: 'phone'
-  }, {
-    id: 'Efectivo',
-    label: 'Efectivo en caja',
-    icon: 'pay'
-  }, {
     id: 'EfectivoRef',
     label: 'Efectivo (tienda)',
     icon: 'pay'
@@ -495,6 +678,41 @@ function Caja({
     label: 'Cheque',
     icon: 'reportes'
   }];
+  if (requiereCajaAbierta && cajaEstadoCargando) {
+    return /*#__PURE__*/_jsxDEV("div", {
+      className: "empty-state",
+      style: { padding: 60 },
+      children: [/*#__PURE__*/_jsxDEV("span", { className: "spinner" }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        className: "empty-text", style: { marginTop: 14 }, children: "Cargando estado de caja…"
+      }, void 0, false)]
+    }, void 0, true);
+  }
+  if (requiereCajaAbierta && !cajaAbierta) {
+    return /*#__PURE__*/_jsxDEV("div", {
+      style: { maxWidth: 420, margin: '60px auto', textAlign: 'center' },
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        className: "empty-icon", children: /*#__PURE__*/_jsxDEV(Icon, { name: "caja", size: 40, color: "currentColor" }, void 0, false)
+      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        style: { fontSize: 16, fontWeight: 700, marginBottom: 6, marginTop: 10 },
+        children: "No tienes una caja abierta"
+      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        style: { fontSize: 13, color: 'var(--ink-3)', marginBottom: 18 },
+        children: "Antes de cobrar, abre tu turno de caja con el fondo inicial de efectivo."
+      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        className: "form-group",
+        children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Fondo de apertura" }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+          className: "form-input", type: "number", placeholder: "0.00", value: montoApertura,
+          onChange: e => setMontoApertura(e.target.value), style: { fontFamily: 'var(--mono)', textAlign: 'center' }
+        }, void 0, false)]
+      }, void 0, true), errorCaja && /*#__PURE__*/_jsxDEV("div", {
+        style: { fontSize: 12.5, color: 'var(--red)', margin: '10px 0' }, children: errorCaja
+      }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+        className: "btn btn-primary", style: { width: '100%', marginTop: 10 },
+        disabled: abriendoCaja, onClick: abrirMiCaja,
+        children: abriendoCaja ? 'Abriendo…' : 'Abrir caja'
+      }, void 0, false)]
+    }, void 0, true);
+  }
   return /*#__PURE__*/_jsxDEV("div", {
     className: "pos-layout",
     children: [/*#__PURE__*/_jsxDEV("div", {
@@ -1824,7 +2042,7 @@ function Caja({
           }, void 0, true)
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-body",
-          children: /*#__PURE__*/_jsxDEV("div", {
+          children: [/*#__PURE__*/_jsxDEV("div", {
             className: "ticket",
             children: [/*#__PURE__*/_jsxDEV("div", {
               style: {
@@ -1917,7 +2135,86 @@ function Caja({
               },
               children: "¡Gracias por su pago!"
             }, void 0, false)]
-          }, void 0, true)
+          }, void 0, true), facturaPanel === 'form' ? /*#__PURE__*/_jsxDEV("div", {
+            style: { marginTop: 14, padding: 14, background: 'var(--glass-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border-glow)' },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { fontWeight: 600, fontSize: 13, marginBottom: 10 },
+              children: "Datos fiscales para la factura"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "RFC *", value: facturaForm.rfc,
+                onChange: e => setFacturaForm(f => ({ ...f, rfc: e.target.value.toUpperCase() })),
+                style: { fontFamily: 'var(--mono)' }
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "Razón social *", value: facturaForm.razon_social,
+                onChange: e => setFacturaForm(f => ({ ...f, razon_social: e.target.value }))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "C.P. *", value: facturaForm.cp_receptor,
+                onChange: e => setFacturaForm(f => ({ ...f, cp_receptor: e.target.value }))
+              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "Domicilio fiscal", value: facturaForm.domicilio,
+                onChange: e => setFacturaForm(f => ({ ...f, domicilio: e.target.value }))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("select", {
+                className: "form-select", value: facturaForm.regimen,
+                onChange: e => setFacturaForm(f => ({ ...f, regimen: e.target.value })),
+                children: REGIMENES_FACTURA.map(r => /*#__PURE__*/_jsxDEV("option", { value: r.value, children: r.label }, r.value, false))
+              }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+                className: "form-select", value: facturaForm.uso_cfdi,
+                onChange: e => setFacturaForm(f => ({ ...f, uso_cfdi: e.target.value })),
+                children: USOS_CFDI_FACTURA.map(u => /*#__PURE__*/_jsxDEV("option", { value: u.value, children: u.label }, u.value, false))
+              }, void 0, false)]
+            }, void 0, true), /*#__PURE__*/_jsxDEV("input", {
+              className: "form-input", placeholder: "Correo para enviarla (opcional)", value: facturaForm.email,
+              onChange: e => setFacturaForm(f => ({ ...f, email: e.target.value })),
+              style: { width: '100%', marginBottom: 8 }
+            }, void 0, false), facturaError && /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 12, color: 'var(--red)', marginBottom: 8 },
+              children: facturaError
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'flex', gap: 8 },
+              children: [/*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-secondary btn-sm",
+                onClick: () => setFacturaPanel(null),
+                children: "Cancelar"
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-primary btn-sm",
+                disabled: facturaLoading,
+                onClick: generarFactura,
+                children: facturaLoading ? 'Generando…' : 'Generar factura'
+              }, void 0, false)]
+            }, void 0, true)]
+          }, void 0, true) : cobroActivo.factura ? /*#__PURE__*/_jsxDEV("div", {
+            style: { marginTop: 14, padding: 14, background: 'var(--glass-light)', borderRadius: 'var(--radius)', border: '1px solid var(--border-glow)' },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { fontWeight: 600, fontSize: 13, marginBottom: 6, color: 'var(--green)' },
+              children: "✓ Factura generada"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 10 },
+              children: "Ya está disponible para descarga en el portal de la familia (si el alumno tiene familia asociada)."
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'flex', gap: 8, marginBottom: 8 },
+              children: [/*#__PURE__*/_jsxDEV("input", {
+                className: "form-input", placeholder: "Correo destino", value: correoDestino,
+                onChange: e => setCorreoDestino(e.target.value),
+                style: { flex: 1 }
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                className: "btn btn-primary btn-sm",
+                disabled: enviandoCorreo || !correoDestino,
+                onClick: enviarCorreoFactura,
+                children: enviandoCorreo ? 'Enviando…' : 'Enviar por correo'
+              }, void 0, false)]
+            }, void 0, true), correoMsg && /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 12, color: correoMsg.ok ? 'var(--green)' : 'var(--red)' },
+              children: correoMsg.texto
+            }, void 0, false)]
+          }, void 0, true) : null]
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: [/*#__PURE__*/_jsxDEV("button", {
@@ -1928,6 +2225,14 @@ function Caja({
               size: 14,
               color: "currentColor"
             }, void 0, false), " Imprimir"]
+          }, void 0, true), !cobroActivo.factura && facturaPanel !== 'form' && /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: abrirFacturar,
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "reportes",
+              size: 14,
+              color: "currentColor"
+            }, void 0, false), " Facturar compra"]
           }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
             onClick: () => {

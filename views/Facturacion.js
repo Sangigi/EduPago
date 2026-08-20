@@ -65,12 +65,15 @@ function Facturacion({
     // intentar por nombre como fallback, y si tampoco, dejar form vacío.
     let cli = cobro.cliente_id ? data.clientes.find(c => c.id === cobro.cliente_id) : data.clientes.find(c => c.nombre === cobro.cliente);
 
-    // Si el cobro es de tipo familia, buscar también los datos fiscales
-    // en la familia vinculada al alumno
-    if (!cli?.rfc_factura && cli?.familia_id) {
+    // El dato fiscal (RFC/razón social) vive a nivel FAMILIA (el tutor que
+    // paga, compartido entre todos sus hijos), no por alumno — por eso la
+    // familia tiene prioridad sobre cualquier rfc_factura que haya quedado
+    // en el alumno de un timbrado antiguo (de antes de este cambio), que si
+    // no se ignora, un hermano con una factura vieja "gana" sobre el dato
+    // real y compartido de la familia.
+    if (cli?.familia_id) {
       const fam = data.familias?.find(f => f.id === cli.familia_id);
       if (fam?.rfc_factura) {
-        // Mezclar datos fiscales de la familia sobre el cliente
         cli = {
           ...cli,
           ...fam

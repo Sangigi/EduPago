@@ -25,42 +25,49 @@ function Productos({
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [q, setQ] = useState('');
+  const [guardando, setGuardando] = useState(false);
   const lista = data.productos.filter(p => !q || p.nombre.toLowerCase().includes(q.toLowerCase()) || p.categoria.toLowerCase().includes(q.toLowerCase()));
-  const guardar = () => {
+  const guardar = async () => {
     if (!form.nombre || form.precio === undefined) return;
-    let newProductos;
-    if (form.id) {
-      newProductos = data.productos.map(p => p.id === form.id ? {
-        ...p,
-        ...form
-      } : p);
-    } else {
-      const nuevo = {
-        ...form,
-        id: AppModel.nextId(data.productos),
-        escuela_id
-      };
-      newProductos = [...data.productos, nuevo];
+    setGuardando(true);
+    try {
+      if (form.id) {
+        const res = await ProductosController.editar(form);
+        const newData = {
+          ...data,
+          productos: data.productos.map(p => p.id === form.id ? { ...p, ...res.producto } : p)
+        };
+        setData(newData);
+        AppModel.save(newData);
+      } else {
+        const res = await ProductosController.crear({ ...form, escuela_id });
+        const newData = {
+          ...data,
+          productos: [...data.productos, res.producto]
+        };
+        setData(newData);
+        AppModel.save(newData);
+      }
+      setModal(null);
+      setForm(EMPTY);
+    } catch (e) {
+      alert('No se pudo guardar el concepto: ' + e.message);
+    } finally {
+      setGuardando(false);
     }
-    const newData = {
-      ...data,
-      productos: newProductos
-    };
-    setData(newData);
-    AppModel.save(newData);
-    setModal(null);
-    setForm(EMPTY);
   };
-  const toggleActivo = id => {
-    const newData = {
-      ...data,
-      productos: data.productos.map(p => p.id === id ? {
-        ...p,
-        activo: !p.activo
-      } : p)
-    };
-    setData(newData);
-    AppModel.save(newData);
+  const toggleActivo = async id => {
+    try {
+      const res = await ProductosController.toggleActivo(id);
+      const newData = {
+        ...data,
+        productos: data.productos.map(p => p.id === id ? { ...p, activo: res.activo } : p)
+      };
+      setData(newData);
+      AppModel.save(newData);
+    } catch (e) {
+      alert('No se pudo actualizar el concepto: ' + e.message);
+    }
   };
   const CAT_LABELS = {
     colegiatura: 'Colegiatura',
@@ -355,8 +362,8 @@ function Productos({
           }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-primary",
             onClick: guardar,
-            disabled: !form.nombre,
-            children: "Guardar"
+            disabled: !form.nombre || guardando,
+            children: guardando ? 'Guardando…' : 'Guardar'
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)

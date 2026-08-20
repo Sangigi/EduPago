@@ -1,22 +1,23 @@
+var _jsxDEV = function(type,props,key,_s,_src,_self){
+  var p = Object.assign({key:key||undefined},props);
+  var ch = p.children; delete p.children;
+  return ch===undefined ? React.createElement(type,p)
+       : Array.isArray(ch) ? React.createElement(type,p,...ch)
+       : React.createElement(type,p,ch);
+};
 /* views/Distribuidor.jsx — Portal del rol "distribuidor" (programa de referidos)
-   Escrito con React.createElement directo (sin pipeline de compilación),
-   igual que el resto del proyecto. Trae su propia data vía
-   action=distribuidor_datos / distribuidor_invitar_colegio /
-   distribuidor_comisiones / distribuidor_datos_pago /
-   distribuidor_guardar_datos_pago. La edición de perfil reutiliza
-   AuthController.editarUsuario (acción compartida editar_usuario).
-   Todo el archivo va envuelto en un IIFE: varios views declaran su propio
-   "const h = React.createElement" a nivel de script clásico (mismo scope
-   global), y una segunda declaración de la misma const revienta con
-   SyntaxError "Identifier 'h' has already been declared". */
-(function () {
-const h = React.createElement;
+   Migrado al patrón _jsxDEV + clases CSS compartidas (mismo patrón que Dashboard.js/Usuarios.js),
+   reutilizando .sidebar/.app/.main/.topbar/.content del shell principal (assets/js/app.js) para
+   heredar el drawer responsive de ≤768px sin duplicar layout propio.
+   Trae su propia data vía action=distribuidor_datos / distribuidor_invitar_colegio /
+   distribuidor_comisiones / distribuidor_datos_pago / distribuidor_guardar_datos_pago.
+   La edición de perfil reutiliza AuthController.editarUsuario (acción compartida editar_usuario). */
 
 const DIST_ESTADOS = {
-  activo:          { label: 'Activo',          icon: '✓', color: 'var(--green)',  glow: 'var(--green-glow)' },
-  implementacion:  { label: 'Implementación',  icon: '⚙', color: 'var(--amber)',  glow: 'var(--amber-glow)' },
-  demo_agendada:   { label: 'Demo agendada',   icon: '📅', color: '#7fa8ff',       glow: 'rgba(90,140,255,.12)' },
-  prospecto:       { label: 'Prospecto',       icon: '👤', color: 'var(--purple)', glow: 'var(--purple-glow)' },
+  activo:         { label: 'Activo',         icon: '✓',  badge: 'badge-green',  barColor: 'var(--green)' },
+  implementacion: { label: 'Implementación', icon: '⚙',  badge: 'badge-amber',  barColor: 'var(--amber)' },
+  demo_agendada:  { label: 'Demo agendada',  icon: '📅', badge: 'badge-blue',   barColor: 'var(--accent)' },
+  prospecto:      { label: 'Prospecto',      icon: '👤', badge: 'badge-purple', barColor: 'var(--purple)' },
 };
 const DIST_ORDEN_EMBUDO = ['activo', 'implementacion', 'demo_agendada', 'prospecto'];
 
@@ -28,6 +29,15 @@ const DIST_SECCIONES = {
   perfil:     { titulo: '👤 Mi perfil' },
   pago:       { titulo: '💳 Datos de pago' },
 };
+
+const DIST_NAV_ITEMS = [
+  { id: 'dashboard',  label: '📊 Dashboard',           section: 'Principal' },
+  { id: 'colegios',   label: '🏫 Mis colegios',        section: 'Principal', showColegiosBadge: true },
+  { id: 'comisiones', label: '💰 Comisiones',          section: 'Principal' },
+  { id: 'materiales', label: '📦 Materiales de venta',  section: 'Principal' },
+  { id: 'perfil',     label: '👤 Mi perfil',           section: 'Configuración' },
+  { id: 'pago',       label: '💳 Datos de pago',       section: 'Configuración' },
+];
 
 const DIST_MATERIALES = [
   { titulo: 'Brochure de ventas', icon: '📄', desc: 'Presentación en PDF para mostrar a directores y administradores del colegio.' },
@@ -41,69 +51,102 @@ function distFmtMoney(n) {
   return '$' + v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const distInputStyle = {
-  width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8,
-  border: '1px solid var(--border-glow)', background: 'var(--bg-surface)', color: 'var(--ink)', fontSize: 13.5,
-};
-const distLabelStyle = { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', display: 'block', marginBottom: 5 };
-
+/* ── Badge de estado del embudo (usa variantes .badge-* ya existentes) ── */
 function DistBadge({ estado }) {
   const cfg = DIST_ESTADOS[estado] || DIST_ESTADOS.prospecto;
-  return h('span', {
-    style: {
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 20,
-      background: cfg.glow, color: cfg.color,
-    }
-  }, cfg.icon + ' ' + cfg.label);
+  return _jsxDEV("span", {
+    className: `badge ${cfg.badge}`,
+    children: `${cfg.icon} ${cfg.label}`
+  }, void 0, false);
 }
 
+/* ── Stat card reutilizando .stat-card/.stat-icon/.stat-label/.stat-value/.stat-meta ── */
 function DistStatCard({ icon, iconBg, iconColor, label, value, valueColor, sub }) {
-  return h('div', {
-    style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: '16px 18px' }
-  }, [
-    h('div', { key: 'i', style: { width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, marginBottom: 10, background: iconBg, color: iconColor } }, icon),
-    h('div', { key: 'l', style: { fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--ink-4)', fontWeight: 700 } }, label),
-    h('div', { key: 'v', style: { fontSize: 24, fontWeight: 800, margin: '6px 0 3px', color: valueColor || 'var(--ink)' } }, value),
-    h('div', { key: 's', style: { fontSize: 12, color: 'var(--ink-3)' } }, sub),
-  ]);
+  return _jsxDEV("div", {
+    className: "stat-card",
+    children: [
+      _jsxDEV("div", { className: "stat-icon", style: { background: iconBg, color: iconColor }, children: icon }, void 0, false),
+      _jsxDEV("div", { className: "stat-label", children: label }, void 0, false),
+      _jsxDEV("div", { className: "stat-value", style: valueColor ? { color: valueColor } : undefined, children: value }, void 0, false),
+      sub ? _jsxDEV("div", { className: "stat-meta", children: sub }, void 0, false) : null,
+    ]
+  }, void 0, true);
 }
 
+/* ── Modal "Invitar colegio" (.modal-backdrop/.modal/.modal-header/.modal-body/.modal-footer) ── */
 function DistInviteModal({ onClose, onSubmit, nombre, setNombre, alumnos, setAlumnos, saving, error }) {
-  return h('div', {
-    style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-    onClick: onClose,
-  }, h('form', {
-    onClick: e => e.stopPropagation(),
-    onSubmit: onSubmit,
-    style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 24, width: 380, maxWidth: '90vw' }
-  }, [
-    h('h3', { key: 't', style: { margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: 'var(--ink)' } }, 'Invitar colegio'),
-    h('p', { key: 'st', style: { margin: '0 0 18px', fontSize: 12.5, color: 'var(--ink-3)' } }, 'Se agrega como prospecto a tu embudo de referidos.'),
-    h('label', { key: 'l1', style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', display: 'block', marginBottom: 5 } }, 'Nombre del colegio'),
-    h('input', {
-      key: 'in1', type: 'text', value: nombre, onChange: e => setNombre(e.target.value),
-      placeholder: 'Ej. Colegio Vista Hermosa', autoFocus: true,
-      style: { width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-glow)', background: 'var(--bg-surface-2)', color: 'var(--ink)', fontSize: 13.5, marginBottom: 14 }
-    }),
-    h('label', { key: 'l2', style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', display: 'block', marginBottom: 5 } }, 'Número de alumnos (aprox.)'),
-    h('input', {
-      key: 'in2', type: 'number', min: 0, value: alumnos, onChange: e => setAlumnos(e.target.value),
-      placeholder: 'Opcional',
-      style: { width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-glow)', background: 'var(--bg-surface-2)', color: 'var(--ink)', fontSize: 13.5, marginBottom: error ? 8 : 18 }
-    }),
-    error ? h('div', { key: 'err', style: { color: 'var(--red)', fontSize: 12.5, marginBottom: 10 } }, error) : null,
-    h('div', { key: 'actions', style: { display: 'flex', gap: 10, justifyContent: 'flex-end' } }, [
-      h('button', {
-        key: 'cancel', type: 'button', onClick: onClose,
-        style: { background: 'transparent', border: '1px solid var(--border-glow)', color: 'var(--ink-2)', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }
-      }, 'Cancelar'),
-      h('button', {
-        key: 'submit', type: 'submit', disabled: saving,
-        style: { background: 'var(--lime)', color: 'var(--navy)', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? .7 : 1 }
-      }, saving ? 'Enviando…' : 'Invitar'),
-    ]),
-  ]));
+  return _jsxDEV("div", {
+    className: "modal-backdrop",
+    onClick: e => e.target === e.currentTarget && onClose(),
+    children: _jsxDEV("form", {
+      className: "modal",
+      style: { maxWidth: 420 },
+      onClick: e => e.stopPropagation(),
+      onSubmit: onSubmit,
+      children: [
+        _jsxDEV("div", {
+          className: "modal-header",
+          children: [
+            _jsxDEV("div", { className: "modal-title", children: "Invitar colegio" }, void 0, false),
+            _jsxDEV("button", {
+              type: "button", className: "btn btn-ghost btn-sm", onClick: onClose,
+              children: _jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false)
+            }, void 0, false),
+          ]
+        }, void 0, true),
+
+        _jsxDEV("div", {
+          className: "modal-body",
+          children: [
+            _jsxDEV("p", { style: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--ink-3)' }, children: "Se agrega como prospecto a tu embudo de referidos." }, void 0, false),
+
+            error ? _jsxDEV("div", {
+              style: {
+                display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, padding: '10px 14px',
+                background: 'var(--red-glow)', border: '1px solid var(--red)', borderRadius: 'var(--radius-sm)',
+                fontSize: 13, color: 'var(--red)'
+              },
+              children: error
+            }, void 0, false) : null,
+
+            _jsxDEV("div", {
+              className: "form-group",
+              children: [
+                _jsxDEV("label", { className: "form-label", children: "Nombre del colegio" }, void 0, false),
+                _jsxDEV("input", {
+                  className: "form-input", type: "text", value: nombre, onChange: e => setNombre(e.target.value),
+                  placeholder: "Ej. Colegio Vista Hermosa", autoFocus: true
+                }, void 0, false),
+              ]
+            }, void 0, true),
+
+            _jsxDEV("div", {
+              className: "form-group",
+              style: { marginBottom: 4 },
+              children: [
+                _jsxDEV("label", { className: "form-label", children: "Número de alumnos (aprox.)" }, void 0, false),
+                _jsxDEV("input", {
+                  className: "form-input", type: "number", min: 0, value: alumnos, onChange: e => setAlumnos(e.target.value),
+                  placeholder: "Opcional"
+                }, void 0, false),
+              ]
+            }, void 0, true),
+          ]
+        }, void 0, true),
+
+        _jsxDEV("div", {
+          className: "modal-footer",
+          children: [
+            _jsxDEV("button", { type: "button", className: "btn btn-secondary", onClick: onClose, children: "Cancelar" }, void 0, false),
+            _jsxDEV("button", {
+              type: "submit", className: "btn btn-primary", disabled: saving,
+              children: saving ? 'Enviando…' : 'Invitar'
+            }, void 0, false),
+          ]
+        }, void 0, true),
+      ]
+    }, void 0, true)
+  }, void 0, false);
 }
 
 /* ── Vista: Mis colegios (listado completo, con búsqueda y filtro) ── */
@@ -118,43 +161,67 @@ function DistColegiosView({ colegios }) {
     return true;
   });
 
-  return h('div', {}, [
-    h('div', { key: 'head', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 } }, [
-      h('div', { key: 't' }, [
-        h('h2', { key: 'h', style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 } }, 'Mis colegios'),
-        h('div', { key: 's', style: { fontSize: 12.5, color: 'var(--ink-3)' } }, `${colegios.length} colegio${colegios.length === 1 ? '' : 's'} en tu cartera`),
-      ]),
-      h('div', { key: 'filters', style: { display: 'flex', gap: 8, flexWrap: 'wrap' } }, [
-        h('input', {
-          key: 'q', value: q, onChange: e => setQ(e.target.value), placeholder: 'Buscar colegio…',
-          style: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-glow)', background: 'var(--bg-surface)', color: 'var(--ink)', fontSize: 13 }
-        }),
-        h('select', {
-          key: 'f', value: filtroEstado, onChange: e => setFiltroEstado(e.target.value),
-          style: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-glow)', background: 'var(--bg-surface)', color: 'var(--ink)', fontSize: 13 }
-        }, [
-          h('option', { key: 'todos', value: 'todos' }, 'Todos los estados'),
-          ...DIST_ORDEN_EMBUDO.map(k => h('option', { key: k, value: k }, DIST_ESTADOS[k].label)),
-        ]),
-      ]),
-    ]),
-    h('div', { key: 'panel', style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 20 } },
-      lista.length === 0
-        ? h('div', { style: { fontSize: 13, color: 'var(--ink-3)', padding: '30px 0', textAlign: 'center' } }, 'No hay colegios que coincidan con tu búsqueda.')
-        : h('table', { style: { width: '100%', borderCollapse: 'collapse' } }, [
-            h('thead', { key: 'thead' }, h('tr', {}, ['Colegio', 'Tamaño', 'Comisión', 'Estado', 'Fecha de alta'].map(t =>
-              h('th', { key: t, style: { textAlign: 'left', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', fontWeight: 700, padding: '6px 8px', borderBottom: '1px solid var(--border-glow)' } }, t)
-            ))),
-            h('tbody', { key: 'tbody' }, lista.map(c => h('tr', { key: c.id }, [
-              h('td', { key: 'n', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', fontWeight: 700 } }, c.nombre),
-              h('td', { key: 't', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', color: 'var(--ink-3)' } }, c.num_alumnos ? `${c.num_alumnos} alumnos` : '—'),
-              h('td', { key: 'c', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', color: c.estado === 'activo' ? 'var(--ink)' : 'var(--ink-3)' } }, c.estado === 'activo' ? `${c.comision_pct}%` : '—'),
-              h('td', { key: 'e', style: { padding: '12px 8px', borderBottom: '1px solid var(--border-glow)' } }, h(DistBadge, { estado: c.estado })),
-              h('td', { key: 'f', style: { padding: '12px 8px', fontSize: 12, borderBottom: '1px solid var(--border-glow)', color: 'var(--ink-3)', fontFamily: 'var(--mono)' } }, c.fecha_alta || '—'),
-            ]))),
-          ])
-    ),
-  ]);
+  return _jsxDEV("div", {
+    children: [
+      _jsxDEV("div", {
+        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 },
+        children: [
+          _jsxDEV("div", {
+            children: [
+              _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Mis colegios" }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)' }, children: `${colegios.length} colegio${colegios.length === 1 ? '' : 's'} en tu cartera` }, void 0, false),
+            ]
+          }, void 0, true),
+          _jsxDEV("div", {
+            style: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+            children: [
+              _jsxDEV("input", {
+                className: "form-input", style: { width: 200 },
+                value: q, onChange: e => setQ(e.target.value), placeholder: "Buscar colegio…"
+              }, void 0, false),
+              _jsxDEV("select", {
+                className: "form-select", style: { width: 180 },
+                value: filtroEstado, onChange: e => setFiltroEstado(e.target.value),
+                children: [
+                  _jsxDEV("option", { value: "todos", children: "Todos los estados" }, void 0, false),
+                  ...DIST_ORDEN_EMBUDO.map(k => _jsxDEV("option", { value: k, children: DIST_ESTADOS[k].label }, k, false)),
+                ]
+              }, void 0, true),
+            ]
+          }, void 0, true),
+        ]
+      }, void 0, true),
+
+      _jsxDEV("div", {
+        className: "card",
+        children: lista.length === 0
+          ? _jsxDEV("div", { className: "empty-state", children: _jsxDEV("div", { className: "empty-text", children: "No hay colegios que coincidan con tu búsqueda." }, void 0, false) }, void 0, false)
+          : _jsxDEV("div", {
+              className: "table-wrap",
+              children: _jsxDEV("table", {
+                children: [
+                  _jsxDEV("thead", {
+                    children: _jsxDEV("tr", {
+                      children: ['Colegio', 'Tamaño', 'Comisión', 'Estado', 'Fecha de alta'].map(t => _jsxDEV("th", { children: t }, t, false))
+                    }, void 0, true)
+                  }, void 0, false),
+                  _jsxDEV("tbody", {
+                    children: lista.map(c => _jsxDEV("tr", {
+                      children: [
+                        _jsxDEV("td", { style: { fontWeight: 700 }, children: c.nombre }, void 0, false),
+                        _jsxDEV("td", { children: c.num_alumnos ? `${c.num_alumnos} alumnos` : '—' }, void 0, false),
+                        _jsxDEV("td", { children: c.estado === 'activo' ? `${c.comision_pct}%` : '—' }, void 0, false),
+                        _jsxDEV("td", { children: _jsxDEV(DistBadge, { estado: c.estado }, void 0, false) }, void 0, false),
+                        _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 12 }, children: c.fecha_alta || '—' }, void 0, false),
+                      ]
+                    }, c.id, true))
+                  }, void 0, false),
+                ]
+              }, void 0, true)
+            }, void 0, false)
+      }, void 0, false),
+    ]
+  }, void 0, true);
 }
 
 /* ── Vista: Comisiones (historial 12 meses + detalle por colegio) ── */
@@ -185,66 +252,94 @@ function DistComisionesView() {
     })();
   }, []);
 
-  if (loading) return h('div', { style: { padding: '40px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 } }, 'Cargando…');
-  if (error) return h('div', { style: { padding: '40px 0', textAlign: 'center', color: 'var(--red)', fontSize: 13 } }, error);
+  if (loading) return _jsxDEV("div", { style: { padding: '40px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }, children: "Cargando…" }, void 0, false);
+  if (error) return _jsxDEV("div", { style: { padding: '40px 0', textAlign: 'center', color: 'var(--red)', fontSize: 13 }, children: error }, void 0, false);
 
   const historial = data.historial || [];
   const colegios = data.colegios || [];
   const maxComision = Math.max(1, ...historial.map(m => m.comision));
 
-  return h('div', {}, [
-    h('h2', { key: 'h', style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 } }, 'Comisiones'),
-    h('div', { key: 's', style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 } }, 'Historial de los últimos 12 meses y detalle por colegio'),
+  return _jsxDEV("div", {
+    children: [
+      _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Comisiones" }, void 0, false),
+      _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 }, children: "Historial de los últimos 12 meses y detalle por colegio" }, void 0, false),
 
-    h('div', { key: 'panel1', style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 20, marginBottom: 16 } }, [
-      h('h3', { key: 't', style: { margin: '0 0 16px', fontSize: 15, fontWeight: 800 } }, 'Últimos 12 meses'),
-      historial.every(m => m.comision === 0)
-        ? h('div', { key: 'empty', style: { fontSize: 13, color: 'var(--ink-3)', padding: '10px 0', textAlign: 'center' } }, 'Aún no registras comisión en este periodo.')
-        : h('div', { key: 'bars', style: { display: 'flex', alignItems: 'flex-end', gap: 8, height: 150 } },
-            historial.map(m => h('div', { key: m.mes, style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' } }, [
-              h('div', { key: 'v', style: { fontSize: 9.5, color: 'var(--ink-4)', marginBottom: 4, whiteSpace: 'nowrap' } }, m.comision > 0 ? distFmtMoney(m.comision) : ''),
-              h('div', { key: 'bar', style: { width: '70%', minHeight: 2, height: `${Math.max(2, (m.comision / maxComision) * 100)}%`, background: 'var(--lime)', borderRadius: '4px 4px 0 0' } }),
-              h('div', { key: 'l', style: { fontSize: 10, color: 'var(--ink-3)', marginTop: 6 } }, m.label),
-            ]))
-          ),
-    ]),
+      _jsxDEV("div", {
+        className: "card",
+        style: { marginBottom: 16 },
+        children: [
+          _jsxDEV("h3", { style: { margin: '0 0 16px', fontSize: 15, fontWeight: 800 }, children: "Últimos 12 meses" }, void 0, false),
+          historial.every(m => m.comision === 0)
+            ? _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', padding: '10px 0', textAlign: 'center' }, children: "Aún no registras comisión en este periodo." }, void 0, false)
+            : _jsxDEV("div", {
+                style: { display: 'flex', alignItems: 'flex-end', gap: 8, height: 150 },
+                children: historial.map(m => _jsxDEV("div", {
+                  style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
+                  children: [
+                    _jsxDEV("div", { style: { fontSize: 9.5, color: 'var(--ink-4)', marginBottom: 4, whiteSpace: 'nowrap' }, children: m.comision > 0 ? distFmtMoney(m.comision) : '' }, void 0, false),
+                    _jsxDEV("div", { style: { width: '70%', minHeight: 2, height: `${Math.max(2, (m.comision / maxComision) * 100)}%`, background: 'var(--lime)', borderRadius: '4px 4px 0 0' } }, void 0, false),
+                    _jsxDEV("div", { style: { fontSize: 10, color: 'var(--ink-3)', marginTop: 6 }, children: m.label }, void 0, false),
+                  ]
+                }, m.mes, true))
+              }, void 0, false),
+        ]
+      }, void 0, true),
 
-    h('div', { key: 'panel2', style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 20 } }, [
-      h('h3', { key: 't', style: { margin: '0 0 16px', fontSize: 15, fontWeight: 800 } }, 'Detalle por colegio activo'),
-      colegios.length === 0
-        ? h('div', { key: 'e', style: { fontSize: 13, color: 'var(--ink-3)', padding: '20px 0', textAlign: 'center' } }, 'Aún no tienes colegios activos generando comisión.')
-        : h('table', { key: 'table', style: { width: '100%', borderCollapse: 'collapse' } }, [
-            h('thead', { key: 'thead' }, h('tr', {}, ['Colegio', '%', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada'].map(t =>
-              h('th', { key: t, style: { textAlign: 'left', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', fontWeight: 700, padding: '6px 8px', borderBottom: '1px solid var(--border-glow)' } }, t)
-            ))),
-            h('tbody', { key: 'tbody' }, colegios.map(c => h('tr', { key: c.id }, [
-              h('td', { key: 'n', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', fontWeight: 700 } }, c.nombre),
-              h('td', { key: 'p', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', color: 'var(--ink-3)' } }, `${c.comision_pct}%`),
-              h('td', { key: 'cm', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)' } }, distFmtMoney(c.cobrado_mes)),
-              h('td', { key: 'com', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', color: 'var(--lime)', fontWeight: 700 } }, distFmtMoney(c.comision_mes)),
-              h('td', { key: 'ca', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)' } }, distFmtMoney(c.comision_anio)),
-            ]))),
-          ]),
-    ]),
-  ]);
+      _jsxDEV("div", {
+        className: "card",
+        children: [
+          _jsxDEV("h3", { style: { margin: '0 0 16px', fontSize: 15, fontWeight: 800 }, children: "Detalle por colegio activo" }, void 0, false),
+          colegios.length === 0
+            ? _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', padding: '20px 0', textAlign: 'center' }, children: "Aún no tienes colegios activos generando comisión." }, void 0, false)
+            : _jsxDEV("div", {
+                className: "table-wrap",
+                children: _jsxDEV("table", {
+                  children: [
+                    _jsxDEV("thead", {
+                      children: _jsxDEV("tr", {
+                        children: ['Colegio', '%', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada'].map(t => _jsxDEV("th", { children: t }, t, false))
+                      }, void 0, true)
+                    }, void 0, false),
+                    _jsxDEV("tbody", {
+                      children: colegios.map(c => _jsxDEV("tr", {
+                        children: [
+                          _jsxDEV("td", { style: { fontWeight: 700 }, children: c.nombre }, void 0, false),
+                          _jsxDEV("td", { children: `${c.comision_pct}%` }, void 0, false),
+                          _jsxDEV("td", { children: distFmtMoney(c.cobrado_mes) }, void 0, false),
+                          _jsxDEV("td", { style: { color: 'var(--lime)', fontWeight: 700 }, children: distFmtMoney(c.comision_mes) }, void 0, false),
+                          _jsxDEV("td", { children: distFmtMoney(c.comision_anio) }, void 0, false),
+                        ]
+                      }, c.id, true))
+                    }, void 0, false),
+                  ]
+                }, void 0, true)
+              }, void 0, false),
+        ]
+      }, void 0, true),
+    ]
+  }, void 0, true);
 }
 
 /* ── Vista: Materiales de venta (estática, sin backend por ahora) ── */
 function DistMaterialesView() {
-  return h('div', {}, [
-    h('h2', { key: 'h', style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 } }, 'Materiales de venta'),
-    h('div', { key: 's', style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 } }, 'Recursos para apoyar tu proceso de referidos'),
-    h('div', { key: 'grid', style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 16 } },
-      DIST_MATERIALES.map((m, i) => h('div', {
-        key: i, style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 18 }
-      }, [
-        h('div', { key: 'i', style: { fontSize: 22, marginBottom: 10 } }, m.icon),
-        h('div', { key: 't', style: { fontSize: 14, fontWeight: 800, marginBottom: 5 } }, m.titulo),
-        h('div', { key: 'd', style: { fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 14 } }, m.desc),
-        h('div', { key: 'b', style: { fontSize: 11.5, color: 'var(--ink-4)', fontStyle: 'italic' } }, 'Solicítalo a tu coordinador de zona'),
-      ]))
-    ),
-  ]);
+  return _jsxDEV("div", {
+    children: [
+      _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Materiales de venta" }, void 0, false),
+      _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 }, children: "Recursos para apoyar tu proceso de referidos" }, void 0, false),
+      _jsxDEV("div", {
+        style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 16 },
+        children: DIST_MATERIALES.map((m, i) => _jsxDEV("div", {
+          className: "card",
+          children: [
+            _jsxDEV("div", { style: { fontSize: 22, marginBottom: 10 }, children: m.icon }, void 0, false),
+            _jsxDEV("div", { style: { fontSize: 14, fontWeight: 800, marginBottom: 5 }, children: m.titulo }, void 0, false),
+            _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 14 }, children: m.desc }, void 0, false),
+            _jsxDEV("div", { style: { fontSize: 11.5, color: 'var(--ink-4)', fontStyle: 'italic' }, children: "Solicítalo a tu coordinador de zona" }, void 0, false),
+          ]
+        }, i, true))
+      }, void 0, false),
+    ]
+  }, void 0, true);
 }
 
 /* ── Vista: Mi perfil (reutiliza la acción compartida editar_usuario) ── */
@@ -283,38 +378,71 @@ function DistPerfilView({ user, onUpdated }) {
     }
   };
 
-  return h('div', {}, [
-    h('h2', { key: 'h', style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 } }, 'Mi perfil'),
-    h('div', { key: 's', style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 } }, 'Actualiza tus datos de acceso'),
-    h('form', { key: 'form', onSubmit: guardar, style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 22, maxWidth: 460 } }, [
-      error ? h('div', { key: 'err', style: { color: 'var(--red)', fontSize: 12.5, marginBottom: 14, background: 'rgba(239,68,68,.08)', padding: '8px 12px', borderRadius: 8 } }, error) : null,
-      ok ? h('div', { key: 'ok', style: { color: 'var(--green)', fontSize: 12.5, marginBottom: 14, background: 'var(--green-glow)', padding: '8px 12px', borderRadius: 8 } }, ok) : null,
-      h('div', { key: 'g1', style: { marginBottom: 14 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'Nombre completo'),
-        h('input', { key: 'i', type: 'text', value: nombre, onChange: e => setNombre(e.target.value), style: distInputStyle }),
-      ]),
-      h('div', { key: 'g2', style: { marginBottom: 14 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'Correo electrónico'),
-        h('input', { key: 'i', type: 'email', value: email, onChange: e => setEmail(e.target.value), style: distInputStyle }),
-      ]),
-      h('div', { key: 'g3', style: { marginBottom: 14 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'Nueva contraseña (dejar vacío = mantener)'),
-        h('input', { key: 'i', type: 'password', value: password, onChange: e => setPassword(e.target.value), style: distInputStyle, placeholder: '••••••• (opcional)' }),
-      ]),
-      h('div', { key: 'g4', style: { marginBottom: 14 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'Confirmar nueva contraseña'),
-        h('input', { key: 'i', type: 'password', value: password2, onChange: e => setPassword2(e.target.value), style: distInputStyle }),
-      ]),
-      h('div', { key: 'g5', style: { marginBottom: 18 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'Tu contraseña actual (requerida si cambias correo o contraseña)'),
-        h('input', { key: 'i', type: 'password', value: passwordActual, onChange: e => setPasswordActual(e.target.value), style: distInputStyle }),
-      ]),
-      h('button', {
-        key: 'btn', type: 'submit', disabled: saving,
-        style: { background: 'var(--lime)', color: 'var(--navy)', border: 'none', borderRadius: 9, padding: '10px 20px', fontWeight: 800, fontSize: 13, cursor: saving ? 'default' : 'pointer', opacity: saving ? .7 : 1 }
-      }, saving ? 'Guardando…' : 'Guardar cambios'),
-    ]),
-  ]);
+  return _jsxDEV("div", {
+    children: [
+      _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Mi perfil" }, void 0, false),
+      _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 }, children: "Actualiza tus datos de acceso" }, void 0, false),
+      _jsxDEV("form", {
+        className: "card", style: { maxWidth: 460 }, onSubmit: guardar,
+        children: [
+          error ? _jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, padding: '10px 14px', background: 'var(--red-glow)', border: '1px solid var(--red)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--red)' },
+            children: error
+          }, void 0, false) : null,
+          ok ? _jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, padding: '10px 14px', background: 'var(--green-glow)', border: '1px solid var(--green)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--green)' },
+            children: ok
+          }, void 0, false) : null,
+
+          _jsxDEV("div", {
+            className: "form-group",
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "Nombre completo" }, void 0, false),
+              _jsxDEV("input", { className: "form-input", type: "text", value: nombre, onChange: e => setNombre(e.target.value) }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("div", {
+            className: "form-group",
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "Correo electrónico" }, void 0, false),
+              _jsxDEV("input", { className: "form-input", type: "email", value: email, onChange: e => setEmail(e.target.value) }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("div", {
+            className: "form-group",
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "Nueva contraseña (dejar vacío = mantener)" }, void 0, false),
+              _jsxDEV("input", { className: "form-input", type: "password", value: password, onChange: e => setPassword(e.target.value), placeholder: "••••••• (opcional)" }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("div", {
+            className: "form-group",
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "Confirmar nueva contraseña" }, void 0, false),
+              _jsxDEV("input", { className: "form-input", type: "password", value: password2, onChange: e => setPassword2(e.target.value) }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("div", {
+            className: "form-group",
+            style: { marginBottom: 4 },
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "Tu contraseña actual (requerida si cambias correo o contraseña)" }, void 0, false),
+              _jsxDEV("input", { className: "form-input", type: "password", value: passwordActual, onChange: e => setPasswordActual(e.target.value) }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("button", {
+            type: "submit", className: "btn btn-primary", disabled: saving, style: { marginTop: 6 },
+            children: saving ? 'Guardando…' : 'Guardar cambios'
+          }, void 0, false),
+        ]
+      }, void 0, true),
+    ]
+  }, void 0, true);
 }
 
 /* ── Vista: Datos de pago (cuenta donde recibe sus comisiones) ── */
@@ -374,41 +502,73 @@ function DistDatosPagoView() {
     }
   };
 
-  if (loading) return h('div', { style: { padding: '40px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 } }, 'Cargando…');
+  if (loading) return _jsxDEV("div", { style: { padding: '40px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }, children: "Cargando…" }, void 0, false);
 
-  return h('div', {}, [
-    h('h2', { key: 'h', style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 } }, 'Datos de pago'),
-    h('div', { key: 's', style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 } }, 'Cuenta donde recibirás el pago de tus comisiones'),
-    h('form', { key: 'form', onSubmit: guardar, style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 22, maxWidth: 460 } }, [
-      error ? h('div', { key: 'err', style: { color: 'var(--red)', fontSize: 12.5, marginBottom: 14, background: 'rgba(239,68,68,.08)', padding: '8px 12px', borderRadius: 8 } }, error) : null,
-      ok ? h('div', { key: 'ok', style: { color: 'var(--green)', fontSize: 12.5, marginBottom: 14, background: 'var(--green-glow)', padding: '8px 12px', borderRadius: 8 } }, ok) : null,
-      h('div', { key: 'g1', style: { marginBottom: 14 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'Banco'),
-        h('input', { key: 'i', type: 'text', value: banco, onChange: e => setBanco(e.target.value), style: distInputStyle, placeholder: 'Ej. BBVA' }),
-      ]),
-      h('div', { key: 'g2', style: { marginBottom: 14 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'CLABE interbancaria (18 dígitos)'),
-        h('input', { key: 'i', type: 'text', value: clabe, onChange: e => setClabe(e.target.value.replace(/\D/g, '').slice(0, 18)), style: distInputStyle, placeholder: '000000000000000000' }),
-      ]),
-      h('div', { key: 'g3', style: { marginBottom: 18 } }, [
-        h('label', { key: 'l', style: distLabelStyle }, 'Titular de la cuenta'),
-        h('input', { key: 'i', type: 'text', value: titular, onChange: e => setTitular(e.target.value), style: distInputStyle }),
-      ]),
-      h('button', {
-        key: 'btn', type: 'submit', disabled: saving,
-        style: { background: 'var(--lime)', color: 'var(--navy)', border: 'none', borderRadius: 9, padding: '10px 20px', fontWeight: 800, fontSize: 13, cursor: saving ? 'default' : 'pointer', opacity: saving ? .7 : 1 }
-      }, saving ? 'Guardando…' : 'Guardar datos de pago'),
-    ]),
-  ]);
+  return _jsxDEV("div", {
+    children: [
+      _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Datos de pago" }, void 0, false),
+      _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 }, children: "Cuenta donde recibirás el pago de tus comisiones" }, void 0, false),
+      _jsxDEV("form", {
+        className: "card", style: { maxWidth: 460 }, onSubmit: guardar,
+        children: [
+          error ? _jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, padding: '10px 14px', background: 'var(--red-glow)', border: '1px solid var(--red)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--red)' },
+            children: error
+          }, void 0, false) : null,
+          ok ? _jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, padding: '10px 14px', background: 'var(--green-glow)', border: '1px solid var(--green)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--green)' },
+            children: ok
+          }, void 0, false) : null,
+
+          _jsxDEV("div", {
+            className: "form-group",
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "Banco" }, void 0, false),
+              _jsxDEV("input", { className: "form-input", type: "text", value: banco, onChange: e => setBanco(e.target.value), placeholder: "Ej. BBVA" }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("div", {
+            className: "form-group",
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "CLABE interbancaria (18 dígitos)" }, void 0, false),
+              _jsxDEV("input", {
+                className: "form-input", type: "text", value: clabe,
+                onChange: e => setClabe(e.target.value.replace(/\D/g, '').slice(0, 18)),
+                placeholder: "000000000000000000"
+              }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("div", {
+            className: "form-group",
+            style: { marginBottom: 4 },
+            children: [
+              _jsxDEV("label", { className: "form-label", children: "Titular de la cuenta" }, void 0, false),
+              _jsxDEV("input", { className: "form-input", type: "text", value: titular, onChange: e => setTitular(e.target.value) }, void 0, false),
+            ]
+          }, void 0, true),
+
+          _jsxDEV("button", {
+            type: "submit", className: "btn btn-primary", disabled: saving, style: { marginTop: 6 },
+            children: saving ? 'Guardando…' : 'Guardar datos de pago'
+          }, void 0, false),
+        ]
+      }, void 0, true),
+    ]
+  }, void 0, true);
 }
 
-/* ── Componente principal ── */
+/* ── Componente principal ──
+   Reutiliza .app/.sidebar/.main/.topbar/.content del shell (assets/js/app.js + main.css) para
+   heredar automáticamente el drawer responsive de ≤768px (botón hamburguesa + .nav-backdrop). */
 function Distribuidor({ user, onLogout }) {
   const { useState, useEffect } = React;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState(null);
   const [seccion, setSeccion] = useState('dashboard');
+  const [mobileNav, setMobileNav] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteNombre, setInviteNombre] = useState('');
   const [inviteAlumnos, setInviteAlumnos] = useState('');
@@ -463,21 +623,20 @@ function Distribuidor({ user, onLogout }) {
 
   // ── Estados de carga / error ──────────────────────────────────────────
   if (loading) {
-    return h('div', {
-      style: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-3)', background: 'var(--bg-main)' }
-    }, 'Cargando…');
+    return _jsxDEV("div", {
+      style: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-3)', background: 'var(--bg-main)' },
+      children: "Cargando…"
+    }, void 0, false);
   }
   if (error) {
-    return h('div', {
-      style: { height: '100vh', display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--ink)' }
-    }, [
-      h('div', { key: 'e', style: { fontSize: 15, fontWeight: 700 } }, 'No se pudo cargar tu panel'),
-      h('div', { key: 'm', style: { fontSize: 13, color: 'var(--ink-3)' } }, error),
-      h('button', {
-        key: 'r', onClick: cargar,
-        style: { background: 'var(--lime)', color: 'var(--navy)', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, cursor: 'pointer' }
-      }, 'Reintentar'),
-    ]);
+    return _jsxDEV("div", {
+      style: { height: '100vh', display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--ink)' },
+      children: [
+        _jsxDEV("div", { style: { fontSize: 15, fontWeight: 700 }, children: "No se pudo cargar tu panel" }, void 0, false),
+        _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)' }, children: error }, void 0, false),
+        _jsxDEV("button", { className: "btn btn-primary", onClick: cargar, children: "Reintentar" }, void 0, false),
+      ]
+    }, void 0, true);
   }
 
   const stats = info.stats || {};
@@ -489,150 +648,236 @@ function Distribuidor({ user, onLogout }) {
   const iniciales = nombreDist.split(' ').filter(Boolean).slice(0, 2).map(s => s[0].toUpperCase()).join('');
   const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  const navStyle = (activo, extra) => Object.assign({
-    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8,
-    fontSize: 13.5, fontWeight: 600, cursor: 'pointer', width: '100%', textAlign: 'left',
-    border: 'none', background: activo ? 'var(--side-active-bg)' : 'transparent',
-    color: activo ? 'var(--side-ink)' : 'var(--side-ink-2)',
-    boxShadow: activo ? 'inset 3px 0 0 var(--lime)' : 'none', fontFamily: 'inherit',
-  }, extra || {});
+  const secciones = ['Principal', 'Configuración'];
 
-  const navItem = (key, seccionId, label, extra) => h('button', {
-    key, onClick: () => setSeccion(seccionId), style: navStyle(seccion === seccionId, { justifyContent: 'space-between' })
-  }, [
-    h('span', { key: 'l' }, label),
-    extra || null,
-  ]);
+  return _jsxDEV("div", {
+    className: `app${mobileNav ? ' nav-open' : ''}`,
+    children: [
 
-  return h('div', { style: { display: 'flex', minHeight: '100vh', background: 'var(--bg-main)', color: 'var(--ink)', fontFamily: 'var(--font)' } }, [
+      /* Backdrop del drawer en móvil (≤768px) */
+      _jsxDEV("div", { className: "nav-backdrop", onClick: () => setMobileNav(false) }, void 0, false),
 
-    // ── Sidebar ──────────────────────────────────────────────────────
-    h('aside', {
-      key: 'sidebar',
-      style: { width: 'var(--sidebar-w, 256px)', background: 'var(--side-bg)', borderRight: '1px solid var(--side-border)', display: 'flex', flexDirection: 'column', padding: '20px 14px' }
-    }, [
-      h('div', { key: 'logo', style: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px 22px' } }, [
-        h('div', { key: 'b', style: { width: 34, height: 34, borderRadius: 9, background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'var(--lime)', fontSize: 14 } }, 'PE'),
-        h('div', { key: 't', style: { fontWeight: 800, fontSize: 14, lineHeight: 1.15, color: 'var(--side-ink)' } }, ['paga la ', h('span', { key: 's', style: { display: 'block', color: 'var(--lime)' } }, 'escuela')]),
-      ]),
-      h('div', { key: 'zona', style: { background: 'rgba(189,207,0,.06)', border: '1px solid var(--side-border)', borderRadius: 'var(--radius)', padding: '10px 12px', marginBottom: 18 } }, [
-        h('div', { key: 'zl', style: { fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--side-ink-3)', fontWeight: 700 } }, 'Zona asignada'),
-        h('div', { key: 'zv', style: { color: 'var(--lime)', fontWeight: 700, fontSize: 13, marginTop: 3 } }, zona),
-      ]),
-      h('div', { key: 'sec1', style: { fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--side-ink-3)', fontWeight: 700, margin: '14px 8px 6px' } }, 'Principal'),
-      navItem('n1', 'dashboard', '📊 Dashboard'),
-      navItem('n2', 'colegios', '🏫 Mis colegios', colegios.length ? h('span', { key: 'b', style: { background: 'var(--red)', color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '1px 7px', borderRadius: 20 } }, colegios.length) : null),
-      navItem('n3', 'comisiones', '💰 Comisiones'),
-      navItem('n4', 'materiales', '📦 Materiales de venta'),
-      h('div', { key: 'sec2', style: { fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--side-ink-3)', fontWeight: 700, margin: '14px 8px 6px' } }, 'Configuración'),
-      navItem('n5', 'perfil', '👤 Mi perfil'),
-      navItem('n6', 'pago', '💳 Datos de pago'),
-      h('div', {
-        key: 'logout', onClick: onLogout, style: { cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, fontSize: 13.5, color: 'var(--side-ink-2)', fontWeight: 600 }
-      }, '🚪 Cerrar sesión'),
-      h('div', { key: 'footer', style: { marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 8px', borderTop: '1px solid var(--side-border)' } }, [
-        h('div', { key: 'av', style: { width: 34, height: 34, borderRadius: 9, background: 'var(--lime)', color: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13 } }, iniciales || 'D'),
-        h('div', { key: 'who' }, [
-          h('div', { key: 'n', style: { fontSize: 13, fontWeight: 700, color: 'var(--side-ink)' } }, nombreDist),
-          h('div', { key: 'r', style: { fontSize: 11.5, color: 'var(--lime)' } }, 'Distribuidor certificado'),
-        ]),
-      ]),
-    ]),
+      /* ── Sidebar ── */
+      _jsxDEV("aside", {
+        className: "sidebar",
+        children: [
+          _jsxDEV("div", {
+            className: "sidebar-brand",
+            children: _jsxDEV("div", {
+              className: "brand-logo",
+              children: [
+                _jsxDEV("div", { className: "brand-icon", children: "PE" }, void 0, false),
+                _jsxDEV("div", {
+                  children: [
+                    _jsxDEV("div", { className: "brand-name", children: "paga la escuela" }, void 0, false),
+                    _jsxDEV("div", { className: "brand-sub", children: "Portal distribuidor" }, void 0, false),
+                  ]
+                }, void 0, true),
+              ]
+            }, void 0, true)
+          }, void 0, false),
 
-    // ── Main ─────────────────────────────────────────────────────────
-    h('div', { key: 'main', style: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 } }, [
-      h('div', { key: 'topbar', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 28px', borderBottom: '1px solid var(--border-glow)' } }, [
-        h('h1', { key: 'h1', style: { fontSize: 15, margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 } }, DIST_SECCIONES[seccion].titulo),
-        h('div', { key: 'actions', style: { display: 'flex', gap: 10 } }, [
-          (seccion === 'dashboard' && stats.en_implementacion) ? h('div', {
-            key: 'pill', style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, padding: '7px 13px', borderRadius: 20, background: 'var(--amber-glow)', color: 'var(--amber)', border: '1px solid rgba(251,191,36,.3)' }
-          }, `🏫 ${stats.en_implementacion} en implementación`) : null,
-          (seccion === 'dashboard' || seccion === 'colegios') ? h('button', {
-            key: 'btn', onClick: () => setShowInvite(true),
-            style: { background: 'var(--lime)', color: 'var(--navy)', border: 'none', fontWeight: 800, padding: '9px 16px', borderRadius: 9, fontSize: 13, cursor: 'pointer' }
-          }, '+ Invitar colegio') : null,
-        ]),
-      ]),
+          _jsxDEV("div", {
+            style: { padding: '10px 16px 12px', borderBottom: '1px solid var(--side-border)' },
+            children: [
+              _jsxDEV("div", { style: { fontSize: 10, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--side-ink-3)', fontWeight: 700, marginBottom: 3 }, children: "Zona asignada" }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 13, fontWeight: 700, color: 'var(--lime)' }, children: zona }, void 0, false),
+            ]
+          }, void 0, true),
 
-      h('div', { key: 'content', style: { padding: '26px 28px 60px' } }, [
+          _jsxDEV("nav", {
+            className: "sidebar-nav",
+            children: secciones.map(sec => _jsxDEV("div", {
+              children: [
+                _jsxDEV("div", { className: "nav-section", children: sec }, void 0, false),
+                DIST_NAV_ITEMS.filter(n => n.section === sec).map(n => _jsxDEV("div", {
+                  className: `nav-item ${seccion === n.id ? 'active' : ''}`,
+                  onClick: () => { setSeccion(n.id); setMobileNav(false); },
+                  children: [
+                    _jsxDEV("span", { children: n.label }, void 0, false),
+                    (n.showColegiosBadge && colegios.length > 0)
+                      ? _jsxDEV("span", { className: "nav-badge", children: colegios.length }, void 0, false)
+                      : null,
+                  ]
+                }, n.id, true))
+              ]
+            }, sec, true))
+          }, void 0, false),
 
-        seccion === 'dashboard' ? h('div', { key: 'dashboard' }, [
-          h('div', { key: 'greet' }, [
-            h('h2', { key: 'g1', style: { fontSize: 22, margin: '0 0 4px', fontWeight: 800 } }, `Buenos días, ${nombreDist.split(' ')[0]}`),
-            h('div', { key: 'g2', style: { fontSize: 12.5, color: 'var(--ink-3)' } }, `🏠 Programa de distribuidores · Zona ${zona} · ${hoy}`),
-          ]),
+          _jsxDEV("div", {
+            className: "sidebar-footer",
+            children: _jsxDEV("div", {
+              className: "user-card",
+              children: [
+                _jsxDEV("div", { className: "avatar", style: { background: 'var(--lime)', color: 'var(--navy)' }, children: iniciales || 'D' }, void 0, false),
+                _jsxDEV("div", {
+                  className: "user-info",
+                  children: [
+                    _jsxDEV("div", { className: "user-name", children: nombreDist }, void 0, false),
+                    _jsxDEV("div", { className: "user-role", children: "Distribuidor certificado" }, void 0, false),
+                  ]
+                }, void 0, true),
+                _jsxDEV("button", {
+                  className: "logout-btn", onClick: onLogout, title: "Cerrar sesión",
+                  children: _jsxDEV(Icon, { name: "logout", size: 17, color: "currentColor" }, void 0, false)
+                }, void 0, false),
+              ]
+            }, void 0, true)
+          }, void 0, false),
+        ]
+      }, void 0, true),
 
-          h('div', { key: 'stats', style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, margin: '22px 0' } }, [
-            h(DistStatCard, { key: 's1', icon: '💰', iconBg: 'var(--lime-glow)', iconColor: 'var(--lime)', label: 'Comisión del mes', value: distFmtMoney(stats.comision_mes), valueColor: 'var(--lime)', sub: `${stats.colegios_facturando || 0} colegios facturando` }),
-            h(DistStatCard, { key: 's2', icon: '🏫', iconBg: 'var(--green-glow)', iconColor: 'var(--green)', label: 'Colegios activos', value: stats.colegios_activos || 0, valueColor: 'var(--green)', sub: `de ${stats.colegios_totales || 0} colegios totales` }),
-            h(DistStatCard, { key: 's3', icon: '🔔', iconBg: 'var(--amber-glow)', iconColor: 'var(--amber)', label: 'En implementación', value: stats.en_implementacion || 0, valueColor: 'var(--amber)', sub: 'arrancan en las próximas semanas' }),
-            h(DistStatCard, { key: 's4', icon: '📄', iconBg: 'rgba(255,255,255,.06)', iconColor: 'var(--ink-2)', label: `Comisión acumulada ${stats.anio || ''}`, value: distFmtMoney(stats.comision_acumulada), sub: `desde enero ${stats.anio || ''}` }),
-          ]),
+      /* ── Main ── */
+      _jsxDEV("main", {
+        className: "main",
+        children: [
+          _jsxDEV("header", {
+            className: "topbar",
+            children: [
+              _jsxDEV("button", {
+                className: "mobile-menu-btn", onClick: () => setMobileNav(v => !v), "aria-label": "Abrir menú",
+                children: _jsxDEV(Icon, { name: "menu", size: 20, color: "currentColor" }, void 0, false)
+              }, void 0, false),
 
-          h('div', { key: 'grid2', style: { display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 16 } }, [
+              _jsxDEV("div", { className: "topbar-title", children: DIST_SECCIONES[seccion].titulo }, void 0, false),
 
-            h('div', { key: 'panel1', style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 20 } }, [
-              h('h3', { key: 't', style: { margin: '0 0 3px', fontSize: 15, fontWeight: 800 } }, 'Mis colegios'),
-              h('p', { key: 'st', style: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--ink-3)' } }, 'Estado y comisión de cada colegio que refieres'),
-              colegios.length === 0
-                ? h('div', { key: 'empty', style: { fontSize: 13, color: 'var(--ink-3)', padding: '20px 0', textAlign: 'center' } }, 'Aún no tienes colegios referidos. Usa "Invitar colegio" para empezar.')
-                : h('table', { key: 'table', style: { width: '100%', borderCollapse: 'collapse' } }, [
-                    h('thead', { key: 'thead' }, h('tr', {}, [
-                      h('th', { key: 'c', style: { textAlign: 'left', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', fontWeight: 700, padding: '6px 8px', borderBottom: '1px solid var(--border-glow)' } }, 'Colegio'),
-                      h('th', { key: 't', style: { textAlign: 'left', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', fontWeight: 700, padding: '6px 8px', borderBottom: '1px solid var(--border-glow)' } }, 'Tamaño'),
-                      h('th', { key: 'co', style: { textAlign: 'left', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', fontWeight: 700, padding: '6px 8px', borderBottom: '1px solid var(--border-glow)' } }, 'Comisión'),
-                      h('th', { key: 'e', style: { textAlign: 'left', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink-4)', fontWeight: 700, padding: '6px 8px', borderBottom: '1px solid var(--border-glow)' } }, 'Estado'),
-                    ])),
-                    h('tbody', { key: 'tbody' }, colegios.map(c => h('tr', { key: c.id }, [
-                      h('td', { key: 'n', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', fontWeight: 700 } }, c.nombre),
-                      h('td', { key: 't', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', color: 'var(--ink-3)' } }, c.num_alumnos ? `${c.num_alumnos} alumnos` : '—'),
-                      h('td', { key: 'c', style: { padding: '12px 8px', fontSize: 13, borderBottom: '1px solid var(--border-glow)', color: c.estado === 'activo' ? 'var(--ink)' : 'var(--ink-3)' } }, c.estado === 'activo' ? `${c.comision_pct}%` : '—'),
-                      h('td', { key: 'e', style: { padding: '12px 8px', borderBottom: '1px solid var(--border-glow)' } }, h(DistBadge, { estado: c.estado })),
-                    ]))),
-                  ]),
-            ]),
+              _jsxDEV("div", {
+                className: "topbar-actions",
+                children: [
+                  (seccion === 'dashboard' && stats.en_implementacion) ? _jsxDEV("div", {
+                    style: {
+                      display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700,
+                      padding: '7px 13px', borderRadius: 'var(--radius-sm)', background: 'var(--amber-glow)',
+                      color: 'var(--amber)', border: '1px solid rgba(217,119,6,.2)'
+                    },
+                    children: `🏫 ${stats.en_implementacion} en implementación`
+                  }, void 0, false) : null,
 
-            h('div', { key: 'panel2', style: { background: 'var(--bg-surface)', border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-lg)', padding: 20 } }, [
-              h('h3', { key: 't', style: { margin: '0 0 3px', fontSize: 15, fontWeight: 800 } }, 'Embudo de referidos'),
-              h('p', { key: 'st', style: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--ink-3)' } }, `Tus ${stats.colegios_totales || 0} colegios, por etapa`),
-              ...DIST_ORDEN_EMBUDO.map(k => {
-                const cfg = DIST_ESTADOS[k];
-                const count = embudo[k] || 0;
-                const pct = Math.round((count / totalEmbudo) * 100);
-                return h('div', { key: k, style: { marginBottom: 16 } }, [
-                  h('div', { key: 'top', style: { display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 6 } }, [
-                    h('span', { key: 'l', style: { color: cfg.color } }, `${cfg.icon} ${cfg.label}`),
-                    h('span', { key: 'p' }, `${pct}%`),
-                  ]),
-                  h('div', { key: 'bar-bg', style: { height: 7, background: 'rgba(255,255,255,.06)', borderRadius: 20, overflow: 'hidden' } },
-                    h('div', { style: { height: '100%', borderRadius: 20, width: `${pct}%`, background: cfg.color } })
-                  ),
-                  h('div', { key: 'count', style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 4 } }, `${count} colegio${count === 1 ? '' : 's'}`),
-                ]);
-              }),
-            ]),
-          ]),
-        ]) : null,
+                  (seccion === 'dashboard' || seccion === 'colegios') ? _jsxDEV("button", {
+                    className: "btn btn-primary", onClick: () => setShowInvite(true),
+                    children: "+ Invitar colegio"
+                  }, void 0, false) : null,
+                ]
+              }, void 0, true),
+            ]
+          }, void 0, true),
 
-        seccion === 'colegios' ? h(DistColegiosView, { key: 'colegios', colegios }) : null,
-        seccion === 'comisiones' ? h(DistComisionesView, { key: 'comisiones' }) : null,
-        seccion === 'materiales' ? h(DistMaterialesView, { key: 'materiales' }) : null,
-        seccion === 'perfil' ? h(DistPerfilView, { key: 'perfil', user, onUpdated: cargar }) : null,
-        seccion === 'pago' ? h(DistDatosPagoView, { key: 'pago' }) : null,
+          _jsxDEV("div", {
+            className: "content",
+            children: [
 
-      ]),
-    ]),
+              seccion === 'dashboard' ? _jsxDEV("div", {
+                children: [
+                  _jsxDEV("div", {
+                    style: { marginBottom: 22 },
+                    children: [
+                      _jsxDEV("h2", { style: { fontSize: 20, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.3px' }, children: `Buenos días, ${nombreDist.split(' ')[0]}` }, void 0, false),
+                      _jsxDEV("p", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: `🏠 Programa de distribuidores · Zona ${zona} · ${hoy}` }, void 0, false),
+                    ]
+                  }, void 0, true),
 
-    showInvite ? h(DistInviteModal, {
-      key: 'modal',
-      onClose: () => { setShowInvite(false); setInviteError(''); },
-      onSubmit: enviarInvitacion,
-      nombre: inviteNombre, setNombre: setInviteNombre,
-      alumnos: inviteAlumnos, setAlumnos: setInviteAlumnos,
-      saving: inviteSaving, error: inviteError,
-    }) : null,
-  ]);
+                  _jsxDEV("div", {
+                    className: "stats-grid",
+                    children: [
+                      _jsxDEV(DistStatCard, { icon: '💰', iconBg: 'var(--lime-glow)', iconColor: 'var(--lime)', label: 'Comisión del mes', value: distFmtMoney(stats.comision_mes), valueColor: 'var(--lime)', sub: `${stats.colegios_facturando || 0} colegios facturando` }, void 0, false),
+                      _jsxDEV(DistStatCard, { icon: '🏫', iconBg: 'var(--green-glow)', iconColor: 'var(--green)', label: 'Colegios activos', value: stats.colegios_activos || 0, valueColor: 'var(--green)', sub: `de ${stats.colegios_totales || 0} colegios totales` }, void 0, false),
+                      _jsxDEV(DistStatCard, { icon: '🔔', iconBg: 'var(--amber-glow)', iconColor: 'var(--amber)', label: 'En implementación', value: stats.en_implementacion || 0, valueColor: 'var(--amber)', sub: 'arrancan en las próximas semanas' }, void 0, false),
+                      _jsxDEV(DistStatCard, { icon: '📄', iconBg: 'var(--glass-light)', iconColor: 'var(--ink-2)', label: `Comisión acumulada ${stats.anio || ''}`, value: distFmtMoney(stats.comision_acumulada), sub: `desde enero ${stats.anio || ''}` }, void 0, false),
+                    ]
+                  }, void 0, true),
+
+                  _jsxDEV("div", {
+                    style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 16 },
+                    children: [
+
+                      _jsxDEV("div", {
+                        className: "card",
+                        children: [
+                          _jsxDEV("h3", { style: { margin: '0 0 3px', fontSize: 15, fontWeight: 800 }, children: "Mis colegios" }, void 0, false),
+                          _jsxDEV("p", { style: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--ink-3)' }, children: "Estado y comisión de cada colegio que refieres" }, void 0, false),
+                          colegios.length === 0
+                            ? _jsxDEV("div", { className: "empty-state", children: _jsxDEV("div", { className: "empty-text", children: 'Aún no tienes colegios referidos. Usa "Invitar colegio" para empezar.' }, void 0, false) }, void 0, false)
+                            : _jsxDEV("div", {
+                                className: "table-wrap",
+                                children: _jsxDEV("table", {
+                                  children: [
+                                    _jsxDEV("thead", {
+                                      children: _jsxDEV("tr", {
+                                        children: ['Colegio', 'Tamaño', 'Comisión', 'Estado'].map(t => _jsxDEV("th", { children: t }, t, false))
+                                      }, void 0, true)
+                                    }, void 0, false),
+                                    _jsxDEV("tbody", {
+                                      children: colegios.map(c => _jsxDEV("tr", {
+                                        children: [
+                                          _jsxDEV("td", { style: { fontWeight: 700 }, children: c.nombre }, void 0, false),
+                                          _jsxDEV("td", { children: c.num_alumnos ? `${c.num_alumnos} alumnos` : '—' }, void 0, false),
+                                          _jsxDEV("td", { children: c.estado === 'activo' ? `${c.comision_pct}%` : '—' }, void 0, false),
+                                          _jsxDEV("td", { children: _jsxDEV(DistBadge, { estado: c.estado }, void 0, false) }, void 0, false),
+                                        ]
+                                      }, c.id, true))
+                                    }, void 0, false),
+                                  ]
+                                }, void 0, true)
+                              }, void 0, false),
+                        ]
+                      }, void 0, true),
+
+                      _jsxDEV("div", {
+                        className: "card",
+                        children: [
+                          _jsxDEV("h3", { style: { margin: '0 0 3px', fontSize: 15, fontWeight: 800 }, children: "Embudo de referidos" }, void 0, false),
+                          _jsxDEV("p", { style: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--ink-3)' }, children: `Tus ${stats.colegios_totales || 0} colegios, por etapa` }, void 0, false),
+                          ...DIST_ORDEN_EMBUDO.map(k => {
+                            const cfg = DIST_ESTADOS[k];
+                            const count = embudo[k] || 0;
+                            const pct = Math.round((count / totalEmbudo) * 100);
+                            return _jsxDEV("div", {
+                              style: { marginBottom: 16 },
+                              children: [
+                                _jsxDEV("div", {
+                                  style: { display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 6 },
+                                  children: [
+                                    _jsxDEV("span", { style: { color: cfg.barColor }, children: `${cfg.icon} ${cfg.label}` }, void 0, false),
+                                    _jsxDEV("span", { children: `${pct}%` }, void 0, false),
+                                  ]
+                                }, void 0, true),
+                                _jsxDEV("div", {
+                                  className: "progress-bar",
+                                  children: _jsxDEV("div", { className: "progress-fill", style: { width: `${pct}%`, background: cfg.barColor } }, void 0, false)
+                                }, void 0, false),
+                                _jsxDEV("div", { style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 4 }, children: `${count} colegio${count === 1 ? '' : 's'}` }, void 0, false),
+                              ]
+                            }, k, true);
+                          }),
+                        ]
+                      }, void 0, true),
+
+                    ]
+                  }, void 0, true),
+                ]
+              }, void 0, true) : null,
+
+              seccion === 'colegios' ? _jsxDEV(DistColegiosView, { colegios: colegios }, void 0, false) : null,
+              seccion === 'comisiones' ? _jsxDEV(DistComisionesView, {}, void 0, false) : null,
+              seccion === 'materiales' ? _jsxDEV(DistMaterialesView, {}, void 0, false) : null,
+              seccion === 'perfil' ? _jsxDEV(DistPerfilView, { user: user, onUpdated: cargar }, void 0, false) : null,
+              seccion === 'pago' ? _jsxDEV(DistDatosPagoView, {}, void 0, false) : null,
+
+            ]
+          }, void 0, true),
+        ]
+      }, void 0, true),
+
+      showInvite ? _jsxDEV(DistInviteModal, {
+        onClose: () => { setShowInvite(false); setInviteError(''); },
+        onSubmit: enviarInvitacion,
+        nombre: inviteNombre, setNombre: setInviteNombre,
+        alumnos: inviteAlumnos, setAlumnos: setInviteAlumnos,
+        saving: inviteSaving, error: inviteError,
+      }, void 0, false) : null,
+
+    ]
+  }, void 0, true);
 }
 
 window.Distribuidor = Distribuidor;
-})();

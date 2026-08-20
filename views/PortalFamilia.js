@@ -23,6 +23,12 @@ function PortalFamilia({
   const [misCobros, setMisCobros] = useState([]);
   const [saldoTotal, setSaldoTotal] = useState(0);
   const [metodo, setMetodo] = useState('SPEI');
+  // El pago siempre es de UN alumno a la vez (un cobro necesita un cliente_id
+  // real de `clientes`; antes se mandaba el saldo combinado de la familia con
+  // el id de `familias` como cliente_id, lo que nunca actualizaba el saldo del
+  // alumno correcto — o corrompía el de uno ajeno con el mismo id numérico).
+  const [hijoPagoId, setHijoPagoId] = useState(null);
+  const [speiBloqueoFamilia, setSpeiBloqueoFamilia] = useState(null);
   const [modal, setModal] = useState(null);
   const [cobroActivo, setCobroActivo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -41,8 +47,9 @@ function PortalFamilia({
   const [paginaPends, setPaginaPends] = useState({}); // { [hijoId]: numeroPagina }
   const [paginaHistorial, setPaginaHistorial] = useState(1);
 
-  // ── Configuración: datos fiscales por hijo ──
-  const [hijoFiscalId, setHijoFiscalId] = useState(null);
+  // ── Configuración: datos fiscales de la familia (del tutor que paga, no ──
+  // ── de cada hijo — un solo RFC/razón social por familia, no uno por hijo) ──
+  const [editandoFiscal, setEditandoFiscal] = useState(false);
   const [formFiscal, setFormFiscal] = useState({});
   const [guardandoFiscal, setGuardandoFiscal] = useState(false);
   const [errorFiscal, setErrorFiscal] = useState('');
@@ -55,6 +62,16 @@ function PortalFamilia({
   const [guardandoPass, setGuardandoPass] = useState(false);
   const [errorPass, setErrorPass] = useState('');
   const [okPass, setOkPass] = useState('');
+
+  // ── Configuración: mis datos (tutor de la cuenta) ──
+  const [editandoMisDatos, setEditandoMisDatos] = useState(false);
+  const [formMisDatos, setFormMisDatos] = useState({ nombre: '', email: '', telefono: '', contacto: '' });
+  const [guardandoMisDatos, setGuardandoMisDatos] = useState(false);
+  const [errorMisDatos, setErrorMisDatos] = useState('');
+  const [okMisDatos, setOkMisDatos] = useState('');
+  const [userOverride, setUserOverride] = useState(null);
+  const userEfectivo = userOverride ? { ...user, ...userOverride } : user;
+  const miFamilia = data.familias?.find(f => f.id === user.familia_id) || null;
 
   const REGIMENES_SAT = [
     { value: '', label: 'Sin especificar' },
@@ -72,27 +89,28 @@ function PortalFamilia({
     { value: 'S01', label: 'S01 - Sin efectos fiscales' },
   ];
 
-  const abrirFiscal = hijo => {
-    setHijoFiscalId(hijo.id);
+  const abrirFiscal = () => {
+    setEditandoFiscal(true);
     setErrorFiscal('');
     setFormFiscal({
-      rfc_factura: hijo.rfc_factura || '',
-      razon_social_factura: hijo.razon_social_factura || '',
-      cp_factura: hijo.cp_factura || '',
-      domicilio_factura: hijo.domicilio_factura || '',
-      regimen_factura: hijo.regimen_factura || '',
-      uso_cfdi_defecto: hijo.uso_cfdi_defecto || '',
+      rfc_factura: miFamilia?.rfc_factura || '',
+      razon_social_factura: miFamilia?.razon_social_factura || '',
+      cp_factura: miFamilia?.cp_factura || '',
+      domicilio_factura: miFamilia?.domicilio_factura || '',
+      regimen_factura: miFamilia?.regimen_factura || '',
+      uso_cfdi_defecto: miFamilia?.uso_cfdi_defecto || '',
     });
   };
 
-  const guardarFiscal = async hijoId => {
+  const guardarFiscal = async () => {
+    if (!user.familia_id) { setErrorFiscal('Tu cuenta no está ligada a una familia.'); return; }
     setGuardandoFiscal(true);
     setErrorFiscal('');
     try {
-      const res = await fetch('api.php?action=editar_cliente', {
+      const res = await fetch('api.php?action=editar_familia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
-        body: JSON.stringify({ id: hijoId, ...formFiscal }),
+        body: JSON.stringify({ id: user.familia_id, ...formFiscal }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -100,12 +118,63 @@ function PortalFamilia({
         setGuardandoFiscal(false);
         return;
       }
-      setData({ ...data, clientes: data.clientes.map(c => c.id === hijoId ? { ...c, ...json.cliente } : c) });
-      setHijoFiscalId(null);
+      setData({ ...data, familias: data.familias.map(f => f.id === user.familia_id ? { ...f, ...json.familia } : f) });
+      setEditandoFiscal(false);
     } catch (e) {
       setErrorFiscal('Error de conexión: ' + e.message);
     }
     setGuardandoFiscal(false);
+  };
+
+  const abrirMisDatos = () => {
+    setEditandoMisDatos(true);
+    setErrorMisDatos('');
+    setOkMisDatos('');
+    setFormMisDatos({
+      nombre: userEfectivo.nombre || '',
+      email: userEfectivo.email || '',
+      telefono: miFamilia?.telefono || '',
+      contacto: miFamilia?.contacto || '',
+    });
+  };
+
+  const guardarMisDatos = async () => {
+    setGuardandoMisDatos(true);
+    setErrorMisDatos('');
+    setOkMisDatos('');
+    try {
+      const resUsuario = await fetch('api.php?action=editar_usuario', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
+        body: JSON.stringify({ id: user.id, nombre: formMisDatos.nombre, email: formMisDatos.email }),
+      });
+      const jsonUsuario = await resUsuario.json();
+      if (!jsonUsuario.success) {
+        setErrorMisDatos(jsonUsuario.error || 'No se pudo guardar tu perfil');
+        setGuardandoMisDatos(false);
+        return;
+      }
+      setUserOverride(prev => ({ ...prev, nombre: jsonUsuario.usuario.nombre, email: jsonUsuario.usuario.email }));
+      if (user.familia_id) {
+        const resFamilia = await fetch('api.php?action=editar_familia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
+          body: JSON.stringify({ id: user.familia_id, telefono: formMisDatos.telefono, contacto: formMisDatos.contacto }),
+        });
+        const jsonFamilia = await resFamilia.json();
+        if (!jsonFamilia.success) {
+          setErrorMisDatos(jsonFamilia.error || 'Se guardó tu perfil, pero no el teléfono de contacto');
+          setGuardandoMisDatos(false);
+          return;
+        }
+        setData({ ...data, familias: data.familias.map(f => f.id === user.familia_id ? { ...f, ...jsonFamilia.familia } : f) });
+      }
+      setOkMisDatos('Datos guardados');
+      setEditandoMisDatos(false);
+    } catch (e) {
+      setErrorMisDatos('Error de conexión: ' + e.message);
+    }
+    setGuardandoMisDatos(false);
   };
 
   const eliminarTarjeta = async hijoId => {
@@ -255,32 +324,28 @@ function PortalFamilia({
       setTimeout(() => setCopied(''), 2000);
     });
   };
-  const iniciarPolling = cobro => {
+  // Ya no se crea un cobro sintético para SPEI (ver pagarSaldo), así que no
+  // hay un cobro_id que verificar — en su lugar se revisa directamente si el
+  // saldo_pendiente REAL del alumno bajó desde que se abrió el modal.
+  const iniciarPollingSaldo = (clienteId, saldoAlAbrir) => {
     setPollStatus('waiting');
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        // POST con body JSON: api.php solo lee parámetros del body en POST
-        // ($input), nunca de query string en GET — con GET este poll nunca
-        // funcionaba (fallaba en silencio cada 10s).
-        // cobro_id es obligatorio: la referencia es la matrícula del alumno,
-        // compartida entre todos sus cobros — sin cobro_id el backend podía
-        // confirmar por error este cobro con el pago de OTRO cobro del mismo
-        // alumno que nunca se pagó.
-        const r = await fetch('api.php?action=verificar_spei', {
+        const token = AuthController.getToken ? AuthController.getToken() : '';
+        const r = await fetch('api.php?action=verificar_saldo_alumno', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            referencia: cobro.referencia_spei || cobro.referencia || '',
-            clabe: cobro.clabe || '',
-            cobro_id: cobro.id,
-          }),
+          headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+          body: JSON.stringify({ cliente_id: clienteId }),
         });
         const json = await r.json();
-        if (json.pagado) {
+        if (json.success && json.saldo_pendiente < saldoAlAbrir - 0.01) {
           clearInterval(pollRef.current);
           setPollStatus('confirmed');
-          setData(AppModel.load());
+          setData(prev => ({
+            ...prev,
+            clientes: prev.clientes.map(c => c.id === clienteId ? { ...c, saldo_pendiente: json.saldo_pendiente } : c),
+          }));
         }
       } catch (_) {}
     }, 10000);
@@ -288,72 +353,78 @@ function PortalFamilia({
   useEffect(() => () => {
     if (pollRef.current) clearInterval(pollRef.current);
   }, []);
+  const hijosConSaldo = misHijos.filter(h => h.saldo_pendiente > 0);
+  const hijoSeleccionado = hijosConSaldo.find(h => h.id === hijoPagoId) || hijosConSaldo[0] || null;
+
   const pagarSaldo = async () => {
-    if (saldoTotal <= 0) return;
-    setLoading(true);
-    const conceptoTemporal = [{
-      id: 'SALDO_GLOBAL',
-      nombre: `Liquidación de saldo — ${user.nombre}`,
-      precio: saldoTotal,
-      qty: 1,
-      emoji: ''
-    }];
-    const escuela_id = escuela?.id ?? 1;
-    let cobro;
-    try {
-      cobro = await CobroController.iniciarCobro({
-        carrito: conceptoTemporal,
-        cliente: { nombre: user.nombre, tipo: 'familia', id: user.familia_id },
-        metodo,
-        escuela_id,
-      });
-    } catch(err) {
-      alert('Error al iniciar cobro: ' + err.message);
-      setLoading(false);
-      return;
-    }
-    const newData = { ...data, cobros: [...(data.cobros || []), cobro] };
+    if (!hijoSeleccionado || hijoSeleccionado.saldo_pendiente <= 0) return;
+    if (!escuela?.id) { alert('No se pudo determinar tu escuela. Recarga la página e intenta de nuevo.'); return; }
+    setSpeiBloqueoFamilia(null);
+
     if (metodo === 'SPEI') {
+      const tieneClabe = hijoSeleccionado.clabe_individual && hijoSeleccionado.clabe_individual_estado === 'activa';
+      if (!tieneClabe) {
+        setSpeiBloqueoFamilia(`${hijoSeleccionado.nombre} no tiene una CLABE SPEI activa asignada. Pídele al colegio que te asigne una, o paga con tarjeta.`);
+        return;
+      }
+      // SPEI ya NO crea ningún cobro nuevo: la CLABE del alumno es fija y
+      // pago_clabe.php cobra automáticamente TODO lo que esté realmente
+      // pendiente en cuanto llega la transferencia. Antes se creaba aquí un
+      // cobro sintético "Liquidación de saldo" cada vez que se abría este
+      // modal, usando el saldo que tuviera el navegador en ese momento — si
+      // ese saldo ya estaba desactualizado (ej. justo después de haberse
+      // pagado, antes de que la pantalla se refrescara), el resultado era
+      // cobrar la misma deuda dos veces.
+      setLoading(true);
       try {
-        // Si la familia tiene un solo hijo activo con CLABE individual, se usa esa.
-        // Con varios hijos o sin CLABE, iniciarSPEI lanzará un error descriptivo.
-        const hijoUnico = misHijos.length === 1 ? misHijos[0] : null;
-        const spei = await CobroController.iniciarSPEI(cobro, escuela, hijoUnico);
-        const cobrosUp = newData.cobros.map(c => c.id === cobro.id ? {
-          ...c,
-          clabe: spei.clabe,
-          banco: spei.banco,
-          referencia_spei: spei.referencia,
-          clabe_es_individual: !!spei.esIndividual
-        } : c);
-        const dataFinal = {
-          ...newData,
-          cobros: cobrosUp
-        };
-        setData(dataFinal);
-        AppModel.save(dataFinal);
+        const spei = await CobroController.iniciarSPEI({ referencia: '' }, escuela, hijoSeleccionado);
         const cobroFinal = {
-          ...cobro,
+          cliente: hijoSeleccionado.nombre,
+          total: hijoSeleccionado.saldo_pendiente,
           clabe: spei.clabe,
-          referencia_spei: spei.referencia,
           banco: spei.banco,
-          clabe_es_individual: !!spei.esIndividual
+          referencia_spei: spei.referencia,
+          clabe_es_individual: !!spei.esIndividual,
         };
         setCobroActivo(cobroFinal);
         setModal('spei');
-        iniciarPolling(cobroFinal);
+        iniciarPollingSaldo(hijoSeleccionado.id, hijoSeleccionado.saldo_pendiente);
       } catch (err) {
         alert('Error al generar instrucciones SPEI: ' + err.message);
       }
-    } else if (metodo === 'TC') {
-      try {
-        setData(newData);
-        AppModel.save(newData);
-        const liga = await CobroController.iniciarTC(cobro);
-        window.location.href = liga.url;
-      } catch (err) {
-        alert('Error al conectar con la pasarela de pago');
-      }
+      setLoading(false);
+      return;
+    }
+
+    // TC (tarjeta) — Cobroscontarjeta.com tiene un tope de $15,000.00 por
+    // transacción; sin este aviso previo, el pago fallaba en el servidor con
+    // un error genérico que no explicaba el motivo real.
+    if (hijoSeleccionado.saldo_pendiente > 15000) {
+      setSpeiBloqueoFamilia(`El pago con tarjeta tiene un máximo de $15,000.00 por transacción. El adeudo de ${hijoSeleccionado.nombre} es mayor — paga por SPEI, o pide al colegio que lo divida en pagos parciales.`);
+      return;
+    }
+    // Tarjeta necesita un cobro real con folio para generar la liga de pago
+    // — se usa el adeudo TAL CUAL ya existe en el sistema, nunca se crea uno
+    // nuevo aquí (mismo motivo que arriba: evitar duplicar la deuda). Si hay
+    // más de un concepto pendiente por separado, tarjeta no puede pagarlos
+    // juntos en una sola liga (para eso está SPEI, que sí suma todo).
+    const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
+    if (cobrosPendientesHijo.length !== 1) {
+      setSpeiBloqueoFamilia(cobrosPendientesHijo.length === 0
+        ? 'No se encontró el cobro pendiente de este alumno. Recarga la página e intenta de nuevo.'
+        : `${hijoSeleccionado.nombre} tiene ${cobrosPendientesHijo.length} conceptos pendientes por separado. Tarjeta solo puede pagar uno a la vez — usa SPEI para pagarlos juntos.`);
+      return;
+    }
+    setLoading(true);
+    try {
+      const liga = await CobroController.iniciarTC(cobrosPendientesHijo[0]);
+      window.location.href = liga.url;
+    } catch (err) {
+      // Antes se mostraba un mensaje genérico que ocultaba la razón real
+      // (ej. "Monto máximo $15,000.00" de Cobroscontarjeta.com) — con
+      // saldos altos el pago con tarjeta parecía "no funcionar" sin dar
+      // ninguna pista de por qué.
+      alert('No se pudo iniciar el pago con tarjeta: ' + err.message);
     }
     setLoading(false);
   };
@@ -404,7 +475,9 @@ function PortalFamilia({
         color: active ? PLC.navy : PLC.muted,
         borderBottom: `2px solid ${active ? PLC.lime : 'transparent'}`,
         marginBottom: -2,
-        transition: 'all .15s'
+        transition: 'all .15s',
+        flexShrink: 0,
+        whiteSpace: 'nowrap'
       },
       children: [/*#__PURE__*/_jsxDEV(Icon, {
         name: iconName,
@@ -419,10 +492,12 @@ function PortalFamilia({
     style: {
       height: '100vh',
       overflowY: 'auto',
+      overflowX: 'hidden',
       background: PLC.bg,
       fontFamily: "'DM Sans',system-ui,sans-serif"
     },
     children: [/*#__PURE__*/_jsxDEV("div", {
+      className: 'pf-header',
       style: {
         background: PLC.navy,
         padding: '0 24px',
@@ -471,12 +546,15 @@ function PortalFamilia({
           children: "by Libertyfin"
         }, void 0, false)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: 'pf-header-actions',
         style: {
           display: 'flex',
           alignItems: 'center',
-          gap: 10
+          gap: 10,
+          minWidth: 0
         },
         children: [escuela && /*#__PURE__*/_jsxDEV("div", {
+          className: 'pf-header-badge',
           style: {
             padding: '4px 12px',
             borderRadius: 20,
@@ -493,13 +571,15 @@ function PortalFamilia({
             lineHeight: 1.3
           },
           children: [/*#__PURE__*/_jsxDEV("div", {
+            className: 'pf-header-user-name',
             style: {
               color: PLC.white,
               fontSize: 13,
               fontWeight: 600
             },
-            children: user.nombre
+            children: userEfectivo.nombre
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            className: 'pf-header-user-sub',
             style: {
               color: 'rgba(255,255,255,.5)',
               fontSize: 11
@@ -520,7 +600,7 @@ function PortalFamilia({
             fontSize: 14,
             flexShrink: 0
           },
-          children: user.nombre.charAt(0).toUpperCase()
+          children: userEfectivo.nombre.charAt(0).toUpperCase()
         }, void 0, false), onLogout && /*#__PURE__*/_jsxDEV("button", {
           onClick: onLogout,
           title: "Cerrar sesión",
@@ -599,7 +679,7 @@ function PortalFamilia({
             color: PLC.white,
             marginBottom: 22
           },
-          children: user.nombre
+          children: userEfectivo.nombre
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           style: {
             display: 'flex',
@@ -739,11 +819,15 @@ function PortalFamilia({
           }, void 0, true)]
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: 'pf-tabs',
         style: {
           display: 'flex',
           gap: 2,
           borderBottom: `2px solid ${PLC.border}`,
-          marginBottom: 22
+          marginBottom: 22,
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          whiteSpace: 'nowrap'
         },
         children: [tabBtn('inicio', 'Inicio', 'home'), tabBtn('hijos', 'Mis hijos', 'alumnos'), tabBtn('historial', 'Historial', 'history'), tabBtn('pagar', 'Pagar en línea', 'card'), tabBtn('facturas', 'Facturas', 'facturacion2'), tabBtn('config', 'Configuración', 'settings')]
       }, void 0, true), tab === 'inicio' && /*#__PURE__*/_jsxDEV("div", {
@@ -1069,7 +1153,7 @@ function PortalFamilia({
             children: [/*#__PURE__*/_jsxDEV("div", {
               style: {
                 display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))',
                 gap: 10
               },
               children: [{
@@ -1128,14 +1212,14 @@ function PortalFamilia({
               style: { marginTop: 12, padding: 12, background: 'rgba(40,45,101,.03)', borderRadius: 8, border: `1px solid ${PLC.border}` },
               children: [
                 /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 8, color: PLC.text }, children: "Editar datos de contacto" }, void 0, false),
-                /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+                /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                   children: [
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Teléfono", value: formEditHijo.telefono, onChange: e => setFormEditHijo(f => ({ ...f, telefono: e.target.value })) }, void 0, false),
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Correo", type: "email", value: formEditHijo.email, onChange: e => setFormEditHijo(f => ({ ...f, email: e.target.value })) }, void 0, false),
                   ]
                 }, void 0, true),
                 /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Dirección del alumno", value: formEditHijo.direccion, onChange: e => setFormEditHijo(f => ({ ...f, direccion: e.target.value })), style: { marginBottom: 8, width: '100%' } }, void 0, false),
-                /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+                /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                   children: [
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Contacto de emergencia (nombre)", value: formEditHijo.contacto_emergencia, onChange: e => setFormEditHijo(f => ({ ...f, contacto_emergencia: e.target.value })) }, void 0, false),
                     /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Teléfono de emergencia", value: formEditHijo.tel_emergencia, onChange: e => setFormEditHijo(f => ({ ...f, tel_emergencia: e.target.value })) }, void 0, false),
@@ -1406,19 +1490,32 @@ function PortalFamilia({
               style: {
                 padding: '16px 20px'
               },
-              children: [misHijos.filter(h => h.saldo_pendiente > 0).map(h => /*#__PURE__*/_jsxDEV("div", {
+              children: [hijosConSaldo.length > 1 && /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: PLC.muted, marginBottom: 8 },
+                children: "Los pagos son por alumno — selecciona a quién le vas a pagar:"
+              }, void 0, false), hijosConSaldo.map(h => /*#__PURE__*/_jsxDEV("div", {
+                onClick: () => { setHijoPagoId(h.id); setSpeiBloqueoFamilia(null); },
                 style: {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '10px 0',
-                  borderBottom: `1px solid ${PLC.border}`
+                  padding: '10px 8px',
+                  marginBottom: 4,
+                  borderRadius: 8,
+                  cursor: hijosConSaldo.length > 1 ? 'pointer' : 'default',
+                  border: hijosConSaldo.length > 1 ? `2px solid ${hijoSeleccionado?.id === h.id ? PLC.navy : PLC.border}` : 'none',
+                  background: hijosConSaldo.length > 1 && hijoSeleccionado?.id === h.id ? 'rgba(40,45,101,.05)' : 'transparent',
+                  borderBottom: hijosConSaldo.length > 1 ? undefined : `1px solid ${PLC.border}`
                 },
                 children: [/*#__PURE__*/_jsxDEV("div", {
+                  style: { minWidth: 0, overflow: 'hidden' },
                   children: [/*#__PURE__*/_jsxDEV("div", {
                     style: {
                       fontWeight: 500,
-                      color: PLC.text
+                      color: PLC.text,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
                     },
                     children: h.nombre
                   }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
@@ -1432,7 +1529,9 @@ function PortalFamilia({
                   style: {
                     fontFamily: 'monospace',
                     fontWeight: 700,
-                    color: PLC.red
+                    color: PLC.red,
+                    flexShrink: 0,
+                    marginLeft: 8
                   },
                   children: fmt(h.saldo_pendiente)
                 }, void 0, false)]
@@ -1449,7 +1548,7 @@ function PortalFamilia({
                     fontSize: 15,
                     color: PLC.text
                   },
-                  children: "Total a pagar"
+                  children: "A pagar ahora"
                 }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontFamily: 'monospace',
@@ -1457,7 +1556,7 @@ function PortalFamilia({
                     fontSize: 20,
                     color: PLC.navy
                   },
-                  children: fmt(saldoTotal)
+                  children: fmt(hijoSeleccionado?.saldo_pendiente || 0)
                 }, void 0, false)]
               }, void 0, true)]
             }, void 0, true)]
@@ -1491,12 +1590,14 @@ function PortalFamilia({
                 style: {
                   display: 'flex',
                   gap: 12,
-                  marginBottom: 22
+                  marginBottom: 22,
+                  flexWrap: 'wrap'
                 },
                 children: [/*#__PURE__*/_jsxDEV("div", {
-                  onClick: () => setMetodo('SPEI'),
+                  onClick: () => { setMetodo('SPEI'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
+                    minWidth: 140,
                     padding: '14px 16px',
                     borderRadius: 10,
                     cursor: 'pointer',
@@ -1548,9 +1649,10 @@ function PortalFamilia({
                     color: PLC.green
                   }, void 0, false)]
                 }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-                  onClick: () => setMetodo('TC'),
+                  onClick: () => { setMetodo('TC'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
+                    minWidth: 140,
                     padding: '14px 16px',
                     borderRadius: 10,
                     cursor: 'pointer',
@@ -1602,9 +1704,16 @@ function PortalFamilia({
                     color: PLC.green
                   }, void 0, false)]
                 }, void 0, true)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+              }, void 0, true), speiBloqueoFamilia && /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  marginBottom: 14, padding: '10px 12px', borderRadius: 8,
+                  background: 'rgba(239,68,68,.08)', border: `1px solid ${PLC.red}`,
+                  fontSize: 12.5, color: PLC.text, lineHeight: 1.5
+                },
+                children: speiBloqueoFamilia
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
                 onClick: pagarSaldo,
-                disabled: loading,
+                disabled: loading || !hijoSeleccionado,
                 style: {
                   width: '100%',
                   padding: '14px 0',
@@ -1639,7 +1748,7 @@ function PortalFamilia({
                     name: "pay",
                     size: 18,
                     color: PLC.navy
-                  }, void 0, false), "Pagar ", fmt(saldoTotal), " con ", metodo === 'SPEI' ? 'SPEI' : 'Tarjeta']
+                  }, void 0, false), "Pagar ", fmt(hijoSeleccionado?.saldo_pendiente || 0), " con ", metodo === 'SPEI' ? 'SPEI' : 'Tarjeta']
                 }, void 0, true)
               }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                 style: {
@@ -2056,25 +2165,59 @@ function PortalFamilia({
       }, void 0, true), tab === 'config' && /*#__PURE__*/_jsxDEV("div", {
         style: { display: 'flex', flexDirection: 'column', gap: 18 },
         children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Mis datos" }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Información de contacto del tutor/a de la cuenta." }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", {
+            style: { ...card(), padding: 14 },
+            children: editandoMisDatos ? /*#__PURE__*/_jsxDEV("div", {
+              children: [/*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
+                children: [
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Nombre", value: formMisDatos.nombre, onChange: e => setFormMisDatos(f => ({ ...f, nombre: e.target.value })) }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", type: "email", placeholder: "Correo", value: formMisDatos.email, onChange: e => setFormMisDatos(f => ({ ...f, email: e.target.value })) }, void 0, false),
+                ]
+              }, void 0, true),
+              /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
+                children: [
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Teléfono", value: formMisDatos.telefono, onChange: e => setFormMisDatos(f => ({ ...f, telefono: e.target.value })) }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Nombre de contacto (si es distinto)", value: formMisDatos.contacto, onChange: e => setFormMisDatos(f => ({ ...f, contacto: e.target.value })) }, void 0, false),
+                ]
+              }, void 0, true),
+              errorMisDatos && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.red, marginBottom: 8 }, children: errorMisDatos }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", { style: { display: 'flex', gap: 8 },
+                children: [
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: () => setEditandoMisDatos(false), children: "Cancelar" }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary btn-sm", disabled: guardandoMisDatos, onClick: guardarMisDatos, children: guardandoMisDatos ? 'Guardando…' : 'Guardar' }, void 0, false),
+                ]
+              }, void 0, true)]
+            }, void 0, true) : /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                style: { minWidth: 0 },
+                children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: userEfectivo.nombre }, void 0, false),
+                /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: [userEfectivo.email, miFamilia?.telefono ? ` · ${miFamilia.telefono}` : ''] }, void 0, true),
+                okMisDatos && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.green, marginTop: 2 }, children: okMisDatos }, void 0, false)]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", style: { flexShrink: 0 }, onClick: abrirMisDatos, children: "Editar" }, void 0, false)]
+            }, void 0, true)
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Datos fiscales" }, void 0, false),
-          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Estos datos se usan para generar el CFDI cuando pidas factura de un pago." }, void 0, false),
-          misHijos.map(hijo => /*#__PURE__*/_jsxDEV("div", {
-            style: { ...card(), padding: 14, marginBottom: 10 },
-            children: hijoFiscalId === hijo.id ? /*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: PLC.text }, children: hijo.nombre }, void 0, false),
-              /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Un solo RFC/razón social por familia — se usa para generar el CFDI de cualquier pago de tus hijos." }, void 0, false),
+          /*#__PURE__*/_jsxDEV("div", {
+            style: { ...card(), padding: 14 },
+            children: editandoFiscal ? /*#__PURE__*/_jsxDEV("div", {
+              children: [/*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "RFC", value: formFiscal.rfc_factura, onChange: e => setFormFiscal(f => ({ ...f, rfc_factura: e.target.value.toUpperCase() })), style: { fontFamily: 'var(--mono)' } }, void 0, false),
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Razón social", value: formFiscal.razon_social_factura, onChange: e => setFormFiscal(f => ({ ...f, razon_social_factura: e.target.value })) }, void 0, false),
                 ]
               }, void 0, true),
-              /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 8 },
+              /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-1-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "C.P.", value: formFiscal.cp_factura, onChange: e => setFormFiscal(f => ({ ...f, cp_factura: e.target.value })) }, void 0, false),
                   /*#__PURE__*/_jsxDEV("input", { className: "form-input", placeholder: "Domicilio fiscal", value: formFiscal.domicilio_factura, onChange: e => setFormFiscal(f => ({ ...f, domicilio_factura: e.target.value })) }, void 0, false),
                 ]
               }, void 0, true),
-              /*#__PURE__*/_jsxDEV("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 },
+              /*#__PURE__*/_jsxDEV("div", { className: "pf-grid-2", style: { gap: 8, marginBottom: 8 },
                 children: [
                   /*#__PURE__*/_jsxDEV("select", { className: "form-select", value: formFiscal.regimen_factura, onChange: e => setFormFiscal(f => ({ ...f, regimen_factura: e.target.value })),
                     children: REGIMENES_SAT.map(r => /*#__PURE__*/_jsxDEV("option", { value: r.value, children: r.label }, r.value, false))
@@ -2087,32 +2230,33 @@ function PortalFamilia({
               errorFiscal && /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: PLC.red, marginBottom: 8 }, children: errorFiscal }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { style: { display: 'flex', gap: 8 },
                 children: [
-                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: () => setHijoFiscalId(null), children: "Cancelar" }, void 0, false),
-                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary btn-sm", disabled: guardandoFiscal, onClick: () => guardarFiscal(hijo.id), children: guardandoFiscal ? 'Guardando…' : 'Guardar' }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: () => setEditandoFiscal(false), children: "Cancelar" }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary btn-sm", disabled: guardandoFiscal, onClick: guardarFiscal, children: guardandoFiscal ? 'Guardando…' : 'Guardar' }, void 0, false),
                 ]
               }, void 0, true)]
             }, void 0, true) : /*#__PURE__*/_jsxDEV("div", {
-              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+              style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
               children: [/*#__PURE__*/_jsxDEV("div", {
-                children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: hijo.nombre }, void 0, false),
-                /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: hijo.rfc_factura ? `RFC: ${hijo.rfc_factura}` : 'Sin datos fiscales capturados' }, void 0, true)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirFiscal(hijo), children: "Editar" }, void 0, false)]
+                style: { fontSize: 11.5, color: PLC.muted, minWidth: 0 },
+                children: miFamilia?.rfc_factura ? `RFC: ${miFamilia.rfc_factura}` : 'Sin datos fiscales capturados'
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", style: { flexShrink: 0 }, onClick: abrirFiscal, children: "Editar" }, void 0, false)]
             }, void 0, true)
-          }, hijo.id, true))]
+          }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
           children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Tarjeta guardada" }, void 0, false),
           misHijos.filter(h => h.token_tarjeta_estado === 'activo').length === 0 ? /*#__PURE__*/_jsxDEV("div", {
             style: { fontSize: 12.5, color: PLC.muted }, children: "No tienes ninguna tarjeta guardada."
           }, void 0, false) : misHijos.filter(h => h.token_tarjeta_estado === 'activo').map(hijo => /*#__PURE__*/_jsxDEV("div", {
-            style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...card(), padding: 14, marginBottom: 10 },
+            style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, ...card(), padding: 14, marginBottom: 10 },
             children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { minWidth: 0 },
               children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: hijo.nombre }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: ["Tarjeta guardada · vence ", hijo.token_tarjeta_expmes, "/", hijo.token_tarjeta_expanio] }, void 0, true)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-ghost btn-sm",
               disabled: eliminandoTarjetaId === hijo.id,
               onClick: () => eliminarTarjeta(hijo.id),
-              style: { color: PLC.red },
+              style: { color: PLC.red, flexShrink: 0 },
               children: eliminandoTarjetaId === hijo.id ? 'Eliminando…' : 'Eliminar tarjeta'
             }, void 0, false)]
           }, hijo.id, true))]

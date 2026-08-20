@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/mailer.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
@@ -309,6 +310,29 @@ switch ($action) {
             }
         }
         respond(['success' => true, 'pagado' => false]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // Revisa el saldo_pendiente actual de un alumno — usado por el Portal de
+    // Familia para saber si un pago SPEI ya se acreditó, SIN necesitar crear
+    // un cobro sintético "Liquidación de saldo" primero (ver 'crear_cobro':
+    // crear uno nuevo cada vez que se abre el modal de pago, usando un saldo
+    // que podía estar desactualizado en el navegador, terminaba cobrando dos
+    // veces la misma deuda).
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'verificar_saldo_alumno':
+        $cliente_id_saldo = intval($input['cliente_id'] ?? 0);
+        if (!$cliente_id_saldo) respond(['success' => false, 'error' => 'cliente_id requerido']);
+        $stmtSaldo = $pdo->prepare("SELECT saldo_pendiente, familia_id FROM clientes WHERE id = ?");
+        $stmtSaldo->execute([$cliente_id_saldo]);
+        $rowSaldo = $stmtSaldo->fetch();
+        if (!$rowSaldo) respond(['success' => false, 'error' => 'Alumno no encontrado']);
+        if (($usuario_actual['rol'] ?? '') === 'familia') {
+            if ($rowSaldo['familia_id'] === null || intval($rowSaldo['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No puedes consultar este alumno.']);
+            }
+        }
+        respond(['success' => true, 'saldo_pendiente' => floatval($rowSaldo['saldo_pendiente'])]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     // 3. SIMULAR PAGO SPEI (para testing sin webhook real)
@@ -716,12 +740,31 @@ switch ($action) {
         // 3. Manejo de la respuesta
         if ($http_code >= 200 && $http_code < 300 && isset($response_data['id'])) {
             $uuid = $response_data['uuid'] ?? 'PENDIENTE';
-            // Guardar datos fiscales en el cliente para pre-rellenar en futuros CFDIs
+            // Guardar datos fiscales para pre-rellenar futuros CFDIs. El dato
+            // fiscal (RFC/razón social/domicilio) es del tutor que paga, no
+            // del alumno — se guarda en `familias` cuando el cliente tiene
+            // familia_id; solo se guarda en `clientes` como respaldo para
+            // clientes "generales" sin familia asociada.
             if ($cobro_id) {
-                $cobro_row = $pdo->prepare("SELECT cliente_id FROM cobros WHERE id = ?");
+                $cobro_row = $pdo->prepare("SELECT c.cliente_id, cl.familia_id FROM cobros c LEFT JOIN clientes cl ON cl.id = c.cliente_id WHERE c.id = ?");
                 $cobro_row->execute([$cobro_id]);
                 $cr = $cobro_row->fetch();
-                if ($cr && $cr['cliente_id']) {
+                if ($cr && $cr['familia_id']) {
+                    try {
+                        $pdo->prepare(
+                            "UPDATE familias SET
+                                rfc_factura           = ?,
+                                razon_social_factura  = ?,
+                                cp_factura            = ?,
+                                domicilio_factura     = ?,
+                                regimen_factura       = ?,
+                                uso_cfdi_defecto      = ?
+                             WHERE id = ?"
+                        )->execute([$rfc, $razon, $cp_receptor, $domicilio, $regimen, $uso, $cr['familia_id']]);
+                    } catch (\PDOException $e) {
+                        log_api("generar_cfdi -> no se pudo guardar fiscal en familias (¿falta migrar columnas?): " . $e->getMessage());
+                    }
+                } elseif ($cr && $cr['cliente_id']) {
                     $pdo->prepare(
                         "UPDATE clientes SET
                             rfc_factura           = ?,
@@ -846,6 +889,77 @@ switch ($action) {
         log_api("descargar_cfdi -> id={$facturapi_id} tipo={$tipo} http={$http_code}");
         echo $binary;
         exit;
+    // ══════════════════════════════════════════════════════════════════════════
+    // ENVIAR FACTURA POR CORREO — reusa el mismo PDF que descargar_cfdi, pero
+    // en vez de mandarlo al navegador lo adjunta a un correo. Mismo control de
+    // permisos que descargar_cfdi (superadmin/admin-cajero de su escuela/
+    // familia dueña del alumno).
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'enviar_factura_correo':
+        $cobro_id_mail = intval($input['cobro_id'] ?? 0);
+        $email_destino = trim($input['email'] ?? '');
+        if (!$cobro_id_mail) respond(['success' => false, 'error' => 'cobro_id requerido']);
+        if (!$email_destino || !filter_var($email_destino, FILTER_VALIDATE_EMAIL)) {
+            respond(['success' => false, 'error' => 'Correo destino inválido']);
+        }
+        $chkMail = $pdo->prepare(
+            "SELECT co.facturapi_id, co.escuela_id, co.folio, co.total, cl.familia_id, e.nombre AS escuela_nombre
+             FROM cobros co
+             LEFT JOIN clientes cl ON cl.id = co.cliente_id
+             LEFT JOIN escuelas e ON e.id = co.escuela_id
+             WHERE co.id = ?"
+        );
+        $chkMail->execute([$cobro_id_mail]);
+        $cobroMail = $chkMail->fetch();
+        if (!$cobroMail) { http_response_code(404); respond(['success' => false, 'error' => 'Cobro no encontrado']); }
+        if (!$cobroMail['facturapi_id']) { http_response_code(400); respond(['success' => false, 'error' => 'Este cobro no tiene factura generada.']); }
+        $rolMail = $usuario_actual['rol'] ?? '';
+        $autorizadoMail = false;
+        if ($rolMail === 'superadmin') {
+            $autorizadoMail = true;
+        } elseif (in_array($rolMail, ['admin', 'cajero'])) {
+            $autorizadoMail = intval($cobroMail['escuela_id']) === intval($usuario_actual['escuela_id'] ?? -1);
+        } elseif ($rolMail === 'familia') {
+            $autorizadoMail = $cobroMail['familia_id'] !== null && intval($cobroMail['familia_id']) === intval($usuario_actual['familia_id'] ?? -1);
+        }
+        if (!$autorizadoMail) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para enviar esta factura.']);
+        }
+        $ch = curl_init("https://www.facturapi.io/v2/invoices/{$cobroMail['facturapi_id']}/pdf");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . FACTURAPI_KEY],
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_FOLLOWLOCATION => true,
+        ]);
+        $pdfBinario = curl_exec($ch);
+        $httpCodeMail = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $errMail = curl_error($ch);
+        curl_close($ch);
+        if ($errMail || $httpCodeMail !== 200) {
+            log_api("enviar_factura_correo -> error al descargar PDF de Facturapi: " . ($errMail ?: "http {$httpCodeMail}"));
+            respond(['success' => false, 'error' => 'No se pudo obtener el PDF de la factura para enviarlo.']);
+        }
+        $escuelaNombreMail = $cobroMail['escuela_nombre'] ?: 'tu escuela';
+        $htmlMail = '<p>Hola,</p>' .
+            '<p>Adjunto encontrarás la factura de tu pago con folio <strong>' . htmlspecialchars($cobroMail['folio']) . '</strong> ' .
+            'por un total de <strong>$' . number_format(floatval($cobroMail['total']), 2) . ' MXN</strong> en ' . htmlspecialchars($escuelaNombreMail) . '.</p>' .
+            '<p>Este es un correo automático, por favor no respondas a esta dirección.</p>';
+        $resMail = enviar_correo(
+            $email_destino,
+            'Tu factura de ' . $escuelaNombreMail . ' — folio ' . $cobroMail['folio'],
+            $htmlMail,
+            [[ 'nombre' => "cfdi-{$cobroMail['facturapi_id']}.pdf", 'contenido' => $pdfBinario, 'mime' => 'application/pdf' ]]
+        );
+        if (!$resMail['success']) {
+            log_api("enviar_factura_correo -> FALLÓ envío a {$email_destino}: " . $resMail['error']);
+            respond(['success' => false, 'error' => $resMail['error']]);
+        }
+        log_api("enviar_factura_correo -> OK cobro:{$cobro_id_mail} destino:{$email_destino}");
+        respond(['success' => true]);
+    break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'cargar_datos':
         // Carga el estado del usuario actual desde la DB.
@@ -1260,10 +1374,89 @@ switch ($action) {
         if (!in_array($metodo, $metodos_validos, true)) {
             respond(['success' => false, 'error' => 'Método de pago inválido']);
         }
+        // Validar que cliente_id sea un alumno real de esta escuela — sin esto
+        // se coló un bug donde el Portal de Familia mandaba el id de `familias`
+        // como si fuera un id de `clientes` (tablas con AUTO_INCREMENT
+        // independientes): el saldo del alumno correcto nunca se actualizaba,
+        // o peor, se recalculaba el de un alumno ajeno que compartiera ese
+        // mismo número de id por coincidencia.
+        if ($cliente_id) {
+            $chkCliCobro = $pdo->prepare("SELECT id, familia_id FROM clientes WHERE id = ? AND escuela_id = ?");
+            $chkCliCobro->execute([$cliente_id, $escuela_id]);
+            $cliCobro = $chkCliCobro->fetch();
+            if (!$cliCobro) respond(['success' => false, 'error' => 'cliente_id no corresponde a un alumno de esta escuela']);
+            // Un usuario rol 'familia' solo puede generar cobros de SUS PROPIOS hijos.
+            if (($usuario_actual['rol'] ?? '') === 'familia') {
+                if ($cliCobro['familia_id'] === null || intval($cliCobro['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
+                    http_response_code(403);
+                    respond(['success' => false, 'error' => 'No puedes generar cobros para este alumno.']);
+                }
+            }
+        }
+        // El corte de caja compara las ventas del día contra el efectivo/
+        // tarjeta contados; si un cobro del POS no trae caja_id, esas ventas
+        // quedan invisibles para el corte (antes SIEMPRE pasaba esto: el
+        // frontend nunca mandaba caja_id, así que el corte jamás reflejaba
+        // ventas reales). Para cajero/admin (los roles que operan el POS) se
+        // exige que exista una caja realmente abierta y sea SUYA — así el
+        // corte de caja deja de ser opcional: sin caja abierta, no se puede
+        // cobrar. Familia (portal) y superadmin no pasan por el POS físico.
+        $rol_actual_cobro = $usuario_actual['rol'] ?? '';
+        if (in_array($rol_actual_cobro, ['cajero', 'admin'], true)) {
+            if (!$caja_id_pos) {
+                respond(['success' => false, 'error' => 'No tienes una caja abierta. Abre tu turno en "Corte de caja" antes de cobrar.']);
+            }
+            $chkCaja = $pdo->prepare("SELECT id FROM caja WHERE id = ? AND usuario_id = ? AND estado = 'abierta'");
+            $chkCaja->execute([$caja_id_pos, intval($usuario_actual['user_id'])]);
+            if (!$chkCaja->fetch()) {
+                respond(['success' => false, 'error' => 'Tu caja no está abierta (o ya se cerró). Abre un nuevo turno en "Corte de caja" antes de cobrar.']);
+            }
+        }
         // Calcular total desde el carrito
         $total = 0;
         foreach ($carrito as $item) {
             $total += floatval($item['precio'] ?? 0) * intval($item['qty'] ?? 1);
+        }
+        // Reusar un cobro pendiente existente en vez de crear uno nuevo, para
+        // métodos que dependen de una referencia externa (SPEI/TC/EfectivoRef):
+        // sin esto, cada clic en "Pagar" (ej. un padre reintentando desde el
+        // portal, o F5) creaba un cobro 'pendiente' NUEVO con un id distinto,
+        // dejando varios cobros pendientes acumulados para el mismo alumno.
+        // consulta_clabe.php/pago_clabe.php resuelven "el cobro pendiente más
+        // antiguo" de un alumno cuando la 'transaccion' no calza exacto — con
+        // varios pendientes de montos distintos, el banco terminaba
+        // comparando el pago contra un cobro viejo y equivocado, y siempre
+        // fallaba con "Monto inválido" aunque el monto pagado fuera correcto.
+        if ($cliente_id && in_array($metodo, ['SPEI', 'TC', 'EfectivoRef'], true)) {
+            // Candado a nivel BD (no solo el SELECT de arriba) para cerrar la
+            // ventana de carrera: si un 503/timeout hace que el navegador
+            // reintente "Pagar" mientras la primera petición aún no terminaba
+            // de insertar, sin esto podían colarse dos cobros idénticos antes
+            // de que el chequeo de duplicado alcanzara a ver el primero. Se
+            // libera solo al terminar la petición (la conexión se cierra).
+            $lockKeyCobro = "crear_cobro_{$cliente_id}_{$metodo}_" . number_format($total, 2, '.', '');
+            $pdo->prepare("SELECT GET_LOCK(?, 10)")->execute([$lockKeyCobro]);
+            $stmtDup = $pdo->prepare(
+                "SELECT * FROM cobros WHERE cliente_id = ? AND metodo = ? AND estado = 'pendiente'
+                 AND ABS(total - ?) < 0.01 ORDER BY id DESC LIMIT 1"
+            );
+            $stmtDup->execute([$cliente_id, $metodo, $total]);
+            $dup = $stmtDup->fetch();
+            if ($dup) {
+                $dup['total'] = floatval($dup['total']);
+                $dup['items'] = $carrito;
+                $stmtNombreDup = $pdo->prepare("SELECT nombre FROM clientes WHERE id = ?");
+                $stmtNombreDup->execute([$cliente_id]);
+                $dup['cliente'] = $stmtNombreDup->fetchColumn() ?: 'Cliente general';
+                $rsDup = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
+                $rsDup->execute([$cliente_id]);
+                respond([
+                    'success'     => true,
+                    'cobro'       => $dup,
+                    'cliente_id'  => $cliente_id,
+                    'nuevo_saldo' => floatval($rsDup->fetchColumn()),
+                ]);
+            }
         }
         // Generar folio: CLA-ESC{esc_id}-{timestamp}
         $stmt = $pdo->prepare("SELECT clave FROM escuelas WHERE id = ?");
@@ -1348,6 +1541,17 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'confirmar_pago':
+        // Esta acción marca un cobro como pagado A MANO, sin pasar por ningún
+        // proveedor de pago ni webhook — es, literalmente, "confía en quien
+        // llame a este endpoint". Antes no tenía NINGÚN control de rol ni de
+        // pertenencia: cualquier usuario autenticado (incluida una cuenta
+        // 'familia') podía marcar CUALQUIER cobro de CUALQUIER escuela como
+        // pagado sin pagar un centavo.
+        $rol_actual_confirmar = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual_confirmar, ['superadmin', 'admin', 'cajero', 'familia'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para confirmar pagos.']);
+        }
         $cobro_id  = intval($input['cobro_id']  ?? 0);
         $auth_code = trim($input['auth_code']   ?? '');
         $transaccion = trim($input['transaccion'] ?? '');
@@ -1360,6 +1564,37 @@ switch ($action) {
         $fecha_cheque      = trim($input['fecha_cheque']      ?? '') ?: null;
         $titular_cheque    = trim($input['titular_cheque']    ?? '') ?: null;
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+        if (in_array($rol_actual_confirmar, ['admin', 'cajero'], true)) {
+            $chkEscCob = $pdo->prepare("SELECT escuela_id FROM cobros WHERE id = ?");
+            $chkEscCob->execute([$cobro_id]);
+            $escCob = $chkEscCob->fetch();
+            if (!$escCob || intval($escCob['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para confirmar este cobro.']);
+            }
+        }
+        // Familia: solo puede "confirmar" cobros de SUS PROPIOS hijos, y
+        // únicamente cuando el pago YA quedó marcado 'pagado' por el webhook
+        // real del proveedor (SPEI/TC) — este endpoint jamás debe ser lo que
+        // decide que un cobro está pagado cuando lo llama el propio cliente,
+        // o cualquier padre podría marcar su colegiatura como pagada gratis.
+        // El poller de familia solo llama a esto para refrescar auth_code/
+        // saldo después de que el webhook ya confirmó — nunca antes.
+        if ($rol_actual_confirmar === 'familia') {
+            $chkFamCob = $pdo->prepare(
+                "SELECT co.estado, cl.familia_id FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id WHERE co.id = ?"
+            );
+            $chkFamCob->execute([$cobro_id]);
+            $famCob = $chkFamCob->fetch();
+            if (!$famCob || $famCob['familia_id'] === null || intval($famCob['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No puedes confirmar este cobro.']);
+            }
+            if ($famCob['estado'] !== 'pagado') {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'Este pago todavía no ha sido confirmado por el banco/proveedor.']);
+            }
+        }
         $extra_auth = $auth_code ?: $transaccion ?: null;
         if ($banco_cheque !== null) {
             $stmt = $pdo->prepare(
@@ -1397,8 +1632,28 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'cancelar_cobro':
+        // Sin control de rol/pertenencia, cualquier usuario autenticado
+        // (incluida una cuenta 'familia') podía cancelar CUALQUIER cobro
+        // pendiente de CUALQUIER escuela — y como saldo_pendiente solo suma
+        // cobros 'pendiente', cancelar el propio adeudo lo hacía desaparecer
+        // sin pagar. Nunca se usa desde el Portal de Familia (solo desde
+        // views/Cobros.js, del lado admin/cajero).
+        $rol_actual_cancelar = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual_cancelar, ['superadmin', 'admin', 'cajero'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para cancelar cobros.']);
+        }
         $cobro_id = intval($input['cobro_id'] ?? 0);
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
+        if (in_array($rol_actual_cancelar, ['admin', 'cajero'], true)) {
+            $chkEscCancel = $pdo->prepare("SELECT escuela_id FROM cobros WHERE id = ?");
+            $chkEscCancel->execute([$cobro_id]);
+            $escCancel = $chkEscCancel->fetch();
+            if (!$escCancel || intval($escCancel['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para cancelar este cobro.']);
+            }
+        }
         $stmt = $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?");
         $stmt->execute([$cobro_id]);
         // Recalcular saldo_pendiente del cliente vinculado
@@ -1430,12 +1685,21 @@ switch ($action) {
     //     los datos del cheque ni la razón (queda estatus_cheque='rebotado').
     // ══════════════════════════════════════════════════════════════════════════
     case 'marcar_cheque_rebotado':
+        $rol_actual_cheque = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual_cheque, ['superadmin', 'admin', 'cajero'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+        }
         $cobro_id = intval($input['cobro_id'] ?? 0);
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
-        $stmt = $pdo->prepare("SELECT cliente_id, metodo, estatus_cheque FROM cobros WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT cliente_id, metodo, estatus_cheque, escuela_id FROM cobros WHERE id = ?");
         $stmt->execute([$cobro_id]);
         $cob_row = $stmt->fetch();
         if (!$cob_row) respond(['success' => false, 'error' => 'Cobro no encontrado']);
+        if (in_array($rol_actual_cheque, ['admin', 'cajero'], true) && intval($cob_row['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para este cobro.']);
+        }
         if ($cob_row['metodo'] !== 'Cheque') respond(['success' => false, 'error' => 'Este cobro no fue pagado con cheque']);
         if ($cob_row['estatus_cheque'] === 'rebotado') respond(['success' => false, 'error' => 'Este cheque ya estaba marcado como rebotado']);
         $pdo->prepare("UPDATE cobros SET estado = 'pendiente', estatus_cheque = 'rebotado' WHERE id = ?")
@@ -1511,6 +1775,204 @@ switch ($action) {
         respond(['success' => true, 'cliente' => array_merge($input, ['id' => $id, 'activo' => true, 'saldo_pendiente' => 0])]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+    // IMPORTAR ALUMNOS POR CSV — alta masiva de familias/tutores + sus hijos en
+    // un solo lote. El frontend ya parseó el CSV a un arreglo de filas; aquí
+    // solo se procesa. Cada fila es un alumno; los hermanos se agrupan por
+    // tutor_email (si dos filas comparten el mismo correo de tutor, se
+    // vinculan a la MISMA familia en vez de crear una por cada hijo). Si el
+    // tutor_email no tiene ya una cuenta de acceso, se crea una con
+    // contraseña temporal (mismo patrón que crear_plantel/crear_escuela). Una
+    // fila con error NO aborta el lote completo — se reporta y se sigue.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'importar_alumnos':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para importar alumnos.']);
+        }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        if ($rol_actual === 'admin') $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
+        if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+        $filas = $input['filas'] ?? [];
+        if (!is_array($filas) || empty($filas)) respond(['success' => false, 'error' => 'No se recibieron filas para importar']);
+        if (count($filas) > 1000) respond(['success' => false, 'error' => 'Máximo 1000 filas por importación']);
+
+        $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");
+        $plan_esc->execute([$escuela_id]);
+        $plan_nombre = $plan_esc->fetch()['plan'] ?? PLAN_FALLBACK;
+        $limite = limitesDelPlan($plan_nombre)['max_alumnos'];
+        $cntAct = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ? AND activo = 1");
+        $cntAct->execute([$escuela_id]);
+        $alumnosActuales = intval($cntAct->fetch()['n'] ?? 0);
+
+        // Cache en memoria de familias resueltas/creadas DURANTE este lote,
+        // por tutor_email — para que dos filas del mismo CSV con el mismo
+        // correo de tutor se vinculen entre sí sin volver a consultar la BD.
+        $familiasPorEmail = [];
+        $creadas = 0; $reutilizadas = 0; $alumnosCreados = 0; $cuentasCreadas = [];
+        $errores = []; $clientesDetalle = []; $familiasDetalle = [];
+
+        foreach ($filas as $idx => $fila) {
+            $numFila = $idx + 2; // +2: fila 1 es encabezado, arrays son 0-based
+            try {
+                if ($limite !== null && $alumnosActuales >= $limite) {
+                    $errores[] = ['fila' => $numFila, 'error' => "Límite de $limite alumnos del plan ($plan_nombre) alcanzado — filas restantes no importadas."];
+                    continue;
+                }
+                $alumno_nombre = trim($fila['alumno_nombre'] ?? '');
+                if (!$alumno_nombre) { $errores[] = ['fila' => $numFila, 'error' => 'alumno_nombre es obligatorio']; continue; }
+                $matricula   = trim($fila['matricula']    ?? '') ?: null;
+                $grado       = trim($fila['grado']        ?? '') ?: null;
+                $curp        = trim($fila['curp']         ?? '') ?: null;
+                $alumno_email = trim($fila['alumno_email'] ?? '') ?: null;
+                $alumno_tel  = trim($fila['alumno_telefono'] ?? '') ?: null;
+                $nivel_sat   = trim($fila['nivel_educativo_sat'] ?? '') ?: null;
+                $tutor_nombre = trim($fila['tutor_nombre'] ?? '') ?: null;
+                $tutor_email  = trim($fila['tutor_email']  ?? '') ?: null;
+                $tutor_tel    = trim($fila['tutor_telefono'] ?? '') ?: null;
+
+                $familia_id = null;
+                if ($tutor_email) {
+                    $emailKey = strtolower($tutor_email);
+                    if (isset($familiasPorEmail[$emailKey])) {
+                        $familia_id = $familiasPorEmail[$emailKey];
+                    } else {
+                        // 1. ¿Ya existe una familia con este correo en esta escuela?
+                        $chkFam = $pdo->prepare("SELECT id FROM familias WHERE escuela_id = ? AND email = ? LIMIT 1");
+                        $chkFam->execute([$escuela_id, $tutor_email]);
+                        $famExistente = $chkFam->fetch();
+                        if ($famExistente) {
+                            $familia_id = intval($famExistente['id']);
+                            $reutilizadas++;
+                        } else {
+                            $pdo->prepare("INSERT INTO familias (escuela_id, nombre, contacto, email, telefono, activa) VALUES (?, ?, ?, ?, ?, 1)")
+                                ->execute([$escuela_id, $tutor_nombre ?: $alumno_nombre, $tutor_nombre, $tutor_email, $tutor_tel]);
+                            $familia_id = intval($pdo->lastInsertId());
+                            $creadas++;
+                            $familiasDetalle[] = ['id' => $familia_id, 'escuela_id' => $escuela_id, 'nombre' => $tutor_nombre ?: $alumno_nombre, 'contacto' => $tutor_nombre, 'email' => $tutor_email, 'telefono' => $tutor_tel, 'activa' => true];
+                            // Cuenta de acceso al portal, solo si ese correo no
+                            // tiene ya una cuenta de usuario en el sistema.
+                            $chkUsr = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+                            $chkUsr->execute([$tutor_email]);
+                            if (!$chkUsr->fetch()) {
+                                $passTemp = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
+                                $pdo->prepare(
+                                    "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, familia_id, activo, fecha_alta, creado_por)
+                                     VALUES (?, ?, ?, ?, 'familia', ?, 1, CURDATE(), ?)"
+                                )->execute([$escuela_id, $tutor_nombre ?: $alumno_nombre, $tutor_email, password_hash($passTemp, PASSWORD_BCRYPT), $familia_id, $usuario_actual['user_id'] ?? null]);
+                                $cuentasCreadas[] = ['email' => $tutor_email, 'password_temporal' => $passTemp, 'nombre' => $tutor_nombre ?: $alumno_nombre];
+                            }
+                        }
+                        $familiasPorEmail[$emailKey] = $familia_id;
+                    }
+                }
+
+                $stmtIns = $pdo->prepare(
+                    "INSERT INTO clientes (escuela_id, familia_id, tipo, nombre, grado, matricula, curp, email, telefono, nivel_educativo_sat, activo)
+                     VALUES (?, ?, 'alumno', ?, ?, ?, ?, ?, ?, ?, 1)"
+                );
+                $stmtIns->execute([$escuela_id, $familia_id, $alumno_nombre, $grado, $matricula, $curp, $alumno_email, $alumno_tel, $nivel_sat]);
+                $nuevoClienteId = intval($pdo->lastInsertId());
+                $clientesDetalle[] = [
+                    'id' => $nuevoClienteId, 'escuela_id' => $escuela_id, 'familia_id' => $familia_id,
+                    'tipo' => 'alumno', 'nombre' => $alumno_nombre, 'grado' => $grado, 'matricula' => $matricula,
+                    'curp' => $curp, 'email' => $alumno_email, 'telefono' => $alumno_tel, 'tel' => $alumno_tel,
+                    'nivel_educativo_sat' => $nivel_sat, 'activo' => true, 'saldo_pendiente' => 0,
+                ];
+                $alumnosCreados++;
+                $alumnosActuales++;
+            } catch (\Throwable $e) {
+                $errores[] = ['fila' => $numFila, 'error' => 'Error al importar: ' . $e->getMessage()];
+            }
+        }
+
+        registrar_log($pdo, $usuario_actual, 'alumnos_importados_csv', "$alumnosCreados alumnos, $creadas familias nuevas, $reutilizadas reutilizadas, " . count($errores) . " errores", $escuela_id);
+        respond([
+            'success' => true,
+            'alumnos_creados'   => $alumnosCreados,
+            'familias_creadas'  => $creadas,
+            'familias_reutilizadas' => $reutilizadas,
+            'cuentas_creadas'   => $cuentasCreadas,
+            'errores'           => $errores,
+            'clientes_detalle'  => $clientesDetalle,
+            'familias_detalle'  => $familiasDetalle,
+        ]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // CONCEPTOS DE PAGO (productos) — antes solo se guardaban en localStorage
+    // del navegador (AppModel.save), por eso "desaparecían" al recargar contra
+    // otro navegador/dispositivo: nunca llegaban a la base de datos.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_producto':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para crear conceptos de pago.']);
+        }
+        $escuela_id = intval($input['escuela_id'] ?? 0);
+        $nombre     = trim($input['nombre']       ?? '');
+        $categoria  = trim($input['categoria']    ?? '') ?: 'otro';
+        $precio     = floatval($input['precio']   ?? 0);
+        $emoji      = trim($input['emoji']        ?? '');
+        $activo     = array_key_exists('activo', $input) ? (bool)$input['activo'] : true;
+        if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+        $stmt = $pdo->prepare(
+            "INSERT INTO productos (escuela_id, nombre, categoria, precio, emoji, activo)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([$escuela_id, $nombre, $categoria, $precio, $emoji, $activo ? 1 : 0]);
+        $id = intval($pdo->lastInsertId());
+        respond(['success' => true, 'producto' => [
+            'id' => $id, 'escuela_id' => $escuela_id, 'nombre' => $nombre,
+            'categoria' => $categoria, 'precio' => $precio, 'emoji' => $emoji, 'activo' => $activo,
+        ]]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_producto':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para editar conceptos de pago.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $campos = ['nombre', 'categoria', 'precio', 'emoji', 'activo'];
+        $sets = []; $vals = [];
+        foreach ($campos as $c) {
+            if (array_key_exists($c, $input)) {
+                $sets[] = "`$c` = ?";
+                $vals[] = $c === 'activo' ? ((bool)$input[$c] ? 1 : 0) : $input[$c];
+            }
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+        $vals[] = $id;
+        $stmt = $pdo->prepare("UPDATE productos SET " . implode(', ', $sets) . " WHERE id = ?");
+        $stmt->execute($vals);
+        $stmt2 = $pdo->prepare("SELECT * FROM productos WHERE id = ?");
+        $stmt2->execute([$id]);
+        $productoActualizado = $stmt2->fetch(PDO::FETCH_ASSOC);
+        if (!$productoActualizado) respond(['success' => false, 'error' => 'Producto no encontrado']);
+        $productoActualizado['activo'] = (bool)$productoActualizado['activo'];
+        $productoActualizado['precio'] = floatval($productoActualizado['precio']);
+        respond(['success' => true, 'producto' => $productoActualizado]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'toggle_producto_activo':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para modificar conceptos de pago.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $pdo->prepare("UPDATE productos SET activo = NOT activo WHERE id = ?")->execute([$id]);
+        $stmt2 = $pdo->prepare("SELECT activo FROM productos WHERE id = ?");
+        $stmt2->execute([$id]);
+        $row = $stmt2->fetch();
+        if (!$row) respond(['success' => false, 'error' => 'Producto no encontrado']);
+        respond(['success' => true, 'id' => $id, 'activo' => (bool)$row['activo']]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
     case 'eliminar_tarjeta_guardada':
         // Familia elimina la tarjeta guardada de SU hijo; admin/superadmin
         // pueden hacerlo por cualquier alumno de su escuela.
@@ -1579,9 +2041,10 @@ switch ($action) {
                 http_response_code(403);
                 respond(['success' => false, 'error' => 'No puedes editar la información de este alumno.']);
             }
-            $campos = ['direccion', 'contacto_emergencia', 'tel_emergencia', 'telefono', 'email',
-                       'rfc_factura', 'razon_social_factura', 'cp_factura', 'domicilio_factura',
-                       'regimen_factura', 'uso_cfdi_defecto'];
+            // Los datos fiscales (RFC/razón social/domicilio fiscal) ya NO se
+            // editan por alumno — pertenecen al tutor/familia que paga (ver
+            // case 'editar_familia'), no a cada hijo individualmente.
+            $campos = ['direccion', 'contacto_emergencia', 'tel_emergencia', 'telefono', 'email'];
         } else {
             $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id',
                        'direccion','contacto_emergencia','tel_emergencia',
@@ -1639,9 +2102,35 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_familia':
+        // Antes este case no validaba rol/pertenencia en absoluto: cualquier
+        // usuario autenticado (incluida una familia ajena) podía editar
+        // nombre/contacto/email/teléfono — y ahora RFC/domicilio fiscal —
+        // de CUALQUIER familia de CUALQUIER escuela con solo mandar su id.
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
-        $campos = ['nombre','contacto','email','telefono'];
+        $rol_actual_fam = $usuario_actual['rol'] ?? '';
+        $es_familia_propia = $rol_actual_fam === 'familia' && intval($usuario_actual['familia_id'] ?? -1) === $id;
+        if (!in_array($rol_actual_fam, ['superadmin', 'admin']) && !$es_familia_propia) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para editar esta familia.']);
+        }
+        if ($rol_actual_fam === 'admin') {
+            $chkFam = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
+            $chkFam->execute([$id]);
+            $famObjetivo = $chkFam->fetch();
+            if (!$famObjetivo || intval($famObjetivo['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para editar esta familia.']);
+            }
+        }
+        // Una familia edita sus propios datos de contacto y fiscales, pero
+        // nunca su 'nombre' (identidad del expediente) — eso queda para
+        // admin/superadmin, igual que en editar_cliente.
+        $campos = $es_familia_propia
+            ? ['contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
+               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto']
+            : ['nombre', 'contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
+               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto'];
         $sets = []; $vals = [];
         foreach ($campos as $c) {
             if (array_key_exists($c, $input)) {
@@ -1651,32 +2140,67 @@ switch ($action) {
         }
         if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
         $vals[] = $id;
-        $stmt = $pdo->prepare("UPDATE familias SET " . implode(', ', $sets) . " WHERE id = ?");
-        $stmt->execute($vals);
-        respond(['success' => true, 'familia' => $input]);
+        try {
+            $stmt = $pdo->prepare("UPDATE familias SET " . implode(', ', $sets) . " WHERE id = ?");
+            $stmt->execute($vals);
+        } catch (\PDOException $e) {
+            // Las columnas fiscales (rfc_factura, etc.) son nuevas — si la
+            // migración ALTER TABLE aún no corrió en esta base, avisa claro
+            // en vez de tronar con un error de MySQL crudo.
+            respond(['success' => false, 'error' => 'No se pudo guardar: faltan columnas fiscales en la tabla familias (aplica la migración pendiente).']);
+        }
+        $stmt2 = $pdo->prepare("SELECT * FROM familias WHERE id = ?");
+        $stmt2->execute([$id]);
+        $familiaActualizada = $stmt2->fetch(PDO::FETCH_ASSOC);
+        $familiaActualizada['activa'] = (bool)($familiaActualizada['activa'] ?? true);
+        respond(['success' => true, 'familia' => $familiaActualizada]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'listar_usuarios':
         $rol_actual = $usuario_actual['rol']       ?? '';
         $esc_actual = $usuario_actual['escuela_id'] ?? null;
-        if ($rol_actual === 'superadmin') {
-            $stmt = $pdo->query(
-                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
-                        u.familia_id, u.creado_por, u.zona,
-                        e.nombre AS escuela_nombre
-                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
-                 ORDER BY u.rol, u.nombre"
-            );
-        } else {
-            $stmt = $pdo->prepare(
-                "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
-                        u.familia_id, u.creado_por, u.zona,
-                        e.nombre AS escuela_nombre
-                 FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
-                 WHERE u.escuela_id = ? AND u.rol != 'superadmin'
-                 ORDER BY u.rol, u.nombre"
-            );
-            $stmt->execute([$esc_actual]);
+        // zona_id es columna nueva (migracion_zonas.sql); si aún no corrió en
+        // esta base, se reintenta sin ella en vez de romper el listado.
+        try {
+            if ($rol_actual === 'superadmin') {
+                $stmt = $pdo->query(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona, u.zona_id,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     ORDER BY u.rol, u.nombre"
+                );
+            } else {
+                $stmt = $pdo->prepare(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona, u.zona_id,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     WHERE u.escuela_id = ? AND u.rol != 'superadmin'
+                     ORDER BY u.rol, u.nombre"
+                );
+                $stmt->execute([$esc_actual]);
+            }
+        } catch (\PDOException $e) {
+            if ($rol_actual === 'superadmin') {
+                $stmt = $pdo->query(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     ORDER BY u.rol, u.nombre"
+                );
+            } else {
+                $stmt = $pdo->prepare(
+                    "SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta,
+                            u.familia_id, u.creado_por, u.zona,
+                            e.nombre AS escuela_nombre
+                     FROM usuarios u LEFT JOIN escuelas e ON e.id = u.escuela_id
+                     WHERE u.escuela_id = ? AND u.rol != 'superadmin'
+                     ORDER BY u.rol, u.nombre"
+                );
+                $stmt->execute([$esc_actual]);
+            }
         }
         $usuarios = $stmt->fetchAll();
         respond(['success' => true, 'usuarios' => $usuarios]);
@@ -1703,22 +2227,51 @@ switch ($action) {
         if ($rol_actual === 'admin') {
             $esc_id = $usuario_actual['escuela_id'] ?? null;
         }
-        // Un distribuidor no pertenece a ninguna escuela; su "zona" es informativa
+        // Un distribuidor no pertenece a ninguna escuela; su "zona" es informativa.
+        // zona_id referencia el catálogo compartido `zonas` (usado también por
+        // planteles); zona (texto) se conserva en paralelo solo como respaldo
+        // legado, resuelta automáticamente del catálogo si se manda zona_id.
+        $zona_id = intval($input['zona_id'] ?? 0) ?: null;
         $zona = trim($input['zona'] ?? '') ?: null;
+        if ($zona_id) {
+            $zNom = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNom->execute([$zona_id]);
+            $zona = $zNom->fetchColumn() ?: $zona;
+        }
         if ($rol === 'distribuidor') { $esc_id = null; $fam_id = null; }
         // Verificar email único
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
+<<<<<<< HEAD
         $creado_por = $usuario_actual["user_id"] ?? null;
         $stmt = $pdo->prepare(
             "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, activo, fecha_alta, familia_id, creado_por)"
             . " VALUES (?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
         );
         $stmt->execute([$esc_id, $nombre, $email, password_hash($password, PASSWORD_BCRYPT), $rol, $zona, $fam_id, $creado_por]);
+=======
+        $creado_por = $usuario_actual["id"] ?? null;
+        $hash_pw = password_hash($password, PASSWORD_BCRYPT);
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, zona_id, activo, fecha_alta, familia_id, creado_por)"
+                . " VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
+            );
+            $stmt->execute([$esc_id, $nombre, $email, $hash_pw, $rol, $zona, $zona_id, $fam_id, $creado_por]);
+        } catch (\PDOException $e) {
+            // zona_id es columna nueva (migracion_zonas.sql) — si aún no corrió
+            // en esta base, no debe tumbar la creación de usuarios en general.
+            $stmt = $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, zona, activo, fecha_alta, familia_id, creado_por)"
+                . " VALUES (?, ?, ?, ?, ?, ?, 1, CURDATE(), ?, ?)"
+            );
+            $stmt->execute([$esc_id, $nombre, $email, $hash_pw, $rol, $zona, $fam_id, $creado_por]);
+        }
+>>>>>>> f53d96692f55e31053daa2706700d6d15980fdbc
         $id = intval($pdo->lastInsertId());
         registrar_log($pdo, $usuario_actual, 'usuario_creado', "Nuevo usuario '$nombre' ($email) con rol '$rol'", $esc_id);
-        respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "zona" => $zona, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
+        respond(["success" => true, "usuario" => ["id" => $id, "nombre" => $nombre, "email" => $email, "rol" => $rol, "escuela_id" => $esc_id, "zona" => $zona, "zona_id" => $zona_id, "activo" => true, "familia_id" => $fam_id, "creado_por" => $creado_por]]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_usuario':
@@ -1755,12 +2308,28 @@ switch ($action) {
         // zona puede enviarse como null/vacío explícito (limpiar) o como texto
         $zona_raw = $input['zona'] ?? '__NO_ENVIADO__';
         $zona     = ($zona_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (trim($zona_raw) ?: null);
+        // zona_id referencia el catálogo compartido `zonas`; si se manda, se
+        // resuelve también el texto legado 'zona' desde el catálogo.
+        $zona_id_raw = $input['zona_id'] ?? '__NO_ENVIADO__';
+        $zona_id = ($zona_id_raw === '__NO_ENVIADO__') ? '__NO_ENVIADO__' : (intval($zona_id_raw) ?: null);
+        if ($zona_id !== '__NO_ENVIADO__' && $zona_id) {
+            $zNomEdit = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNomEdit->execute([$zona_id]);
+            $zona = $zNomEdit->fetchColumn() ?: $zona;
+        }
         // Nadie edita su propio rol/escuela/zona (evita auto-ascenso a superadmin), y solo
         // superadmin puede reasignar rol/escuela/zona de terceros.
         if ($es_propio_perfil || $rol_actual !== 'superadmin') {
             $rol    = '';
             $esc_id = null;
             $zona   = '__NO_ENVIADO__';
+            $zona_id = '__NO_ENVIADO__';
+        }
+        // Nadie edita su propio familia_id (evita que un usuario rol 'familia'
+        // se reasigne a otra familia y vea/edite alumnos ajenos); solo
+        // admin/superadmin lo cambian sobre TERCEROS.
+        if ($es_propio_perfil) {
+            $fam_id = '__NO_ENVIADO__';
         }
         // Si te editas a ti mismo y cambias tu contraseña o tu correo, debes confirmar
         // tu contraseña actual (el frontend ya lo exige, pero antes no se validaba aquí:
@@ -1785,9 +2354,19 @@ switch ($action) {
         if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
         if ($fam_id !== '__NO_ENVIADO__') { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
         if ($zona !== '__NO_ENVIADO__') { $sets[] = 'zona = ?'; $vals[] = $zona; }
+        if ($zona_id !== '__NO_ENVIADO__') { $sets[] = 'zona_id = ?'; $vals[] = $zona_id; }
         if ($sets) {
             $vals[] = $id;
-            $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+            try {
+                $pdo->prepare("UPDATE usuarios SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+            } catch (\PDOException $e) {
+                // zona_id es columna nueva (migracion_zonas.sql) — si aún no
+                // corrió en esta base, reintenta sin ella en vez de tronar.
+                $setsSinZonaId = array_values(array_filter($sets, fn($s) => strpos($s, 'zona_id') === false));
+                if (count($setsSinZonaId) === count($sets)) throw $e;
+                $valsSinZonaId = $vals; array_splice($valsSinZonaId, array_search('zona_id = ?', $sets), 1);
+                $pdo->prepare("UPDATE usuarios SET " . implode(', ', $setsSinZonaId) . " WHERE id = ?")->execute($valsSinZonaId);
+            }
             if ($rol || $esc_id !== null || $password) {
                 $cambios = array_filter([
                     $rol ? "rol → '$rol'" : null,
@@ -1798,8 +2377,13 @@ switch ($action) {
             }
         }
         // Re-leer el usuario actualizado para devolverlo completo
-        $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por, u.zona FROM usuarios u WHERE u.id = ?");
-        $stmt->execute([$id]);
+        try {
+            $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por, u.zona, u.zona_id FROM usuarios u WHERE u.id = ?");
+            $stmt->execute([$id]);
+        } catch (\PDOException $e) {
+            $stmt = $pdo->prepare("SELECT u.id, u.nombre, u.email, u.rol, u.activo, u.escuela_id, u.fecha_alta, u.familia_id, u.creado_por, u.zona FROM usuarios u WHERE u.id = ?");
+            $stmt->execute([$id]);
+        }
         $usuarioActualizado = $stmt->fetch();
         respond(['success' => true, 'usuario' => $usuarioActualizado]);
     break;
@@ -1897,6 +2481,12 @@ switch ($action) {
         $email            = trim($input['email']       ?? '');
         $nivel_educativo  = trim($input['nivel_educativo'] ?? '') ?: null;
         $zona             = trim($input['zona']        ?? '') ?: null;
+        $zona_id          = intval($input['zona_id']   ?? 0) ?: null;
+        if ($zona_id) {
+            $zNomPlt = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNomPlt->execute([$zona_id]);
+            $zona = $zNomPlt->fetchColumn() ?: $zona;
+        }
         $rvoe             = trim($input['rvoe']        ?? '') ?: null;
         $niveles_validos  = ['preescolar', 'primaria', 'secundaria', 'preparatoria', 'universidad', 'mixto'];
         if ($nivel_educativo !== null && !in_array($nivel_educativo, $niveles_validos, true)) {
@@ -1942,10 +2532,10 @@ switch ($action) {
             $nueva_escuela_id = intval($pdo->lastInsertId());
             // 2. Insertar en planteles (para la UI de administración)
             $stmt2 = $pdo->prepare(
-                "INSERT INTO planteles (escuela_id, escuela_plantel_id, nombre, direccion, nivel_educativo, rvoe, zona, responsable, tel, activo)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+                "INSERT INTO planteles (escuela_id, escuela_plantel_id, nombre, direccion, nivel_educativo, rvoe, zona, zona_id, responsable, tel, activo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
             );
-            $stmt2->execute([$escuela_padre_id, $nueva_escuela_id, $nombre, $direccion, $nivel_educativo, $rvoe, $zona, $responsable, $tel]);
+            $stmt2->execute([$escuela_padre_id, $nueva_escuela_id, $nombre, $direccion, $nivel_educativo, $rvoe, $zona, $zona_id, $responsable, $tel]);
             $plantel_id = intval($pdo->lastInsertId());
             // 3. Crear la cuenta de usuario (Admin del plantel)
             $password_temporal = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
@@ -1977,6 +2567,7 @@ switch ($action) {
                     'nivel_educativo'    => $nivel_educativo,
                     'rvoe'               => $rvoe,
                     'zona'               => $zona,
+                    'zona_id'            => $zona_id,
                     'responsable'        => $responsable,
                     'tel'                => $tel,
                     'activo'             => true
@@ -2010,6 +2601,12 @@ switch ($action) {
         $email       = trim($input['email']          ?? '');
         $nivel_educativo = trim($input['nivel_educativo'] ?? '') ?: null;
         $zona            = trim($input['zona']        ?? '') ?: null;
+        $zona_id         = intval($input['zona_id']   ?? 0) ?: null;
+        if ($zona_id) {
+            $zNomPltEd = $pdo->prepare("SELECT nombre FROM zonas WHERE id = ?");
+            $zNomPltEd->execute([$zona_id]);
+            $zona = $zNomPltEd->fetchColumn() ?: $zona;
+        }
         $rvoe            = trim($input['rvoe']        ?? '') ?: null;
         $niveles_validos = ['preescolar', 'primaria', 'secundaria', 'preparatoria', 'universidad', 'mixto'];
         if ($nivel_educativo !== null && !in_array($nivel_educativo, $niveles_validos, true)) {
@@ -2038,8 +2635,8 @@ switch ($action) {
             $pdo->beginTransaction();
             // 1. Tabla planteles
             $pdo->prepare(
-                "UPDATE planteles SET nombre = ?, direccion = ?, nivel_educativo = ?, rvoe = ?, zona = ?, responsable = ?, tel = ? WHERE id = ?"
-            )->execute([$nombre, $direccion, $nivel_educativo, $rvoe, $zona, $responsable, $tel, $id]);
+                "UPDATE planteles SET nombre = ?, direccion = ?, nivel_educativo = ?, rvoe = ?, zona = ?, zona_id = ?, responsable = ?, tel = ? WHERE id = ?"
+            )->execute([$nombre, $direccion, $nivel_educativo, $rvoe, $zona, $zona_id, $responsable, $tel, $id]);
             // 2. Escuela-cuenta del plantel
             $sets = ['nombre = ?', 'direccion = ?', 'telefono = ?'];
             $vals = [$nombre, $direccion, $tel];
@@ -2065,6 +2662,7 @@ switch ($action) {
                     'nivel_educativo'    => $nivel_educativo,
                     'rvoe'               => $rvoe,
                     'zona'               => $zona,
+                    'zona_id'            => $zona_id,
                     'responsable'        => $responsable,
                     'tel'                => $tel,
                     'activo'             => (bool)$plantel['activo'],
@@ -2101,6 +2699,51 @@ switch ($action) {
         // para que no pueda iniciar sesión si el plantel está dado de baja.
         $pdo->prepare("UPDATE escuelas SET activa = ? WHERE id = ?")->execute([$nuevoEstado, $row['escuela_plantel_id']]);
         respond(['success' => true, 'activo' => (bool) $nuevoEstado]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // ELIMINAR PLANTEL — borrado real, no solo desactivar. Solo se permite si
+    // el plantel nunca tuvo actividad (sin alumnos ni cobros registrados);
+    // si ya tiene historial real, se rechaza y se sugiere desactivar en su
+    // lugar — borrarlo de verdad reventaría reportes/CFDIs ya emitidos.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'eliminar_plantel':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para eliminar planteles.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $stmt = $pdo->prepare("SELECT * FROM planteles WHERE id = ?");
+        $stmt->execute([$id]);
+        $plantelDel = $stmt->fetch();
+        if (!$plantelDel) respond(['success' => false, 'error' => 'Plantel no encontrado']);
+        if ($rol_actual === 'admin' && intval($usuario_actual['escuela_id'] ?? 0) !== intval($plantelDel['escuela_id'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo puedes eliminar planteles de tu propia escuela.']);
+        }
+        $escPlantelId = intval($plantelDel['escuela_plantel_id']);
+        $cntAlumnos = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ?");
+        $cntAlumnos->execute([$escPlantelId]);
+        $nAlumnos = intval($cntAlumnos->fetch()['n'] ?? 0);
+        $cntCobros = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros WHERE escuela_id = ?");
+        $cntCobros->execute([$escPlantelId]);
+        $nCobros = intval($cntCobros->fetch()['n'] ?? 0);
+        if ($nAlumnos > 0 || $nCobros > 0) {
+            respond(['success' => false, 'error' => "Este plantel ya tiene $nAlumnos alumno(s) y $nCobros cobro(s) registrados — no se puede eliminar sin perder ese historial. Desactívalo en su lugar."]);
+        }
+        try {
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM usuarios WHERE escuela_id = ? AND rol = 'admin'")->execute([$escPlantelId]);
+            $pdo->prepare("DELETE FROM planteles WHERE id = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM escuelas WHERE id = ? AND es_plantel = 1")->execute([$escPlantelId]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            respond(['success' => false, 'error' => 'No se pudo eliminar: ' . $e->getMessage()]);
+        }
+        registrar_log($pdo, $usuario_actual, 'plantel_eliminado', "Plantel #$id eliminado (sin historial)");
+        respond(['success' => true]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_escuela':
@@ -2217,9 +2860,14 @@ switch ($action) {
         $plan       = trim($input['plan']       ?? 'basico');
         if (!in_array($plan, array_keys(PLANES_LIMITES), true)) $plan = PLAN_FALLBACK;
         if (!$nombre || !$clave) respond(['success' => false, 'error' => 'Nombre y clave son obligatorios']);
+        // El email es obligatorio: es con lo que se crea la cuenta admin de
+        // este colegio — sin esto, nadie podría iniciar sesión en él nunca
+        // (antes crear_escuela solo insertaba en `escuelas`, sin usuario).
+        if (!$email) respond(['success' => false, 'error' => 'El correo es obligatorio: con él se crea la cuenta admin del colegio']);
         $chk = $pdo->prepare("SELECT id FROM escuelas WHERE clave = ?");
         $chk->execute([$clave]);
         if ($chk->fetch()) respond(['success' => false, 'error' => 'Ya existe un colegio con esa clave']);
+<<<<<<< HEAD
         // Primer periodo de la suscripción: prorrateado, vence a fin del mes en
         // curso (a partir de ahí, cada renovación cubre un mes calendario completo).
         $fecha_vencimiento_plan = fin_de_mes_actual();
@@ -2230,13 +2878,45 @@ switch ($action) {
         $stmt->execute([$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji, $plan, $fecha_vencimiento_plan]);
         $nuevo_id = intval($pdo->lastInsertId());
         registrar_log($pdo, $usuario_actual, 'escuela_creada', "Colegio '$nombre' ($clave)", $nuevo_id);
+=======
+        $chkEmail = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chkEmail->execute([$email]);
+        if ($chkEmail->fetch()) respond(['success' => false, 'error' => 'El correo ya está registrado']);
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare(
+                "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion, logo_emoji, activa, es_plantel, plan, fecha_alta)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, CURDATE())"
+            );
+            $stmt->execute([$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji, $plan]);
+            $nuevo_id = intval($pdo->lastInsertId());
+            // Cuenta de usuario admin del colegio, mismo patrón que crear_plantel.
+            $password_temporal = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
+            $hash = password_hash($password_temporal, PASSWORD_BCRYPT);
+            $stmtU = $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, creado_por)
+                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?)"
+            );
+            $nombre_admin = 'Admin ' . $nombre;
+            $stmtU->execute([$nuevo_id, $nombre_admin, $email, $hash, $usuario_actual['user_id'] ?? null]);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Error al crear el colegio: ' . $e->getMessage()]);
+        }
+        registrar_log($pdo, $usuario_actual, 'escuela_creada', "Colegio '$nombre' ($clave), cuenta admin: $email", $nuevo_id);
+>>>>>>> f53d96692f55e31053daa2706700d6d15980fdbc
         respond(['success' => true, 'escuela' => [
             'id' => $nuevo_id, 'nombre' => $nombre, 'clave' => $clave, 'rfc' => $rfc, 'rvoe' => $rvoe,
             'telefono' => $telefono, 'email' => $email, 'direccion' => $direccion,
             'logo_emoji' => $logo_emoji, 'activa' => true, 'es_plantel' => false,
             'escuela_padre_id' => null, 'plan' => $plan, 'fecha_alta' => date('Y-m-d'),
+<<<<<<< HEAD
             'fecha_vencimiento_plan' => $fecha_vencimiento_plan,
         ]]);
+=======
+        ], 'admin_email' => $email, 'admin_password_temporal' => $password_temporal]);
+>>>>>>> f53d96692f55e31053daa2706700d6d15980fdbc
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_escuela':
@@ -2444,7 +3124,19 @@ switch ($action) {
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
         $stmt = $pdo->prepare("SELECT id, nombre, activa FROM sucursales WHERE escuela_id = ? AND activa = 1 ORDER BY nombre");
         $stmt->execute([$escuela_id]);
-        respond(['success' => true, 'sucursales' => $stmt->fetchAll()]);
+        $sucursales = $stmt->fetchAll();
+        // No hay ninguna UI para crear sucursales — sin esto, ninguna escuela
+        // (ni corte de caja ni el candado de caja abierta en el POS) podía
+        // funcionar nunca: "caja_estado"/"caja_abrir" exigen un sucursal_id
+        // real y la lista siempre venía vacía. Se autoprovisiona una única
+        // sucursal "Principal" la primera vez, transparente para escuelas de
+        // un solo punto de venta (la inmensa mayoría).
+        if (empty($sucursales)) {
+            $pdo->prepare("INSERT INTO sucursales (escuela_id, nombre, activa) VALUES (?, 'Principal', 1)")->execute([$escuela_id]);
+            $stmt->execute([$escuela_id]);
+            $sucursales = $stmt->fetchAll();
+        }
+        respond(['success' => true, 'sucursales' => $sucursales]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'caja_estado':
@@ -2630,6 +3322,13 @@ switch ($action) {
         $du = $pdo->prepare("SELECT nombre, zona FROM usuarios WHERE id = ?");
         $du->execute([$dist_id]);
         $distribuidor_row = $du->fetch() ?: ['nombre' => '', 'zona' => null];
+        // La zona real (catálogo) prevalece sobre el texto legado si ya está migrada.
+        try {
+            $duz = $pdo->prepare("SELECT z.nombre FROM usuarios u JOIN zonas z ON z.id = u.zona_id WHERE u.id = ?");
+            $duz->execute([$dist_id]);
+            $zonaCatalogo = $duz->fetchColumn();
+            if ($zonaCatalogo) $distribuidor_row['zona'] = $zonaCatalogo;
+        } catch (\PDOException $e) { /* zona_id aún no migrada en esta base */ }
         $rstmt = $pdo->prepare(
             "SELECT r.id, r.escuela_id, r.nombre_colegio, r.num_alumnos, r.estado, r.comision_pct, r.fecha_alta, r.notas,
                     e.nombre AS escuela_nombre
@@ -2852,6 +3551,147 @@ switch ($action) {
             ->execute([$banco, $clabe, $titular, $dist_id]);
         registrar_log($pdo, $usuario_actual, 'distribuidor_datos_pago_actualizados', 'Distribuidor actualizó sus datos de pago');
         respond(['success' => true]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // ZONAS — catálogo compartido entre distribuidores (usuarios.zona_id) y
+    // planteles (planteles.zona_id). Antes eran dos columnas de texto libre
+    // sin relación, con typos y variantes ("CDMX" vs "Ciudad de México") que
+    // hacían imposible un reporte real "por zona".
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'listar_zonas':
+        $stmtZonas = $pdo->prepare("SELECT id, nombre, activa FROM zonas WHERE activa = 1 ORDER BY nombre");
+        $stmtZonas->execute();
+        respond(['success' => true, 'zonas' => array_map(function($z) {
+            $z['id'] = intval($z['id']);
+            $z['activa'] = (bool)$z['activa'];
+            return $z;
+        }, $stmtZonas->fetchAll())]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'crear_zona':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede crear zonas.']);
+        }
+        $nombreZona = trim($input['nombre'] ?? '');
+        if (!$nombreZona) respond(['success' => false, 'error' => 'El nombre de la zona es obligatorio']);
+        try {
+            $pdo->prepare("INSERT INTO zonas (nombre, activa) VALUES (?, 1)")->execute([$nombreZona]);
+        } catch (\PDOException $e) {
+            respond(['success' => false, 'error' => 'Ya existe una zona con ese nombre']);
+        }
+        respond(['success' => true, 'zona' => ['id' => intval($pdo->lastInsertId()), 'nombre' => $nombreZona, 'activa' => true]]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'editar_zona':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede editar zonas.']);
+        }
+        $idZona = intval($input['id'] ?? 0);
+        if (!$idZona) respond(['success' => false, 'error' => 'id requerido']);
+        $sets = []; $vals = [];
+        if (array_key_exists('nombre', $input)) { $sets[] = 'nombre = ?'; $vals[] = trim($input['nombre']); }
+        if (array_key_exists('activa', $input)) { $sets[] = 'activa = ?'; $vals[] = $input['activa'] ? 1 : 0; }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+        $vals[] = $idZona;
+        try {
+            $pdo->prepare("UPDATE zonas SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        } catch (\PDOException $e) {
+            respond(['success' => false, 'error' => 'Ya existe una zona con ese nombre']);
+        }
+        respond(['success' => true]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMISIONES DE DISTRIBUIDORES (superadmin) — el cálculo de comisión ya
+    // existía (distribuidor_datos/distribuidor_comisiones), pero no había
+    // ninguna forma de cambiar el % después de crear el referido (quedaba
+    // fijo en 5.00 de por vida), ni de activarlo/vincularlo a una escuela
+    // real salvo editando la base de datos directamente.
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'superadmin_listar_referidos':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede ver esto.']);
+        }
+        $stmtRef = $pdo->prepare(
+            "SELECT r.id, r.distribuidor_id, r.escuela_id, r.nombre_colegio, r.num_alumnos, r.estado,
+                    r.comision_pct, r.fecha_alta, r.notas,
+                    u.nombre AS distribuidor_nombre, u.email AS distribuidor_email,
+                    e.nombre AS escuela_nombre
+             FROM distribuidor_referidos r
+             LEFT JOIN usuarios u ON u.id = r.distribuidor_id
+             LEFT JOIN escuelas e ON e.id = r.escuela_id
+             ORDER BY r.fecha_alta DESC, r.id DESC"
+        );
+        $stmtRef->execute();
+        $referidosTodos = array_map(function($r) {
+            return [
+                'id'                 => intval($r['id']),
+                'distribuidor_id'    => intval($r['distribuidor_id']),
+                'distribuidor_nombre'=> $r['distribuidor_nombre'],
+                'distribuidor_email' => $r['distribuidor_email'],
+                'escuela_id'         => $r['escuela_id'] ? intval($r['escuela_id']) : null,
+                'escuela_nombre'     => $r['escuela_nombre'],
+                'nombre_colegio'     => $r['nombre_colegio'],
+                'num_alumnos'        => $r['num_alumnos'] !== null ? intval($r['num_alumnos']) : null,
+                'estado'             => $r['estado'],
+                'comision_pct'       => floatval($r['comision_pct']),
+                'fecha_alta'         => $r['fecha_alta'],
+                'notas'              => $r['notas'],
+            ];
+        }, $stmtRef->fetchAll());
+        respond(['success' => true, 'referidos' => $referidosTodos]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'superadmin_editar_referido':
+        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Solo el super admin puede editar referidos.']);
+        }
+        $idRef = intval($input['id'] ?? 0);
+        if (!$idRef) respond(['success' => false, 'error' => 'id requerido']);
+        $estados_validos_ref = ['prospecto', 'demo_agendada', 'implementacion', 'activo'];
+        $sets = []; $vals = [];
+        if (array_key_exists('comision_pct', $input)) {
+            $pctRef = floatval($input['comision_pct']);
+            if ($pctRef < 0 || $pctRef > 100) respond(['success' => false, 'error' => 'La comisión debe estar entre 0 y 100']);
+            $sets[] = 'comision_pct = ?'; $vals[] = $pctRef;
+        }
+        if (array_key_exists('estado', $input)) {
+            if (!in_array($input['estado'], $estados_validos_ref, true)) respond(['success' => false, 'error' => 'Estado inválido']);
+            $sets[] = 'estado = ?'; $vals[] = $input['estado'];
+        }
+        if (array_key_exists('escuela_id', $input)) {
+            $escIdRef = intval($input['escuela_id'] ?? 0) ?: null;
+            $sets[] = 'escuela_id = ?'; $vals[] = $escIdRef;
+        }
+        if (array_key_exists('num_alumnos', $input)) {
+            $sets[] = 'num_alumnos = ?'; $vals[] = intval($input['num_alumnos'] ?? 0) ?: null;
+        }
+        if (array_key_exists('notas', $input)) {
+            $sets[] = 'notas = ?'; $vals[] = trim($input['notas'] ?? '') ?: null;
+        }
+        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+        $vals[] = $idRef;
+        $pdo->prepare("UPDATE distribuidor_referidos SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        registrar_log($pdo, $usuario_actual, 'referido_editado', "Referido #$idRef actualizado");
+        $stmt2Ref = $pdo->prepare(
+            "SELECT r.*, u.nombre AS distribuidor_nombre, e.nombre AS escuela_nombre
+             FROM distribuidor_referidos r
+             LEFT JOIN usuarios u ON u.id = r.distribuidor_id
+             LEFT JOIN escuelas e ON e.id = r.escuela_id
+             WHERE r.id = ?"
+        );
+        $stmt2Ref->execute([$idRef]);
+        $refActualizado = $stmt2Ref->fetch();
+        if ($refActualizado) {
+            $refActualizado['id'] = intval($refActualizado['id']);
+            $refActualizado['distribuidor_id'] = intval($refActualizado['distribuidor_id']);
+            $refActualizado['escuela_id'] = $refActualizado['escuela_id'] ? intval($refActualizado['escuela_id']) : null;
+            $refActualizado['comision_pct'] = floatval($refActualizado['comision_pct']);
+        }
+        respond(['success' => true, 'referido' => $refActualizado]);
     break;
     default:
         respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);

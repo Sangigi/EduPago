@@ -20,14 +20,16 @@ const CobroController = (() => {
     return res.json();
   }
 
-  async function iniciarCobro({ carrito, cliente, metodo, escuela_id }) {
+  async function iniciarCobro({ carrito, cliente, metodo, escuela_id, caja_id, sucursal_id }) {
     // La API debe tener un endpoint `crear_cobro` que reciba esto e inserte en MySQL
     const resultado = await apiPost('crear_cobro', {
       carrito,
       cliente_id: cliente?.id,
       metodo,
       escuela_id,
-      referencia: cliente?.matricula
+      referencia: cliente?.matricula,
+      caja_id,
+      sucursal_id,
     });
     if (!resultado.success) throw new Error(resultado.error || 'Error al crear cobro');
     // Propagar saldo actualizado para que Caja.js pueda actualizarlo en el estado
@@ -148,9 +150,24 @@ const CobroController = (() => {
     return await apiPost('liberar_clabe_individual', { alumno_id, clabe });
   }
 
+  // Timbra un CFDI para un cobro ya pagado (reusa el mismo endpoint que
+  // views/Facturacion.js, para no duplicar la lógica de Facturapi).
+  async function generarCFDI(payload) {
+    const resultado = await apiPost('generar_cfdi', payload);
+    if (!resultado.success) throw new Error(resultado.error || 'Error al generar la factura');
+    return resultado;
+  }
+
+  async function enviarFacturaCorreo(cobroId, email) {
+    const resultado = await apiPost('enviar_factura_correo', { cobro_id: cobroId, email });
+    if (!resultado.success) throw new Error(resultado.error || 'Error al enviar la factura por correo');
+    return resultado;
+  }
+
   return {
     iniciarCobro, iniciarSPEI, verificarSPEI, verificarCobro, iniciarTC, confirmarPago, cancelarCobro,
     generarClabeIndividual, liberarClabeIndividual,
     cobrarCAI, cancelarCAI, iniciarEfectivoRef, marcarChequeRebotado,
+    generarCFDI, enviarFacturaCorreo,
   };
 })();

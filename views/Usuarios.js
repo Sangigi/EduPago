@@ -25,6 +25,7 @@ function UsuariosFormModal({
   ROL_INFO,
   obtenerNombreFamilia,
   nombreEscuela,
+  zonas,
   onGuardar
 }) {
   return _jsxDEV("div", {
@@ -150,12 +151,22 @@ function UsuariosFormModal({
                   className: "form-group",
                   children: [
                     _jsxDEV("label", { className: "form-label", children: "Zona asignada" }, void 0, false),
-                    _jsxDEV("input", {
-                      className: "form-input",
-                      placeholder: "Ej. Noreste, CDMX Sur…",
-                      value: form.zona,
-                      onChange: e => setForm(f => ({ ...f, zona: e.target.value }))
-                    }, void 0, false),
+                    _jsxDEV("select", {
+                      className: "form-select",
+                      value: form.zona_id,
+                      onChange: e => {
+                        const zid = e.target.value;
+                        const nombreZona = (zonas || []).find(z => String(z.id) === String(zid))?.nombre || '';
+                        setForm(f => ({ ...f, zona_id: zid, zona: nombreZona }));
+                      },
+                      children: [
+                        _jsxDEV("option", { value: "", children: "— Sin asignar —" }, void 0, false),
+                        (zonas || []).map(z => _jsxDEV("option", {
+                          value: z.id,
+                          children: z.nombre
+                        }, z.id, true))
+                      ]
+                    }, void 0, true),
                     _jsxDEV("div", {
                       style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 4 },
                       children: "Informativa — un distribuidor no pertenece a ninguna escuela"
@@ -283,7 +294,7 @@ function UsuariosFormModal({
                         form.rol === 'familia' && form.familia_id
                           ? `Vínculo: ${obtenerNombreFamilia(parseInt(form.familia_id))}`
                           : form.rol === 'distribuidor'
-                            ? `Zona: ${form.zona.trim() || 'sin asignar'}`
+                            ? `Zona: ${(zonas || []).find(z => String(z.id) === String(form.zona_id))?.nombre || 'sin asignar'}`
                             : form.escuela_id ? nombreEscuela(parseInt(form.escuela_id)) : 'Global'
                       ]
                     }, void 0, true)
@@ -320,10 +331,11 @@ function Usuarios({ user, data }) {
 
   const EMPTY_FORM = {
     nombre: '', email: '', password: '', password2: '', password_actual: '',
-    rol: '', escuela_id: '', familia_id: '', zona: ''
+    rol: '', escuela_id: '', familia_id: '', zona: '', zona_id: ''
   };
 
   const [usuarios, setUsuarios] = useState([]);
+  const [zonas, setZonas] = useState([]);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errForm, setErrForm] = useState('');
@@ -333,6 +345,16 @@ function Usuarios({ user, data }) {
 
   const esSuper = AuthController.isSuperAdmin(user);
 
+  const tkn = () => AuthController.getToken();
+  const apiPost = async (action, body) => {
+    const r = await fetch('api.php?action=' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tkn() },
+      body: JSON.stringify(body || {}),
+    });
+    return r.json();
+  };
+
   const cargarUsuarios = async () => {
     try {
       const lista = await AuthController.getUsuarios(user);
@@ -340,7 +362,14 @@ function Usuarios({ user, data }) {
     } catch(e) { setUsuarios([]); }
   };
 
-  useEffect(() => { cargarUsuarios(); }, []);
+  const cargarZonas = async () => {
+    try {
+      const res = await apiPost('listar_zonas');
+      if (res.success) setZonas(res.zonas || []);
+    } catch(e) {}
+  };
+
+  useEffect(() => { cargarUsuarios(); cargarZonas(); }, []);
 
   const rolesCreables = AuthController.rolesQuePuedeCriar(user);
   if ((user.rol === 'superadmin' || user.rol === 'admin') && !rolesCreables.includes('familia')) {
@@ -413,7 +442,8 @@ function Usuarios({ user, data }) {
       ...form,
       escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
       familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null,
-      zona: form.rol === 'distribuidor' ? form.zona.trim() : ''
+      zona: form.rol === 'distribuidor' ? form.zona.trim() : '',
+      zona_id: form.rol === 'distribuidor' ? (parseInt(form.zona_id) || null) : null
     };
     try { await AuthController.crearUsuario(user, payload, data.escuelas); }
     catch(e) { setErrForm(e.message); return; }
@@ -426,7 +456,7 @@ function Usuarios({ user, data }) {
     setForm({
       id: u.id, nombre: u.nombre, email: u.email,
       password: '', password2: '', password_actual: '',
-      rol: u.rol, escuela_id: u.escuela_id || '', familia_id: u.familia_id || '', zona: u.zona || ''
+      rol: u.rol, escuela_id: u.escuela_id || '', familia_id: u.familia_id || '', zona: u.zona || '', zona_id: u.zona_id || ''
     });
     setErrForm('');
     setModal('editar');
@@ -445,7 +475,8 @@ function Usuarios({ user, data }) {
       ...form,
       escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
       familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null,
-      zona: form.rol === 'distribuidor' ? form.zona.trim() : ''
+      zona: form.rol === 'distribuidor' ? form.zona.trim() : '',
+      zona_id: form.rol === 'distribuidor' ? (parseInt(form.zona_id) || null) : null
     };
     try { await AuthController.editarUsuario(user, payload); }
     catch(e) { setErrForm(e.message); return; }
@@ -475,7 +506,7 @@ function Usuarios({ user, data }) {
   const modalProps = {
     modal, form, setForm, setModal, errForm,
     rolesCreables, escuelasDisp, familiasUnicas,
-    esSuper, user, ROL_INFO, obtenerNombreFamilia, nombreEscuela
+    esSuper, user, ROL_INFO, obtenerNombreFamilia, nombreEscuela, zonas
   };
 
   /* ── Render ── */
@@ -629,7 +660,7 @@ function Usuarios({ user, data }) {
                                   ]
                                 }, void 0, true)
                               : u.rol === 'distribuidor'
-                                ? _jsxDEV("span", { style: { fontSize: 12, color: '#84cc16' }, children: ["🌐 Zona: ", u.zona || 'sin asignar'] }, void 0, true)
+                                ? _jsxDEV("span", { style: { fontSize: 12, color: '#84cc16' }, children: ["🌐 Zona: ", zonas.find(z => z.id === u.zona_id)?.nombre || u.zona || 'sin asignar'] }, void 0, true)
                                 : u.escuela_id
                                   ? _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-2)' }, children: [emojiEscuela(u.escuela_id), " ", nombreEscuela(u.escuela_id)] }, void 0, true)
                                   : _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-4)' }, children: "Global" }, void 0, false)

@@ -112,6 +112,14 @@ define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
 // ─── Configuración del super-admin ───────────────────────────────────────────
 define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
 
+// ─── Envío de correo (facturas, notificaciones) ──────────────────────────────
+// Usa la función mail() nativa de PHP (Hostinger la soporta sin configuración
+// adicional). Sin SMTP autenticado/SPF/DKIM la entregabilidad es limitada (puede
+// caer en spam) — si more adelante se contrata un SMTP real, solo hay que
+// cambiar la implementación de enviar_correo() en mailer.php, no los llamadores.
+define('MAIL_FROM_EMAIL', 'no-responder@pagalaescuela.mx');
+define('MAIL_FROM_NAME',  'Paga la Escuela');
+
 // ─── Logging ──────────────────────────────────────────────────────────────────
 define('API_LOG_ENABLED', true);
 define('API_LOG_FILE',    __DIR__ . '/api_log.txt');
@@ -136,6 +144,7 @@ define('PAC_USER',    'tu_usuario_pac');
 define('PAC_PASS',    'tu_password_pac');
 
 // ─── Credenciales de Facturapi ───────────────────────────────────────────────
+<<<<<<< HEAD
 define('FACTURAPI_KEY', 'sk_test_oC5ZzoaR5Hvmig4maAfxbcevwPoMPNDbZHQg8s3zEr');
 
 // ─── Correo saliente (SMTP) — recordatorios de vencimiento y cobros ──────────
@@ -149,3 +158,6 @@ define('SMTP_PASS',       'CAMBIAR_ESTA_CONTRASENA');     // <-- Reemplazar con 
 define('SMTP_FROM_EMAIL', 'contacto@pagalaescuela.com');  // debe ser igual a SMTP_USER: muchos servidores rechazan un From distinto al autenticado
 define('SMTP_FROM_NAME',  'Pagalaescuela');
 define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');
+=======
+define('FACTURAPI_KEY', 'sk_test_CcqXrtSri4dxsxK4D2s8zCEriqD3J2Ee5Pb6ejQG49');
+>>>>>>> f53d96692f55e31053daa2706700d6d15980fdbc

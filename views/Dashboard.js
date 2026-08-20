@@ -511,11 +511,7 @@ function Dashboard({
         }, void 0, false)]
       }, s.label, true))
     }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 320px',
-        gap: 20
-      },
+      className: "dash-split-grid",
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "card",
         children: [/*#__PURE__*/_jsxDEV("div", {
