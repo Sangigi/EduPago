@@ -5,7 +5,12 @@
 # referencias de pago, folios, montos, y en el caso de CAI, tokens de
 # tarjeta). También bloquea config.php/db.php por si el servidor alguna vez
 # sirviera .php como texto plano en vez de ejecutarlo.
-<FilesMatch "\.(txt|json|log|sql|md)$">
+#
+# ^error_log$ agregado aparte: PHP genera ese archivo SIN punto antes de
+# "log" (no "error.log"), así que nunca coincidía con \.(txt|json|log|sql|md)$
+# — quedaba descargable con rutas absolutas del servidor y detalles de
+# esquema de BD en los stack traces.
+<FilesMatch "(\.(txt|json|log|sql|md)$|^error_log$)">
     Require all denied
 </FilesMatch>
 
@@ -15,3 +20,12 @@
 <Files "db.php">
     Require all denied
 </Files>
+
+# CSP: mitiga XSS restringiendo de dónde puede cargar/ejecutar recursos la
+# página. script-src NO incluye 'unsafe-inline' — el único script inline que
+# había (la animación de bienvenida) se movió a assets/js/intro-splash.js
+# para que esto pudiera ser estricto de verdad. style-src sí necesita
+# 'unsafe-inline' por el bloque <style> de esa misma animación.
+<IfModule mod_headers.c>
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://api.qrserver.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+</IfModule>

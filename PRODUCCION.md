@@ -44,6 +44,13 @@
 ### 5. Base de datos — migraciones
 - Correr `migracion_2026_08_20_suscripciones.sql` una sola vez (phpMyAdmin o consola MySQL de Hostinger) **antes** de subir el `api.php` nuevo — agrega `fecha_vencimiento_plan` / `ultimo_recordatorio_plan` a `escuelas`.
 - Correr también `migracion_2026_08_20_pagos_recurrentes.sql` — agrega los campos de recurrencia/penalización a `productos` y `cobros`, y crea la tabla `pagos_recurrentes_generados`. Sin esto, los conceptos recurrentes (Productos → tipo "Recurrente") no se generan ni se penalizan.
+- Correr también `migracion_2026_08_20_revocacion_sesiones.sql` — agrega `usuarios.sesion_valida_desde`, usada para poder invalidar tokens ya emitidos (al cambiar contraseña, o al forzar el cierre de sesión de alguien desde Usuarios). Sin esto, `verificar_token_auth()` en api.php tronaría con "columna desconocida".
+
+### 5.1 Seguridad — pendiente de tu parte (no se puede arreglar solo en código)
+- **Hacer privado el repo de GitHub** (`Sangigi/EduPago`) — está público con `config.php` completo expuesto.
+- **Rotar `DB_PASS` y `PDT_PASS`** — nunca se rotaron pese a estar expuestos desde la misma fuga que sí motivó rotar otros dos secretos.
+- Después de rotar: considera sacar `config.php` de git (`git rm --cached config.php` + `.gitignore`) para que la próxima vez que lo edites no se vuelva a subir con el bot de auto-commit.
+- `pago_referencia.php` / `cancela_pago_referencia.php` / `webhook_liga.php`: su protocolo con Cobroscontarjeta.com no admite token, así que la única defensa real es lista blanca de IP — pide la IP real a Cobroscontarjeta.com/Pagadetodo y agrégala en `config.php` → `IPS_PERMITIDAS_PAGOS_SIN_TOKEN` (hoy vacío = sin restricción).
 
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.

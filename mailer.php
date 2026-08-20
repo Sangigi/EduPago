@@ -19,6 +19,14 @@
 function enviar_correo($destinatarios, $asunto, $htmlBody, $adjuntos = []) {
     $destinatarios = is_array($destinatarios) ? $destinatarios : [$destinatarios];
     $destinatarios = array_values(array_unique(array_filter(array_map('trim', $destinatarios))));
+    // Defensa adicional (además de validar_email_opcional() en api.php al
+    // guardar el dato): descarta cualquier destinatario con \r/\n o que no sea
+    // un email válido — sin esto, un valor con salto de línea se cuela tal
+    // cual al "RCPT TO"/"To:" e inyecta cabeceras/comandos SMTP arbitrarios
+    // usando las credenciales reales de producción.
+    $destinatarios = array_values(array_filter($destinatarios, function($d) {
+        return strpbrk($d, "\r\n") === false && filter_var($d, FILTER_VALIDATE_EMAIL);
+    }));
     if (empty($destinatarios)) {
         return ['success' => false, 'error' => 'Sin destinatarios'];
     }

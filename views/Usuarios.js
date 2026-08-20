@@ -495,6 +495,19 @@ function Usuarios({ user, data }) {
     setConfirm(null);
   };
 
+  const cerrarSesiones = async u => {
+    // Fuerza a que este usuario tenga que iniciar sesión de nuevo en todos
+    // sus dispositivos (sin cambiarle la contraseña) — útil si se perdió un
+    // dispositivo o se sospecha que su sesión se filtró.
+    if (!window.confirm(`¿Cerrar todas las sesiones activas de ${u.nombre}? Tendrá que iniciar sesión de nuevo en todos sus dispositivos.`)) return;
+    try {
+      await AuthController.cerrarSesionesUsuario(u.id);
+      alert('Sesiones cerradas.');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  };
+
   const puedeEditar = objetivo => {
     if (!objetivo) return false;
     if (esSuper) return true;
@@ -686,6 +699,12 @@ function Usuarios({ user, data }) {
                                       children: u.activo === false
                                         ? _jsxDEV(Icon, { name: "eyeOff", size: 14, color: "currentColor" }, void 0, false)
                                         : _jsxDEV(Icon, { name: "shield", size: 14, color: "currentColor" }, void 0, false)
+                                    }, void 0, false),
+                                    puedeAcc && !esUnoMismo && _jsxDEV("button", {
+                                      className: "btn btn-ghost btn-sm",
+                                      onClick: () => cerrarSesiones(u),
+                                      title: "Cerrar sus sesiones activas (forzar a iniciar sesión de nuevo)",
+                                      children: _jsxDEV(Icon, { name: "logout", size: 14, color: "currentColor" }, void 0, false)
                                     }, void 0, false),
                                     puedeAcc && !u.es_semilla && !esUnoMismo && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",

@@ -159,13 +159,25 @@ function verificar_token_auth() {
     }
     // El rol y estado se leen siempre frescos de la BD (no del token),
     // así reflejan cualquier cambio (ej. desactivación) inmediatamente.
-    $stmt = $pdo->prepare("SELECT id, rol, escuela_id, familia_id, activo FROM usuarios WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, rol, escuela_id, familia_id, activo, sesion_valida_desde FROM usuarios WHERE id = ?");
     $stmt->execute([intval($user_id)]);
     $usuario = $stmt->fetch();
     if (!$usuario || !$usuario['activo']) {
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'Usuario no encontrado o inactivo.']);
         exit;
+    }
+    // Revocación de sesión: si cambiaste tu contraseña o un admin forzó el
+    // cierre de sesión DESPUÉS de que se emitió este token, se rechaza aunque
+    // la firma/expiración sigan siendo válidas — antes no había ninguna forma
+    // de invalidar un token robado antes de que expirara solo (hasta 12h).
+    if (!empty($usuario['sesion_valida_desde'])) {
+        $emitido_en = intval($exp) - APP_TOKEN_TTL;
+        if ($emitido_en < strtotime($usuario['sesion_valida_desde'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'error' => 'Tu sesión fue cerrada. Inicia sesión de nuevo.']);
+            exit;
+        }
     }
     // Igual que con el usuario: si su escuela fue desactivada a media sesión, se corta el acceso.
     if ($usuario['escuela_id']) {
@@ -196,6 +208,18 @@ function log_api($msg) {
     if (!API_LOG_ENABLED) return;
     file_put_contents(API_LOG_FILE, date('Y-m-d H:i:s') . ' | ' . $msg . "\n", FILE_APPEND);
 }
+// Valida un email opcional (puede venir vacío) antes de guardarlo en BD. Sin
+// esto, cualquiera podía poner \r\n en su propio correo (clientes/familias) y
+// usarlo después para inyectar cabeceras/comandos SMTP cuando cron_recordatorios.php
+// le manda un correo (ver mailer.php) — con las credenciales SMTP reales de producción.
+function validar_email_opcional($valor) {
+    $valor = trim($valor ?? '');
+    if ($valor === '') return null;
+    if (strpbrk($valor, "\r\n") !== false || !filter_var($valor, FILTER_VALIDATE_EMAIL)) {
+        respond(['success' => false, 'error' => 'El correo electrónico no es válido.']);
+    }
+    return $valor;
+}
 function curl_post($url, $payload, $headers = []) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -218,6 +242,26 @@ switch ($action) {
         $email = trim($input['email'] ?? '');
         $pass  = $input['password'] ?? '';
         if (!$email || !$pass) respond(['success' => false, 'error' => 'Faltan credenciales']);
+        // Límite de intentos: antes no había ningún tope, permitiendo fuerza
+        // bruta/credential stuffing ilimitado. Reutiliza logs_sistema (ya
+        // registra cada 'login_fallido' con ip y correo) — sin tabla nueva.
+        // Doble tope: por IP (cualquier correo) y por correo (cualquier IP).
+        try {
+            $ipLogin = $_SERVER['REMOTE_ADDR'] ?? '';
+            $stmtRateIp = $pdo->prepare(
+                "SELECT COUNT(*) AS n FROM logs_sistema WHERE accion = 'login_fallido' AND ip = ? AND fecha >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
+            );
+            $stmtRateIp->execute([$ipLogin]);
+            $stmtRateEmail = $pdo->prepare(
+                "SELECT COUNT(*) AS n FROM logs_sistema WHERE accion = 'login_fallido' AND detalle = ? AND fecha >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
+            );
+            $stmtRateEmail->execute(["Intento con correo: $email"]);
+            if (intval($stmtRateIp->fetch()['n'] ?? 0) >= 15 || intval($stmtRateEmail->fetch()['n'] ?? 0) >= 5) {
+                respond(['success' => false, 'error' => 'Demasiados intentos fallidos. Espera unos minutos antes de volver a intentar.']);
+            }
+        } catch (\PDOException $e) {
+            // Si logs_sistema no existe aún, no bloquear el login por eso.
+        }
         $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id, familia_id FROM usuarios WHERE email = ? AND activo = 1");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
@@ -1908,7 +1952,7 @@ switch ($action) {
         $matricula  = trim($input['matricula']    ?? '') ?: null;
         $grado      = trim($input['grado']        ?? '') ?: null;
         $curp       = trim($input['curp']         ?? '') ?: null;
-        $email      = trim($input['email']        ?? '') ?: null;
+        $email      = validar_email_opcional($input['email'] ?? '');
         $tel        = trim($input['tel']          ?? '') ?: null;
         $familia_id = intval($input['familia_id'] ?? 0) ?: null;
         $tipo       = in_array($input['tipo'] ?? '', ['alumno','general']) ? $input['tipo'] : 'alumno';
@@ -2200,7 +2244,10 @@ switch ($action) {
         if (!$rowPw || !password_verify($actual, $rowPw['password_hash'])) {
             respond(['success' => false, 'error' => 'La contraseña actual no es correcta']);
         }
-        $pdo->prepare("UPDATE usuarios SET password_hash = ? WHERE id = ?")
+        // Al cambiar tu contraseña, se invalidan todos los tokens ya emitidos
+        // (incluido uno robado que alguien más ya tuviera) — el que hizo este
+        // request sigue funcionando porque ya pasó verificar_token_auth() antes.
+        $pdo->prepare("UPDATE usuarios SET password_hash = ?, sesion_valida_desde = NOW() WHERE id = ?")
             ->execute([password_hash($nueva, PASSWORD_BCRYPT), $usuario_actual['user_id'] ?? 0]);
         registrar_log($pdo, $usuario_actual, 'usuario_cambio_password_propio', 'El usuario cambió su propia contraseña');
         respond(['success' => true]);
@@ -2247,6 +2294,7 @@ switch ($action) {
                        'direccion','contacto_emergencia','tel_emergencia',
                        'doc_curp_url','doc_acta_url','doc_ine_tutor_url','nivel_educativo_sat'];
         }
+        if (array_key_exists('email', $input)) $input['email'] = validar_email_opcional($input['email']);
         $sets = []; $vals = [];
         foreach ($campos as $c) {
             if (array_key_exists($c, $input)) {
@@ -2299,7 +2347,7 @@ switch ($action) {
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $nombre     = trim($input['nombre']       ?? '');
         $contacto   = trim($input['contacto']     ?? '') ?: null;
-        $email      = trim($input['email']        ?? '') ?: null;
+        $email      = validar_email_opcional($input['email'] ?? '');
         $tel        = trim($input['telefono']     ?? '') ?: null;
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
         $stmt = $pdo->prepare(
@@ -2340,6 +2388,7 @@ switch ($action) {
                'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto']
             : ['nombre', 'contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
                'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto'];
+        if (array_key_exists('email', $input)) $input['email'] = validar_email_opcional($input['email']);
         $sets = []; $vals = [];
         foreach ($campos as $c) {
             if (array_key_exists($c, $input)) {
@@ -2538,7 +2587,13 @@ switch ($action) {
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
         if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }
-        if ($password) { $sets[] = 'password_hash = ?';  $vals[] = password_hash($password, PASSWORD_BCRYPT); }
+        if ($password) {
+            $sets[] = 'password_hash = ?';        $vals[] = password_hash($password, PASSWORD_BCRYPT);
+            // Invalida cualquier token ya emitido para este usuario (propio o
+            // reseteado por un admin/superadmin) — sin esto, un token robado
+            // seguía funcionando aunque la contraseña ya hubiera cambiado.
+            $sets[] = 'sesion_valida_desde = NOW()';
+        }
         if ($rol)      { $sets[] = 'rol = ?';            $vals[] = $rol; }
         if ($esc_id !== null) { $sets[] = 'escuela_id = ?'; $vals[] = $esc_id; }
         if ($fam_id !== '__NO_ENVIADO__') { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
@@ -2600,6 +2655,32 @@ switch ($action) {
         $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
         $stmt->execute([$id]);
         registrar_log($pdo, $usuario_actual, 'usuario_activo_toggle', "Usuario #$id");
+        respond(['success' => true]);
+    break;
+    // ══════════════════════════════════════════════════════════════════════════
+    case 'cerrar_sesiones_usuario':
+        // Fuerza a que el usuario tenga que iniciar sesión de nuevo en TODOS
+        // sus dispositivos, sin cambiarle la contraseña — útil si se perdió un
+        // dispositivo o se sospecha que su token se filtró. Antes no existía
+        // ninguna forma de revocar un token específico antes de que expirara solo.
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+        }
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        if ($rol_actual === 'admin') {
+            $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+            $chk->execute([$id]);
+            $objetivo = $chk->fetch();
+            if (!$objetivo || $objetivo['rol'] === 'superadmin' || $objetivo['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
+                http_response_code(403);
+                respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
+            }
+        }
+        $pdo->prepare("UPDATE usuarios SET sesion_valida_desde = NOW() WHERE id = ?")->execute([$id]);
+        registrar_log($pdo, $usuario_actual, 'usuario_sesiones_cerradas', "Usuario #$id: sesiones forzadas a cerrar");
         respond(['success' => true]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
