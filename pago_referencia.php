@@ -51,7 +51,7 @@ require_once __DIR__ . '/config.php';
 
 
 require_once __DIR__ . '/db.php';
-
+require_once __DIR__ . '/helpers_pagos.php';
 
 
 
@@ -416,33 +416,7 @@ try {
 
 
     if (!empty($cobro['cliente_id'])) {
-
-
-
-        $pdo->prepare(
-
-
-
-            "UPDATE clientes SET saldo_pendiente = (
-
-
-
-                SELECT COALESCE(SUM(total), 0) FROM cobros
-
-
-
-                WHERE cliente_id = ? AND estado = 'pendiente'
-
-
-
-            ) WHERE id = ?"
-
-
-
-        )->execute([$cobro['cliente_id'], $cobro['cliente_id']]);
-
-
-
+        recalcular_saldo_pendiente($pdo, intval($cobro['cliente_id']));
     }
 
 

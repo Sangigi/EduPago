@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/helpers_pagos.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -116,11 +117,7 @@ try {
     $pdo->prepare("UPDATE cobros SET estado = 'pagado', auth_code = ? WHERE id IN ($placeholders)")
         ->execute(array_merge([$autorizacion], $idsPendientes));
 
-    $pdo->prepare(
-        "UPDATE clientes SET saldo_pendiente = (
-            SELECT COALESCE(SUM(total), 0) FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'
-        ) WHERE id = ?"
-    )->execute([$cliente['id'], $cliente['id']]);
+    recalcular_saldo_pendiente($pdo, intval($cliente['id']));
 
     $pdo->commit();
 

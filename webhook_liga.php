@@ -22,6 +22,7 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/helpers_pagos.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -173,12 +174,7 @@ try {
 
     // Recalcular saldo_pendiente del cliente vinculado (mismo patrón que confirmar_pago).
     if (!empty($cobro['cliente_id'])) {
-        $pdo->prepare(
-            "UPDATE clientes SET saldo_pendiente = (
-                SELECT COALESCE(SUM(total), 0) FROM cobros
-                WHERE cliente_id = ? AND estado = 'pendiente'
-            ) WHERE id = ?"
-        )->execute([$cobro['cliente_id'], $cobro['cliente_id']]);
+        recalcular_saldo_pendiente($pdo, intval($cobro['cliente_id']));
 
         // Tokenización para CAI: solo si Pagalaescuela mandó un token válido.
         if ($number_tkn) {

@@ -16,6 +16,7 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/helpers_pagos.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -117,8 +118,11 @@ try {
     $update->execute([$clave_rastreo, $cobro['id']]);
 
     if ($cobro['cliente_id']) {
-        $updateSaldo = $pdo->prepare("UPDATE clientes SET saldo_pendiente = GREATEST(0, saldo_pendiente - ?) WHERE id = ?");
-        $updateSaldo->execute([$cobro['total'], $cobro['cliente_id']]);
+        // Antes: decrementaba saldo_pendiente en vez de recalcularlo desde
+        // `cobros` — si el saldo cacheado alguna vez se desincronizaba por
+        // cualquier otra razón, este webhook era el único flujo que nunca
+        // se autocorregía.
+        recalcular_saldo_pendiente($pdo, intval($cobro['cliente_id']));
     }
 
     $log_msg = "✓ SPEI CONFIRMADO en DB | cobro_id:{$cobro['id']} rastreo:{$clave_rastreo} monto:{$monto_pesos}";

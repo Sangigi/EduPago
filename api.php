@@ -5,6 +5,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/helpers_pagos.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
@@ -1749,13 +1750,7 @@ switch ($action) {
             $s2->execute([$cliente_id]);
             $cl = $s2->fetch();
             if ($cl) $cliente_nombre = $cl['nombre'];
-            // Recalcular saldo_pendiente desde cobros (fuente de verdad)
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros
-                    WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$cliente_id, $cliente_id]);
+            recalcular_saldo_pendiente($pdo, $cliente_id);
         }
         $nuevo_saldo_crear = 0;
         if ($cliente_id) {
@@ -1860,12 +1855,7 @@ switch ($action) {
         $nuevo_saldo = 0; $cliente_id_afectado = null;
         if (!empty($cob_row['cliente_id'])) {
             $cliente_id_afectado = intval($cob_row['cliente_id']);
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros
-                    WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
+            recalcular_saldo_pendiente($pdo, $cliente_id_afectado);
             $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
             $rs->execute([$cliente_id_afectado]);
             $nuevo_saldo = floatval($rs->fetchColumn());
@@ -1906,12 +1896,7 @@ switch ($action) {
         $nuevo_saldo = 0; $cliente_id_afectado = null;
         if (!empty($cob_row['cliente_id'])) {
             $cliente_id_afectado = intval($cob_row['cliente_id']);
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros
-                    WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
+            recalcular_saldo_pendiente($pdo, $cliente_id_afectado);
             $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
             $rs->execute([$cliente_id_afectado]);
             $nuevo_saldo = floatval($rs->fetchColumn());
@@ -1950,12 +1935,7 @@ switch ($action) {
         $nuevo_saldo = 0; $cliente_id_afectado = null;
         if (!empty($cob_row['cliente_id'])) {
             $cliente_id_afectado = intval($cob_row['cliente_id']);
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros
-                    WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$cliente_id_afectado, $cliente_id_afectado]);
+            recalcular_saldo_pendiente($pdo, $cliente_id_afectado);
             $rs = $pdo->prepare("SELECT saldo_pendiente FROM clientes WHERE id = ?");
             $rs->execute([$cliente_id_afectado]);
             $nuevo_saldo = floatval($rs->fetchColumn());

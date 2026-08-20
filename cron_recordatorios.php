@@ -29,6 +29,7 @@ if (php_sapi_name() !== 'cli') {
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/helpers_pagos.php';
 
 // Debe reflejar PLANES_LIMITES en api.php — la única fuente de verdad real
 // (límites/permisos) es el backend; aquí solo se usa para el texto del correo.
@@ -102,11 +103,7 @@ try {
                 // CRÍTICO: Portal Familia no lee `cobros` en vivo, muestra
                 // `clientes.saldo_pendiente` (igual que hace crear_cobro en
                 // api.php) — sin esto, el cobro recurrente nunca aparece para pagar.
-                $pdo->prepare(
-                    "UPDATE clientes SET saldo_pendiente = (
-                        SELECT COALESCE(SUM(total), 0) FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'
-                    ) WHERE id = ?"
-                )->execute([$al['id'], $al['id']]);
+                recalcular_saldo_pendiente($pdo, intval($al['id']));
                 $pdo->commit();
 
                 $emailAl = $al['email'];
@@ -214,11 +211,7 @@ try {
             // El recargo sube `cobros.total` — hay que refrescar el saldo
             // cacheado en `clientes.saldo_pendiente` (lo que muestra/cobra
             // Portal Familia), si no, la familia paga el monto viejo sin recargo.
-            $pdo->prepare(
-                "UPDATE clientes SET saldo_pendiente = (
-                    SELECT COALESCE(SUM(total), 0) FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'
-                ) WHERE id = ?"
-            )->execute([$row['cliente_id'], $row['cliente_id']]);
+            recalcular_saldo_pendiente($pdo, intval($row['cliente_id']));
         }
         $nuevoTotal = floatval($row['total']) + $recargo;
         $emailDestino = $row['cliente_email'] ?: $row['familia_email'];

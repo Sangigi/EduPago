@@ -57,7 +57,11 @@
 ### 5.2 Limpieza de datos de prueba
 - Corre `reporte_datos_prueba.sql` (solo `SELECT`, no borra nada) en phpMyAdmin y revisa los resultados — agrupa alumnos/familias/colegios/cobros que parecen ser de las pruebas que hicimos juntos (emails `@example.com`, nombres como "q"/"123", el colegio "Instituto Tecnológico Naulcalpan" de prueba, cobros de $0.01). Con base en eso se genera `limpieza_datos_prueba.sql` con los `DELETE` que confirmes — no se borra nada sin que lo revises primero.
 
-### 5.3 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
+### 5.3 Bug corregido: `saldo_pendiente` desincronizable en pagos SPEI
+- `clientes.saldo_pendiente` es una columna cacheada (no se calcula en vivo). Se recalculaba con la misma consulta copiada y pegada en 12 sitios (`api.php` x4, `webhook_liga.php`, `pago_referencia.php`, `cancela_pago_referencia.php`, `cancela_pago_spei.php`, `pago_clabe.php`, `cron_recordatorios.php` x2) — salvo `webhook_spei.php`, que en vez de recalcular desde `cobros` hacía un decremento (`saldo_pendiente - total`). Si ese saldo alguna vez se desincronizaba por cualquier otra razón, la confirmación de un pago SPEI era el único flujo que nunca se autocorregía.
+- Se centralizó en `helpers_pagos.php` → `recalcular_saldo_pendiente($pdo, $cliente_id)`, usada ahora en los 12 sitios (incluido el de SPEI, ya corregido). No requiere migración de base de datos — es un fix de lógica, no de esquema.
+
+### 5.4 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
 - **`usuarios.zona` / `planteles.zona` (texto) vs `zona_id` (FK a la tabla `zonas`)**: es una migración a normalizado que ya está en curso desde antes, NO un descuido. Hoy solo las filas nuevas (distribuidores #11/#12) tienen `zona_id` poblado — el resto de usuarios/planteles viejos sigue con `zona_id = NULL` y solo el texto libre. **No borres las columnas `zona` (texto) todavía** — primero hay que backfillear `zona_id` en todas las filas viejas cruzando contra `zonas.nombre`, confirmar que quedó 100% poblado, y solo entonces dropear el texto.
 - **`escuelas.clabe_fija`**: legado, reemplazado por el sistema de `clabe_pool` (CLABEs individuales). Confirmado que ningún archivo PHP la lee ya (ni siquiera los webhooks de SPEI/CLABE) — es segura de eliminar cuando quieras, no es urgente.
 

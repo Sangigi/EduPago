@@ -13,6 +13,7 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/helpers_pagos.php';
 
 date_default_timezone_set('America/Mexico_City');
 header('Content-Type: application/json; charset=UTF-8');
@@ -97,12 +98,7 @@ try {
     $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?")->execute([$cobro['id']]);
 
     if (!empty($cobro['cliente_id'])) {
-        $pdo->prepare(
-            "UPDATE clientes SET saldo_pendiente = (
-                SELECT COALESCE(SUM(total), 0) FROM cobros
-                WHERE cliente_id = ? AND estado = 'pendiente'
-            ) WHERE id = ?"
-        )->execute([$cobro['cliente_id'], $cobro['cliente_id']]);
+        recalcular_saldo_pendiente($pdo, intval($cobro['cliente_id']));
     }
 
     $pdo->commit();
