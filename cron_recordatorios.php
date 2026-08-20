@@ -99,6 +99,14 @@ try {
                          VALUES (?, ?, ?, 1, ?, ?)"
                     )->execute([$cobroId, $prod['id'], $prod['nombre'], $prod['precio'], $prod['precio']]);
                 } catch (\PDOException $eItem) { /* cobro_items es opcional (ver crear_cobro), no crítico */ }
+                // CRÍTICO: Portal Familia no lee `cobros` en vivo, muestra
+                // `clientes.saldo_pendiente` (igual que hace crear_cobro en
+                // api.php) — sin esto, el cobro recurrente nunca aparece para pagar.
+                $pdo->prepare(
+                    "UPDATE clientes SET saldo_pendiente = (
+                        SELECT COALESCE(SUM(total), 0) FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'
+                    ) WHERE id = ?"
+                )->execute([$al['id'], $al['id']]);
                 $pdo->commit();
 
                 $emailAl = $al['email'];
@@ -174,7 +182,7 @@ try {
 
     // --- Recargo por pago tardío (único, no escalable — se aplica una sola vez) ---
     $stmtPend = $pdo->query(
-        "SELECT co.id, co.total, co.escuela_id, cl.email AS cliente_email, cl.nombre AS cliente_nombre, fa.email AS familia_email,
+        "SELECT co.id, co.total, co.escuela_id, co.cliente_id, cl.email AS cliente_email, cl.nombre AS cliente_nombre, fa.email AS familia_email,
                 p.nombre AS producto_nombre, p.dia_ventana_fin, p.penalizacion_tipo, p.penalizacion_valor
          FROM cobros co
          JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
@@ -191,6 +199,16 @@ try {
         if ($recargo <= 0) continue;
         $pdo->prepare("UPDATE cobros SET total = total + ?, recargo_aplicado = 1, recargo_monto = ? WHERE id = ?")
             ->execute([$recargo, $recargo, $row['id']]);
+        if ($row['cliente_id']) {
+            // El recargo sube `cobros.total` — hay que refrescar el saldo
+            // cacheado en `clientes.saldo_pendiente` (lo que muestra/cobra
+            // Portal Familia), si no, la familia paga el monto viejo sin recargo.
+            $pdo->prepare(
+                "UPDATE clientes SET saldo_pendiente = (
+                    SELECT COALESCE(SUM(total), 0) FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'
+                ) WHERE id = ?"
+            )->execute([$row['cliente_id'], $row['cliente_id']]);
+        }
         $nuevoTotal = floatval($row['total']) + $recargo;
         $emailDestino = $row['cliente_email'] ?: $row['familia_email'];
         if ($emailDestino) {
