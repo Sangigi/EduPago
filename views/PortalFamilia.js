@@ -33,6 +33,36 @@ function PortalFamilia({
   const [cobroActivo, setCobroActivo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('inicio');
+  // Ficha técnica que se está viendo: { registro, tipo }
+  const [ficha, setFicha] = useState(null);
+
+  // Guarda el enlace de la foto y refleja el cambio sin recargar
+  const guardarFotoFicha = async (url) => {
+    const f = ficha;
+    if (!f) return { success: false, error: 'Sin selección' };
+    const esAlumno = f.tipo !== 'tutor';
+    const accion = esAlumno ? 'editar_cliente' : 'editar_familia';
+    try {
+      const res = await fetch('api.php?action=' + accion, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + AuthController.getToken()
+        },
+        body: JSON.stringify({ id: f.registro.id, foto_url: url })
+      });
+      const json = await res.json();
+      if (json && json.success !== false) {
+        setFicha(prev => prev ? { ...prev, registro: { ...prev.registro, foto_url: url } } : prev);
+        if (esAlumno) {
+          setMisHijos(prev => prev.map(h => h.id === f.registro.id ? { ...h, foto_url: url } : h));
+        }
+      }
+      return json;
+    } catch (e) {
+      return { success: false, error: 'Error de conexión: ' + e.message };
+    }
+  };
 
   // Tema del portal: 'claro', 'oscuro' o 'auto' (sigue al sistema).
   // Se guarda con la misma llave que el resto de la plataforma, así la
@@ -1013,7 +1043,12 @@ function PortalFamilia({
         }, void 0, true)]
       }, void 0, true), tab === 'hijos' && _jsxDEV("div", {
         children: misHijos.map(hijo => _jsxDEV("div", {
-          style: card(),
+          style: { ...card(), cursor: 'pointer' },
+          title: 'Ver ficha técnica',
+          onClick: e => {
+            if (e.target.closest('button, a, input, select, label')) return;
+            setFicha({ registro: hijo, tipo: 'alumno' });
+          },
           children: [_jsxDEV("div", {
             style: {
               padding: '16px 20px',
@@ -2092,6 +2127,15 @@ function PortalFamilia({
         style: { display: 'flex', flexDirection: 'column', gap: 18 },
         children: [_jsxDEV("div", {
           children: [
+            _jsxDEV("button", {
+              className: "btn btn-secondary",
+              style: { marginBottom: 20 },
+              onClick: () => {
+                const fam = (data.familias || []).find(f => f.id === user.familia_id);
+                setFicha({ registro: fam || { id: user.familia_id, nombre: user.nombre, email: user.email }, tipo: 'tutor' });
+              },
+              children: "Ver mi ficha de tutor"
+            }, 'fichaTutor', false),
             _jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Apariencia" }, void 0, false),
             _jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Elige c\u00f3mo quieres ver el portal. Tu elecci\u00f3n se guarda en este dispositivo." }, void 0, false),
             _jsxDEV("div", {
@@ -2235,6 +2279,16 @@ function PortalFamilia({
             children: guardandoPass ? 'Guardando…' : 'Cambiar contraseña'
           }, void 0, false)]
         }, void 0, true)]
-      }, void 0, true)]
+      }, void 0, true),
+      ficha && typeof FichaTecnica !== 'undefined' ? _jsxDEV(FichaTecnica, {
+        registro: ficha.registro,
+        tipo: ficha.tipo,
+        escuela: escuela,
+        familia: ficha.tipo === 'tutor' ? null : { nombre: (data.familias || []).find(f => f.id === user.familia_id)?.nombre },
+        puedeEditar: true,
+        onCerrar: () => setFicha(null),
+        onGuardarFoto: guardarFotoFicha
+      }, 'ficha', false) : null
+      ]
   }, void 0, true);
 }
