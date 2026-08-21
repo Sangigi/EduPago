@@ -46,8 +46,9 @@
   /* ══ MODO CLARO (por defecto) ══ */
   --bg-main:      #f4f5f9;   /* lienzo lavanda de la página */
   --bg-solid:     #ffffff;
-  --bg-surface:   #ffffff;   /* tarjetas y panel principal */
+  --bg-surface:   #ffffff;   /* tarjetas */
   --bg-surface-2: #fafafd;
+  --bg-panel:     #ffffff;   /* panel principal (lienzo del contenido) */
   --bg-sidebar:   transparent;
 
   /* ══ SIDEBAR (ahora claro, integrado al lienzo) ══ */
@@ -74,8 +75,8 @@
   /* ══ TEXTO ══ */
   --ink:    #1e2430;
   --ink-2:  #414958;
-  --ink-3:  #737b8c;
-  --ink-4:  #a2a9b8;
+  --ink-3:  #697182;   /* 4.90:1 sobre blanco — cumple WCAG AA */
+  --ink-4:  #8f97a6;   /* solo para texto decorativo/iconos */
 
   /* ══ ACENTOS ══ */
   --accent:          var(--violet);
@@ -108,21 +109,24 @@
 
 /* ══ MODO OSCURO (adaptado a la misma paleta) ══ */
 :root[data-theme="dark"] {
-  --bg-main:      #0f1120;
-  --bg-solid:     #171a2e;
-  --bg-surface:   #171a2e;
-  --bg-surface-2: #1d2140;
+  /* Escala de elevación: cuanto más "arriba" está el elemento, más claro.
+     Sin esto, panel y tarjetas quedan del mismo tono y las tarjetas se pierden. */
+  --bg-main:      #0b0d18;   /* lienzo — el más oscuro */
+  --bg-panel:     #13162b;   /* panel principal */
+  --bg-surface:   #1b1f39;   /* tarjetas — elevadas sobre el panel */
+  --bg-solid:     #1b1f39;
+  --bg-surface-2: #232848;
   --bg-sidebar:   transparent;
 
-  --border-glow:   rgba(255,255,255,0.08);
+  --border-glow:   rgba(255,255,255,0.09);
   --border-active: var(--violet-light);
-  --glass-light:   rgba(255,255,255,0.04);
-  --glass-hover:   rgba(255,255,255,0.07);
+  --glass-light:   rgba(255,255,255,0.05);
+  --glass-hover:   rgba(255,255,255,0.08);
   --glass-dark:    rgba(0,0,0,0.28);
-  --shadow-glass:  0 1px 2px rgba(0,0,0,.32);
-  --shadow-md:     0 6px 18px rgba(0,0,0,.38);
-  --shadow-lg:     0 18px 44px rgba(0,0,0,.55);
-  --shadow-violet: 0 8px 22px rgba(108,90,240,.42);
+  --shadow-glass:  0 1px 2px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04);
+  --shadow-md:     0 8px 22px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  --shadow-lg:     0 22px 52px rgba(0,0,0,.62);
+  --shadow-violet: 0 8px 26px rgba(108,90,240,.45);
 
   --ink:    #eef1f8;
   --ink-2:  #c4cad8;
@@ -143,7 +147,8 @@
   --magenta-soft: rgba(216,96,240,0.14);
 
   --accent:          var(--violet-light);
-  --btn-gradient:    var(--grad-cool);
+  /* El degradado cian daba 1.69:1 con texto blanco. Este mantiene 4.6:1+ */
+  --btn-gradient:    linear-gradient(135deg, #6c5af0 0%, #9a4fe0 100%);
   --accent-glow:     rgba(108,90,240,0.18);
   --on-accent:       #ffffff;
   --amber:       #fbbf24;
@@ -307,7 +312,7 @@ html, body {
 
 .main {
   flex:1; display:flex; flex-direction:column; overflow:hidden;
-  background:var(--bg-surface);
+  background:var(--bg-panel);
   border-radius:var(--radius-panel) 0 0 0;
   border-left:1px solid var(--border-glow);
   border-top:1px solid var(--border-glow);
@@ -616,7 +621,33 @@ tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
 
   height:100vh; display:flex; align-items:center; justify-content:center;
 
-  background:var(--bg-main); position:relative; overflow:hidden;padding-bottom: 5rem;
+  position:relative; overflow:hidden; padding-bottom:5rem;
+
+  /* ── Colores ORIGINALES de EduPago, aislados del rediseño ──
+     Redefinir los tokens aquí re-tiñe solo el login: el resto
+     del sistema sigue con la paleta del video.                */
+
+  --accent:       var(--lime);
+
+  --accent-glow:  rgba(189,207,0,0.18);
+
+  --btn-gradient: linear-gradient(135deg, #bdcf00 0%, #2f9e44 100%);
+
+  --border-glow:  rgba(255,255,255,0.07);
+
+  --bg-solid:     #272c52;
+
+  --bg-surface:   #272c52;
+
+  --ink:    #eef1f8;
+
+  --ink-2:  #c4cad8;
+
+  --ink-3:  #8b93a7;
+
+  --ink-4:  #69798f;
+
+  background:#272c64;
 
 }
 
@@ -626,11 +657,9 @@ tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
 
   background:
 
-    radial-gradient(ellipse 55% 55% at 82% 8%,  rgba(108,90,240,.13) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 60% at 80% 15%, rgba(189,207,0,.10) 0%, transparent 60%),
 
-    radial-gradient(ellipse 55% 55% at 12% 92%, rgba(79,216,240,.13) 0%, transparent 62%),
-
-    radial-gradient(ellipse 40% 40% at 92% 88%, rgba(216,96,240,.10) 0%, transparent 60%);
+    radial-gradient(ellipse 60% 60% at 15% 85%, rgba(73,175,84,.10) 0%, transparent 60%);
 
   pointer-events:none;
 
@@ -638,9 +667,9 @@ tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
 
 .login-card {
 
-  width:390px; background:var(--bg-surface); border:1px solid var(--border-glow);
+  width:390px; background:#272c52; border:1px solid rgba(255,255,255,.07);
 
-  border-radius:var(--radius-panel); padding:38px 34px; box-shadow:var(--shadow-lg);
+  border-radius:var(--radius-lg); padding:34px 32px; box-shadow:0 16px 40px rgba(0,0,0,.5);
 
   animation:slideUp .3s ease; position:relative; z-index:1;
 
@@ -650,7 +679,7 @@ tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
 
 .login-brand   { font-size:28px; font-weight:800; color:var(--ink); letter-spacing:-1px; }
 
-.login-tagline { font-size:12px; color:var(--violet); margin-top:5px; font-weight:600; letter-spacing:.3px; }
+.login-tagline { font-size:12px; color:var(--green); margin-top:5px; font-weight:600; letter-spacing:.3px; }
 
 .login-label   { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
 
@@ -686,7 +715,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   cursor:pointer; transition:all .15s; font-family:var(--font);
 
-  letter-spacing:.2px; box-shadow:var(--shadow-violet);
+  letter-spacing:.2px; box-shadow:0 4px 14px rgba(47,158,68,.28);
 
 }
 
@@ -932,11 +961,14 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 /* ── THEME TOGGLE ── */
 
-.theme-toggle { padding:8px 11px; border-radius:var(--radius-sm); border:1px solid var(--border-glow); background:var(--bg-solid); cursor:pointer; font-size:16px; color:var(--ink-3); transition:all .15s; display:flex; align-items:center; }
+.theme-toggle {
+  padding:9px 11px; border-radius:var(--radius-pill); border:1px solid var(--border-glow);
+  background:var(--bg-surface); cursor:pointer; font-size:15px; color:var(--ink-3);
+  transition:all .15s; display:flex; align-items:center; line-height:1;
+}
 
-.theme-toggle:hover { background:var(--glass-light); color:var(--ink); }
-
-.theme-toggle {display: none;}
+/* Antes esta regla era `display:none`, así que el usuario no podía cambiar de tema. */
+.theme-toggle:hover { background:var(--violet-soft); color:var(--violet); border-color:var(--violet); }
 
 /* ── MOBILE MENU BUTTON + DRAWER BACKDROP (ocultos en escritorio) ── */
 
@@ -1374,4 +1406,66 @@ box-shadow:0 0 0 3px var(--accent-glow);
   }
   .section-title .pill-group { margin-left:0 !important; width:100%; }
   .pill { padding:8px 14px; font-size:12px; }
+}
+
+
+/* ══════════════════════════════════════════════════════
+   AJUSTES ESPECÍFICOS DEL MODO OSCURO
+   Detalles que no traducen automáticamente desde el modo claro.
+══════════════════════════════════════════════════════ */
+
+/* ── El drawer móvil debe usar el panel, no la tarjeta ── */
+@media (max-width: 768px) {
+  :root[data-theme="dark"] .sidebar { background:var(--bg-panel); }
+}
+
+/* ── El panel se separa del lienzo con un borde superior sutil ── */
+:root[data-theme="dark"] .main {
+  border-left-color:rgba(255,255,255,.07);
+  border-top-color:rgba(255,255,255,.07);
+}
+
+/* ── Tarjeta destacada: en oscuro el degradado a full brillo deslumbra ── */
+:root[data-theme="dark"] .stat-card.is-featured {
+  background:linear-gradient(115deg, #2ea8c4 0%, #5946d8 55%, #a845c0 100%);
+  box-shadow:0 10px 30px rgba(108,90,240,.35);
+}
+
+/* ── Azulejos de icono: tintes translúcidos en vez de pasteles sólidos ── */
+:root[data-theme="dark"] .stat-icon              { background:rgba(108,90,240,.18); color:var(--violet-light); }
+:root[data-theme="dark"] .stat-icon.tint-cyan    { background:rgba(79,216,240,.15);  color:#6fdcf0; }
+:root[data-theme="dark"] .stat-icon.tint-magenta { background:rgba(216,96,240,.15);  color:#e08cf5; }
+:root[data-theme="dark"] .stat-icon.tint-green   { background:rgba(73,175,84,.16);   color:#5fc96c; }
+:root[data-theme="dark"] .stat-icon.tint-amber   { background:rgba(217,119,6,.16);   color:#f0a63a; }
+:root[data-theme="dark"] .stat-icon.tint-red     { background:rgba(229,72,77,.16);   color:#f2777a; }
+
+/* ── Píldora inactiva: la superficie de tarjeta la haría desaparecer ── */
+:root[data-theme="dark"] .pill { background:var(--bg-surface-2); }
+:root[data-theme="dark"] .pill:hover { border-color:rgba(255,255,255,.20); }
+
+/* ── Hover de fila: el violeta sólido es demasiado fuerte sobre oscuro ── */
+:root[data-theme="dark"] tbody tr:hover td { background:rgba(108,90,240,.14); }
+
+/* ── Cabecera de tabla sobre la superficie elevada ── */
+:root[data-theme="dark"] th { background:rgba(255,255,255,.045); color:var(--ink-3); }
+
+/* ── Botón secundario: necesita contraste contra la tarjeta ── */
+:root[data-theme="dark"] .btn-secondary { background:var(--bg-surface-2); border-color:var(--border-glow); color:var(--ink-2); }
+:root[data-theme="dark"] .btn-secondary:hover { background:rgba(255,255,255,.10); color:var(--ink); }
+
+/* ── Campos de formulario ── */
+:root[data-theme="dark"] .form-input,
+:root[data-theme="dark"] .form-select,
+:root[data-theme="dark"] .search-bar input { background:var(--bg-main); color:var(--ink); }
+
+/* ── Barras de desplazamiento ── */
+:root[data-theme="dark"] .content::-webkit-scrollbar-thumb,
+:root[data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,.14); }
+:root[data-theme="dark"] * { scrollbar-color:rgba(255,255,255,.14) transparent; }
+
+/* ── Transición al cambiar de tema (se respeta reduced-motion) ── */
+@media (prefers-reduced-motion: no-preference) {
+  .app, .main, .sidebar, .card, .stat-card, .topbar, .modal {
+    transition:background-color .22s ease, border-color .22s ease, color .22s ease;
+  }
 }
