@@ -543,7 +543,11 @@ function PortalFamilia({
   return _jsxDEV("div", {
     className: 'pf-root',
     style: {
-      minHeight: '100vh',
+      // body tiene overflow:hidden y #root altura fija, así que el portal
+      // necesita ser su propio contenedor con scroll.
+      height: '100vh',
+      overflowY: 'auto',
+      overflowX: 'hidden',
       background: 'var(--bg-main)',
       fontFamily: "'DM Sans',system-ui,sans-serif",
       color: 'var(--ink)'
