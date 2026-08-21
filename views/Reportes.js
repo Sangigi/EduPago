@@ -30,22 +30,33 @@ function Reportes({
   };
   const cobrosFilt = filtrarPorPeriodo(data.cobros);
   const totalFilt = cobrosFilt.reduce((a, c) => a + c.total, 0);
-  const metodos = ['TC', 'SPEI', 'CoDi', 'Efectivo'];
+  const metodos = ['TC', 'SPEI', 'CoDi', 'Efectivo', 'Cheque', 'Otro'];
   const metodoIconos = {
     TC: 'card',
     SPEI: 'bank',
     CoDi: 'phone',
-    Efectivo: 'pay'
+    Efectivo: 'pay',
+    Cheque: 'edit',
+    Otro: 'info'
   };
   const metodoColors = {
-    TC: 'var(--accent)',
-    SPEI: 'var(--purple)',
-    CoDi: 'var(--green)',
-    Efectivo: 'var(--amber)'
+    TC: 'var(--violet)',
+    SPEI: 'var(--cyan)',
+    CoDi: 'var(--magenta)',
+    Efectivo: 'var(--green)',
+    Cheque: 'var(--amber)',
+    Otro: 'var(--red)'
+  };
+  // Misma agrupación que AppModel: 'Tarjeta' cuenta como TC y todo método
+  // vacío o no catalogado cae en 'Otro', para que la suma cuadre con el total.
+  const claseMetodo = c => {
+    const m = String(c.metodo || '').trim();
+    if (m === 'Tarjeta') return 'TC';
+    return metodos.indexOf(m) >= 0 ? m : 'Otro';
   };
   const porMetodo = metodos.map(m => ({
     metodo: m,
-    total: cobrosFilt.filter(c => c.metodo === m).reduce((a, c) => a + c.total, 0),
+    total: cobrosFilt.filter(c => claseMetodo(c) === m).reduce((a, c) => a + c.total, 0),
     count: cobrosFilt.filter(c => c.metodo === m).length
   }));
   const maxMetodo = Math.max(...porMetodo.map(m => m.total), 1);
@@ -233,7 +244,7 @@ function Reportes({
           children: (() => {
             /* Dona con la misma información que antes mostraban las barras */
             const paleta = { TC: 'var(--violet)', SPEI: 'var(--cyan)', CoDi: 'var(--magenta)', Efectivo: 'var(--green)' };
-            const etiquetas = { TC: 'Tarjeta', SPEI: 'SPEI', CoDi: 'CoDi / QR', Efectivo: 'Efectivo' };
+            const etiquetas = { TC: 'Tarjeta', SPEI: 'SPEI', CoDi: 'CoDi / QR', Efectivo: 'Efectivo', Cheque: 'Cheque', Otro: 'Otro / sin método' };
             const serie = porMetodo
               .filter(m => m.total > 0)
               .map(m => ({ label: etiquetas[m.metodo] || m.metodo, valor: m.total, color: paleta[m.metodo] }));
