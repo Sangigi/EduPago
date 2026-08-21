@@ -127,25 +127,19 @@ function Reportes({
         marginBottom: 20
       },
       children: [/*#__PURE__*/_jsxDEV("div", {
-        className: "stat-card",
+        className: "stat-card is-featured",
         children: [/*#__PURE__*/_jsxDEV("div", {
           className: "stat-icon",
-          style: {
-            background: 'var(--accent-glow)'
-          },
           children: /*#__PURE__*/_jsxDEV(Icon, {
             name: "pay",
             size: 19,
-            color: "var(--lime)"
+            color: "currentColor"
           }, void 0, false)
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-label",
           children: "Total cobrado"
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-value",
-          style: {
-            fontSize: 20
-          },
           children: fmt(totalFilt)
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-meta",
@@ -154,14 +148,11 @@ function Reportes({
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         className: "stat-card",
         children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "stat-icon",
-          style: {
-            background: 'var(--amber-glow)'
-          },
+          className: "stat-icon tint-amber",
           children: /*#__PURE__*/_jsxDEV(Icon, {
             name: "history",
             size: 19,
-            color: "var(--amber)"
+            color: "currentColor"
           }, void 0, false)
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-label",
@@ -194,9 +185,6 @@ function Reportes({
           children: "Familias activas"
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-value",
-          style: {
-            fontSize: 20
-          },
           children: data.familias.filter(f => f.activa).length
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-meta",
@@ -205,23 +193,17 @@ function Reportes({
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         className: "stat-card",
         children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "stat-icon",
-          style: {
-            background: 'var(--green-glow)'
-          },
+          className: "stat-icon tint-green",
           children: /*#__PURE__*/_jsxDEV(Icon, {
             name: "alumnos",
             size: 19,
-            color: "var(--green)"
+            color: "currentColor"
           }, void 0, false)
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-label",
           children: "Alumnos activos"
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-value",
-          style: {
-            fontSize: 20
-          },
           children: data.clientes.filter(c => c.activo).length
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "stat-meta",
@@ -246,41 +228,28 @@ function Reportes({
             className: "card-sub",
             children: [cobrosFilt.length, " transacciones"]
           }, void 0, true)]
-        }, void 0, true), porMetodo.map(m => /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            marginBottom: 16
-          },
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginBottom: 5
-            },
-            children: [/*#__PURE__*/_jsxDEV("span", {
-              style: {
-                fontSize: 13,
-                color: 'var(--ink-2)'
-              },
-              children: [metodoIconos[m.metodo], " ", m.metodo]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
-              style: {
-                fontSize: 12,
-                color: 'var(--ink-3)',
-                fontFamily: 'var(--mono)'
-              },
-              children: [fmt(m.total), " · ", m.count, " cobros"]
-            }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            className: "progress-bar",
-            children: /*#__PURE__*/_jsxDEV("div", {
-              className: "progress-fill",
-              style: {
-                width: Math.round(m.total / maxMetodo * 100) + '%',
-                background: metodoColors[m.metodo]
-              }
-            }, void 0, false)
-          }, void 0, false)]
-        }, m.metodo, true))]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' },
+          children: (() => {
+            /* Dona con la misma información que antes mostraban las barras */
+            const paleta = { TC: 'var(--violet)', SPEI: 'var(--cyan)', CoDi: 'var(--magenta)', Efectivo: 'var(--green)' };
+            const etiquetas = { TC: 'Tarjeta', SPEI: 'SPEI', CoDi: 'CoDi / QR', Efectivo: 'Efectivo' };
+            const serie = porMetodo
+              .filter(m => m.total > 0)
+              .map(m => ({ label: etiquetas[m.metodo] || m.metodo, valor: m.total, color: paleta[m.metodo] }));
+            const suma = serie.reduce((a, d) => a + d.valor, 0);
+            const compacto = v => v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M'
+                                : v >= 1e3 ? '$' + Math.round(v / 1e3) + 'k'
+                                : '$' + Math.round(v);
+            return [
+              /*#__PURE__*/_jsxDEV(DonutChart, {
+                datos: serie, tamano: 180,
+                centro: { valor: compacto(suma), etiqueta: 'Total del periodo' }
+              }, 'd', false),
+              /*#__PURE__*/_jsxDEV(DonutLeyenda, { datos: serie }, 'l', false)
+            ];
+          })()
+        }, void 0, false)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         className: "card",
         children: [/*#__PURE__*/_jsxDEV("div", {
