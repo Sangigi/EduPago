@@ -796,99 +796,133 @@ function Dashboard({
 
           display: 'grid',
 
-          gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))',
+          gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
 
           gap: 12
 
         },
 
-        children: plantelesEscuela.map(p => _jsxDEV("div", {
+        children: plantelesEscuela.map(p => {
+          const r = (data.resumen_planteles || {})[p.escuela_plantel_id] || null;
+          const cobrado   = r ? (r.cobrado_90d   || 0) : 0;
+          const pendiente = r ? (r.pendiente_90d || 0) : 0;
+          const alumnos   = r ? (r.num_alumnos   || 0) : 0;
+          const meta = cobrado + pendiente;
+          const pct = meta > 0 ? Math.round(cobrado / meta * 100) : 0;
+          const palabras = (p.nombre || '?').trim().split(/\s+/).filter(w => w.length > 2);
+          const iniciales = palabras.slice(0, 2).map(w => w[0].toUpperCase()).join('')
+            || (p.nombre || '?')[0].toUpperCase();
+          const etiqueta = { fontSize: 10.5, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 };
+          const cifra = c => ({ fontSize: 17, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums', lineHeight: 1 });
+          return _jsxDEV("div", {
+            className: "card",
+            style: { padding: 0, overflow: 'hidden', opacity: p.activo ? 1 : .55 },
+            children: [
+              _jsxDEV("div", {
+                style: { display: 'flex', alignItems: 'center', gap: 12, padding: '16px 18px 12px' },
+                children: [
+                  _jsxDEV("div", {
+                    style: {
+                      width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+                      background: 'var(--violet-soft)', color: 'var(--violet)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 800, fontSize: 14, letterSpacing: '-.3px'
+                    },
+                    children: iniciales
+                  }, void 0, false),
+                  _jsxDEV("div", {
+                    style: { minWidth: 0, flex: 1 },
+                    children: [
+                      _jsxDEV("div", {
+                        style: {
+                          fontWeight: 700, fontSize: 14, color: 'var(--ink)', letterSpacing: '-.2px',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                        },
+                        children: p.nombre
+                      }, void 0, false),
+                      p.direccion ? _jsxDEV("div", {
+                        style: {
+                          fontSize: 11.5, color: 'var(--ink-3)', marginTop: 1,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                        },
+                        children: p.direccion
+                      }, void 0, false) : null
+                    ]
+                  }, void 0, true),
+                  !p.activo ? _jsxDEV("span", { className: "badge badge-gray", children: "Inactivo" }, void 0, false) : null
+                ]
+              }, void 0, true),
 
-          className: "card",
+              p.responsable ? _jsxDEV("div", {
+                style: {
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '0 18px 14px', fontSize: 12, color: 'var(--ink-3)', minWidth: 0
+                },
+                children: [
+                  _jsxDEV(Icon, { name: 'usuarios', size: 13, color: 'var(--ink-4)' }, void 0, false),
+                  _jsxDEV("span", {
+                    style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                    children: p.responsable
+                  }, void 0, false),
+                  p.tel ? _jsxDEV("span", {
+                    style: { color: 'var(--ink-4)', flexShrink: 0 },
+                    children: '\u00b7 ' + p.tel
+                  }, void 0, false) : null
+                ]
+              }, void 0, true) : null,
 
-          style: {
-
-            borderLeft: `3px solid ${escuela.color || 'var(--navy)'}`,
-
-            padding: '12px 14px',
-
-            opacity: p.activo ? 1 : .6
-
-          },
-
-          children: [_jsxDEV("div", {
-
-            style: {
-
-              display: 'flex',
-
-              alignItems: 'center',
-
-              justifyContent: 'space-between',
-
-              gap: 6,
-
-              marginBottom: 4
-
-            },
-
-            children: [_jsxDEV("div", {
-
-              style: { fontWeight: 700, fontSize: 13, color: 'var(--ink)' },
-
-              children: p.nombre
-
-            }, void 0, false), !p.activo && _jsxDEV("span", {
-
-              className: "badge badge-gray",
-
-              children: "Inactivo"
-
-            }, void 0, false)]
-
-          }, void 0, true), p.direccion && _jsxDEV("div", {
-
-            style: { fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 2 },
-
-            children: p.direccion
-
-          }, void 0, false), p.responsable && _jsxDEV("div", {
-
-            style: { fontSize: 11, color: 'var(--ink-4)' },
-
-            children: ["Resp: ", p.responsable, p.tel ? ' · ' + p.tel : '']
-
-          }, void 0, true), (() => {
-
-            const r = (data.resumen_planteles || {})[p.escuela_plantel_id];
-
-            if (!r) return null;
-
-            return _jsxDEV("div", {
-
-              style: {
-
-                display: 'flex', gap: 10, marginTop: 8, paddingTop: 8,
-
-                borderTop: '1px solid var(--glass-light)', fontSize: 11
-
-              },
-
-              children: [
-
-                _jsxDEV("span", { style: { color: 'var(--ink-3)' }, children: [r.num_alumnos, " alumnos"] }, void 0, true),
-
-                _jsxDEV("span", { style: { color: 'var(--green)', fontFamily: 'var(--mono)' }, children: fmt(r.cobrado_90d) }, void 0, false),
-
-                r.pendiente_90d > 0 && _jsxDEV("span", { style: { color: 'var(--amber)', fontFamily: 'var(--mono)' }, children: fmt(r.pendiente_90d) + ' pend.' }, void 0, false),
-
-              ]
-
-            }, void 0, true);
-
-          })()]
-
-        }, p.id, true))
+              r ? _jsxDEV("div", {
+                style: {
+                  padding: '14px 18px 16px', borderTop: '1px solid var(--border-glow)',
+                  background: 'var(--glass-light)'
+                },
+                children: [
+                  _jsxDEV("div", {
+                    style: { display: 'flex', gap: 20, marginBottom: meta > 0 ? 12 : 0, flexWrap: 'wrap' },
+                    children: [
+                      _jsxDEV("div", {
+                        children: [
+                          _jsxDEV("div", { style: etiqueta, children: "Alumnos" }, void 0, false),
+                          _jsxDEV("div", { style: cifra('var(--ink)'), children: alumnos }, void 0, false)
+                        ]
+                      }, 'al', true),
+                      _jsxDEV("div", {
+                        children: [
+                          _jsxDEV("div", { style: etiqueta, children: "Cobrado 90d" }, void 0, false),
+                          _jsxDEV("div", { style: cifra(cobrado > 0 ? 'var(--green-dark)' : 'var(--ink-4)'), children: fmt(cobrado) }, void 0, false)
+                        ]
+                      }, 'co', true),
+                      pendiente > 0 ? _jsxDEV("div", {
+                        children: [
+                          _jsxDEV("div", { style: etiqueta, children: "Pendiente" }, void 0, false),
+                          _jsxDEV("div", { style: cifra('var(--amber)'), children: fmt(pendiente) }, void 0, false)
+                        ]
+                      }, 'pe', true) : null
+                    ]
+                  }, void 0, true),
+                  meta > 0 ? _jsxDEV("div", {
+                    children: [
+                      _jsxDEV("div", {
+                        className: "progress-bar", style: { height: 6 },
+                        children: _jsxDEV("div", { className: "progress-fill", style: { width: pct + '%' } }, void 0, false)
+                      }, void 0, false),
+                      _jsxDEV("div", {
+                        style: { fontSize: 10.5, color: 'var(--ink-4)', marginTop: 5 },
+                        children: pct + '% recuperado en los \u00faltimos 90 d\u00edas'
+                      }, void 0, false)
+                    ]
+                  }, void 0, true) : null
+                ]
+              }, void 0, true) : _jsxDEV("div", {
+                style: {
+                  padding: '12px 18px 16px', borderTop: '1px solid var(--border-glow)',
+                  fontSize: 11.5, color: 'var(--ink-4)'
+                },
+                children: "Sin movimientos registrados"
+              }, void 0, false)
+            ]
+          }, p.id, true);
+        })
 
       }, void 0, true)]
 
@@ -1316,7 +1350,11 @@ function Dashboard({
 
               { label: 'CoDi / QR', valor: stats.cobradosPorMetodo.CoDi     || 0, color: 'var(--magenta)' },
 
-              { label: 'Efectivo',  valor: stats.cobradosPorMetodo.Efectivo || 0, color: 'var(--green)' }
+              { label: 'Efectivo',  valor: stats.cobradosPorMetodo.Efectivo || 0, color: 'var(--green)' },
+
+              { label: 'Cheque',    valor: stats.cobradosPorMetodo.Cheque   || 0, color: 'var(--amber)' },
+
+              { label: 'Otro',      valor: stats.cobradosPorMetodo.Otro     || 0, color: 'var(--red)' }
 
             ].filter(d => d.valor > 0);
 
