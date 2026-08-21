@@ -752,8 +752,10 @@ function PortalFamilia({
         children: [saldoTotal > 0 && _jsxDEV("div", {
           style: {
             ...card(),
-            border: `2px solid ${PLC.lime}`,
-            background: `linear-gradient(135deg,rgba(189,207,0,.07),rgba(73,175,84,.05))`
+            border: '2px solid #5d1e1e',
+            // Tinte rojo muy tenue sobre la superficie de la tarjeta, para que
+            // el aviso se lea igual en tema claro y en oscuro.
+            backgroundImage: 'linear-gradient(135deg,rgba(255,0,0,.08),rgba(57,20,20,.05))'
           },
           children: _jsxDEV("div", {
             style: {
@@ -768,7 +770,7 @@ function PortalFamilia({
                 height: 50,
                 borderRadius: 12,
                 flexShrink: 0,
-                background: `linear-gradient(135deg,${PLC.lime},${PLC.green})`,
+                background: 'linear-gradient(135deg, #ff0000, #391414)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -776,7 +778,7 @@ function PortalFamilia({
               children: _jsxDEV(Icon, {
                 name: "bell",
                 size: 22,
-                color: PLC.navy
+                color: "#fff"
               }, void 0, false)
             }, void 0, false), _jsxDEV("div", {
               style: {
