@@ -1222,10 +1222,29 @@ switch ($action) {
             $params_cli[] = $usuario_actual['familia_id'] ?? -1;
         }
         if ($busqueda_clientes !== '') {
-            $where_cli .= ' AND (nombre LIKE ? OR email LIKE ?)';
-            $params_cli[] = "%$busqueda_clientes%";
-            $params_cli[] = "%$busqueda_clientes%";
-        }
+    // Búsqueda por etiquetas: el frontend manda los términos separados por "|".
+    // Cada término debe coincidir (Y lógica) en alguno de los campos, para poder
+    // acotar combinando apellido + matrícula + teléfono, etc.
+    $terminos = array_filter(array_map('trim', explode('|', $busqueda_clientes)), function ($t) {
+        return $t !== '';
+    });
+
+    // Tope defensivo: evita que una petición manipulada arme una consulta enorme.
+    $terminos = array_slice($terminos, 0, 8);
+
+    foreach ($terminos as $t) {
+        $where_cli .= ' AND (nombre LIKE ? OR email LIKE ? OR matricula LIKE ?'
+                    . ' OR telefono LIKE ? OR curp LIKE ? OR grado LIKE ?)';
+        $like = "%$t%";
+        // Un parámetro por cada campo del OR, en el mismo orden
+        $params_cli[] = $like;  // nombre
+        $params_cli[] = $like;  // email
+        $params_cli[] = $like;  // matricula
+        $params_cli[] = $like;  // telefono
+        $params_cli[] = $like;  // curp
+        $params_cli[] = $like;  // grado
+    }
+}
         $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE $where_cli");
         $cnt->execute($params_cli);
         $clientes_total = intval($cnt->fetch()['n'] ?? 0);
