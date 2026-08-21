@@ -60,6 +60,8 @@ function Familias({
 
     tipo: 'alumno',
 
+    parentesco: '',
+
     nombre: '',
 
     grado: '',
@@ -81,6 +83,46 @@ function Familias({
   const [formFam, setFormFam] = useState(EMPTY_FAM);
 
   const [formAlu, setFormAlu] = useState(EMPTY_ALU);
+
+  const [avisoApellido, setAvisoApellido] = useState(null);
+
+  // Parentescos donde SÍ se espera compartir apellido con la familia.
+  // En los demás el no-coincidir es lo normal y no se avisa nada.
+  const PARENTESCOS = [
+    { id: 'hijo',     label: 'Hijo',        esperaApellido: true },
+    { id: 'hija',     label: 'Hija',        esperaApellido: true },
+    { id: 'hijastro', label: 'Hijastro',    esperaApellido: false },
+    { id: 'hijastra', label: 'Hijastra',    esperaApellido: false },
+    { id: 'sobrino',  label: 'Sobrino',     esperaApellido: false },
+    { id: 'sobrina',  label: 'Sobrina',     esperaApellido: false },
+    { id: 'nieto',    label: 'Nieto',       esperaApellido: false },
+    { id: 'nieta',    label: 'Nieta',       esperaApellido: false },
+    { id: 'ahijado',  label: 'Ahijado',     esperaApellido: false },
+    { id: 'ahijada',  label: 'Ahijada',     esperaApellido: false },
+    { id: 'hermano',  label: 'Hermano',     esperaApellido: false },
+    { id: 'hermana',  label: 'Hermana',     esperaApellido: false },
+    { id: 'tutorado', label: 'Bajo tutela', esperaApellido: false },
+    { id: 'otro',     label: 'Otro',        esperaApellido: false }
+  ];
+
+  // Normaliza para comparar: sin acentos, minusculas, solo letras
+  const _norm = t => String(t || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Particulas que no son apellidos y ensucian la comparacion
+  const _RUIDO = ['de', 'del', 'la', 'las', 'los', 'y', 'san', 'santa', 'von', 'da', 'di'];
+
+  const _apellidosDe = texto => _norm(texto).split(' ')
+    .filter(w => w.length > 2 && _RUIDO.indexOf(w) < 0);
+
+  // true si comparten al menos una palabra de apellido
+  const _compartenApellido = (nombreAlumno, nombreFamilia) => {
+    const a = _apellidosDe(nombreAlumno);
+    const f = _apellidosDe(nombreFamilia);
+    if (a.length === 0 || f.length === 0) return true;  // sin datos, no molestar
+    return f.some(x => a.indexOf(x) >= 0);
+  };
 
   const [expanded, setExpanded] = useState({});
 
@@ -371,6 +413,25 @@ function Familias({
   const guardarAlu = async () => {
 
     if (!formAlu.nombre) return;
+
+    // Verificación de apellidos: es una CONFIRMACIÓN, nunca un bloqueo.
+    // Los apellidos distintos son legítimos con frecuencia (familias
+    // reconstituidas, madres solteras, tutela). El aviso solo aparece cuando
+    // el parentesco declarado hace esperar que coincidan.
+    if (!avisoApellido) {
+      const fam = data.familias.find(f => f.id === targetFamId);
+      const cfg = PARENTESCOS.find(p => p.id === formAlu.parentesco);
+      if (fam && cfg && cfg.esperaApellido &&
+          !_compartenApellido(formAlu.nombre, fam.nombre)) {
+        setAvisoApellido({
+          alumno: formAlu.nombre,
+          familia: fam.nombre,
+          parentesco: cfg.label
+        });
+        return;   // se detiene aquí hasta que la persona confirme
+      }
+    }
+    setAvisoApellido(null);
 
     const aluConFam = {
 
@@ -2050,7 +2111,95 @@ function Familias({
 
       }, void 0, true)
 
-    }, void 0, false), modal === 'alumno' && _jsxDEV("div", {
+    }, void 0, false), avisoApellido && _jsxDEV("div", {
+
+      className: "modal-backdrop",
+
+      style: { zIndex: 1100 },   // por encima del modal de alumno (1000)
+
+      onClick: () => setAvisoApellido(null),
+
+      children: _jsxDEV("div", {
+
+        className: "modal",
+
+        style: { maxWidth: 430 },
+
+        onClick: e => e.stopPropagation(),
+
+        children: [_jsxDEV("div", {
+
+          className: "modal-header",
+
+          children: _jsxDEV("div", {
+
+            className: "modal-title",
+
+            style: { display: 'flex', alignItems: 'center', gap: 9 },
+
+            children: [_jsxDEV(Icon, { name: 'warning', size: 17, color: 'var(--amber)' }, 'i', false), "Revisa los apellidos"]
+
+          }, void 0, true)
+
+        }, 'h', false), _jsxDEV("div", {
+
+          className: "modal-body",
+
+          style: { fontSize: 13.5, lineHeight: 1.65, color: 'var(--ink-2)' },
+
+          children: [_jsxDEV("p", {
+
+            style: { margin: '0 0 12px' },
+
+            children: ["Registraste a ", _jsxDEV("strong", { children: avisoApellido.alumno }, 'a', false),
+
+                       " como ", _jsxDEV("strong", { children: avisoApellido.parentesco.toLowerCase() }, 'p', false),
+
+                       " de la familia ", _jsxDEV("strong", { children: avisoApellido.familia }, 'f', false),
+
+                       ", pero no comparten ning\u00fan apellido."]
+
+          }, 'p1', true), _jsxDEV("div", {
+
+            style: {
+
+              padding: '10px 13px', borderRadius: 'var(--radius-sm)',
+
+              background: 'var(--amber-glow)', color: 'var(--ink-2)', fontSize: 12.5
+
+            },
+
+            children: "Si es correcto, contin\u00faa. Si te equivocaste de familia o de parentesco, corr\u00edgelo antes de guardar."
+
+          }, 'nota', false)]
+
+        }, 'b', true), _jsxDEV("div", {
+
+          className: "modal-footer",
+
+          children: [_jsxDEV("button", {
+
+            className: "btn btn-secondary",
+
+            onClick: () => setAvisoApellido(null),
+
+            children: "Volver y corregir"
+
+          }, 'c', false), _jsxDEV("button", {
+
+            className: "btn btn-primary",
+
+            onClick: () => guardarAlu(),
+
+            children: "S\u00ed, es correcto"
+
+          }, 'ok', false)]
+
+        }, 'f', true)]
+
+      }, void 0, true)
+
+    }, 'aviso', false), modal === 'alumno' && _jsxDEV("div", {
 
       className: "modal-backdrop",
 
@@ -2093,6 +2242,30 @@ function Familias({
           className: "modal-body",
 
           children: [targetFamId && _jsxDEV("div", {
+
+            className: "form-group",
+
+            children: [_jsxDEV("label", {
+
+              className: "form-label",
+
+              children: "Parentesco con la familia"
+
+            }, void 0, false), _jsxDEV("select", {
+
+              className: "form-select",
+
+              value: formAlu.parentesco || '',
+
+              onChange: e => { setFormAlu({ ...formAlu, parentesco: e.target.value }); setAvisoApellido(null); },
+
+              children: [_jsxDEV("option", { value: "", children: "Selecciona\u2026" }, 'v', false)]
+
+                .concat(PARENTESCOS.map(p => _jsxDEV("option", { value: p.id, children: p.label }, p.id, false)))
+
+            }, void 0, false)]
+
+          }, 'parentesco', true), targetFamId && _jsxDEV("div", {
 
             style: {
 
