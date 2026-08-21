@@ -1571,3 +1571,33 @@ box-shadow:0 0 0 3px var(--accent-glow);
 .menu-perfil-sep { height:1px; background:var(--border-glow); margin:5px 2px; }
 .user-card { border-radius:var(--radius); transition:background .12s; }
 .user-card:hover { background:var(--side-hover); }
+
+/* ══ Ficha técnica (credencial de alumno / tutor) ══ */
+.ficha-tecnica { overflow:hidden; }
+.ficha-top {
+  position:relative; padding:26px 24px 20px; text-align:center;
+  background:var(--grad-brand); color:#fff;
+}
+.ficha-cerrar {
+  position:absolute; top:12px; right:12px; width:28px; height:28px;
+  border:none; border-radius:50%; cursor:pointer; color:#fff;
+  background:rgba(255,255,255,.20); display:flex; align-items:center; justify-content:center;
+}
+.ficha-cerrar:hover { background:rgba(255,255,255,.34); }
+.ficha-foto {
+  width:96px; height:96px; margin:0 auto 13px; border-radius:18px;
+  overflow:hidden; background:#fff; padding:3px;
+  box-shadow:0 6px 20px rgba(0,0,0,.22);
+}
+.ficha-foto > * { border-radius:15px; }
+.ficha-nombre { font-size:18px; font-weight:700; letter-spacing:-.4px; line-height:1.25; }
+.ficha-sub { font-size:12.5px; opacity:.9; margin-top:3px; }
+.ficha-escuela {
+  font-size:11px; opacity:.78; margin-top:9px; text-transform:uppercase; letter-spacing:.5px;
+}
+.ficha-datos { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+.ficha-dato-k {
+  font-size:10.5px; color:var(--ink-4); text-transform:uppercase;
+  letter-spacing:.4px; margin-bottom:2px;
+}
+.ficha-dato-v { font-size:13px; color:var(--ink); word-break:break-word; }
