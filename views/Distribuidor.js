@@ -8,36 +8,63 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
 // views/Distribuidor.jsx — Portal del rol "distribuidor" (programa de referidos) Migrado al patrón _jsxDEV + clases CSS compartidas (mismo patrón que Dashboard.js/Usuarios.js), reutilizando .sidebar/.app/.main/.topbar/.content del shell principal (assets/js/app.js) para heredar el drawer responsive de ≤768px sin duplicar layout propio. Trae su propia data vía action=distribuidor_datos / distribuidor_invitar_colegio / distribuidor_comisiones / distribuidor_datos_pago / distribuidor_guardar_datos_pago. La edición de perfil reutiliza AuthController.editarUsuario (acción compartida editar_usuario).
 
 const DIST_ESTADOS = {
-  activo:         { label: 'Activo',         icon: '✓',  badge: 'badge-green',  barColor: 'var(--green)' },
-  implementacion: { label: 'Implementación', icon: '⚙',  badge: 'badge-amber',  barColor: 'var(--amber)' },
-  demo_agendada:  { label: 'Demo agendada',  icon: '📅', badge: 'badge-blue',   barColor: 'var(--accent)' },
-  prospecto:      { label: 'Prospecto',      icon: '👤', badge: 'badge-purple', barColor: 'var(--purple)' },
+  activo:         { label: 'Activo',         icon: 'check',    badge: 'badge-green',  barColor: 'var(--green)' },
+  implementacion: { label: 'Implementación', icon: 'settings', badge: 'badge-amber',  barColor: 'var(--amber)' },
+  demo_agendada:  { label: 'Demo agendada',  icon: 'history',  badge: 'badge-blue',   barColor: 'var(--accent)' },
+  prospecto:      { label: 'Prospecto',      icon: 'usuarios', badge: 'badge-purple', barColor: 'var(--purple)' },
 };
 const DIST_ORDEN_EMBUDO = ['activo', 'implementacion', 'demo_agendada', 'prospecto'];
 
 const DIST_SECCIONES = {
-  dashboard:  { titulo: '📊 Dashboard' },
-  colegios:   { titulo: '🏫 Mis colegios' },
-  comisiones: { titulo: '💰 Comisiones' },
-  materiales: { titulo: '📦 Materiales de venta' },
-  perfil:     { titulo: '👤 Mi perfil' },
-  pago:       { titulo: '💳 Datos de pago' },
+  dashboard:  { titulo: 'Dashboard',           icon: 'dashboard' },
+  colegios:   { titulo: 'Mis colegios',        icon: 'escuelas' },
+  comisiones: { titulo: 'Comisiones',          icon: 'pay' },
+  materiales: { titulo: 'Tutoriales',          icon: 'reportes' },
+  perfil:     { titulo: 'Mi perfil',           icon: 'usuarios' },
+  pago:       { titulo: 'Datos de pago',       icon: 'card' },
 };
 
 const DIST_NAV_ITEMS = [
-  { id: 'dashboard',  label: '📊 Dashboard',           section: 'Principal' },
-  { id: 'colegios',   label: '🏫 Mis colegios',        section: 'Principal', showColegiosBadge: true },
-  { id: 'comisiones', label: '💰 Comisiones',          section: 'Principal' },
-  { id: 'materiales', label: '📦 Materiales de venta',  section: 'Principal' },
-  { id: 'perfil',     label: '👤 Mi perfil',           section: 'Configuración' },
-  { id: 'pago',       label: '💳 Datos de pago',       section: 'Configuración' },
+  { id: 'dashboard',  label: 'Dashboard',     icon: 'dashboard', section: 'Principal' },
+  { id: 'colegios',   label: 'Mis colegios',  icon: 'escuelas',  section: 'Principal', showColegiosBadge: true },
+  { id: 'comisiones', label: 'Comisiones',    icon: 'pay',       section: 'Principal' },
+  { id: 'materiales', label: 'Tutoriales',    icon: 'reportes',  section: 'Principal' },
+  { id: 'perfil',     label: 'Mi perfil',     icon: 'usuarios',  section: 'Configuración' },
+  { id: 'pago',       label: 'Datos de pago', icon: 'card',      section: 'Configuración' },
 ];
 
-const DIST_MATERIALES = [
-  { titulo: 'Brochure de ventas', icon: '📄', desc: 'Presentación en PDF para mostrar a directores y administradores del colegio.' },
-  { titulo: 'Guion de llamada', icon: '📞', desc: 'Script sugerido para tu primera llamada de prospección con un colegio nuevo.' },
-  { titulo: 'Video demo del sistema', icon: '🎬', desc: 'Grabación corta mostrando el flujo de cobro y el portal familiar en vivo.' },
-  { titulo: 'Logo y assets de marca', icon: '🎨', desc: 'Logotipos e imágenes oficiales para incluir en tus propias propuestas.' },
+// Tutoriales en video. Para agregar uno nuevo basta con añadir un objeto:
+// el id es el código que aparece en la URL de YouTube (youtu.be/EL_ID).
+const DIST_TUTORIALES = [
+  {
+    categoria: 'Primeros pasos',
+    videos: [
+      { id: '', titulo: 'Bienvenida al programa de referidos', duracion: '4:12',
+        desc: 'Cómo funciona el esquema de comisiones y qué esperar en tu primer mes.' },
+      { id: '', titulo: 'Recorrido general de la plataforma', duracion: '7:35',
+        desc: 'Vista rápida de cada módulo: cobros, alumnos, familias y reportes.' },
+    ]
+  },
+  {
+    categoria: 'Proceso de venta',
+    videos: [
+      { id: '', titulo: 'Tu primera llamada con un colegio', duracion: '6:20',
+        desc: 'Guion sugerido, objeciones frecuentes y cómo cerrar la cita.' },
+      { id: '', titulo: 'Demo en vivo del sistema de cobro', duracion: '9:48',
+        desc: 'Qué mostrar y en qué orden para que el director entienda el valor.' },
+      { id: '', titulo: 'Cómo presentar el portal familiar', duracion: '5:03',
+        desc: 'El argumento que más convence: la experiencia del papá o mamá.' },
+    ]
+  },
+  {
+    categoria: 'Administración',
+    videos: [
+      { id: '', titulo: 'Registrar e invitar un colegio nuevo', duracion: '3:40',
+        desc: 'Paso a paso desde tu panel hasta que el colegio queda activo.' },
+      { id: '', titulo: 'Entender tu corte de comisiones', duracion: '5:55',
+        desc: 'Cómo se calcula, cuándo se paga y dónde revisar el detalle.' },
+    ]
+  }
 ];
 
 function distFmtMoney(n) {
@@ -50,14 +77,17 @@ function DistBadge({ estado }) {
   const cfg = DIST_ESTADOS[estado] || DIST_ESTADOS.prospecto;
   return _jsxDEV("span", {
     className: `badge ${cfg.badge}`,
-    children: `${cfg.icon} ${cfg.label}`
-  }, void 0, false);
+    children: [
+      _jsxDEV(Icon, { name: cfg.icon, size: 12, color: 'currentColor' }, void 0, false),
+      cfg.label
+    ]
+  }, void 0, true);
 }
 
 /* ── Stat card reutilizando .stat-card/.stat-icon/.stat-label/.stat-value/.stat-meta ── */
-function DistStatCard({ icon, iconBg, iconColor, tint, label, value, valueColor, sub }) {
+function DistStatCard({ icon, iconBg, iconColor, tint, destacada, label, value, valueColor, sub }) {
   return _jsxDEV("div", {
-    className: "stat-card",
+    className: "stat-card" + (destacada ? " is-featured" : ""),
     children: [
       _jsxDEV("div", { className: "stat-icon" + (tint ? " " + tint : ""), children: icon }, void 0, false),
       _jsxDEV("div", { className: "stat-label", children: label }, void 0, false),
@@ -315,23 +345,187 @@ function DistComisionesView() {
 }
 
 /* ── Vista: Materiales de venta (estática, sin backend por ahora) ── */
-function DistMaterialesView() {
+// ── Vista: Tutoriales en video ──
+// Reproduce dentro de la misma página con un iframe de YouTube en modo
+// nocookie. Los videos se definen en DIST_TUTORIALES, arriba del archivo.
+function DistTutorialesView() {
+  const { useState } = React;
+  const [activo, setActivo] = useState(null);
+  const [q, setQ] = useState('');
+
+  const filtrar = vids => {
+    const t = q.trim().toLowerCase();
+    if (!t) return vids;
+    return vids.filter(v =>
+      (v.titulo || '').toLowerCase().includes(t) ||
+      (v.desc || '').toLowerCase().includes(t));
+  };
+
+  const grupos = DIST_TUTORIALES
+    .map(g => ({ categoria: g.categoria, videos: filtrar(g.videos) }))
+    .filter(g => g.videos.length > 0);
+
+  const totalVideos = DIST_TUTORIALES.reduce((a, g) => a + g.videos.length, 0);
+  const miniatura = v => v.id ? 'https://i.ytimg.com/vi/' + v.id + '/hqdefault.jpg' : null;
+
   return _jsxDEV("div", {
     children: [
-      _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Materiales de venta" }, void 0, false),
-      _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 }, children: "Recursos para apoyar tu proceso de referidos" }, void 0, false),
       _jsxDEV("div", {
-        style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 16 },
-        children: DIST_MATERIALES.map((m, i) => _jsxDEV("div", {
-          className: "card",
-          children: [
-            _jsxDEV("div", { style: { fontSize: 22, marginBottom: 10 }, children: m.icon }, void 0, false),
-            _jsxDEV("div", { style: { fontSize: 14, fontWeight: 800, marginBottom: 5 }, children: m.titulo }, void 0, false),
-            _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 14 }, children: m.desc }, void 0, false),
-            _jsxDEV("div", { style: { fontSize: 11.5, color: 'var(--ink-4)', fontStyle: 'italic' }, children: "Solicítalo a tu coordinador de zona" }, void 0, false),
-          ]
-        }, i, true))
+        style: { fontSize: 13, color: 'var(--ink-3)', marginBottom: 20 },
+        children: totalVideos + ' videos para entender la plataforma y vender mejor'
       }, void 0, false),
+
+      _jsxDEV("div", {
+        className: "search-bar",
+        style: { maxWidth: 380, marginBottom: 26 },
+        children: [
+          _jsxDEV("span", {
+            className: "search-icon",
+            children: _jsxDEV(Icon, { name: 'search', size: 15, color: "currentColor" }, void 0, false)
+          }, void 0, false),
+          _jsxDEV("input", {
+            value: q,
+            onChange: e => setQ(e.target.value),
+            placeholder: "Buscar tutorial\u2026"
+          }, void 0, false)
+        ]
+      }, void 0, true),
+
+      grupos.length === 0
+        ? _jsxDEV("div", {
+            className: "empty-state",
+            children: _jsxDEV("div", { className: "empty-text", children: "No hay tutoriales que coincidan con tu b\u00fasqueda." }, void 0, false)
+          }, void 0, false)
+        : grupos.map(g => _jsxDEV("div", {
+            style: { marginBottom: 30 },
+            children: [
+              _jsxDEV("div", {
+                style: { display: 'flex', alignItems: 'baseline', gap: 9, marginBottom: 14 },
+                children: [
+                  _jsxDEV("h3", {
+                    style: { fontSize: 15, fontWeight: 700, margin: 0, letterSpacing: '-.3px' },
+                    children: g.categoria
+                  }, void 0, false),
+                  _jsxDEV("span", {
+                    style: { fontSize: 11.5, color: 'var(--ink-4)' },
+                    children: g.videos.length + (g.videos.length === 1 ? ' video' : ' videos')
+                  }, void 0, false)
+                ]
+              }, void 0, true),
+
+              _jsxDEV("div", {
+                style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 18 },
+                children: g.videos.map((v, i) => _jsxDEV("div", {
+                  className: "card",
+                  style: { padding: 0, overflow: 'hidden', cursor: v.id ? 'pointer' : 'default' },
+                  onClick: () => { if (v.id) setActivo(v); },
+                  children: [
+                    _jsxDEV("div", {
+                      style: {
+                        position: 'relative', aspectRatio: '16 / 9',
+                        background: miniatura(v)
+                          ? ('center/cover no-repeat url(' + miniatura(v) + ')')
+                          : 'var(--grad-cool)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      },
+                      children: [
+                        _jsxDEV("div", {
+                          style: { position: 'absolute', inset: 0,
+                                   background: 'linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.42))' }
+                        }, void 0, false),
+                        _jsxDEV("div", {
+                          style: {
+                            position: 'relative', width: 50, height: 50, borderRadius: '50%',
+                            background: 'rgba(255,255,255,.94)', display: 'flex',
+                            alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 4px 16px rgba(0,0,0,.28)'
+                          },
+                          children: _jsxDEV("div", {
+                            style: {
+                              width: 0, height: 0, marginLeft: 4,
+                              borderTop: '9px solid transparent',
+                              borderBottom: '9px solid transparent',
+                              borderLeft: '15px solid var(--violet)'
+                            }
+                          }, void 0, false)
+                        }, void 0, false),
+                        v.duracion
+                          ? _jsxDEV("span", {
+                              style: {
+                                position: 'absolute', right: 9, bottom: 9,
+                                background: 'rgba(0,0,0,.78)', color: '#fff',
+                                fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 5
+                              },
+                              children: v.duracion
+                            }, void 0, false)
+                          : null
+                      ]
+                    }, void 0, true),
+
+                    _jsxDEV("div", {
+                      style: { padding: '15px 17px 17px' },
+                      children: [
+                        _jsxDEV("div", {
+                          style: { fontSize: 13.5, fontWeight: 700, marginBottom: 5, lineHeight: 1.35 },
+                          children: v.titulo
+                        }, void 0, false),
+                        _jsxDEV("div", {
+                          style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 },
+                          children: v.desc
+                        }, void 0, false),
+                        !v.id
+                          ? _jsxDEV("div", {
+                              style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 10, fontStyle: 'italic' },
+                              children: "Video por publicar"
+                            }, void 0, false)
+                          : null
+                      ]
+                    }, void 0, true)
+                  ]
+                }, g.categoria + i, true))
+              }, void 0, false)
+            ]
+          }, g.categoria, true)),
+
+      activo
+        ? _jsxDEV("div", {
+            className: "modal-overlay",
+            onClick: () => setActivo(null),
+            children: _jsxDEV("div", {
+              className: "modal",
+              style: { maxWidth: 880, width: '100%' },
+              onClick: e => e.stopPropagation(),
+              children: [
+                _jsxDEV("div", {
+                  className: "modal-header",
+                  children: [
+                    _jsxDEV("div", { className: "modal-title", children: activo.titulo }, void 0, false),
+                    _jsxDEV("button", {
+                      className: "btn-ghost",
+                      onClick: () => setActivo(null),
+                      children: _jsxDEV(Icon, { name: 'close', size: 16, color: "currentColor" }, void 0, false)
+                    }, void 0, false)
+                  ]
+                }, void 0, true),
+                _jsxDEV("div", {
+                  style: { background: '#000' },
+                  children: _jsxDEV("iframe", {
+                    src: 'https://www.youtube-nocookie.com/embed/' + activo.id + '?rel=0&autoplay=1',
+                    title: activo.titulo,
+                    allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture',
+                    allowFullScreen: true,
+                    style: { width: '100%', aspectRatio: '16 / 9', border: 0, display: 'block' }
+                  }, void 0, false)
+                }, void 0, false),
+                _jsxDEV("div", {
+                  className: "modal-body",
+                  style: { fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.55 },
+                  children: activo.desc
+                }, void 0, false)
+              ]
+            }, void 0, true)
+          }, void 0, false)
+        : null
     ]
   }, void 0, true);
 }
@@ -555,6 +749,21 @@ function DistDatosPagoView() {
 
 // ── Componente principal ── Reutiliza .app/.sidebar/.main/.topbar/.content del shell (assets/js/app.js + main.css) para heredar automáticamente el drawer responsive de ≤768px (botón hamburguesa + .nav-backdrop).
 function Distribuidor({ user, onLogout }) {
+  // Tema del portal, compartido con el resto de la plataforma vía localStorage
+  const [temaOscuro, setTemaOscuro] = React.useState(() => {
+    try {
+      const g = localStorage.getItem('edupago_theme');
+      if (g === 'dark') return true;
+      if (g === 'light') return false;
+    } catch (e) { /* storage bloqueado */ }
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    } catch (e) { return false; }
+  });
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', temaOscuro ? 'dark' : '');
+    try { localStorage.setItem('edupago_theme', temaOscuro ? 'dark' : 'light'); } catch (e) {}
+  }, [temaOscuro]);
   const { useState, useEffect } = React;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -673,7 +882,7 @@ function Distribuidor({ user, onLogout }) {
             style: { padding: '10px 16px 12px', borderBottom: '1px solid var(--side-border)' },
             children: [
               _jsxDEV("div", { style: { fontSize: 10, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--side-ink-3)', fontWeight: 700, marginBottom: 3 }, children: "Zona asignada" }, void 0, false),
-              _jsxDEV("div", { style: { fontSize: 13, fontWeight: 700, color: 'var(--lime)' }, children: zona }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 13, fontWeight: 700, color: 'var(--violet)' }, children: zona }, void 0, false),
             ]
           }, void 0, true),
 
@@ -686,6 +895,8 @@ function Distribuidor({ user, onLogout }) {
                   className: `nav-item ${seccion === n.id ? 'active' : ''}`,
                   onClick: () => { setSeccion(n.id); setMobileNav(false); },
                   children: [
+                    _jsxDEV("span", { className: "nav-icon",
+                      children: _jsxDEV(Icon, { name: n.icon, size: 16, color: "currentColor" }, void 0, false) }, void 0, false),
                     _jsxDEV("span", { children: n.label }, void 0, false),
                     (n.showColegiosBadge && colegios.length > 0)
                       ? _jsxDEV("span", { className: "nav-badge", children: colegios.length }, void 0, false)
@@ -701,7 +912,7 @@ function Distribuidor({ user, onLogout }) {
             children: _jsxDEV("div", {
               className: "user-card",
               children: [
-                _jsxDEV("div", { className: "avatar", style: { background: 'var(--lime)', color: 'var(--navy)' }, children: iniciales || 'D' }, void 0, false),
+                _jsxDEV("div", { className: "avatar", style: { background: 'var(--grad-warm)', color: '#fff' }, children: iniciales || 'D' }, void 0, false),
                 _jsxDEV("div", {
                   className: "user-info",
                   children: [
@@ -736,13 +947,19 @@ function Distribuidor({ user, onLogout }) {
               _jsxDEV("div", {
                 className: "topbar-actions",
                 children: [
+                  _jsxDEV("button", {
+                    className: "theme-toggle",
+                    title: temaOscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro',
+                    onClick: () => setTemaOscuro(v => !v),
+                    children: _jsxDEV(Icon, { name: temaOscuro ? 'sun' : 'moon', size: 16, color: "currentColor" }, void 0, false)
+                  }, void 0, false),
                   (seccion === 'dashboard' && stats.en_implementacion) ? _jsxDEV("div", {
                     style: {
                       display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700,
                       padding: '7px 13px', borderRadius: 'var(--radius-sm)', background: 'var(--amber-glow)',
                       color: 'var(--amber)', border: '1px solid rgba(217,119,6,.2)'
                     },
-                    children: `🏫 ${stats.en_implementacion} en implementación`
+                    children: `${stats.en_implementacion} en implementación`
                   }, void 0, false) : null,
 
                   (seccion === 'dashboard' || seccion === 'colegios') ? _jsxDEV("button", {
@@ -764,17 +981,17 @@ function Distribuidor({ user, onLogout }) {
                     style: { marginBottom: 22 },
                     children: [
                       _jsxDEV("h2", { style: { fontSize: 20, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.3px' }, children: `Buenos días, ${nombreDist.split(' ')[0]}` }, void 0, false),
-                      _jsxDEV("p", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: `🏠 Programa de distribuidores · Zona ${zona} · ${hoy}` }, void 0, false),
+                      _jsxDEV("p", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: `Programa de distribuidores · Zona ${zona} · ${hoy}` }, void 0, false),
                     ]
                   }, void 0, true),
 
                   _jsxDEV("div", {
                     className: "stats-grid",
                     children: [
-                      _jsxDEV(DistStatCard, { icon: '💰', iconBg: 'var(--lime-glow)', iconColor: 'var(--lime)', label: 'Comisión del mes', value: distFmtMoney(stats.comision_mes), valueColor: 'var(--lime)', sub: `${stats.colegios_facturando || 0} colegios facturando` }, void 0, false),
-                      _jsxDEV(DistStatCard, { icon: '🏫', iconBg: 'var(--green-glow)', iconColor: 'var(--green)', label: 'Colegios activos', value: stats.colegios_activos || 0, valueColor: 'var(--green)', sub: `de ${stats.colegios_totales || 0} colegios totales` }, void 0, false),
-                      _jsxDEV(DistStatCard, { icon: '🔔', iconBg: 'var(--amber-glow)', iconColor: 'var(--amber)', label: 'En implementación', value: stats.en_implementacion || 0, valueColor: 'var(--amber)', sub: 'arrancan en las próximas semanas' }, void 0, false),
-                      _jsxDEV(DistStatCard, { icon: '📄', iconBg: 'var(--glass-light)', iconColor: 'var(--ink-2)', label: `Comisión acumulada ${stats.anio || ''}`, value: distFmtMoney(stats.comision_acumulada), sub: `desde enero ${stats.anio || ''}` }, void 0, false),
+                      _jsxDEV(DistStatCard, { icon: _jsxDEV(Icon, { name: 'pay', size: 19, color: 'currentColor' }, void 0, false), destacada: true, label: 'Comisión del mes', value: distFmtMoney(stats.comision_mes), sub: `${stats.colegios_facturando || 0} colegios facturando` }, void 0, false),
+                      _jsxDEV(DistStatCard, { icon: _jsxDEV(Icon, { name: 'escuelas', size: 19, color: 'currentColor' }, void 0, false), tint: 'tint-green', label: 'Colegios activos', value: stats.colegios_activos || 0, sub: `de ${stats.colegios_totales || 0} colegios totales` }, void 0, false),
+                      _jsxDEV(DistStatCard, { icon: _jsxDEV(Icon, { name: 'bell', size: 19, color: 'currentColor' }, void 0, false), tint: 'tint-amber', label: 'En implementación', value: stats.en_implementacion || 0, sub: 'arrancan en las próximas semanas' }, void 0, false),
+                      _jsxDEV(DistStatCard, { icon: _jsxDEV(Icon, { name: 'reportes', size: 19, color: 'currentColor' }, void 0, false), tint: 'tint-cyan', label: `Comisión acumulada ${stats.anio || ''}`, value: distFmtMoney(stats.comision_acumulada), sub: `desde enero ${stats.anio || ''}` }, void 0, false),
                     ]
                   }, void 0, true),
 
@@ -829,7 +1046,13 @@ function Distribuidor({ user, onLogout }) {
                                 _jsxDEV("div", {
                                   style: { display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginBottom: 6 },
                                   children: [
-                                    _jsxDEV("span", { style: { color: cfg.barColor }, children: `${cfg.icon} ${cfg.label}` }, void 0, false),
+                                    _jsxDEV("span", {
+                                      style: { color: cfg.barColor, display: 'inline-flex', alignItems: 'center', gap: 5 },
+                                      children: [
+                                        _jsxDEV(Icon, { name: cfg.icon, size: 12, color: 'currentColor' }, void 0, false),
+                                        cfg.label
+                                      ]
+                                    }, void 0, true),
                                     _jsxDEV("span", { children: `${pct}%` }, void 0, false),
                                   ]
                                 }, void 0, true),
@@ -851,7 +1074,7 @@ function Distribuidor({ user, onLogout }) {
 
               seccion === 'colegios' ? _jsxDEV(DistColegiosView, { colegios: colegios }, void 0, false) : null,
               seccion === 'comisiones' ? _jsxDEV(DistComisionesView, {}, void 0, false) : null,
-              seccion === 'materiales' ? _jsxDEV(DistMaterialesView, {}, void 0, false) : null,
+              seccion === 'materiales' ? _jsxDEV(DistTutorialesView, {}, void 0, false) : null,
               seccion === 'perfil' ? _jsxDEV(DistPerfilView, { user: user, onUpdated: cargar }, void 0, false) : null,
               seccion === 'pago' ? _jsxDEV(DistDatosPagoView, {}, void 0, false) : null,
 
