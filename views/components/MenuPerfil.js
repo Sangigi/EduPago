@@ -230,7 +230,7 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
       'Vista previa. Si no aparece, revisa que el enlace sea público.')
   ) : null;
 
-  return _hMP('div', { className: 'modal-overlay', onClick: onCerrar },
+  return _hMP('div', { className: 'modal-backdrop', onClick: onCerrar },
     _hMP('div', {
       className: 'modal',
       style: { maxWidth: 460 },
