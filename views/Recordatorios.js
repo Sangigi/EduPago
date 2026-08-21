@@ -6,13 +6,7 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : React.createElement(type,p,ch);
 };
 var _Fragment = React.Fragment;
-/* views/Recordatorios.jsx
- * Reemplaza el módulo de "Correos" por un sistema de RECORDATORIOS de pagos,
- * inspirado en el mecanismo de recordatorios/renovaciones de Seguros Lux
- * (App/Cron/CronRenovaciones.php y App/Cron/TelegramRecordatorio.php):
- * en vez de enviar correos manuales, se listan los cobros pendientes/vencidos
- * agrupados por urgencia y se pueden marcar como "recordado".
- */
+// views/Recordatorios.jsx * Reemplaza el módulo de "Correos" por un sistema de RECORDATORIOS de pagos, * inspirado en el mecanismo de recordatorios/renovaciones de Seguros Lux * (App/Cron/CronRenovaciones.php y App/Cron/TelegramRecordatorio.php): * en vez de enviar correos manuales, se listan los cobros pendientes/vencidos * agrupados por urgencia y se pueden marcar como "recordado".
 function Recordatorios({
   data,
   setData,
@@ -116,34 +110,53 @@ function Recordatorios({
     return `Vence en ${Math.abs(c.dias_vencido)} día(s)`;
   };
 
-  return /*#__PURE__*/_jsxDEV("div", {
+  return _jsxDEV("div", {
     children: [
-      /*#__PURE__*/_jsxDEV("div", {
-        style: { marginBottom: 16, opacity: .8, fontSize: 13 },
+      _jsxDEV("div", {
+        className: "stats-grid",
+        children: (() => {
+          const nVenc = pendientes.filter(c => c.urgencia === 'vencido').length;
+          const nUrg  = pendientes.filter(c => c.urgencia === 'urgente').length;
+          const nProx = pendientes.filter(c => c.urgencia === 'proximo').length;
+          const nRec  = pendientes.filter(c => yaRecordadoHoy(c.id)).length;
+          const monto = pendientes.reduce((a, c) => a + (Number(c.total) || 0), 0);
+          const tarjetas = [
+            { destacada: true, tinte: '', icono: 'history', valor: fmt(monto), etiqueta: 'Monto por recuperar', meta: pendientes.length + ' cobros pendientes' },
+            { tinte: 'tint-red',   icono: 'warning',  valor: nVenc, etiqueta: 'Vencidos', meta: 'Requieren contacto inmediato' },
+            { tinte: 'tint-amber', icono: 'history', valor: nUrg + nProx, etiqueta: 'Próximos a vencer', meta: nUrg + ' urgentes en 3 días' },
+            { tinte: 'tint-green', icono: 'check',   valor: nRec, etiqueta: 'Recordados hoy', meta: 'Seguimiento manual del día' }
+          ];
+          return tarjetas.map(t => _jsxDEV("div", {
+            className: "stat-card" + (t.destacada ? " is-featured" : ""),
+            children: [
+              _jsxDEV("div", { className: "stat-icon" + (t.tinte ? " " + t.tinte : ""),
+                children: _jsxDEV(Icon, { name: t.icono, size: 19, color: "currentColor" }, void 0, false) }, void 0, false),
+              _jsxDEV("div", { className: "stat-value", children: t.valor }, void 0, false),
+              _jsxDEV("div", { className: "stat-label", children: t.etiqueta }, void 0, false),
+              _jsxDEV("div", { className: "stat-meta", children: t.meta }, void 0, false)
+            ]
+          }, t.etiqueta, true));
+        })()
+      }, void 0, false),
+      _jsxDEV("div", {
+        style: { marginBottom: 18, color: 'var(--ink-3)', fontSize: 12.5, lineHeight: 1.6 },
         children: "Cobros pendientes o vencidos. El sistema ya envía un correo automático a la familia 3 días antes de vencer, el día que vence, y 1 día después de vencido (cron_recordatorios.php). Usa este panel para dar seguimiento manual adicional y marcar a quién ya le diste seguimiento tú."
       }, void 0, false),
-      /*#__PURE__*/_jsxDEV("div", {
-        style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
-        children: FILTROS.map(f => /*#__PURE__*/_jsxDEV("button", {
+      _jsxDEV("div", {
+        className: "pill-group",
+        style: { marginBottom: 18 },
+        children: FILTROS.map(f => _jsxDEV("button", {
           onClick: () => setFiltro(f.id),
-          style: {
-            padding: '6px 14px',
-            borderRadius: 20,
-            border: '1px solid var(--border, #333)',
-            background: filtro === f.id ? 'var(--accent, #bdcf00)' : 'transparent',
-            color: filtro === f.id ? '#111' : 'inherit',
-            cursor: 'pointer',
-            fontSize: 13
-          },
+          className: "pill" + (filtro === f.id ? " active" : ""),
           children: f.label
         }, f.id, false))
       }, void 0, false),
-      listaFiltrada.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+      listaFiltrada.length === 0 ? _jsxDEV("div", {
         style: { opacity: .6, padding: 24, textAlign: 'center' },
         children: "No hay cobros que coincidan con este filtro."
-      }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, false) : _jsxDEV("div", {
         style: { display: 'flex', flexDirection: 'column', gap: 10 },
-        children: listaFiltrada.map(c => /*#__PURE__*/_jsxDEV("div", {
+        children: listaFiltrada.map(c => _jsxDEV("div", {
           style: {
             display: 'flex',
             justifyContent: 'space-between',
@@ -154,20 +167,20 @@ function Recordatorios({
             borderLeft: `4px solid ${colorUrgencia(c.urgencia)}`
           },
           children: [
-            /*#__PURE__*/_jsxDEV("div", {
+            _jsxDEV("div", {
               children: [
-                /*#__PURE__*/_jsxDEV("div", { style: { fontWeight: 600 }, children: c.cliente || 'Sin nombre' }, void 0, false),
-                /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, opacity: .7 }, children: labelUrgencia(c) }, void 0, false)
+                _jsxDEV("div", { style: { fontWeight: 600 }, children: c.cliente || 'Sin nombre' }, void 0, false),
+                _jsxDEV("div", { style: { fontSize: 12, opacity: .7 }, children: labelUrgencia(c) }, void 0, false)
               ]
             }, void 0, true),
-            /*#__PURE__*/_jsxDEV("div", {
+            _jsxDEV("div", {
               style: { display: 'flex', alignItems: 'center', gap: 12 },
               children: [
-                /*#__PURE__*/_jsxDEV("div", { style: { fontFamily: 'monospace', fontSize: 14 }, children: c.total ? '$' + parseFloat(c.total).toLocaleString('es-MX') : '' }, void 0, false),
-                yaRecordadoHoy(c.id) ? /*#__PURE__*/_jsxDEV("span", {
+                _jsxDEV("div", { style: { fontFamily: 'monospace', fontSize: 14 }, children: c.total ? '$' + parseFloat(c.total).toLocaleString('es-MX') : '' }, void 0, false),
+                yaRecordadoHoy(c.id) ? _jsxDEV("span", {
                   style: { fontSize: 12, color: 'var(--accent, #bdcf00)' },
                   children: '✓ Recordado hoy'
-                }, void 0, false) : /*#__PURE__*/_jsxDEV("button", {
+                }, void 0, false) : _jsxDEV("button", {
                   onClick: () => marcarRecordado(c),
                   disabled: guardandoId === c.id,
                   style: {
@@ -190,4 +203,4 @@ function Recordatorios({
       }, void 0, false)
     ]
   }, void 0, true);
-}
+}
