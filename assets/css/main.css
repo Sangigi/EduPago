@@ -1494,3 +1494,12 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .pf-header-user-name, .pf-header-user-sub { display:none; }
   .pf-header .badge { display:none; }
 }
+
+/* ── Portal familiar: las pestañas Facturas y Configuración quedan como
+   hermanas de .pf-body en el árbol, así que se salían del contenedor.
+   Esta regla les da el mismo ancho y sangrado sin reestructurar el JSX. ── */
+.pf-root > div:not(.pf-header):not(.pf-body) {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 clamp(18px,3vw,30px) clamp(18px,3vw,30px);
+}
