@@ -64,8 +64,8 @@ function Reportes({
     a.download = `reporte-${escuela?.clave || 'esc'}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
   };
-  return /*#__PURE__*/_jsxDEV("div", {
-    children: [/*#__PURE__*/_jsxDEV("div", {
+  return _jsxDEV("div", {
+    children: [_jsxDEV("div", {
       style: {
         display: 'flex',
         justifyContent: 'space-between',
@@ -74,14 +74,14 @@ function Reportes({
         flexWrap: 'wrap',
         gap: 10
       },
-      children: [/*#__PURE__*/_jsxDEV("div", {
-        children: [escuela && /*#__PURE__*/_jsxDEV("span", {
+      children: [_jsxDEV("div", {
+        children: [escuela && _jsxDEV("span", {
           style: {
             color: escuela.color,
             marginRight: 8
           },
           children: escuela.logo_emoji
-        }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+        }, void 0, false), _jsxDEV("span", {
           style: {
             fontWeight: 700,
             fontSize: 16,
@@ -89,24 +89,24 @@ function Reportes({
           },
           children: ["Reporte de cobros — ", escuela?.nombre || 'Esta escuela', escuela && !escuela.activa ? ' (Inactiva)' : '']
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         style: {
           display: 'flex',
           gap: 8,
           alignItems: 'center',
           flexWrap: 'wrap'
         },
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           style: {
             display: 'flex',
             gap: 4
           },
-          children: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año'], ['todo', 'Todo']].map(([val, label]) => /*#__PURE__*/_jsxDEV("button", {
+          children: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año'], ['todo', 'Todo']].map(([val, label]) => _jsxDEV("button", {
             className: periodo === val ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm',
             onClick: () => setPeriodo(val),
             children: label
           }, val, false))
-        }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+        }, void 0, false), _jsxDEV("button", {
           className: "btn btn-secondary btn-sm",
           onClick: exportarCSV,
           style: {
@@ -114,121 +114,121 @@ function Reportes({
             alignItems: "center",
             gap: 6
           },
-          children: [/*#__PURE__*/_jsxDEV(Icon, {
+          children: [_jsxDEV(Icon, {
             name: "download",
             size: 14,
             color: "currentColor"
           }, void 0, false), " CSV"]
         }, void 0, true)]
       }, void 0, true)]
-    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true), _jsxDEV("div", {
       className: "stats-grid",
       style: {
         marginBottom: 20
       },
-      children: [/*#__PURE__*/_jsxDEV("div", {
+      children: [_jsxDEV("div", {
         className: "stat-card is-featured",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "stat-icon",
-          children: /*#__PURE__*/_jsxDEV(Icon, {
+          children: _jsxDEV(Icon, {
             name: "pay",
             size: 19,
             color: "currentColor"
           }, void 0, false)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-label",
           children: "Total cobrado"
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-value",
           children: fmt(totalFilt)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-meta",
           children: [cobrosFilt.length, " transacciones"]
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         className: "stat-card",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "stat-icon tint-amber",
-          children: /*#__PURE__*/_jsxDEV(Icon, {
+          children: _jsxDEV(Icon, {
             name: "history",
             size: 19,
             color: "currentColor"
           }, void 0, false)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-label",
           children: "Pendiente total"
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-value",
           style: {
             fontSize: 20,
             color: 'var(--amber)'
           },
           children: fmt(data.cobros.filter(c => c.estado === 'pendiente').reduce((a, c) => a + c.total, 0))
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-meta",
           children: [data.cobros.filter(c => c.estado === 'pendiente').length, " cobros"]
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         className: "stat-card",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "stat-icon",
           style: {
             background: 'var(--purple-glow)'
           },
-          children: /*#__PURE__*/_jsxDEV(Icon, {
+          children: _jsxDEV(Icon, {
             name: "familias",
             size: 20,
             color: "currentColor"
           }, void 0, false)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-label",
           children: "Familias activas"
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-value",
           children: data.familias.filter(f => f.activa).length
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-meta",
           children: [data.clientes.filter(c => c.familia_id).length, " alumnos agrupados"]
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         className: "stat-card",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "stat-icon tint-green",
-          children: /*#__PURE__*/_jsxDEV(Icon, {
+          children: _jsxDEV(Icon, {
             name: "alumnos",
             size: 19,
             color: "currentColor"
           }, void 0, false)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-label",
           children: "Alumnos activos"
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-value",
           children: data.clientes.filter(c => c.activo).length
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "stat-meta",
           children: [data.clientes.filter(c => c.activo && c.saldo_pendiente > 0).length, " con adeudo"]
         }, void 0, true)]
       }, void 0, true)]
-    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true), _jsxDEV("div", {
       style: {
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: 20,
         marginBottom: 20
       },
-      children: [/*#__PURE__*/_jsxDEV("div", {
+      children: [_jsxDEV("div", {
         className: "card",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "card-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             className: "card-title",
             children: "Por método de pago"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), _jsxDEV("div", {
             className: "card-sub",
             children: [cobrosFilt.length, " transacciones"]
           }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           style: { display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' },
           children: (() => {
             /* Dona con la misma información que antes mostraban las barras */
@@ -242,32 +242,32 @@ function Reportes({
                                 : v >= 1e3 ? '$' + Math.round(v / 1e3) + 'k'
                                 : '$' + Math.round(v);
             return [
-              /*#__PURE__*/_jsxDEV(DonutChart, {
+              _jsxDEV(DonutChart, {
                 datos: serie, tamano: 180,
                 centro: { valor: compacto(suma), etiqueta: 'Total del periodo' }
               }, 'd', false),
-              /*#__PURE__*/_jsxDEV(DonutLeyenda, { datos: serie }, 'l', false)
+              _jsxDEV(DonutLeyenda, { datos: serie }, 'l', false)
             ];
           })()
         }, void 0, false)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         className: "card",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "card-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             className: "card-title",
             children: "Top por monto"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), _jsxDEV("div", {
             className: "card-sub",
             children: "Alumnos con más cobros"
           }, void 0, false)]
-        }, void 0, true), topAlumnos.length === 0 && /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), topAlumnos.length === 0 && _jsxDEV("div", {
           className: "empty-state",
-          children: /*#__PURE__*/_jsxDEV("div", {
+          children: _jsxDEV("div", {
             className: "empty-text",
             children: "Sin datos en este período"
           }, void 0, false)
-        }, void 0, false), topAlumnos.map(([nombre, total], i) => /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), topAlumnos.map(([nombre, total], i) => _jsxDEV("div", {
           style: {
             display: 'flex',
             alignItems: 'center',
@@ -275,7 +275,7 @@ function Reportes({
             padding: '9px 0',
             borderBottom: '1px solid var(--glass-light)'
           },
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             style: {
               width: 26,
               height: 26,
@@ -290,12 +290,12 @@ function Reportes({
               flexShrink: 0
             },
             children: i + 1
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), _jsxDEV("div", {
             style: {
               flex: 1,
               minWidth: 0
             },
-            children: /*#__PURE__*/_jsxDEV("div", {
+            children: _jsxDEV("div", {
               style: {
                 fontSize: 13,
                 fontWeight: 500,
@@ -305,7 +305,7 @@ function Reportes({
               },
               children: nombre
             }, void 0, false)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), _jsxDEV("div", {
             style: {
               fontFamily: 'var(--mono)',
               fontSize: 13,
@@ -317,64 +317,64 @@ function Reportes({
           }, void 0, false)]
         }, nombre, true))]
       }, void 0, true)]
-    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true), _jsxDEV("div", {
       className: "card",
-      children: [/*#__PURE__*/_jsxDEV("div", {
+      children: [_jsxDEV("div", {
         className: "card-header",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "card-title",
           children: "Alumnos con saldo pendiente"
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, false), _jsxDEV("div", {
           className: "card-sub",
           children: [data.clientes.filter(c => c.saldo_pendiente > 0 && c.activo).length, " alumnos"]
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         className: "table-wrap",
-        children: /*#__PURE__*/_jsxDEV("table", {
-          children: [/*#__PURE__*/_jsxDEV("thead", {
-            children: /*#__PURE__*/_jsxDEV("tr", {
-              children: [/*#__PURE__*/_jsxDEV("th", {
+        children: _jsxDEV("table", {
+          children: [_jsxDEV("thead", {
+            children: _jsxDEV("tr", {
+              children: [_jsxDEV("th", {
                 children: "Alumno"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Matrícula"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Grado"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Familia"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Adeudo"
               }, void 0, false)]
             }, void 0, true)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
-            children: [data.clientes.filter(c => c.saldo_pendiente > 0 && c.activo).map(c => /*#__PURE__*/_jsxDEV("tr", {
-              children: [/*#__PURE__*/_jsxDEV("td", {
+          }, void 0, false), _jsxDEV("tbody", {
+            children: [data.clientes.filter(c => c.saldo_pendiente > 0 && c.activo).map(c => _jsxDEV("tr", {
+              children: [_jsxDEV("td", {
                 style: {
                   fontWeight: 500,
                   fontSize: 13
                 },
                 children: c.nombre
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontSize: 11
                   },
                   children: c.matricula || '—'
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", {
                 style: {
                   color: 'var(--ink-3)',
                   fontSize: 12
                 },
                 children: c.grado || '—'
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", {
                 style: {
                   fontSize: 12,
                   color: 'var(--ink-3)'
                 },
                 children: c.familia_id ? data.familias.find(f => f.id === c.familia_id)?.nombre : '—'
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontWeight: 700,
@@ -383,19 +383,19 @@ function Reportes({
                   children: fmt(c.saldo_pendiente)
                 }, void 0, false)
               }, void 0, false)]
-            }, c.id, true)), data.clientes.filter(c => c.saldo_pendiente > 0 && c.activo).length === 0 && /*#__PURE__*/_jsxDEV("tr", {
-              children: /*#__PURE__*/_jsxDEV("td", {
+            }, c.id, true)), data.clientes.filter(c => c.saldo_pendiente > 0 && c.activo).length === 0 && _jsxDEV("tr", {
+              children: _jsxDEV("td", {
                 colSpan: 5,
-                children: /*#__PURE__*/_jsxDEV("div", {
+                children: _jsxDEV("div", {
                   className: "empty-state",
-                  children: [/*#__PURE__*/_jsxDEV("div", {
+                  children: [_jsxDEV("div", {
                     className: "empty-icon",
-                    children: /*#__PURE__*/_jsxDEV(Icon, {
+                    children: _jsxDEV(Icon, {
                       name: "check",
                       size: 36,
                       color: "currentColor"
                     }, void 0, false)
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                  }, void 0, false), _jsxDEV("div", {
                     className: "empty-text",
                     children: "¡Todos al corriente!"
                   }, void 0, false)]
