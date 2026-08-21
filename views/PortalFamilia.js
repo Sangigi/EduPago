@@ -33,6 +33,24 @@ function PortalFamilia({
   const [cobroActivo, setCobroActivo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('inicio');
+
+  // Tema del portal. Se guarda en el navegador con la misma llave que el shell
+  // principal, así la preferencia es una sola en toda la plataforma.
+  const [temaOscuro, setTemaOscuro] = useState(() => {
+    try {
+      const g = localStorage.getItem('edupago_theme');
+      if (g === 'dark') return true;
+      if (g === 'light') return false;
+    } catch (e) { /* storage bloqueado */ }
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    } catch (e) { return false; }
+  });
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', temaOscuro ? 'dark' : '');
+    try { localStorage.setItem('edupago_theme', temaOscuro ? 'dark' : 'light'); } catch (e) {}
+  }, [temaOscuro]);
+  const alternarTema = () => setTemaOscuro(v => !v);
   const [copied, setCopied] = useState('');
   const [pollStatus, setPollStatus] = useState(null);
   const pollRef = useRef(null);
@@ -464,376 +482,241 @@ function PortalFamilia({
     const active = tab === id;
     return _jsxDEV("button", {
       onClick: () => setTab(id),
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: 7,
-        padding: '10px 16px',
-        border: 'none',
-        background: 'transparent',
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        fontSize: 13,
-        fontWeight: active ? 700 : 400,
-        color: active ? PLC.navy : PLC.muted,
-        borderBottom: `2px solid ${active ? PLC.lime : 'transparent'}`,
-        marginBottom: -2,
-        transition: 'all .15s',
-        flexShrink: 0,
-        whiteSpace: 'nowrap'
-      },
-      children: [_jsxDEV(Icon, {
-        name: iconName,
-        size: 15,
-        color: active ? PLC.navy : PLC.muted
-      }, void 0, false), label]
-    }, void 0, true);
+      className: "pill" + (active ? " active" : ""),
+      style: { display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 },
+      children: [
+        _jsxDEV(Icon, { name: iconName, size: 14, color: "currentColor" }, void 0, false),
+        label
+      ]
+    }, id, true);
   };
   const cobrosHijo = id => misCobros.filter(c => c.cliente_id === id);
   const pendientesHj = id => cobrosHijo(id).filter(c => c.estado === 'pendiente');
+  // Serie de pagos por mes para la mini gráfica de la portada
+  const seriePagos = (() => {
+    const meses = [];
+    const base = new Date();
+    for (let k = 5; k >= 0; k--) {
+      const d = new Date(base.getFullYear(), base.getMonth() - k, 1);
+      meses.push({
+        clave: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'),
+        label: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][d.getMonth()],
+        valor: 0
+      });
+    }
+    const idx = {};
+    meses.forEach((m, i) => { idx[m.clave] = i; });
+    misCobros.forEach(c => {
+      if (c.estado !== 'pagado') return;
+      const k = (c.fecha || '').slice(0, 7);
+      if (idx[k] !== undefined) meses[idx[k]].valor += Number(c.total) || 0;
+    });
+    return meses;
+  })();
+
   return _jsxDEV("div", {
     style: {
-      height: '100vh',
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      background: PLC.bg,
-      fontFamily: "'DM Sans',system-ui,sans-serif"
+      minHeight: '100vh',
+      background: 'var(--bg-main)',
+      fontFamily: "'DM Sans',system-ui,sans-serif",
+      color: 'var(--ink)'
     },
-    children: [_jsxDEV("div", {
-      className: 'pf-header',
-      style: {
-        background: PLC.navy,
-        padding: '0 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        height: 64,
-        boxShadow: `0 2px 16px rgba(28,32,80,.35)`,
-        position: 'sticky',
-        top: 0,
-        zIndex: 100
-      },
-      children: [_jsxDEV("img", {
-        src: "assets/logo.jpeg",
-        alt: "paga la escuela",
+    children: [
+      // ── Barra superior: clara y ligera, no una banda sólida de color ──
+      _jsxDEV("div", {
+        className: 'pf-header',
         style: {
-          height: 42,
-          objectFit: 'contain',
-          display: 'block',
-          borderRadius: '10px'
+          background: 'var(--bg-surface)',
+          borderBottom: '1px solid var(--border-glow)',
+          padding: '0 clamp(16px,4vw,32px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 14, height: 68, position: 'sticky', top: 0, zIndex: 100
         },
-        onError: e => {
-          e.target.style.display = 'none';
-          e.target.nextSibling.style.display = 'flex';
-        }
-      }, void 0, false), _jsxDEV("div", {
-        style: {
-          display: 'none',
-          alignItems: 'center',
-          gap: 8
-        },
-        children: [_jsxDEV("span", {
-          style: {
-            color: PLC.white,
-            fontWeight: 800,
-            fontSize: 17,
-            letterSpacing: '-.5px'
-          },
-          children: "paga la escuela"
-        }, void 0, false), _jsxDEV("span", {
-          style: {
-            color: PLC.lime,
-            fontSize: 11,
-            fontWeight: 600
-          },
-          children: "by Libertyfin"
-        }, void 0, false)]
-      }, void 0, true), _jsxDEV("div", {
-        className: 'pf-header-actions',
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          minWidth: 0
-        },
-        children: [escuela && _jsxDEV("div", {
-          className: 'pf-header-badge',
-          style: {
-            padding: '4px 12px',
-            borderRadius: 20,
-            fontSize: 11,
-            fontWeight: 600,
-            background: 'rgba(189,207,0,.15)',
-            color: PLC.lime,
-            marginRight: 4
-          },
-          children: escuela.nombre
-        }, void 0, false), _jsxDEV("div", {
-          style: {
-            textAlign: 'right',
-            lineHeight: 1.3
-          },
-          children: [_jsxDEV("div", {
-            className: 'pf-header-user-name',
-            style: {
-              color: PLC.white,
-              fontSize: 13,
-              fontWeight: 600
-            },
-            children: userEfectivo.nombre
-          }, void 0, false), _jsxDEV("div", {
-            className: 'pf-header-user-sub',
-            style: {
-              color: 'rgba(255,255,255,.5)',
-              fontSize: 11
-            },
-            children: "Portal Familiar"
-          }, void 0, false)]
-        }, void 0, true), _jsxDEV("div", {
-          style: {
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            background: `linear-gradient(135deg,${PLC.lime},${PLC.green})`,
-            color: PLC.navy,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 700,
-            fontSize: 14,
-            flexShrink: 0
-          },
-          children: userEfectivo.nombre.charAt(0).toUpperCase()
-        }, void 0, false), onLogout && _jsxDEV("button", {
-          onClick: onLogout,
-          title: "Cerrar sesión",
-          style: {
-            background: 'rgba(255,255,255,.1)',
-            border: 'none',
-            color: PLC.white,
-            width: 34,
-            height: 34,
-            borderRadius: 8,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          },
-          children: _jsxDEV(Icon, {
-            name: "logout",
-            size: 16,
-            color: "currentColor"
-          }, void 0, false)
-        }, void 0, false)]
-      }, void 0, true)]
-    }, void 0, true), _jsxDEV("div", {
-      style: {
-        maxWidth: 880,
-        margin: '0 auto',
-        padding: '28px 20px 60px'
-      },
-      children: [_jsxDEV("div", {
-        style: {
-          background: `linear-gradient(135deg, ${PLC.navyDk} 0%, ${PLC.navy} 100%)`,
-          borderRadius: 18,
-          padding: '28px 28px 24px',
-          marginBottom: 20,
-          position: 'relative',
-          overflow: 'hidden',
-          border: `1px solid rgba(189,207,0,.15)`
-        },
-        children: [_jsxDEV("div", {
-          style: {
-            position: 'absolute',
-            top: -40,
-            right: -40,
-            width: 180,
-            height: 180,
-            borderRadius: '50%',
-            background: PLC.lime,
-            opacity: .06,
-            pointerEvents: 'none'
-          }
-        }, void 0, false), _jsxDEV("div", {
-          style: {
-            position: 'absolute',
-            bottom: -20,
-            right: 100,
-            width: 90,
-            height: 90,
-            borderRadius: '50%',
-            background: PLC.green,
-            opacity: .09,
-            pointerEvents: 'none'
-          }
-        }, void 0, false), _jsxDEV("div", {
-          style: {
-            fontSize: 12,
-            color: 'rgba(255,255,255,.45)',
-            marginBottom: 3,
-            textTransform: 'uppercase',
-            letterSpacing: .5
-          },
-          children: "Bienvenido/a"
-        }, void 0, false), _jsxDEV("div", {
-          style: {
-            fontSize: 22,
-            fontWeight: 700,
-            color: PLC.white,
-            marginBottom: 22
-          },
-          children: userEfectivo.nombre
-        }, void 0, false), _jsxDEV("div", {
-          style: {
-            display: 'flex',
-            gap: 12,
-            flexWrap: 'wrap'
-          },
-          children: [_jsxDEV("div", {
-            style: {
-              flex: 1,
-              minWidth: 100,
-              background: 'rgba(255,255,255,.08)',
-              borderRadius: 10,
-              padding: '14px 16px'
-            },
-            children: [_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginBottom: 6
-              },
-              children: [_jsxDEV(Icon, {
-                name: "alumnos",
-                size: 14,
-                color: "rgba(255,255,255,.5)"
-              }, void 0, false), _jsxDEV("span", {
+        children: [
+          _jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 },
+            children: [
+              _jsxDEV("div", {
                 style: {
-                  fontSize: 10,
-                  color: 'rgba(255,255,255,.5)',
-                  textTransform: 'uppercase',
-                  letterSpacing: .4
+                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  background: 'var(--grad-brand)', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontWeight: 800, fontSize: 15
                 },
-                children: "Alumnos"
-              }, void 0, false)]
-            }, void 0, true), _jsxDEV("div", {
-              style: {
-                fontSize: 26,
-                fontWeight: 700,
-                color: PLC.white
-              },
-              children: misHijos.length
-            }, void 0, false), _jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                color: 'rgba(255,255,255,.45)',
-                marginTop: 2
-              },
-              children: misHijos.map(h => h.nombre.split(' ')[0]).join(' · ') || '—'
-            }, void 0, false)]
-          }, void 0, true), _jsxDEV("div", {
-            style: {
-              flex: 1,
-              minWidth: 100,
-              background: saldoTotal > 0 ? 'rgba(189,207,0,.14)' : 'rgba(73,175,84,.14)',
-              borderRadius: 10,
-              padding: '14px 16px',
-              border: `1px solid ${saldoTotal > 0 ? 'rgba(189,207,0,.25)' : 'rgba(73,175,84,.25)'}`
-            },
-            children: [_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginBottom: 6
-              },
-              children: [_jsxDEV(Icon, {
-                name: "pay",
-                size: 14,
-                color: "rgba(255,255,255,.5)"
-              }, void 0, false), _jsxDEV("span", {
-                style: {
-                  fontSize: 10,
-                  color: 'rgba(255,255,255,.5)',
-                  textTransform: 'uppercase',
-                  letterSpacing: .4
-                },
-                children: "Saldo total"
-              }, void 0, false)]
-            }, void 0, true), _jsxDEV("div", {
-              style: {
-                fontSize: 26,
-                fontWeight: 700,
-                color: saldoTotal > 0 ? PLC.lime : PLC.green
-              },
-              children: fmt(saldoTotal)
-            }, void 0, false), _jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                color: 'rgba(255,255,255,.55)',
-                marginTop: 2
-              },
-              children: saldoTotal > 0 ? 'Pagos pendientes' : 'Todo al corriente'
-            }, void 0, false)]
-          }, void 0, true), _jsxDEV("div", {
-            style: {
-              flex: 1,
-              minWidth: 100,
-              background: 'rgba(255,255,255,.08)',
-              borderRadius: 10,
-              padding: '14px 16px'
-            },
-            children: [_jsxDEV("div", {
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginBottom: 6
-              },
-              children: [_jsxDEV(Icon, {
-                name: "cobros",
-                size: 14,
-                color: "rgba(255,255,255,.5)"
-              }, void 0, false), _jsxDEV("span", {
-                style: {
-                  fontSize: 10,
-                  color: 'rgba(255,255,255,.5)',
-                  textTransform: 'uppercase',
-                  letterSpacing: .4
-                },
-                children: "Cobros"
-              }, void 0, false)]
-            }, void 0, true), _jsxDEV("div", {
-              style: {
-                fontSize: 26,
-                fontWeight: 700,
-                color: PLC.white
-              },
-              children: misCobros.length
-            }, void 0, false), _jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                color: 'rgba(255,255,255,.45)',
-                marginTop: 2
-              },
-              children: [misCobros.filter(c => c.estado === 'pagado').length, " pagados"]
-            }, void 0, true)]
-          }, void 0, true)]
-        }, void 0, true)]
-      }, void 0, true), _jsxDEV("div", {
-        className: 'pf-tabs',
-        style: {
-          display: 'flex',
-          gap: 2,
-          borderBottom: `2px solid ${PLC.border}`,
-          marginBottom: 22,
-          overflowX: 'auto',
-          WebkitOverflowScrolling: 'touch',
-          whiteSpace: 'nowrap'
-        },
-        children: [tabBtn('inicio', 'Inicio', 'home'), tabBtn('hijos', 'Mis hijos', 'alumnos'), tabBtn('historial', 'Historial', 'history'), tabBtn('pagar', 'Pagar en línea', 'card'), tabBtn('facturas', 'Facturas', 'facturacion2'), tabBtn('config', 'Configuración', 'settings')]
-      }, void 0, true), tab === 'inicio' && _jsxDEV("div", {
+                children: "P"
+              }, void 0, false),
+              _jsxDEV("div", {
+                style: { minWidth: 0 },
+                children: [
+                  _jsxDEV("div", {
+                    style: { fontSize: 15, fontWeight: 700, letterSpacing: '-.3px', lineHeight: 1.15,
+                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                    children: "Paga la Escuela"
+                  }, void 0, false),
+                  _jsxDEV("div", {
+                    style: { fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.2 },
+                    children: "Portal familiar"
+                  }, void 0, false)
+                ]
+              }, void 0, true)
+            ]
+          }, void 0, true),
+
+          _jsxDEV("div", {
+            className: 'pf-header-actions',
+            style: { display: 'flex', alignItems: 'center', gap: 10 },
+            children: [
+              escuela && _jsxDEV("span", {
+                className: "badge badge-blue",
+                style: { textTransform: 'none', fontWeight: 600 },
+                children: escuela.nombre
+              }, void 0, false),
+
+              // Cambio de tema: se guarda en el navegador y se conserva al volver
+              _jsxDEV("button", {
+                className: "theme-toggle",
+                title: temaOscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro',
+                aria: 'Cambiar tema',
+                onClick: alternarTema,
+                children: _jsxDEV(Icon, {
+                  name: temaOscuro ? 'sun' : 'moon', size: 16, color: "currentColor"
+                }, void 0, false)
+              }, void 0, false),
+
+              _jsxDEV("div", {
+                className: 'pf-header-user',
+                style: { display: 'flex', alignItems: 'center', gap: 9 },
+                children: [
+                  _jsxDEV("div", {
+                    style: { textAlign: 'right', lineHeight: 1.2 },
+                    children: [
+                      _jsxDEV("div", {
+                        className: 'pf-header-user-name',
+                        style: { fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' },
+                        children: user.nombre
+                      }, void 0, false),
+                      _jsxDEV("div", {
+                        className: 'pf-header-user-sub',
+                        style: { fontSize: 11, color: 'var(--ink-3)' },
+                        children: "Familia"
+                      }, void 0, false)
+                    ]
+                  }, void 0, true),
+                  _jsxDEV("div", {
+                    style: {
+                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                      background: 'var(--grad-cool)', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 700, fontSize: 13
+                    },
+                    children: (user.nombre || '?').trim().charAt(0).toUpperCase()
+                  }, void 0, false)
+                ]
+              }, void 0, true),
+
+              _jsxDEV("button", {
+                className: "btn-ghost",
+                title: "Cerrar sesión",
+                onClick: onLogout,
+                style: { color: 'var(--ink-3)' },
+                children: _jsxDEV(Icon, { name: 'logout', size: 17, color: "currentColor" }, void 0, false)
+              }, void 0, false)
+            ]
+          }, void 0, true)
+        ]
+      }, void 0, true),
+
+      // ── Cuerpo ──
+      _jsxDEV("div", {
+        style: { maxWidth: 1120, margin: '0 auto', padding: 'clamp(18px,3vw,30px)' },
+        children: [
+
+          _jsxDEV("div", {
+            className: "section-title",
+            style: { marginBottom: 4 },
+            children: ["Hola, ", (user.nombre || '').split(' ')[0]]
+          }, void 0, true),
+          _jsxDEV("div", {
+            style: { fontSize: 13, color: 'var(--ink-3)', marginBottom: 20 },
+            children: saldoTotal > 0
+              ? 'Tienes pagos pendientes por revisar.'
+              : 'Estás al corriente con todos los pagos.'
+          }, void 0, false),
+
+          // ── Métricas con la jerarquía del video ──
+          _jsxDEV("div", {
+            className: "stats-grid",
+            children: [
+              _jsxDEV("div", {
+                className: "stat-card" + (saldoTotal > 0 ? " is-featured" : ""),
+                children: [
+                  _jsxDEV("div", { className: "stat-icon" + (saldoTotal > 0 ? "" : " tint-green"),
+                    children: _jsxDEV(Icon, { name: 'pay', size: 19, color: "currentColor" }, void 0, false) }, void 0, false),
+                  _jsxDEV("div", { className: "stat-value", children: fmt(saldoTotal) }, void 0, false),
+                  _jsxDEV("div", { className: "stat-label", children: "Saldo pendiente" }, void 0, false),
+                  _jsxDEV("div", { className: "stat-meta",
+                    children: saldoTotal > 0
+                      ? misCobros.filter(c => c.estado === 'pendiente').length + ' cobros por pagar'
+                      : 'Sin adeudos' }, void 0, false),
+                  (saldoTotal > 0 && seriePagos.some(m => m.valor > 0) && typeof Sparkline !== 'undefined')
+                    ? _jsxDEV("div", { className: "stat-spark", style: { color: '#fff', opacity: .9 },
+                        children: _jsxDEV(Sparkline, { datos: seriePagos.map(m => m.valor), alto: 32, color: '#fff' }, void 0, false) }, void 0, false)
+                    : null
+                ]
+              }, 'saldo', true),
+
+              _jsxDEV("div", {
+                className: "stat-card",
+                children: [
+                  _jsxDEV("div", { className: "stat-icon tint-cyan",
+                    children: _jsxDEV(Icon, { name: 'alumnos', size: 19, color: "currentColor" }, void 0, false) }, void 0, false),
+                  _jsxDEV("div", { className: "stat-value", children: misHijos.length }, void 0, false),
+                  _jsxDEV("div", { className: "stat-label", children: "Alumnos" }, void 0, false),
+                  _jsxDEV("div", { className: "stat-meta",
+                    children: misHijos.map(h => (h.nombre || '').split(' ')[0]).join(' · ') || '—' }, void 0, false)
+                ]
+              }, 'hijos', true),
+
+              _jsxDEV("div", {
+                className: "stat-card",
+                children: [
+                  _jsxDEV("div", { className: "stat-icon tint-green",
+                    children: _jsxDEV(Icon, { name: 'check', size: 19, color: "currentColor" }, void 0, false) }, void 0, false),
+                  _jsxDEV("div", { className: "stat-value",
+                    children: fmt(misCobros.filter(c => c.estado === 'pagado').reduce((a, c) => a + (Number(c.total) || 0), 0)) }, void 0, false),
+                  _jsxDEV("div", { className: "stat-label", children: "Pagado histórico" }, void 0, false),
+                  _jsxDEV("div", { className: "stat-meta",
+                    children: misCobros.filter(c => c.estado === 'pagado').length + ' pagos realizados' }, void 0, false)
+                ]
+              }, 'pagado', true),
+
+              _jsxDEV("div", {
+                className: "stat-card",
+                children: [
+                  _jsxDEV("div", { className: "stat-icon tint-magenta",
+                    children: _jsxDEV(Icon, { name: 'cobros', size: 19, color: "currentColor" }, void 0, false) }, void 0, false),
+                  _jsxDEV("div", { className: "stat-value", children: misCobros.length }, void 0, false),
+                  _jsxDEV("div", { className: "stat-label", children: "Cobros totales" }, void 0, false),
+                  _jsxDEV("div", { className: "stat-meta", children: "Historial completo" }, void 0, false)
+                ]
+              }, 'cobros', true)
+            ]
+          }, void 0, true),
+
+          // ── Pestañas en píldora ──
+          _jsxDEV("div", {
+            className: 'pf-tabs pill-group',
+            style: { marginBottom: 22, flexWrap: 'nowrap' },
+            children: [
+              tabBtn('inicio', 'Inicio', 'home'),
+              tabBtn('hijos', 'Mis hijos', 'alumnos'),
+              tabBtn('historial', 'Historial', 'history'),
+              tabBtn('pagar', 'Pagar en línea', 'card'),
+              tabBtn('facturas', 'Facturas', 'facturacion2'),
+              tabBtn('config', 'Configuración', 'settings')
+            ]
+          }, void 0, true),
+          tab === 'inicio' && _jsxDEV("div", {
         children: [saldoTotal > 0 && _jsxDEV("div", {
           style: {
             ...card(),
@@ -2152,7 +2035,10 @@ function PortalFamilia({
                   padding: '8px 14px', borderRadius: 8, border: `1px solid ${PLC.border}`,
                   background: PLC.card, color: PLC.navy, fontSize: 12.5, fontWeight: 600, cursor: 'pointer'
                 },
-                children: descargandoFactura === cob.id + '-pdf' ? 'Descargando…' : '⬇ PDF'
+                children: descargandoFactura === cob.id + '-pdf' ? 'Descargando…' : [
+                  _jsxDEV(Icon, { name: 'download', size: 13, color: 'currentColor' }, 'pdf-ic', false),
+                  ' PDF'
+                ]
               }, void 0, false), _jsxDEV("button", {
                 disabled: descargandoFactura === cob.id + '-xml',
                 onClick: () => descargarFactura(cob, 'xml'),
@@ -2160,7 +2046,10 @@ function PortalFamilia({
                   padding: '8px 14px', borderRadius: 8, border: `1px solid ${PLC.border}`,
                   background: PLC.card, color: PLC.navy, fontSize: 12.5, fontWeight: 600, cursor: 'pointer'
                 },
-                children: descargandoFactura === cob.id + '-xml' ? 'Descargando…' : '⬇ XML'
+                children: descargandoFactura === cob.id + '-xml' ? 'Descargando…' : [
+                  _jsxDEV(Icon, { name: 'download', size: 13, color: 'currentColor' }, 'xml-ic', false),
+                  ' XML'
+                ]
               }, void 0, false)]
             }, void 0, true)]
           }, cob.id, true))
