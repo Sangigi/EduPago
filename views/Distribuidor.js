@@ -5,13 +5,7 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : Array.isArray(ch) ? React.createElement(type,p,...ch)
        : React.createElement(type,p,ch);
 };
-/* views/Distribuidor.jsx — Portal del rol "distribuidor" (programa de referidos)
-   Migrado al patrón _jsxDEV + clases CSS compartidas (mismo patrón que Dashboard.js/Usuarios.js),
-   reutilizando .sidebar/.app/.main/.topbar/.content del shell principal (assets/js/app.js) para
-   heredar el drawer responsive de ≤768px sin duplicar layout propio.
-   Trae su propia data vía action=distribuidor_datos / distribuidor_invitar_colegio /
-   distribuidor_comisiones / distribuidor_datos_pago / distribuidor_guardar_datos_pago.
-   La edición de perfil reutiliza AuthController.editarUsuario (acción compartida editar_usuario). */
+// views/Distribuidor.jsx — Portal del rol "distribuidor" (programa de referidos) Migrado al patrón _jsxDEV + clases CSS compartidas (mismo patrón que Dashboard.js/Usuarios.js), reutilizando .sidebar/.app/.main/.topbar/.content del shell principal (assets/js/app.js) para heredar el drawer responsive de ≤768px sin duplicar layout propio. Trae su propia data vía action=distribuidor_datos / distribuidor_invitar_colegio / distribuidor_comisiones / distribuidor_datos_pago / distribuidor_guardar_datos_pago. La edición de perfil reutiliza AuthController.editarUsuario (acción compartida editar_usuario).
 
 const DIST_ESTADOS = {
   activo:         { label: 'Activo',         icon: '✓',  badge: 'badge-green',  barColor: 'var(--green)' },
@@ -61,11 +55,11 @@ function DistBadge({ estado }) {
 }
 
 /* ── Stat card reutilizando .stat-card/.stat-icon/.stat-label/.stat-value/.stat-meta ── */
-function DistStatCard({ icon, iconBg, iconColor, label, value, valueColor, sub }) {
+function DistStatCard({ icon, iconBg, iconColor, tint, label, value, valueColor, sub }) {
   return _jsxDEV("div", {
     className: "stat-card",
     children: [
-      _jsxDEV("div", { className: "stat-icon", style: { background: iconBg, color: iconColor }, children: icon }, void 0, false),
+      _jsxDEV("div", { className: "stat-icon" + (tint ? " " + tint : ""), children: icon }, void 0, false),
       _jsxDEV("div", { className: "stat-label", children: label }, void 0, false),
       _jsxDEV("div", { className: "stat-value", style: valueColor ? { color: valueColor } : undefined, children: value }, void 0, false),
       sub ? _jsxDEV("div", { className: "stat-meta", children: sub }, void 0, false) : null,
@@ -559,9 +553,7 @@ function DistDatosPagoView() {
   }, void 0, true);
 }
 
-/* ── Componente principal ──
-   Reutiliza .app/.sidebar/.main/.topbar/.content del shell (assets/js/app.js + main.css) para
-   heredar automáticamente el drawer responsive de ≤768px (botón hamburguesa + .nav-backdrop). */
+// ── Componente principal ── Reutiliza .app/.sidebar/.main/.topbar/.content del shell (assets/js/app.js + main.css) para heredar automáticamente el drawer responsive de ≤768px (botón hamburguesa + .nav-backdrop).
 function Distribuidor({ user, onLogout }) {
   const { useState, useEffect } = React;
   const [loading, setLoading] = useState(true);
