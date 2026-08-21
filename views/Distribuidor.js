@@ -489,7 +489,7 @@ function DistTutorialesView() {
 
       activo
         ? _jsxDEV("div", {
-            className: "modal-overlay",
+            className: "modal-backdrop",
             onClick: () => setActivo(null),
             children: _jsxDEV("div", {
               className: "modal",
