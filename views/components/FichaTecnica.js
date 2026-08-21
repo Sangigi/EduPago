@@ -54,7 +54,18 @@ const _PARENTESCO_LABEL = {
   tutorado: 'Bajo tutela', otro: 'Otro'
 };
 
-function FichaTecnica({ registro, tipo, escuela, familia, onCerrar, onGuardarFoto, puedeEditar }) {
+function FichaTecnica({ registro, tipo, escuela, familia, extra, onCerrar, onGuardarFoto, puedeEditar }) {
+  // `extra` es la forma que ya usan las vistas enganchadas (Alumnos):
+  // { familia, saldo, saldoTexto }. Se acepta junto con las props sueltas
+  // para que ambas maneras de invocar el componente funcionen.
+  const _familia = familia || (extra && extra.familia) || null;
+  const _saldo = (extra && typeof extra.saldo === 'number')
+    ? extra.saldo : Number(registro.saldo_pendiente || 0);
+  const _saldoTexto = (extra && extra.saldoTexto)
+    || (typeof fmt === 'function' ? fmt(_saldo)
+        : '$' + Number(_saldo).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
+  // Por omisión se permite editar la foto; las vistas pueden restringirlo
+  const _puedeEditar = puedeEditar === undefined ? true : puedeEditar;
   const { useState } = React;
   const [editando, setEditando] = useState(false);
   const [enlace, setEnlace] = useState(registro.foto_url || '');
@@ -69,7 +80,7 @@ function FichaTecnica({ registro, tipo, escuela, familia, onCerrar, onGuardarFot
     ['Grado', registro.grado],
     ['CURP', registro.curp],
     ['Parentesco', _PARENTESCO_LABEL[registro.parentesco] || registro.parentesco],
-    ['Familia', familia && familia.nombre],
+    ['Familia', _familia && _familia.nombre],
     ['Fecha de nacimiento', registro.fecha_nac],
     ['Tipo de sangre', registro.tipo_sangre],
     ['Alergias', registro.alergias],
@@ -132,14 +143,13 @@ function FichaTecnica({ registro, tipo, escuela, familia, onCerrar, onGuardarFot
                   _hFT('div', { key: 'k', className: 'ficha-dato-k' }, par[0]),
                   _hFT('div', { key: 'v', className: 'ficha-dato-v' }, String(par[1])));
               })),
-        registro.saldo_pendiente > 0 ? _hFT('div', {
+        _saldo > 0 ? _hFT('div', {
           key: 'saldo',
           style: { marginTop: 14, padding: '10px 13px', borderRadius: 'var(--radius-sm)',
                    background: 'var(--amber-glow)', color: 'var(--amber)',
                    fontSize: 12.5, fontWeight: 600 }
-        }, 'Saldo pendiente: ' + (typeof fmt === 'function'
-             ? fmt(registro.saldo_pendiente) : '$' + registro.saldo_pendiente)) : null,
-        (onGuardarFoto && puedeEditar) ? (editando
+        }, 'Saldo pendiente: ' + _saldoTexto) : null,
+        (onGuardarFoto && _puedeEditar) ? (editando
           ? _hFT('div', { key: 'ed', style: { marginTop: 16 } },
               _hFT('label', { key: 'l', className: 'form-label' }, 'Enlace de la foto'),
               _hFT('input', {
