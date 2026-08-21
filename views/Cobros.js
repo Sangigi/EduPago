@@ -18,6 +18,7 @@ function Cobros({
   } = React;
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroMetodo, setFiltroMetodo] = useState('todos');
+  const [filtroPeriodo, setFiltroPeriodo] = useState('todo');
   const [q, setQ] = useState('');
   const [detalle, setDetalle] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
@@ -96,8 +97,28 @@ function Cobros({
   // filtroMetodo se sigue aplicando en cliente sobre la página ya traída
   // (filtrar por método no justifica otro roundtrip; es solo la vista actual).
   const fuente = paginaBackend ? paginaBackend.cobros : [...data.cobros].reverse();
+  // Rango del periodo elegido. Se calcula una sola vez, no por cobro.
+  const rangoPeriodo = (() => {
+    if (filtroPeriodo === 'todo') return null;
+    const hoy = new Date();
+    const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    if (filtroPeriodo === 'semana') {
+      desde.setDate(desde.getDate() - ((hoy.getDay() + 6) % 7));  // lunes de esta semana
+    } else if (filtroPeriodo === 'mes') {
+      desde.setMonth(hoy.getMonth(), 1);
+    } else if (filtroPeriodo === 'anio') {
+      desde.setFullYear(hoy.getFullYear(), 0, 1);
+    }
+    const p = n => String(n).padStart(2, '0');
+    return desde.getFullYear() + '-' + p(desde.getMonth() + 1) + '-' + p(desde.getDate());
+  })();
+
   const lista = fuente.filter(c => {
     if (filtroMetodo !== 'todos' && c.metodo !== filtroMetodo) return false;
+    if (rangoPeriodo) {
+      const f = String(c.fecha || '').slice(0, 10);
+      if (!f || f < rangoPeriodo) return false;
+    }
     if (!paginaBackend && filtroEstado !== 'todos' && c.estado !== filtroEstado) return false;
     if (!paginaBackend && q) {
       const busq = q.toLowerCase();
@@ -329,13 +350,27 @@ function Cobros({
           },
           onClick: () => setFiltroEstado(val),
           children: [label, " (", totales[val] ?? lista.filter(c => c.estado === val).length, ")"]
-        }, val, true)), _jsxDEV("select", {
+        }, val, true)), _jsxDEV("div", {
+          className: "pill-group",
+          style: { marginLeft: 'auto' },
+          children: [
+            { id: 'hoy',    label: 'Hoy' },
+            { id: 'semana', label: 'Semana' },
+            { id: 'mes',    label: 'Mes' },
+            { id: 'anio',   label: 'Año' },
+            { id: 'todo',   label: 'Todo' }
+          ].map(op => _jsxDEV("button", {
+            className: "pill" + (filtroPeriodo === op.id ? " active" : ""),
+            style: { padding: '6px 13px', fontSize: 12 },
+            onClick: () => { setFiltroPeriodo(op.id); setPagina(1); },
+            children: op.label
+          }, op.id, false))
+        }, 'periodo', false), _jsxDEV("select", {
           className: "form-select",
           style: {
             fontSize: 12,
             padding: '4px 10px',
-            width: 'auto',
-            marginLeft: 'auto'
+            width: 'auto'
           },
           value: filtroMetodo,
           onChange: e => setFiltroMetodo(e.target.value),
@@ -654,7 +689,125 @@ function Cobros({
                 children: detalle.auth_code
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), _jsxDEV("div", {
+          }, void 0, true), (() => {
+            // ── Datos para completar el pago ──
+            // Estas columnas YA existen en la tabla `cobros` y se guardaban,
+            // pero el detalle nunca las mostraba: por eso al dejar un cobro
+            // pendiente se "perdía" la liga de pago o la referencia.
+            const esPendiente = detalle.estado === 'pendiente';
+            const filas = [];
+
+            if (detalle.referencia) {
+              filas.push({ etiqueta: 'Referencia de pago', valor: detalle.referencia, copiable: true, mono: true });
+            }
+            if (detalle.ref_vencimiento) {
+              filas.push({ etiqueta: 'Vence', valor: String(detalle.ref_vencimiento).slice(0, 10) });
+            }
+            if (detalle.ref_transaccion) {
+              filas.push({ etiqueta: 'ID de transacción', valor: detalle.ref_transaccion, copiable: true, mono: true });
+            }
+            // Cheque
+            if (detalle.num_cheque) {
+              filas.push({ etiqueta: 'Cheque núm.', valor: detalle.num_cheque, mono: true });
+            }
+            if (detalle.banco_cheque) {
+              filas.push({ etiqueta: 'Banco', valor: detalle.banco_cheque });
+            }
+            if (detalle.titular_cheque) {
+              filas.push({ etiqueta: 'Titular', valor: detalle.titular_cheque });
+            }
+            if (detalle.num_cuenta_cheque) {
+              filas.push({ etiqueta: 'Cuenta', valor: detalle.num_cuenta_cheque, mono: true });
+            }
+            if (detalle.fecha_cheque) {
+              filas.push({ etiqueta: 'Fecha del cheque', valor: String(detalle.fecha_cheque).slice(0, 10) });
+            }
+            if (detalle.estatus_cheque) {
+              filas.push({ etiqueta: 'Estatus del cheque', valor: detalle.estatus_cheque });
+            }
+
+            const ligas = [];
+            if (detalle.ref_payformat_url) {
+              ligas.push({ url: detalle.ref_payformat_url, label: 'Abrir formato de pago', icono: 'download', principal: true });
+            }
+            if (detalle.ref_barcode_url) {
+              ligas.push({ url: detalle.ref_barcode_url, label: 'Ver código de barras / QR', icono: 'eye' });
+            }
+
+            if (filas.length === 0 && ligas.length === 0) {
+              // Solo se avisa si está pendiente: en un cobro ya pagado es normal
+              // que no queden datos de cobranza.
+              if (!esPendiente) return null;
+              return _jsxDEV("div", {
+                style: {
+                  borderTop: '1px solid var(--border-glow)', paddingTop: 12, marginBottom: 12,
+                  fontSize: 12, color: 'var(--ink-4)'
+                },
+                children: "Este cobro no tiene referencia ni liga de pago registrada."
+              }, 'sinpago', false);
+            }
+
+            return _jsxDEV("div", {
+              style: { borderTop: '1px solid var(--border-glow)', paddingTop: 12, marginBottom: 12 },
+              children: [
+                _jsxDEV("div", {
+                  style: {
+                    fontSize: 11, color: 'var(--ink-4)', textTransform: 'uppercase',
+                    letterSpacing: '.4px', marginBottom: 10
+                  },
+                  children: esPendiente ? 'Para completar el pago' : 'Datos del pago'
+                }, 'tit', false),
+
+                filas.length > 0 ? _jsxDEV("div", {
+                  style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12, marginBottom: ligas.length ? 14 : 0 },
+                  children: filas.map((f, i) => _jsxDEV("div", {
+                    children: [
+                      _jsxDEV("div", {
+                        style: { fontSize: 10.5, color: 'var(--ink-4)', marginBottom: 3 },
+                        children: f.etiqueta
+                      }, void 0, false),
+                      _jsxDEV("div", {
+                        style: { display: 'flex', alignItems: 'center', gap: 7 },
+                        children: [
+                          _jsxDEV("span", {
+                            style: {
+                              fontSize: 13, color: 'var(--ink)', wordBreak: 'break-all',
+                              fontFamily: f.mono ? 'var(--mono)' : 'inherit'
+                            },
+                            children: String(f.valor)
+                          }, void 0, false),
+                          f.copiable ? _jsxDEV("button", {
+                            className: "btn-ghost",
+                            title: "Copiar",
+                            style: { padding: 4, flexShrink: 0 },
+                            onClick: () => {
+                              try { navigator.clipboard.writeText(String(f.valor)); } catch (e) {}
+                            },
+                            children: _jsxDEV(Icon, { name: 'copy', size: 13, color: 'currentColor' }, void 0, false)
+                          }, void 0, false) : null
+                        ]
+                      }, void 0, true)
+                    ]
+                  }, f.etiqueta + i, true))
+                }, 'filas', false) : null,
+
+                ligas.length > 0 ? _jsxDEV("div", {
+                  style: { display: 'flex', gap: 9, flexWrap: 'wrap' },
+                  children: ligas.map((l, i) => _jsxDEV("a", {
+                    href: l.url,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "btn " + (l.principal ? "btn-primary" : "btn-secondary"),
+                    style: { textDecoration: 'none' },
+                    children: [
+                      _jsxDEV(Icon, { name: l.icono, size: 14, color: 'currentColor' }, void 0, false),
+                      l.label
+                    ]
+                  }, 'liga' + i, true))
+                }, 'ligas', false) : null
+              ]
+            }, 'pago', true);
+          })(), _jsxDEV("div", {
             style: {
               borderTop: '1px solid var(--border-glow)',
               paddingTop: 12,
