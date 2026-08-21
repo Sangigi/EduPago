@@ -248,12 +248,21 @@ const AppModel = (() => {
       totalPendiente: cobros.filter(c=>c.estado==='pendiente').reduce((a,c)=>a+c.total,0),
       cobrosHoy:      cobros.filter(c=>c.fecha===hoy&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
       totalCobros:    cobros.length,
-      cobradosPorMetodo: {
-        TC:       cobros.filter(c=>c.metodo==='TC'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
-        SPEI:     cobros.filter(c=>c.metodo==='SPEI'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
-        CoDi:     cobros.filter(c=>c.metodo==='CoDi'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
-        Efectivo: cobros.filter(c=>c.metodo==='Efectivo'&&c.estado==='pagado').reduce((a,c)=>a+c.total,0),
-      },
+      // Antes solo se sumaban 4 métodos fijos (TC, SPEI, CoDi, Efectivo), así
+      // que los cobros pagados con Cheque, Tarjeta, Otro o con el método vacío
+      // desaparecían del desglose: la gráfica no cuadraba con "Total cobrado".
+      // Ahora todo cobro pagado cae en alguna categoría y la suma siempre
+      // coincide con totalCobrado.
+      cobradosPorMetodo: (() => {
+        const acc = { TC: 0, SPEI: 0, CoDi: 0, Efectivo: 0, Cheque: 0, Otro: 0 };
+        cobros.filter(c => c.estado === 'pagado').forEach(c => {
+          const m = String(c.metodo || '').trim();
+          if (m === 'Tarjeta') acc.TC += c.total;            // mismo medio que TC
+          else if (acc[m] !== undefined) acc[m] += c.total;
+          else acc.Otro += c.total;                          // incluye vacío/desconocido
+        });
+        return acc;
+      })(),
     };
   }
 
