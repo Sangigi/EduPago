@@ -1,1415 +1,1471 @@
-var _jsxDEV = function(type,props,key,_s,_src,_self){
+/* ══════════════════════════════════════════════════════
+
+   EDUPAGO — SISTEMA DE DISEÑO (CRM moderno · limpio · profesional)
+
+   Marca: navy #282d65 · green #49af54 · lime #bdcf00 (acento)
+
+   Modo claro por defecto · modo oscuro pulido disponible
+
+══════════════════════════════════════════════════════ */
+
+
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+
+
+:root {
+  /* ══ MARCA EDUPAGO (se conserva para splash, logo y acentos de estado) ══ */
+  --navy:        #282d65;
+  --navy-dark:   #1c2050;
+  --navy-light:  #3a4080;
+  --lime:        #bdcf00;
+  --lime-dark:   #8a9a00;
+  --lime-glow:   rgba(189,207,0,0.14);
+  --green:       #49af54;
+  --green-dark:  #3a9446;
+  --green-glow:  rgba(73,175,84,0.12);
+
+  /* ══ PALETA "CONCURED" — muestreada del video de referencia ══
+     Violeta primario · cian · magenta. Cambia SOLO estas 3 líneas
+     para re-teñir el sistema completo.                            */
+  --violet:       #6c5af0;
+  --violet-dark:  #5846dd;
+  --violet-light: #8e80f4;
+  --cyan:         #4fd8f0;
+  --magenta:      #d860f0;
+
+  --violet-soft:  #f1effd;   /* pill de nav activo / fondos teñidos */
+  --cyan-soft:    #e8faff;
+  --magenta-soft: #fbeeff;
+
+  --grad-brand:  linear-gradient(115deg, #4fd8f0 0%, #6c5af0 55%, #d860f0 100%);
+  --grad-cool:   linear-gradient(135deg, #4fd8f0 0%, #6c5af0 100%);
+  --grad-warm:   linear-gradient(135deg, #6c5af0 0%, #d860f0 100%);
+
+  /* ══ MODO CLARO (por defecto) ══ */
+  --bg-main:      #f4f5f9;   /* lienzo lavanda de la página */
+  --bg-solid:     #ffffff;
+  --bg-surface:   #ffffff;   /* tarjetas */
+  --bg-surface-2: #fafafd;
+  --bg-panel:     #ffffff;   /* panel principal (lienzo del contenido) */
+  --bg-sidebar:   transparent;
+
+  /* ══ SIDEBAR (ahora claro, integrado al lienzo) ══ */
+  --side-bg:        transparent;
+  --side-bg-2:      transparent;
+  --side-border:    rgba(23,26,44,0.06);
+  --side-ink:       #1e2430;   /* texto principal (oscuro sobre claro) */
+  --side-ink-2:     #5b6273;
+  --side-ink-3:     #8d94a5;
+  --side-hover:     rgba(108,90,240,0.06);
+  --side-active-bg: var(--violet-soft);
+
+  /* ══ BORDES Y SUPERFICIES ══ */
+  --border-glow:   #ebecf3;
+  --border-active: var(--violet);
+  --glass-light:   #f5f6fa;
+  --glass-hover:   #eeeff6;
+  --glass-dark:    #fafbfd;
+  --shadow-glass:  0 1px 2px rgba(23,26,44,.03), 0 2px 8px rgba(23,26,44,.04);
+  --shadow-md:     0 4px 14px rgba(23,26,44,.07), 0 2px 5px rgba(23,26,44,.04);
+  --shadow-lg:     0 18px 44px rgba(23,26,44,.13);
+  --shadow-violet: 0 8px 22px rgba(108,90,240,.28);
+
+  /* ══ TEXTO ══ */
+  --ink:    #1e2430;
+  --ink-2:  #414958;
+  --ink-3:  #697182;   /* 4.90:1 sobre blanco — cumple WCAG AA */
+  --ink-4:  #8f97a6;   /* solo para texto decorativo/iconos */
+
+  /* ══ ACENTOS ══ */
+  --accent:          var(--violet);
+  --accent-2:        var(--cyan);
+  --accent-gradient: var(--grad-cool);
+  --btn-gradient:    var(--violet);
+  --accent-glow:     rgba(108,90,240,0.09);
+  --on-accent:       #ffffff;
+
+  /* ══ SEMÁNTICOS ══ */
+  --amber:       #d97706;
+  --amber-glow:  rgba(217,119,6,0.10);
+  --red:         #e5484d;
+  --red-glow:    rgba(229,72,77,0.09);
+  --purple:      var(--violet);
+  --purple-glow: rgba(108,90,240,0.10);
+
+  /* ══ LAYOUT ══ */
+  --radius-sm:    9px;
+  --radius:       12px;
+  --radius-lg:    18px;
+  --radius-panel: 26px;   /* esquina del panel blanco principal */
+  --radius-pill:  999px;
+  --blur:      blur(12px);
+  --font:      'DM Sans', system-ui, -apple-system, sans-serif;
+  --mono:      'JetBrains Mono', ui-monospace, monospace;
+  --sidebar-w: 244px;
+  --header-h:  66px;
+}
 
-  var p = Object.assign({key:key||undefined},props);
+/* ══ MODO OSCURO (adaptado a la misma paleta) ══ */
+:root[data-theme="dark"] {
+  /* Escala de elevación: cuanto más "arriba" está el elemento, más claro.
+     Sin esto, panel y tarjetas quedan del mismo tono y las tarjetas se pierden. */
+  --bg-main:      #0b0d18;   /* lienzo — el más oscuro */
+  --bg-panel:     #13162b;   /* panel principal */
+  --bg-surface:   #1b1f39;   /* tarjetas — elevadas sobre el panel */
+  --bg-solid:     #1b1f39;
+  --bg-surface-2: #232848;
+  --bg-sidebar:   transparent;
 
-  var ch = p.children; delete p.children;
+  --border-glow:   rgba(255,255,255,0.09);
+  --border-active: var(--violet-light);
+  --glass-light:   rgba(255,255,255,0.05);
+  --glass-hover:   rgba(255,255,255,0.08);
+  --glass-dark:    rgba(0,0,0,0.28);
+  --shadow-glass:  0 1px 2px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04);
+  --shadow-md:     0 8px 22px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  --shadow-lg:     0 22px 52px rgba(0,0,0,.62);
+  --shadow-violet: 0 8px 26px rgba(108,90,240,.45);
 
-  return ch===undefined ? React.createElement(type,p)
+  --ink:    #eef1f8;
+  --ink-2:  #c4cad8;
+  --ink-3:  #8b93a7;
+  --ink-4:  #69798f;
 
-       : Array.isArray(ch) ? React.createElement(type,p,...ch)
+  --side-bg:        transparent;
+  --side-bg-2:      transparent;
+  --side-border:    rgba(255,255,255,0.07);
+  --side-ink:       #eef1f8;
+  --side-ink-2:     #9aa1bb;
+  --side-ink-3:     #6b7290;
+  --side-hover:     rgba(255,255,255,0.05);
+  --side-active-bg: rgba(108,90,240,0.20);
 
-       : React.createElement(type,p,ch);
+  --violet-soft:  rgba(108,90,240,0.18);
+  --cyan-soft:    rgba(79,216,240,0.14);
+  --magenta-soft: rgba(216,96,240,0.14);
 
-};
+  --accent:          var(--violet-light);
+  /* El degradado cian daba 1.69:1 con texto blanco. Este mantiene 4.6:1+ */
+  --btn-gradient:    linear-gradient(135deg, #6c5af0 0%, #9a4fe0 100%);
+  --accent-glow:     rgba(108,90,240,0.18);
+  --on-accent:       #ffffff;
+  --amber:       #fbbf24;
+  --red:         #f87171;
+  --purple:      var(--violet-light);
+}
 
-/* views/Dashboard.jsx v2 — Multi-escuela */
 
-// Debe reflejar PLANES_LIMITES en api.php (única fuente de verdad real).
 
-const PLANES_INFO_DASH = {
+html, body {
 
-  basico:   { label: 'Básico',   max_alumnos: 400, max_planteles: 1,    color: 'var(--ink-3)' },
+  height:100%; font-family:var(--font);
 
-  avanzado: { label: 'Avanzado', max_alumnos: 800, max_planteles: 1,    color: 'var(--accent)' },
+  background:var(--bg-main); color:var(--ink);
 
-  pro:      { label: 'Pro',      max_alumnos: null, max_planteles: null, color: 'var(--magenta)' },
+  font-size:14px; line-height:1.55;
 
-};
+  -webkit-font-smoothing:antialiased;
 
-function Dashboard({
+  text-rendering:optimizeLegibility;
 
-  data,
+  overflow:hidden;
 
-  user,
+}
 
-  escuela,
 
-  allData
 
-}) {
+/* ── LAYOUT ── */
 
-  const { useState } = React;
+#root { height:100vh; }
 
-  const [filtroEscEstado, setFiltroEscEstado] = useState('todas'); // 'todas' | 'activas' | 'inactivas'
+.app  { display:flex; height:100vh; overflow:hidden; background:var(--bg-main); }
 
-  const esSuper = AuthController.isSuperAdmin(user);
 
-  
 
-  // VERIFICACIÓN DE CAJERO
+/* ── SIDEBAR ── */
 
-  const esCajero = user && user.rol === 'cajero'; 
+.sidebar {
 
+  width:var(--sidebar-w); flex-shrink:0;
 
+  background:transparent;
 
-  const stats = AppModel.getEstadisticas(data.cobros);
+  display:flex; flex-direction:column; overflow:hidden;
 
-  const pendientes = data.cobros.filter(c => c.estado === 'pendiente');
+  border-right:none;
 
-  const recientes = [...data.cobros].reverse().slice(0, 6);
+}
 
-  const totalMetodos = Object.values(stats.cobradosPorMetodo).reduce((a, b) => a + b, 0) || 1;
+.sidebar-brand { padding:22px 24px 20px; border-bottom:none; }
 
-  // Planteles (sub-escuelas) asociados a la escuela principal que se está viendo
+.brand-logo    { display:flex; align-items:center; gap:11px; }
 
-  const plantelesEscuela = escuela ? (data.planteles || []).filter(p => p.escuela_id === escuela.id) : [];
+.brand-icon {
 
+  width:38px; height:38px;
 
+  background:var(--grad-brand);
 
-  // Si superadmin sin escuela seleccionada → mostrar overview global
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
 
-  if (esSuper && !escuela) {
+  font-size:17px; box-shadow:var(--shadow-violet); color:#fff; flex-shrink:0; font-weight:800;
 
-    const globalStats = AppModel.getEstadisticasGlobales(allData);
+}
 
-    const statsFiltrados = globalStats.filter(s =>
+.brand-name { font-size:16.5px; font-weight:700; color:var(--side-ink); letter-spacing:-.3px; }
 
-      filtroEscEstado === 'todas' ? true :
+.brand-sub  { font-size:10px; color:var(--side-ink-3); margin-top:1px; font-weight:600; text-transform:uppercase; letter-spacing:.7px; }
 
-      filtroEscEstado === 'activas' ? s.activa :
 
-      !s.activa
 
-    );
+.sidebar-nav { flex:1; overflow-y:auto; padding:14px 12px; }
 
-    const totalCobrado = statsFiltrados.reduce((a, s) => a + s.totalCobrado, 0);
+.sidebar-brand img { border-radius:10px; }
 
-    const totalPend = statsFiltrados.reduce((a, s) => a + s.totalPendiente, 0);
+.sidebar-nav::-webkit-scrollbar { width:0; }
 
-    const totalAlumnos = statsFiltrados.reduce((a, s) => a + s.numAlumnos, 0);
+.nav-section { font-size:10px; font-weight:700; letter-spacing:.9px; text-transform:uppercase; color:var(--side-ink-3); padding:18px 12px 8px; }
 
-    return /*#__PURE__*/_jsxDEV("div", {
+.nav-item {
 
-      children: [/*#__PURE__*/_jsxDEV("div", {
+  display:flex; align-items:center; gap:12px; padding:12px 24px;
 
-        style: {
+  margin:0 -12px 2px; border-radius:0; cursor:pointer;
 
-          marginBottom: 24
+  transition:background .15s, color .15s;
 
-        },
+  color:var(--side-ink-2); font-size:13.5px; font-weight:500;
 
-        children: [/*#__PURE__*/_jsxDEV("h2", {
+  position:relative;
 
-          style: {
+}
 
-            fontSize: 23,
+.nav-item:hover { background:var(--side-hover); color:var(--side-ink); }
 
-            fontWeight: 700,
+.nav-item.active {
 
-            color: 'var(--ink)',
+  background:var(--side-active-bg); color:var(--side-ink); font-weight:600;
 
-            letterSpacing: '-.7px'
+}
 
-          },
+.nav-item.active .nav-icon { color:var(--violet); }
 
-          children: "Panel Global — Paga la Escuela"
+.nav-item.active::before {
 
-        }, void 0, false), /*#__PURE__*/_jsxDEV("p", {
+  content:''; position:absolute; right:0; top:0;
 
-          style: {
+  width:3px; height:100%; border-radius:0; background:var(--violet);
 
-            fontSize: 13,
+}
 
-            color: 'var(--ink-3)',
+.nav-icon  { font-size:16px; width:20px; text-align:center; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
 
-            marginTop: 3
+.nav-badge {
 
-          },
+  margin-left:auto; background:var(--red);
 
-          children: new Date().toLocaleDateString('es-MX', {
+  color:#fff; font-size:10px; font-weight:700;
 
-            weekday: 'long',
+  padding:2px 7px; border-radius:20px;
 
-            day: 'numeric',
+  min-width:20px; height:20px; display:flex; align-items:center; justify-content:center;
 
-            month: 'long',
+}
 
-            year: 'numeric'
 
-          })
 
-        }, void 0, false)]
+.sidebar-footer { border-top:1px solid var(--side-border); padding:14px 12px; }
 
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+.user-card { display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:var(--radius); cursor:default; transition:background .15s; }
 
-        className: "stats-grid",
+.user-card:hover { background:var(--side-hover); }
 
-        children: [/*#__PURE__*/_jsxDEV("div", {
+.avatar {
 
-          className: "stat-card is-featured",
+  width:34px; height:34px; border-radius:9px; display:flex; align-items:center;
 
-          children: [/*#__PURE__*/_jsxDEV("div", {
+  justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; font-family:var(--mono);
 
-            className: "stat-icon",
+}
 
-            children: /*#__PURE__*/_jsxDEV(Icon, {
+.avatar-super  { background:var(--grad-warm) !important; color:#fff !important; }
 
-              name: "escuelas",
+.avatar-admin  { background:var(--grad-cool) !important; color:#fff !important; }
 
-              size: 19,
+.avatar-cajero { background:linear-gradient(135deg, var(--green), var(--green-dark)) !important; color:#fff !important; }
 
-              color: "currentColor"
+.user-info { flex:1; min-width:0; }
 
-            }, void 0, false)
+.user-name { font-size:13px; font-weight:600; color:var(--side-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+.user-role { font-size:11px; color:var(--side-ink-3); margin-top:1px; }
 
-            className: "stat-label",
+.logout-btn { font-size:16px; color:var(--side-ink-3); cursor:pointer; padding:6px; border-radius:8px; transition:all .15s; border:none; background:none; display:flex; align-items:center; }
 
-            children: filtroEscEstado === 'todas' ? 'Escuelas' : filtroEscEstado === 'activas' ? 'Escuelas activas' : 'Escuelas inactivas'
+.logout-btn:hover { color:var(--red); background:var(--red-glow); }
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
 
-            className: "stat-value",
 
-            style: {
+/* ── MAIN ── */
 
-              fontSize: 20
+.main {
+  flex:1; display:flex; flex-direction:column; overflow:hidden;
+  background:var(--bg-panel);
+  border-radius:var(--radius-panel) 0 0 0;
+  border-left:1px solid var(--border-glow);
+  border-top:1px solid var(--border-glow);
+  margin-top:14px;
+}
 
-            },
+.topbar {
 
-            children: statsFiltrados.length
+  height:var(--header-h); background:transparent;
 
-          }, void 0, false)]
+  border-bottom:none; display:flex; align-items:center;
 
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+  padding:0 30px; gap:14px; flex-shrink:0;
 
-          className: "stat-card",
+}
 
-          children: [/*#__PURE__*/_jsxDEV("div", {
+.topbar-title   { font-size:16px; font-weight:700; color:var(--ink); letter-spacing:-.2px; }
 
-            className: "stat-icon tint-green",
+.topbar-actions { margin-left:auto; display:flex; align-items:center; gap:10px; }
 
-            children: /*#__PURE__*/_jsxDEV(Icon, {
+.content { flex:1; overflow-y:auto; padding:14px 30px 34px; animation:fadeIn .25s ease-out; }
 
-              name: "pay",
+.content::-webkit-scrollbar { width:8px; }
 
-              size: 19,
+.content::-webkit-scrollbar-thumb { background:var(--border-glow); border-radius:20px; }
 
-              color: "currentColor"
+.content::-webkit-scrollbar-thumb:hover { background:var(--ink-4); }
 
-            }, void 0, false)
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
 
-            className: "stat-label",
 
-            children: "Total cobrado"
+/* ── BOTONES ── */
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+.btn {
 
-            className: "stat-value",
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
 
-            style: {
+  padding:10px 18px; border-radius:var(--radius-pill); font-size:13px;
 
-              fontSize: 20
+  font-weight:600; cursor:pointer; border:1px solid transparent;
 
-            },
+  transition:all .15s; font-family:var(--font); white-space:nowrap; line-height:1;
 
-            children: fmt(totalCobrado)
+}
 
-          }, void 0, false)]
+.btn-primary {
 
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+  background:var(--btn-gradient); color:var(--on-accent);
 
-          className: "stat-card",
+  box-shadow:var(--shadow-violet);
 
-          children: [/*#__PURE__*/_jsxDEV("div", {
+}
 
-            className: "stat-icon tint-amber",
+.btn-primary:hover { filter:brightness(1.08); box-shadow:var(--shadow-md); }
 
-            children: /*#__PURE__*/_jsxDEV(Icon, {
+.btn-secondary { background:var(--bg-solid); border-color:var(--border-glow); color:var(--ink-2); box-shadow:0 1px 2px rgba(16,24,40,.04); }
 
-              name: "history",
+.btn-secondary:hover { background:var(--glass-light); color:var(--ink); border-color:var(--ink-4); }
 
-              size: 19,
+.btn-ghost { background:transparent; color:var(--ink-3); padding:8px; border:none; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font); }
 
-              color: "currentColor"
+.btn-ghost:hover { background:var(--glass-light); color:var(--ink); }
 
-            }, void 0, false)
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
 
-            className: "stat-label",
+.emoji-picker-grid {
 
-            children: "Por cobrar"
+  display:grid; grid-template-columns:repeat(6,1fr); gap:2px;
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+  max-height:170px; overflow-y:auto; padding-right:2px;
 
-            className: "stat-value",
+}
 
-            style: {
+.emoji-picker-item {
 
-              fontSize: 20
+  font-size:20px; background:transparent; border:none; cursor:pointer;
 
-            },
+  border-radius:var(--radius-sm); padding:5px 0; line-height:1;
 
-            children: fmt(totalPend)
+  transition:background .12s;
 
-          }, void 0, false)]
+}
 
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+.emoji-picker-item:hover { background:var(--bg-surface-2); }
 
-          className: "stat-card",
+.btn-danger { background:var(--red-glow); color:var(--red); border-color:rgba(220,38,38,.2); }
 
-          children: [/*#__PURE__*/_jsxDEV("div", {
+.btn-danger:hover { background:rgba(220,38,38,.16); }
 
-            className: "stat-icon tint-cyan",
+.btn-success { background:var(--green-glow); color:var(--green-dark); border-color:rgba(47,158,68,.22); }
 
-            children: /*#__PURE__*/_jsxDEV(Icon, {
+:root[data-theme="dark"] .btn-success { color:var(--green); }
 
-              name: "alumnos",
+.btn-success:hover { background:rgba(47,158,68,.16); }
 
-              size: 19,
+.btn-sm { padding:6px 11px !important; font-size:12px !important; border-radius:var(--radius-sm) !important; }
 
-              color: "currentColor"
+.btn:disabled { opacity:.5; cursor:not-allowed; filter:none!important; box-shadow:none!important; }
 
-            }, void 0, false)
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
 
-            className: "stat-label",
+/* ── CARDS ── */
 
-            children: "Alumnos totales"
+.card {
 
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+  background:var(--bg-surface);
 
-            className: "stat-value",
+  border:1px solid var(--border-glow); border-radius:var(--radius-lg);
 
-            style: {
+  padding:24px; box-shadow:var(--shadow-glass);
 
-              fontSize: 20
+}
 
-            },
+.card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; }
 
-            children: totalAlumnos
+.card-title  { font-size:15px; font-weight:700; color:var(--ink); letter-spacing:-.2px; }
 
-          }, void 0, false)]
+.card-sub    { font-size:12px; color:var(--ink-3); margin-top:2px; }
 
-        }, void 0, true)]
 
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
 
-        style: {
+/* ── STAT CARDS ── */
 
-          display: 'flex',
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px; margin-bottom:24px; }
 
-          justifyContent: 'space-between',
+.dash-split-grid { display:grid; grid-template-columns:1fr 320px; gap:20px; }
 
-          alignItems: 'center',
+.stat-card {
 
-          marginBottom: 14
+  background:var(--bg-surface);
 
-        },
+  border:1px solid var(--border-glow); border-radius:var(--radius-lg);
 
-        children: [/*#__PURE__*/_jsxDEV("h3", {
+  padding:20px 22px; display:flex; flex-direction:column; gap:6px;
 
-          style: { fontSize: 14, fontWeight: 700, color: 'var(--ink)' },
+  position:relative; overflow:hidden;
 
-          children: "Escuelas"
+  box-shadow:var(--shadow-glass); transition:transform .2s, box-shadow .2s, border-color .2s;
 
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+}
 
-          style: { display: 'flex', gap: 6 },
+.stat-card:hover { transform:translateY(-3px); box-shadow:var(--shadow-md); border-color:#dcdcea; }
 
-          children: [
+/* Jerarquía del video: icono arriba, número grande, etiqueta debajo.
+   Se reordena por CSS — el marcado de las vistas no se toca. */
+.stat-card > .stat-icon  { order:1; }
+.stat-card > .stat-value { order:2; }
+.stat-card > .stat-label { order:3; }
+.stat-card > .stat-meta  { order:4; }
 
-            { id: 'todas',     label: `Todas (${globalStats.length})` },
+.stat-icon  {
+  width:44px; height:44px; border-radius:14px; display:flex; align-items:center;
+  justify-content:center; font-size:19px; margin-bottom:10px; color:var(--violet);
+  background:var(--violet-soft);
+}
 
-            { id: 'activas',   label: `Activas (${globalStats.filter(s => s.activa).length})` },
+.stat-label { font-size:12.5px; color:var(--ink-3); font-weight:500; text-transform:none; letter-spacing:0; }
 
-            { id: 'inactivas', label: `Inactivas (${globalStats.filter(s => !s.activa).length})` }
+.stat-value {
+  font-size:29px; font-weight:700; color:var(--ink); letter-spacing:-1.1px;
+  font-family:var(--font); font-variant-numeric:tabular-nums; line-height:1.12;
+}
 
-          ].map(f => /*#__PURE__*/_jsxDEV("button", {
+.stat-meta  { font-size:12px; color:var(--ink-3); }
 
-            key: f.id,
+.stat-meta.up   { color:var(--green-dark); font-weight:600; }
 
-            className: `btn btn-sm ${filtroEscEstado === f.id ? 'btn-primary' : 'btn-secondary'}`,
+.stat-meta.down { color:var(--red); font-weight:600; }
 
-            onClick: () => setFiltroEscEstado(f.id),
 
-            children: f.label
 
-          }, f.id, false))
+/* ── TABLAS ── */
 
-        }, void 0, true)]
+.table-wrap { overflow-x:auto; }
 
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+table { width:100%; border-collapse:collapse; }
 
-        style: {
+th {
+  padding:11px 14px; text-align:left; font-size:11.5px; font-weight:600;
+  color:var(--ink-3); text-transform:none; letter-spacing:.2px;
+  background:var(--glass-light); border-bottom:none; white-space:nowrap;
+}
+th:first-child { border-radius:var(--radius-sm) 0 0 var(--radius-sm); }
+th:last-child  { border-radius:0 var(--radius-sm) var(--radius-sm) 0; }
 
-          display: 'grid',
+td { padding:13px 14px; border-bottom:1px solid var(--border-glow); font-size:13px; color:var(--ink-2); vertical-align:middle; transition:background .12s; }
 
-          gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))',
+tr:last-child td { border-bottom:none; }
 
-          gap: 16
+tbody tr { transition:background .12s; }
 
-        },
+tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
 
-        children: statsFiltrados.length ? statsFiltrados.map(s => /*#__PURE__*/_jsxDEV("div", {
 
-          className: "card",
 
-          style: {
+/* ── BADGES ── */
 
-            borderLeft: `3px solid ${s.color}`,
+.badge        { display:inline-flex; align-items:center; gap:4px; padding:4px 11px; border-radius:var(--radius-pill); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
 
-            opacity: s.activa ? 1 : .6
+.badge-green  { background:var(--green-glow); color:var(--green-dark); border:1px solid rgba(47,158,68,.2); }
 
-          },
+.badge-lime   { background:var(--lime-glow);  color:var(--lime-dark); border:1px solid rgba(189,207,0,.25); }
 
-          children: [/*#__PURE__*/_jsxDEV("div", {
+.badge-amber  { background:var(--amber-glow); color:var(--amber); border:1px solid rgba(217,119,6,.2); }
 
-            style: {
+.badge-red    { background:var(--red-glow);   color:var(--red); border:1px solid rgba(220,38,38,.2); }
 
-              display: 'flex',
+.badge-blue   { background:var(--accent-glow); color:var(--violet-dark); border:1px solid rgba(108,90,240,.20); }
 
-              alignItems: 'center',
+.badge-purple { background:var(--magenta-soft); color:#a83fc0; border:1px solid rgba(216,96,240,.22); }
 
-              gap: 12,
+.badge-gray   { background:var(--glass-light); color:var(--ink-3); border:1px solid var(--border-glow); }
 
-              marginBottom: 14
+:root[data-theme="dark"] .badge-green { color:var(--green); }
 
-            },
+:root[data-theme="dark"] .badge-blue  { color:#818ccc; }
 
-            children: [/*#__PURE__*/_jsxDEV("div", {
 
-              style: {
 
-                fontSize: 28
+/* ── FORMULARIOS ── */
 
-              },
+.form-group { margin-bottom:16px; }
 
-              children: s.emoji
+.form-label { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
 
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+.form-input, .form-select {
 
-              style: { flex: 1, minWidth: 0 },
+  width:100%; padding:10px 13px; background:var(--bg-solid);
 
-              children: [/*#__PURE__*/_jsxDEV("div", {
+  border:1px solid var(--border-glow); border-radius:var(--radius);
 
-                style: {
+  color:var(--ink); font-size:13.5px; font-family:var(--font);
 
-                  fontWeight: 600,
+  transition:border-color .15s, box-shadow .15s; outline:none;
 
-                  fontSize: 14,
+}
 
-                  color: 'var(--ink)',
+.form-input:focus, .form-select:focus {
 
-                  display: 'flex',
+  border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow);
 
-                  alignItems: 'center',
+}
 
-                  gap: 6
+.form-input::placeholder { color:var(--ink-4); }
 
-                },
+.form-select {
 
-                children: [s.nombre, !s.activa && /*#__PURE__*/_jsxDEV("span", {
+  appearance:none;
 
-                  className: "badge badge-red",
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23697386' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 
-                  children: "Inactiva"
+  background-repeat:no-repeat; background-position:right 12px center;
 
-                }, void 0, false), s.numPlanteles > 0 && /*#__PURE__*/_jsxDEV("span", {
+  padding-right:32px; cursor:pointer;
 
-                  className: "badge badge-gray",
+}
 
-                  title: "Planteles asociados",
+.form-select option { background:var(--bg-solid); color:var(--ink); }
 
-                  style: { display: 'flex', alignItems: 'center', gap: 3 },
 
-                  children: [/*#__PURE__*/_jsxDEV(Icon, {
 
-                    name: "escuelas",
+/* ── MODAL ── */
 
-                    size: 10,
+.modal-backdrop {
 
-                    color: "currentColor"
+  position:fixed; inset:0; background:rgba(16,19,40,.45); backdrop-filter:blur(4px);
 
-                  }, void 0, false), s.numPlanteles]
+  display:flex; align-items:center; justify-content:center; z-index:1000;
 
-                }, void 0, true)]
+  animation:fadeIn .15s ease; padding:20px;
 
-              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+}
 
-                style: {
+.modal {
 
-                  fontSize: 12,
+  background:var(--bg-surface); border:1px solid var(--border-glow);
 
-                  color: 'var(--ink-3)'
+  border-radius:var(--radius-panel); width:100%; max-width:480px; max-height:90vh;
 
-                },
+  overflow:hidden; display:flex; flex-direction:column;
 
-                children: [s.numAlumnos, " alumnos · ", s.numCobros, " cobros", s.numPlanteles > 0 ? ` · incluye ${s.numPlanteles} plantel${s.numPlanteles > 1 ? 'es' : ''}` : '']
+  box-shadow:var(--shadow-lg);
 
-              }, void 0, true)]
+  animation:slideUp .2s ease;
 
-            }, void 0, true)]
+}
 
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+.modal-lg  { max-width:680px; }
 
-            style: {
+@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:none;opacity:1} }
 
-              display: 'flex',
+.modal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
 
-              justifyContent: 'space-between'
+.modal-title  { font-size:16px; font-weight:700; color:var(--ink); }
 
-            },
+.modal-body   { padding:20px 22px; overflow-y:auto; flex:1; }
 
-            children: [/*#__PURE__*/_jsxDEV("div", {
+.modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:16px 22px; border-top:1px solid var(--border-glow); flex-shrink:0; background:var(--bg-main); }
 
-              children: [/*#__PURE__*/_jsxDEV("div", {
 
-                style: {
 
-                  fontSize: 11,
+/* ── LOGIN ── */
 
-                  color: 'var(--ink-4)',
+.login-screen {
 
-                  textTransform: 'uppercase',
+  height:100vh; display:flex; align-items:center; justify-content:center;
 
-                  letterSpacing: '.4px'
+  position:relative; overflow:hidden; padding-bottom:5rem;
 
-                },
+  /* ── Colores ORIGINALES de EduPago, aislados del rediseño ──
+     Redefinir los tokens aquí re-tiñe solo el login: el resto
+     del sistema sigue con la paleta del video.                */
 
-                children: "Cobrado"
+  --accent:       var(--lime);
 
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+  --accent-glow:  rgba(189,207,0,0.18);
 
-                style: {
+  --btn-gradient: linear-gradient(135deg, #bdcf00 0%, #2f9e44 100%);
 
-                  fontFamily: 'var(--mono)',
+  --border-glow:  rgba(255,255,255,0.07);
 
-                  fontWeight: 700,
+  --bg-solid:     #272c52;
 
-                  color: 'var(--green)',
+  --bg-surface:   #272c52;
 
-                  fontSize: 15
+  --ink:    #eef1f8;
 
-                },
+  --ink-2:  #c4cad8;
 
-                children: fmt(s.totalCobrado)
+  --ink-3:  #8b93a7;
 
-              }, void 0, false)]
+  --ink-4:  #69798f;
 
-            }, void 0, true), s.totalPendiente > 0 && /*#__PURE__*/_jsxDEV("div", {
+  background:#272c64;
 
-              style: {
+}
 
-                textAlign: 'right'
+.login-screen::before {
 
-              },
+  content:''; position:absolute; inset:0;
 
-              children: [/*#__PURE__*/_jsxDEV("div", {
+  background:
 
-                style: {
+    radial-gradient(ellipse 60% 60% at 80% 15%, rgba(189,207,0,.10) 0%, transparent 60%),
 
-                  fontSize: 11,
+    radial-gradient(ellipse 60% 60% at 15% 85%, rgba(73,175,84,.10) 0%, transparent 60%);
 
-                  color: 'var(--ink-4)',
+  pointer-events:none;
 
-                  textTransform: 'uppercase',
+}
 
-                  letterSpacing: '.4px'
+.login-card {
 
-                },
+  width:390px; background:#272c52; border:1px solid rgba(255,255,255,.07);
 
-                children: "Pendiente"
+  border-radius:var(--radius-lg); padding:34px 32px; box-shadow:0 16px 40px rgba(0,0,0,.5);
 
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+  animation:slideUp .3s ease; position:relative; z-index:1;
 
-                style: {
+}
 
-                  fontFamily: 'var(--mono)',
+.login-logo    { text-align:center; margin-bottom:30px; }
 
-                  fontWeight: 700,
+.login-brand   { font-size:28px; font-weight:800; color:var(--ink); letter-spacing:-1px; }
 
-                  color: 'var(--amber)',
+.login-tagline { font-size:12px; color:var(--green); margin-top:5px; font-weight:600; letter-spacing:.3px; }
 
-                  fontSize: 15
+.login-label   { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
 
-                },
+.login-input {
 
-                children: fmt(s.totalPendiente)
+  width:100%; padding:11px 14px; 
 
-              }, void 0, false)]
+  /*background:var(--bg-solid);*/
 
-            }, void 0, true)]
+  border:1px solid var(--border-glow); border-radius:var(--radius);
 
-          }, void 0, true)]
+  /*color:var(--ink);*/
 
-        }, s.escuela_id, true)) : /*#__PURE__*/_jsxDEV("div", {
+  font-size:14px; font-family:var(--font); outline:none;
 
-          className: "card",
+  transition:border-color .15s, box-shadow .15s;
 
-          style: { textAlign: 'center', color: 'var(--ink-4)', padding: 24, gridColumn: '1 / -1' },
+}
 
-          children: "No hay escuelas que coincidan con este filtro."
+.login-input:focus { border-color:var(--accent); 
 
-        }, void 0, false)
+box-shadow:0 0 0 3px var(--accent-glow); 
 
-      }, void 0, false)]
+}
 
-    }, void 0, true);
+.login-btn {
+
+  width:100%; margin-top:20px; padding:13px;
+
+  background:var(--btn-gradient);
+
+  color:#fff; font-size:14px; font-weight:700; border:none; border-radius:var(--radius);
+
+  cursor:pointer; transition:all .15s; font-family:var(--font);
+
+  letter-spacing:.2px; box-shadow:0 4px 14px rgba(47,158,68,.28);
+
+}
+
+.login-btn:hover:not(:disabled) { filter:brightness(1.1); box-shadow:var(--shadow-md); }
+
+.login-btn:disabled { opacity:.6; cursor:not-allowed; }
+
+.login-demo { display:flex; gap:8px; margin-top:16px; }
+
+.demo-pill {
+
+  flex:1; padding:8px 6px; background:var(--bg-solid); border:1px solid var(--border-glow);
+
+  border-radius:var(--radius-sm); cursor:pointer; font-size:11px;
+
+  font-weight:500; color:var(--ink-2); text-align:center; transition:all .15s;
+
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+
+}
+
+.demo-pill:hover { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
+
+.login-error { color:var(--red); font-size:12px; margin-top:8px; }
+
+
+
+/* ── POS / CAJA ── */
+
+.pos-layout { display:grid; grid-template-columns:1fr 360px; gap:20px; height:100%; min-height:600px; }
+
+.pos-products { display:flex; flex-direction:column; background:var(--bg-surface); border:1px solid var(--border-glow); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-glass); }
+
+.pos-header { display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
+
+.pos-products-grid { flex:1; overflow-y:auto; padding:14px; display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; align-content:start; }
+
+
+
+.product-card {
+
+  background:var(--bg-solid); border:1px solid var(--border-glow);
+
+  border-radius:var(--radius); padding:14px 12px; cursor:pointer;
+
+  transition:all .15s; text-align:center;
+
+}
+
+.product-card:hover { border-color:var(--violet); transform:translateY(-3px); box-shadow:var(--shadow-md); }
+
+.product-emoji { font-size:26px; margin-bottom:7px; }
+
+.product-name  { font-size:12.5px; font-weight:600; color:var(--ink); margin-bottom:3px; line-height:1.3; }
+
+.product-type  { font-size:10.5px; color:var(--ink-3); margin-bottom:5px; text-transform:capitalize; }
+
+.product-price { font-size:13.5px; font-weight:700; color:var(--violet); font-variant-numeric:tabular-nums; }
+
+:root[data-theme="dark"] .product-price { color:var(--violet-light); }
+
+
+
+.pos-cart { display:flex; flex-direction:column; background:var(--bg-surface); border:1px solid var(--border-glow); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-glass); }
+
+.cart-header { padding:14px 16px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
+
+.cart-customer {
+
+  display:flex; align-items:center; gap:10px; padding:9px 12px;
+
+  background:var(--glass-light); border:1px solid var(--border-glow);
+
+  border-radius:var(--radius-sm); cursor:pointer; margin-top:8px;
+
+  transition:all .15s;
+
+}
+
+.cart-customer:hover { background:var(--glass-hover); border-color:var(--accent); }
+
+.cart-items { flex:1; overflow-y:auto; padding:10px 12px; }
+
+.cart-item { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:var(--radius-sm); border-bottom:1px solid var(--border-glow); }
+
+.cart-item:last-child { border-bottom:none; }
+
+.cart-item-info  { flex:1; min-width:0; }
+
+.cart-item-name  { font-size:13px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.cart-item-qty   { display:flex; align-items:center; gap:6px; margin-top:3px; }
+
+.qty-btn { width:22px; height:22px; border-radius:5px; border:1px solid var(--border-glow); background:var(--bg-solid); color:var(--ink); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .12s; line-height:1; font-family:var(--mono); }
+
+.qty-btn:hover { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
+
+.qty-num { font-size:12.5px; font-weight:600; font-family:var(--mono); min-width:18px; text-align:center; }
+
+.cart-item-price { font-size:13.5px; font-weight:700; font-family:var(--mono); color:var(--ink); }
+
+.cart-remove { font-size:12px; color:var(--ink-4); cursor:pointer; display:block; margin-top:3px; transition:color .12s; text-align:right; }
+
+.cart-remove:hover { color:var(--red); }
+
+
+
+.cart-totals { padding:12px 16px; border-top:1px solid var(--border-glow); border-bottom:1px solid var(--border-glow); flex-shrink:0; }
+
+.totals-row  { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:13px; color:var(--ink-3); }
+
+.totals-total { font-size:18px; font-weight:800; font-family:var(--mono); color:var(--ink); }
+
+.text-mono { font-family:var(--mono); }
+
+
+
+.payment-methods { display:flex; gap:7px; padding:12px 14px; border-bottom:1px solid var(--border-glow); flex-shrink:0; flex-wrap:wrap; }
+
+.pay-method {
+
+  flex:1; min-width:60px; display:flex; flex-direction:column; align-items:center; gap:4px;
+
+  padding:8px 6px; border-radius:var(--radius-sm); border:1px solid var(--border-glow);
+
+  cursor:pointer; transition:all .15s; font-size:11px; font-weight:600; color:var(--ink-3);
+
+  background:var(--bg-solid);
+
+}
+
+.pay-method:hover { background:var(--glass-light); color:var(--ink); }
+
+.pay-method.selected { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
+
+.pm-icon { font-size:18px; }
+
+.checkout-btn {
+
+  margin:12px; padding:13px; background:var(--btn-gradient);
+
+  color:#fff; font-size:14px; font-weight:700; border:none;
+
+  border-radius:var(--radius); cursor:pointer; transition:all .15s;
+
+  font-family:var(--font); box-shadow:0 1px 2px rgba(16,24,40,.12);
+
+}
+
+.checkout-btn:hover:not(:disabled) { filter:brightness(1.1); box-shadow:var(--shadow-md); }
+
+.checkout-btn:disabled { opacity:.45; cursor:not-allowed; filter:none; box-shadow:none; }
+
+
+
+/* ── SEARCH BAR ── */
+
+.search-bar { position:relative; display:flex; align-items:center; }
+
+.search-bar .search-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:15px; pointer-events:none; color:var(--ink-4); }
+
+.search-bar input {
+
+  width:100%; padding:9px 14px 9px 38px; background:var(--bg-solid);
+
+  border:1px solid var(--border-glow); border-radius:var(--radius-sm);
+
+  color:var(--ink); font-size:13px; font-family:var(--font); outline:none;
+
+  transition:border-color .15s, box-shadow .15s;
+
+}
+
+.search-bar input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+
+.search-bar input::placeholder { color:var(--ink-4); }
+
+
+
+/* ── EMPTY STATE ── */
+
+.empty-state { text-align:center; padding:40px 20px; }
+
+.empty-icon  { font-size:38px; margin-bottom:10px; opacity:.4; }
+
+.empty-text  { font-size:14px; color:var(--ink-3); font-weight:500; }
+
+.empty-sub   { font-size:12px; color:var(--ink-4); margin-top:4px; }
+
+
+
+/* ── TICKET ��─ */
+
+.ticket { background:#fff; color:#000; padding:18px 16px; border-radius:var(--radius); font-family:var(--mono); font-size:12px; max-width:280px; margin:0 auto; box-shadow:var(--shadow-md); }
+
+.ticket-divider { border:none; border-top:1px dashed #ccc; margin:8px 0; }
+
+
+
+/* ── SPEI BOX ── */
+
+.spei-box {
+
+  background:var(--grad-warm);
+
+  border-radius:var(--radius-lg); padding:22px; margin:12px 0;
+
+  border:none; box-shadow:var(--shadow-violet);
+
+}
+
+.clabe-display { font-family:var(--mono); font-size:22px; font-weight:700; color:#fff; letter-spacing:3px; text-align:center; padding:12px; background:rgba(0,0,0,.2); border-radius:var(--radius); margin:12px 0; }
+
+.spei-info-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; }
+
+.spei-label  { color:rgba(255,255,255,.55); font-size:10px; text-transform:uppercase; letter-spacing:.5px; }
+
+.spei-value  { color:#fff; font-weight:600; font-family:var(--mono); font-size:13px; }
+
+.copy-btn { display:flex; align-items:center; gap:6px; padding:8px 14px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); border-radius:var(--radius-sm); color:#fff; font-size:12px; font-weight:700; cursor:pointer; transition:all .15s; font-family:var(--font); width:100%; justify-content:center; }
+
+.copy-btn:hover  { background:rgba(255,255,255,.2); }
+
+.copy-btn.copied { background:rgba(47,158,68,.35); border-color:rgba(47,158,68,.6); color:#fff; }
+
+
+
+/* ── QR CoDi ── */
+
+.codi-qr { width:180px; height:180px; margin:0 auto; background:#fff; border-radius:var(--radius); padding:10px; display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-glass); }
+
+.qr-svg  { width:100%; height:100%; }
+
+
+
+/* ── SPINNER ── */
+
+.spinner { display:inline-block; width:18px; height:18px; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
+
+@keyframes spin { to { transform:rotate(360deg); } }
+
+
+
+/* ── THEME TOGGLE ── */
+
+.theme-toggle {
+  padding:9px 11px; border-radius:var(--radius-pill); border:1px solid var(--border-glow);
+  background:var(--bg-surface); cursor:pointer; font-size:15px; color:var(--ink-3);
+  transition:all .15s; display:flex; align-items:center; line-height:1;
+}
+
+/* Antes esta regla era `display:none`, así que el usuario no podía cambiar de tema. */
+.theme-toggle:hover { background:var(--violet-soft); color:var(--violet); border-color:var(--violet); }
+
+/* ── MOBILE MENU BUTTON + DRAWER BACKDROP (ocultos en escritorio) ── */
+
+.mobile-menu-btn {
+
+  display:none; align-items:center; justify-content:center;
+
+  width:38px; height:38px; flex-shrink:0;
+
+  border:1px solid var(--border-glow); border-radius:var(--radius-sm);
+
+  background:var(--bg-solid); color:var(--ink-2); cursor:pointer;
+
+  transition:all .15s; padding:0; margin-right:2px;
+
+}
+
+.mobile-menu-btn:hover { background:var(--glass-light); color:var(--ink); }
+
+.nav-backdrop { display:none; }
+
+
+
+/* ── PROGRESS BAR ── */
+
+.progress-bar  { height:6px; background:var(--glass-light); border-radius:10px; overflow:hidden; margin-top:8px; }
+
+.progress-fill { height:100%; border-radius:10px; transition:width 1s ease; background:var(--grad-cool); }
+
+
+
+/* ── VERIF ROW ── */
+
+.verif-row { display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--glass-light); border-radius:var(--radius-sm); margin-top:10px; }
+
+.verif-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+.verif-dot.pulse { animation:pulse 1.5s infinite; }
+
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+
+
+/* ── Toast animation ── */
+
+@keyframes slideIn {
+
+  from { opacity:0; transform:translateY(-10px) translateX(10px); }
+
+  to   { opacity:1; transform:translateY(0) translateX(0); }
+
+}
+
+
+
+/* ══════════════════════════════════════════════════════
+
+   RESPONSIVE LAYOUT — funciona en cualquier dispositivo
+
+   · ≥ 1025px  → sidebar fijo completo (256px)
+
+   · 769–1024  → sidebar fijo (un poco más angosto) + grids fluidos
+
+   · ≤ 768px   → sidebar como drawer deslizable + botón de menú
+
+══════════════════════════════════════════════════════ */
+
+
+
+/* ── Asegura tablas y bloques anchos con scroll horizontal limpio ── */
+
+.table-wrap { -webkit-overflow-scrolling: touch; }
+
+
+
+/* ── TABLETS / PANTALLAS MEDIANAS (769–1024px) ── */
+
+@media (max-width: 1024px) and (min-width: 769px) {
+
+  :root { --sidebar-w: 220px; }
+
+  .content { padding: 22px; }
+
+  .pos-layout { grid-template-columns: 1fr 320px; }
+
+}
+
+
+
+/* ── TABLETS GRANDES Y MENORES: POS apilado (≤900px) ── */
+
+@media (max-width: 900px) {
+
+  .pos-layout {
+
+    grid-template-columns: 1fr;
+
+    min-height: auto;
+
+    height: auto;
 
   }
 
-  return /*#__PURE__*/_jsxDEV("div", {
+  .pos-cart { max-height: 60vh; }
 
-    children: [/*#__PURE__*/_jsxDEV("div", {
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
-      style: {
+}
 
-        marginBottom: 24
 
-      },
 
-      children: [/*#__PURE__*/_jsxDEV("h2", {
+/* ── MÓVILES Y TABLETS VERTICALES (≤768px): SIDEBAR COMO DRAWER ── */
 
-        style: {
+@media (max-width: 768px) {
 
-          fontSize: 23,
+  /* El layout deja de reservar espacio para el sidebar */
 
-          fontWeight: 700,
+  .app { display: block; height: 100vh; overflow: hidden; }
 
-          color: 'var(--ink)',
 
-          letterSpacing: '-.7px'
 
-        },
+  /* Botón hamburguesa visible en la topbar */
 
-        children: ["Buenos días, ", user.nombre.split(' ')[0]]
+  .mobile-menu-btn { display: flex; }
 
-      }, void 0, true), /*#__PURE__*/_jsxDEV("p", {
 
-        style: {
 
-          fontSize: 13,
+  /* Sidebar fuera de pantalla, entra al activar el menú */
 
-          color: 'var(--ink-3)',
+  .sidebar {
 
-          marginTop: 3
+    position: fixed;
 
-        },
+    top: 0;
 
-        children: [escuela && /*#__PURE__*/_jsxDEV("span", {
+    left: 0;
 
-          style: {
+    height: 100%;
 
-            color: escuela.color,
+    width: 270px;
 
-            marginRight: 6
+    max-width: 82vw;
 
-          },
+    z-index: 300;
 
-          children: [escuela.logo_emoji, " ", escuela.nombre, " ·"]
+    transform: translateX(-100%);
 
-        }, void 0, true), escuela && !escuela.activa && /*#__PURE__*/_jsxDEV("span", {
+    transition: transform .25s ease;
 
-          className: "badge badge-red",
+    box-shadow: var(--shadow-lg);
 
-          style: { marginRight: 6 },
+  }
 
-          children: "Inactiva"
+  /* En modo drawer sí necesita fondo sólido y borde */
 
-        }, void 0, false), 
+  .sidebar { background: var(--bg-surface); border-right: 1px solid var(--border-glow); }
 
-        
+  /* El panel principal ocupa todo el ancho: sin esquina redondeada ni margen */
 
-        escuela && !esCajero && (() => {
+  .main { border-radius:0; border-left:none; border-top:none; margin-top:0; height:100vh; }
 
-          const planKey = (escuela.plan || '').toLowerCase();
+  .topbar  { padding: 0 16px; }
 
-          const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
+  .content { padding: 4px 16px 22px; }
 
-          if (!info) return null;
+  /* La barra de acento vuelve al borde izquierdo dentro del drawer */
 
-          return /*#__PURE__*/_jsxDEV("span", {
+  .nav-item.active::before { right:auto; left:0; }
 
-            className: "badge",
 
-            style: { marginRight: 6, color: info.color, borderColor: info.color },
+  .app.nav-open .sidebar { transform: translateX(0); }
 
-            title: `Plan ${info.label} — ${info.max_alumnos === null ? 'alumnos ilimitados' : `hasta ${info.max_alumnos} alumnos`}, ${info.max_planteles === null ? 'planteles ilimitados' : `hasta ${info.max_planteles} plantel(es)`}`,
 
-            children: ["Plan ", info.label]
 
-          }, void 0, true);
+  /* Fondo oscuro detrás del drawer */
 
-        })(), new Date().toLocaleDateString('es-MX', {
+  .nav-backdrop {
 
-          weekday: 'long',
+    display: block;
 
-          day: 'numeric',
+    position: fixed;
 
-          month: 'long',
+    inset: 0;
 
-          year: 'numeric'
+    background: rgba(16, 19, 40, .5);
 
-        })]
+    backdrop-filter: blur(2px);
 
-      }, void 0, true)]
+    z-index: 200;
 
-    }, void 0, true), 
+    opacity: 0;
 
-    
+    pointer-events: none;
 
-    escuela && !esCajero && (() => {
+    transition: opacity .25s ease;
 
-      const planKey = (escuela.plan || '').toLowerCase();
+  }
 
-      const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
+  .app.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
 
-      if (!info) return null;
 
-      const totalAlumnos = typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length;
 
-      const pct = info.max_alumnos ? Math.min(100, Math.round(totalAlumnos / info.max_alumnos * 100)) : null;
+  /* La zona principal ocupa todo el ancho */
 
-      const excedido = info.max_alumnos !== null && totalAlumnos > info.max_alumnos;
+  .main { height: 100vh; width: 100%; }
 
-      const excedidoPlt = info.max_planteles !== null && plantelesEscuela.length > info.max_planteles;
 
-      return /*#__PURE__*/_jsxDEV("div", {
 
-        className: "card",
+  .topbar { padding: 0 14px; height: 58px; gap: 10px; }
 
-        style: { marginBottom: 22, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' },
+  .topbar-title { font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        children: [/*#__PURE__*/_jsxDEV("div", {
+  .content { padding: 16px; }
 
-          children: [/*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '.4px' }, children: "Tu plan" }, void 0, false),
+  .card { padding: 16px; }
 
-          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 15, fontWeight: 700, color: info.color }, children: info.label }, void 0, false)]
+  .dash-split-grid { grid-template-columns: 1fr; }
 
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
 
-          style: { flex: 1, minWidth: 180 },
 
-          children: [/*#__PURE__*/_jsxDEV("div", {
+  /* Modales a ancho casi completo */
 
-            style: { fontSize: 12, color: excedido ? 'var(--red)' : 'var(--ink-3)', marginBottom: 4 },
+  .modal { max-width: 95%; max-height: 88vh; }
 
-            children: info.max_alumnos === null
+  .modal-lg { max-width: 95%; }
 
-              ? `${totalAlumnos} alumnos (sin límite)`
+  .modal-header { padding: 14px 16px; }
 
-              : `${totalAlumnos} / ${info.max_alumnos} alumnos${excedido ? ' — superaste el límite' : ''}`
+  .modal-body { padding: 16px; }
 
-          }, void 0, false), pct !== null && /*#__PURE__*/_jsxDEV("div", {
+  .modal-footer { padding: 14px 16px; }
 
-            style: { width: '100%', maxWidth: 260, height: 6, background: 'var(--glass-light)', borderRadius: 3, overflow: 'hidden' },
 
-            children: /*#__PURE__*/_jsxDEV("div", { style: { width: `${pct}%`, height: '100%', background: excedido ? 'var(--red)' : 'var(--grad-cool)' } }, void 0, false)
 
-          }, void 0, false)]
+  /* Login */
 
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+  .login-card { width: 100%; max-width: 380px; padding: 28px 22px; }
 
-          style: { fontSize: 12, color: excedidoPlt ? 'var(--red)' : 'var(--ink-3)' },
+  .login-brand { font-size: 24px; }
 
-          children: info.max_planteles === null
+}
 
-            ? `${plantelesEscuela.length} planteles (sin límite)`
 
-            : `${plantelesEscuela.length} / ${info.max_planteles} plantel(es)${excedidoPlt ? ' ⚠' : ''}`
 
-        }, void 0, false), (excedido || excedidoPlt) && /*#__PURE__*/_jsxDEV("span", {
+/* ── MÓVILES ESTÁNDAR (≤560px) ── */
 
-          style: { fontSize: 11.5, color: 'var(--red)' },
+@media (max-width: 560px) {
 
-          children: "Contacta a soporte para subir de plan."
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
 
-        }, void 0, false)]
 
-      }, void 0, true);
 
-    })(), 
+  /* "Nuevo cobro" pasa a botón de ícono para ahorrar espacio */
 
-    
+  .topbar-actions .btn-primary { font-size: 0 !important; gap: 0 !important; padding: 9px !important; }
 
-    // CONDICIÓN AÑADIDA: !esCajero para ocultar la sección de planteles
 
-    !esCajero && plantelesEscuela.length > 0 && /*#__PURE__*/_jsxDEV("div", {
 
-      style: { marginBottom: 22 },
+  .card-header { flex-wrap: wrap; }
 
-      children: [/*#__PURE__*/_jsxDEV("div", {
+  .pos-cart { max-height: none; }
 
-        style: {
+}
 
-          display: 'flex',
 
-          alignItems: 'center',
 
-          gap: 8,
+/* ── MÓVILES PEQUEÑOS (≤420px) ── */
 
-          marginBottom: 10
+@media (max-width: 420px) {
 
-        },
+  .topbar-title { font-size: 14px; }
 
-        children: [/*#__PURE__*/_jsxDEV(Icon, {
+  .topbar-actions { gap: 6px; }
 
-          name: "escuelas",
+  .content { padding: 12px; }
 
-          size: 14,
 
-          color: "var(--ink-3)"
 
-        }, void 0, false), /*#__PURE__*/_jsxDEV("h3", {
+  .stats-grid { grid-template-columns: 1fr; }
 
-          style: { fontSize: 13, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '.4px' },
 
-          children: ["Planteles de ", escuela.nombre, " (", plantelesEscuela.length, ")"]
 
-        }, void 0, true)]
+  .pos-products-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+  .product-emoji { font-size: 22px; }
 
-        style: {
+  .product-name { font-size: 11.5px; }
 
-          display: 'grid',
 
-          gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))',
 
-          gap: 12
+  .ticket { max-width: 100%; }
 
-        },
+}
 
-        children: plantelesEscuela.map(p => /*#__PURE__*/_jsxDEV("div", {
 
-          className: "card",
 
-          style: {
+/* ── PORTAL FAMILIA: header y pestañas responsive ── */
 
-            borderLeft: `3px solid ${escuela.color || 'var(--navy)'}`,
+.pf-tabs {
 
-            padding: '12px 14px',
+  overflow-x: auto;
 
-            opacity: p.activo ? 1 : .6
+  -webkit-overflow-scrolling: touch;
 
-          },
+  scrollbar-width: none;
 
-          children: [/*#__PURE__*/_jsxDEV("div", {
+}
 
-            style: {
+.pf-tabs::-webkit-scrollbar { display: none; }
 
-              display: 'flex',
+.pf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+.pf-grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; }
 
-              alignItems: 'center',
+@media (max-width: 480px) {
+  .pf-grid-2, .pf-grid-1-2 { grid-template-columns: 1fr; }
+}
 
-              justifyContent: 'space-between',
 
-              gap: 6,
 
-              marginBottom: 4
+@media (max-width: 640px) {
 
-            },
+  .pf-header {
 
-            children: [/*#__PURE__*/_jsxDEV("div", {
+    height: auto !important;
 
-              style: { fontWeight: 700, fontSize: 13, color: 'var(--ink)' },
+    min-height: 60px;
 
-              children: p.nombre
+    flex-wrap: wrap !important;
 
-            }, void 0, false), !p.activo && /*#__PURE__*/_jsxDEV("span", {
+    row-gap: 6px;
 
-              className: "badge badge-gray",
+    padding: 10px 14px !important;
 
-              children: "Inactivo"
+  }
 
-            }, void 0, false)]
+  .pf-header-actions {
 
-          }, void 0, true), p.direccion && /*#__PURE__*/_jsxDEV("div", {
+    gap: 8px !important;
 
-            style: { fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 2 },
+  }
 
-            children: p.direccion
+  /* El badge de la escuela y el subtítulo "Portal Familiar" no caben
 
-          }, void 0, false), p.responsable && /*#__PURE__*/_jsxDEV("div", {
+     en una pantalla chica — se ocultan y solo queda lo esencial:
 
-            style: { fontSize: 11, color: 'var(--ink-4)' },
+     logo, nombre corto, avatar y botón de salir. */
 
-            children: ["Resp: ", p.responsable, p.tel ? ' · ' + p.tel : '']
+  .pf-header-badge { display: none !important; }
 
-          }, void 0, true), (() => {
+  .pf-header-user-sub { display: none !important; }
 
-            const r = (data.resumen_planteles || {})[p.escuela_plantel_id];
+  .pf-header-user-name {
 
-            if (!r) return null;
+    max-width: 110px !important;
 
-            return /*#__PURE__*/_jsxDEV("div", {
+    overflow: hidden !important;
 
-              style: {
+    text-overflow: ellipsis !important;
 
-                display: 'flex', gap: 10, marginTop: 8, paddingTop: 8,
+    white-space: nowrap !important;
 
-                borderTop: '1px solid var(--glass-light)', fontSize: 11
+  }
 
-              },
+}
 
-              children: [
 
-                /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--ink-3)' }, children: [r.num_alumnos, " alumnos"] }, void 0, true),
 
-                /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--green)', fontFamily: 'var(--mono)' }, children: fmt(r.cobrado_90d) }, void 0, false),
+@media (max-width: 420px) {
+  .pf-header-user-name { max-width: 78px !important; }
+}
 
-                r.pendiente_90d > 0 && /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--amber)', fontFamily: 'var(--mono)' }, children: fmt(r.pendiente_90d) + ' pend.' }, void 0, false),
+/* ══════════════════════════════════════════════════════
+   COMPONENTES NUEVOS — tomados del video de referencia
+   Son opcionales: se activan añadiendo la clase en la vista.
+══════════════════════════════════════════════════════ */
 
-              ]
+/* ── Encabezado de sección ("Project statistics" en el video) ── */
+.section-title {
+  font-size:23px; font-weight:700; color:var(--ink);
+  letter-spacing:-.7px; display:flex; align-items:center; gap:9px; margin-bottom:18px;
+}
 
-            }, void 0, true);
+/* ── Grupo de píldoras / filtros segmentados (30 días · 90 días · …) ── */
+.pill-group { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.pill {
+  padding:9px 18px; border-radius:var(--radius-pill); font-size:12.5px; font-weight:600;
+  border:1px solid var(--border-glow); background:var(--bg-surface); color:var(--ink-3);
+  cursor:pointer; transition:all .15s; font-family:var(--font); white-space:nowrap; line-height:1;
+}
+.pill:hover { color:var(--ink); border-color:#dcdcea; }
+.pill.active {
+  background:var(--violet); border-color:var(--violet); color:#fff;
+  box-shadow:var(--shadow-violet);
+}
 
-          })()]
+/* ── Tarjeta destacada con degradado (la tarjeta "Bounce Rate") ── */
+.stat-card.is-featured {
+  background:var(--grad-brand); border:none; color:#fff;
+  box-shadow:0 10px 28px rgba(108,90,240,.30);
+}
+.stat-card.is-featured .stat-value { color:#fff; }
+.stat-card.is-featured .stat-label { color:rgba(255,255,255,.88); }
+.stat-card.is-featured .stat-meta  { color:rgba(255,255,255,.80); }
+.stat-card.is-featured .stat-icon  { background:rgba(255,255,255,.22); color:#fff; }
+.stat-card.is-featured:hover { border-color:transparent; }
 
-        }, p.id, true))
+/* ── Indicador de variación arriba a la derecha (▲ 1.2% / ▼ 2.1%) ── */
+.stat-delta {
+  position:absolute; top:20px; right:22px;
+  font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;
+}
+.stat-delta.up   { color:var(--green); }
+.stat-delta.down { color:var(--red); }
+.stat-delta::before { content:'▲'; font-size:8px; }
+.stat-delta.down::before { content:'▼'; }
+.stat-card.is-featured .stat-delta { color:#fff; }
 
-      }, void 0, true)]
+/* ── Tintes para los azulejos de icono ── */
+.stat-icon.tint-cyan    { background:var(--cyan-soft);    color:#1aa8c4; }
+.stat-icon.tint-magenta { background:var(--magenta-soft); color:#b845d0; }
+.stat-icon.tint-green   { background:var(--green-glow);   color:var(--green-dark); }
+.stat-icon.tint-amber   { background:var(--amber-glow);   color:var(--amber); }
+.stat-icon.tint-red     { background:var(--red-glow);     color:var(--red); }
 
-    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+/* ── Barras de desplazamiento discretas ── */
+.content::-webkit-scrollbar-thumb,
+.sidebar-nav::-webkit-scrollbar-thumb { background:#dcdde8; border-radius:20px; }
+* { scrollbar-width:thin; scrollbar-color:#dcdde8 transparent; }
 
-      className: "stats-grid",
+/* ── Encabezado de sección: apila filtros en pantallas angostas ── */
+@media (max-width: 768px) {
+  .section-title {
+    flex-direction:column; align-items:flex-start; gap:12px;
+    font-size:20px; margin-bottom:16px;
+  }
+  .section-title .pill-group { margin-left:0 !important; width:100%; }
+  .pill { padding:8px 14px; font-size:12px; }
+}
 
-      children: [{
 
-        /* Tarjeta destacada con degradado — el número principal del panel */
+/* ══════════════════════════════════════════════════════
+   AJUSTES ESPECÍFICOS DEL MODO OSCURO
+   Detalles que no traducen automáticamente desde el modo claro.
+══════════════════════════════════════════════════════ */
 
-        featured: true,
+/* ── El drawer móvil debe usar el panel, no la tarjeta ── */
+@media (max-width: 768px) {
+  :root[data-theme="dark"] .sidebar { background:var(--bg-panel); }
+}
 
-        label: 'Total cobrado',
+/* ── El panel se separa del lienzo con un borde superior sutil ── */
+:root[data-theme="dark"] .main {
+  border-left-color:rgba(255,255,255,.07);
+  border-top-color:rgba(255,255,255,.07);
+}
 
-        val: fmt(stats.totalCobrado),
+/* ── Tarjeta destacada: en oscuro el degradado a full brillo deslumbra ── */
+:root[data-theme="dark"] .stat-card.is-featured {
+  background:linear-gradient(115deg, #2ea8c4 0%, #5946d8 55%, #a845c0 100%);
+  box-shadow:0 10px 30px rgba(108,90,240,.35);
+}
 
-        icon: 'pay',
+/* ── Azulejos de icono: tintes translúcidos en vez de pasteles sólidos ── */
+:root[data-theme="dark"] .stat-icon              { background:rgba(108,90,240,.18); color:var(--violet-light); }
+:root[data-theme="dark"] .stat-icon.tint-cyan    { background:rgba(79,216,240,.15);  color:#6fdcf0; }
+:root[data-theme="dark"] .stat-icon.tint-magenta { background:rgba(216,96,240,.15);  color:#e08cf5; }
+:root[data-theme="dark"] .stat-icon.tint-green   { background:rgba(73,175,84,.16);   color:#5fc96c; }
+:root[data-theme="dark"] .stat-icon.tint-amber   { background:rgba(217,119,6,.16);   color:#f0a63a; }
+:root[data-theme="dark"] .stat-icon.tint-red     { background:rgba(229,72,77,.16);   color:#f2777a; }
 
-        tint: '',
+/* ── Píldora inactiva: la superficie de tarjeta la haría desaparecer ── */
+:root[data-theme="dark"] .pill { background:var(--bg-surface-2); }
+:root[data-theme="dark"] .pill:hover { border-color:rgba(255,255,255,.20); }
 
-        meta: (() => {
+/* ── Hover de fila: el violeta sólido es demasiado fuerte sobre oscuro ── */
+:root[data-theme="dark"] tbody tr:hover td { background:rgba(108,90,240,.14); }
 
-          /* Tasa de recuperación REAL, calculada con los datos ya cargados.
+/* ── Cabecera de tabla sobre la superficie elevada ── */
+:root[data-theme="dark"] th { background:rgba(255,255,255,.045); color:var(--ink-3); }
 
-             No se inventan variaciones: el backend no envía histórico. */
+/* ── Botón secundario: necesita contraste contra la tarjeta ── */
+:root[data-theme="dark"] .btn-secondary { background:var(--bg-surface-2); border-color:var(--border-glow); color:var(--ink-2); }
+:root[data-theme="dark"] .btn-secondary:hover { background:rgba(255,255,255,.10); color:var(--ink); }
 
-          const base = stats.totalCobrado + stats.totalPendiente;
+/* ── Campos de formulario ── */
+:root[data-theme="dark"] .form-input,
+:root[data-theme="dark"] .form-select,
+:root[data-theme="dark"] .search-bar input { background:var(--bg-main); color:var(--ink); }
 
-          const pct = base > 0 ? Math.round(stats.totalCobrado / base * 100) : 0;
+/* ── Barras de desplazamiento ── */
+:root[data-theme="dark"] .content::-webkit-scrollbar-thumb,
+:root[data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,.14); }
+:root[data-theme="dark"] * { scrollbar-color:rgba(255,255,255,.14) transparent; }
 
-          const pagados = data.cobros.filter(c => c.estado === 'pagado').length;
-
-          return pct + '% recuperado · ' + pagados + ' cobros pagados';
-
-        })(),
-
-        color: ''
-
-      }, {
-
-        label: 'Por cobrar',
-
-        val: fmt(stats.totalPendiente),
-
-        icon: 'history',
-
-        tint: 'tint-amber',
-
-        meta: pendientes.length + ' cobros pendientes',
-
-        color: ''
-
-      }, {
-
-        label: 'Cobrado hoy',
-
-        val: fmt(stats.cobrosHoy),
-
-        icon: 'cobros',
-
-        tint: 'tint-green',
-
-        meta: data.cobros.filter(c => c.fecha === new Date().toISOString().slice(0, 10) && c.estado === 'pagado').length + ' transacciones hoy',
-
-        color: ''
-
-      }, {
-
-        label: 'Alumnos activos',
-
-        val: data.clientes.filter(c => c.activo).length,
-
-        icon: 'alumnos',
-
-        tint: 'tint-cyan',
-
-        meta: data.clientes.filter(c => c.activo && c.saldo_pendiente > 0).length + ' con saldo pendiente',
-
-        color: ''
-
-      }].map(s => /*#__PURE__*/_jsxDEV("div", {
-
-        className: "stat-card" + (s.featured ? " is-featured" : ""),
-
-        children: [/*#__PURE__*/_jsxDEV("div", {
-
-          className: "stat-icon" + (s.tint ? " " + s.tint : ""),
-
-          children: /*#__PURE__*/_jsxDEV(Icon, {
-
-            name: s.icon,
-
-            size: 19,
-
-            color: "currentColor"
-
-          }, void 0, false)
-
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-          className: "stat-value",
-
-          style: {
-
-            color: s.color || undefined
-
-          },
-
-          children: s.val
-
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-          className: "stat-label",
-
-          children: s.label
-
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-          className: "stat-meta",
-
-          children: s.meta
-
-        }, void 0, false)]
-
-      }, s.label, true))
-
-    }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-      className: "dash-split-grid",
-
-      children: [/*#__PURE__*/_jsxDEV("div", {
-
-        className: "card",
-
-        children: [/*#__PURE__*/_jsxDEV("div", {
-
-          className: "card-header",
-
-          children: /*#__PURE__*/_jsxDEV("div", {
-
-            children: [/*#__PURE__*/_jsxDEV("div", {
-
-              className: "card-title",
-
-              children: "Cobros recientes"
-
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-              className: "card-sub",
-
-              children: "Últimas transacciones"
-
-            }, void 0, false)]
-
-          }, void 0, true)
-
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-          className: "table-wrap",
-
-          children: /*#__PURE__*/_jsxDEV("table", {
-
-            children: [/*#__PURE__*/_jsxDEV("thead", {
-
-              children: /*#__PURE__*/_jsxDEV("tr", {
-
-                children: [/*#__PURE__*/_jsxDEV("th", {
-
-                  children: "Folio"
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
-
-                  children: "Cliente"
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
-
-                  children: "Total"
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
-
-                  children: "Método"
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
-
-                  children: "Estado"
-
-                }, void 0, false)]
-
-              }, void 0, true)
-
-            }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
-
-              children: [recientes.length === 0 && /*#__PURE__*/_jsxDEV("tr", {
-
-                children: /*#__PURE__*/_jsxDEV("td", {
-
-                  colSpan: 5,
-
-                  children: /*#__PURE__*/_jsxDEV("div", {
-
-                    className: "empty-state",
-
-                    style: {
-
-                      padding: '20px 0'
-
-                    },
-
-                    children: /*#__PURE__*/_jsxDEV("div", {
-
-                      className: "empty-text",
-
-                      children: "Sin cobros aún"
-
-                    }, void 0, false)
-
-                  }, void 0, false)
-
-                }, void 0, false)
-
-              }, void 0, false), recientes.map(c => /*#__PURE__*/_jsxDEV("tr", {
-
-                children: [/*#__PURE__*/_jsxDEV("td", {
-
-                  children: /*#__PURE__*/_jsxDEV("span", {
-
-                    style: {
-
-                      fontFamily: 'var(--mono)',
-
-                      fontSize: 12
-
-                    },
-
-                    children: c.folio
-
-                  }, void 0, false)
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-
-                  style: {
-
-                    maxWidth: 160,
-
-                    overflow: 'hidden',
-
-                    textOverflow: 'ellipsis',
-
-                    whiteSpace: 'nowrap'
-
-                  },
-
-                  children: c.cliente
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-
-                  children: /*#__PURE__*/_jsxDEV("span", {
-
-                    style: {
-
-                      fontFamily: 'var(--mono)',
-
-                      fontWeight: 600
-
-                    },
-
-                    children: fmt(c.total)
-
-                  }, void 0, false)
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-
-                  children: /*#__PURE__*/_jsxDEV(MetodoBadge, {
-
-                    metodo: c.metodo
-
-                  }, void 0, false)
-
-                }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-
-                  children: /*#__PURE__*/_jsxDEV(EstadoBadge, {
-
-                    estado: c.estado
-
-                  }, void 0, false)
-
-                }, void 0, false)]
-
-              }, c.id, true))]
-
-            }, void 0, true)]
-
-          }, void 0, true)
-
-        }, void 0, false)]
-
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-
-        className: "card",
-
-        children: [/*#__PURE__*/_jsxDEV("div", {
-
-          className: "card-header",
-
-          children: /*#__PURE__*/_jsxDEV("div", {
-
-            children: [/*#__PURE__*/_jsxDEV("div", {
-
-              className: "card-title",
-
-              children: "Por método de pago"
-
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-              className: "card-sub",
-
-              children: "Distribución del mes"
-
-            }, void 0, false)]
-
-          }, void 0, true)
-
-        }, void 0, false), [{
-
-          key: 'TC',
-
-          label: 'Tarjeta',
-
-          icon: 'card',
-
-          color: 'var(--accent)'
-
-        }, {
-
-          key: 'SPEI',
-
-          label: 'SPEI',
-
-          icon: 'bank',
-
-          color: 'var(--purple)'
-
-        }, {
-
-          key: 'CoDi',
-
-          label: 'CoDi / QR',
-
-          icon: 'phone',
-
-          color: 'var(--green)'
-
-        }, {
-
-          key: 'Efectivo',
-
-          label: 'Efectivo',
-
-          icon: 'pay',
-
-          color: 'var(--amber)'
-
-        }].map(m => {
-
-          const val = stats.cobradosPorMetodo[m.key] || 0;
-
-          const pct = Math.round(val / totalMetodos * 100);
-
-          return /*#__PURE__*/_jsxDEV("div", {
-
-            style: {
-
-              marginBottom: 14
-
-            },
-
-            children: [/*#__PURE__*/_jsxDEV("div", {
-
-              style: {
-
-                display: 'flex',
-
-                justifyContent: 'space-between',
-
-                marginBottom: 4
-
-              },
-
-              children: [/*#__PURE__*/_jsxDEV("span", {
-
-                style: {
-
-                  fontSize: 12.5,
-
-                  color: 'var(--ink-2)',
-
-                  display: 'flex',
-
-                  alignItems: 'center',
-
-                  gap: 6
-
-                },
-
-                children: [/*#__PURE__*/_jsxDEV(Icon, {
-
-                  name: m.icon,
-
-                  size: 14,
-
-                  color: m.color
-
-                }, void 0, false), " ", m.label]
-
-              }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
-
-                style: {
-
-                  fontSize: 12,
-
-                  fontFamily: 'var(--mono)',
-
-                  color: 'var(--ink-3)'
-
-                },
-
-                children: [pct, "%"]
-
-              }, void 0, true)]
-
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-
-              className: "progress-bar",
-
-              children: /*#__PURE__*/_jsxDEV("div", {
-
-                className: "progress-fill",
-
-                style: {
-
-                  width: pct + '%',
-
-                  background: m.color
-
-                }
-
-              }, void 0, false)
-
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-
-              style: {
-
-                fontSize: 11,
-
-                color: 'var(--ink-4)',
-
-                marginTop: 2,
-
-                fontFamily: 'var(--mono)'
-
-              },
-
-              children: fmt(val)
-
-            }, void 0, false)]
-
-          }, m.key, true);
-
-        }), pendientes.length > 0 && /*#__PURE__*/_jsxDEV("div", {
-
-          style: {
-
-            marginTop: 16,
-
-            padding: '10px 12px',
-
-            background: 'var(--amber-glow)',
-
-            border: '1px solid rgba(245,158,11,.2)',
-
-            borderRadius: 'var(--radius-sm)'
-
-          },
-
-          children: [/*#__PURE__*/_jsxDEV("div", {
-
-            style: {
-
-              fontSize: 12,
-
-              fontWeight: 600,
-
-              color: '#fbbf24',
-
-              marginBottom: 4,
-
-              display: "flex",
-
-              alignItems: "center",
-
-              gap: 6
-
-            },
-
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
-
-              name: "warning",
-
-              size: 13,
-
-              color: "#fbbf24"
-
-            }, void 0, false), " Cobros pendientes"]
-
-          }, void 0, true), pendientes.slice(0, 3).map(c => /*#__PURE__*/_jsxDEV("div", {
-
-            style: {
-
-              fontSize: 11.5,
-
-              color: 'var(--ink-3)',
-
-              marginBottom: 2
-
-            },
-
-            children: [c.folio, " · ", (c.cliente || 'Cliente general').split(' ')[0], " · ", fmt(c.total)]
-
-          }, c.id, true))]
-
-        }, void 0, true)]
-
-      }, void 0, true)]
-
-    }, void 0, true)]
-
-  }, void 0, true);
-
+/* ── Transición al cambiar de tema (se respeta reduced-motion) ── */
+@media (prefers-reduced-motion: no-preference) {
+  .app, .main, .sidebar, .card, .stat-card, .topbar, .modal {
+    transition:background-color .22s ease, border-color .22s ease, color .22s ease;
+  }
 }
