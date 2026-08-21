@@ -1486,3 +1486,11 @@ box-shadow:0 0 0 3px var(--accent-glow);
     transition:background-color .22s ease, border-color .22s ease, color .22s ease;
   }
 }
+
+/* ── Portal familiar: pestañas desplazables sin barra visible ── */
+.pf-tabs { overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:2px; }
+.pf-tabs::-webkit-scrollbar { display:none; }
+@media (max-width: 640px) {
+  .pf-header-user-name, .pf-header-user-sub { display:none; }
+  .pf-header .badge { display:none; }
+}
