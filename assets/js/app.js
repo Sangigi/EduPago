@@ -534,7 +534,7 @@ function App() {
 
 
 
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
 
 
 
@@ -1009,33 +1009,11 @@ function App() {
 
   const toggleTheme = () => {
 
+    /* Solo cambia el estado: el useEffect aplica data-theme y lo
 
+       persiste. Antes esta función invertía el valor. */
 
-    const next =
-
-      theme === 'dark'
-
-        ? 'light'
-
-        : 'dark';
-
-
-
-    setTheme(next);
-
-
-
-    document.documentElement.setAttribute(
-
-      'data-theme',
-
-      next === 'light'
-
-        ? 'light'
-
-        : ''
-
-    );
+    setTheme(theme === 'dark' ? 'light' : 'dark');
 
   };
 
