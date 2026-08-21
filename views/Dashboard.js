@@ -1,1471 +1,1423 @@
-/* ══════════════════════════════════════════════════════
-
-   EDUPAGO — SISTEMA DE DISEÑO (CRM moderno · limpio · profesional)
-
-   Marca: navy #282d65 · green #49af54 · lime #bdcf00 (acento)
-
-   Modo claro por defecto · modo oscuro pulido disponible
-
-══════════════════════════════════════════════════════ */
-
-
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-
-
-:root {
-  /* ══ MARCA EDUPAGO (se conserva para splash, logo y acentos de estado) ══ */
-  --navy:        #282d65;
-  --navy-dark:   #1c2050;
-  --navy-light:  #3a4080;
-  --lime:        #bdcf00;
-  --lime-dark:   #8a9a00;
-  --lime-glow:   rgba(189,207,0,0.14);
-  --green:       #49af54;
-  --green-dark:  #3a9446;
-  --green-glow:  rgba(73,175,84,0.12);
-
-  /* ══ PALETA "CONCURED" — muestreada del video de referencia ══
-     Violeta primario · cian · magenta. Cambia SOLO estas 3 líneas
-     para re-teñir el sistema completo.                            */
-  --violet:       #6c5af0;
-  --violet-dark:  #5846dd;
-  --violet-light: #8e80f4;
-  --cyan:         #4fd8f0;
-  --magenta:      #d860f0;
-
-  --violet-soft:  #f1effd;   /* pill de nav activo / fondos teñidos */
-  --cyan-soft:    #e8faff;
-  --magenta-soft: #fbeeff;
-
-  --grad-brand:  linear-gradient(115deg, #4fd8f0 0%, #6c5af0 55%, #d860f0 100%);
-  --grad-cool:   linear-gradient(135deg, #4fd8f0 0%, #6c5af0 100%);
-  --grad-warm:   linear-gradient(135deg, #6c5af0 0%, #d860f0 100%);
-
-  /* ══ MODO CLARO (por defecto) ══ */
-  --bg-main:      #f4f5f9;   /* lienzo lavanda de la página */
-  --bg-solid:     #ffffff;
-  --bg-surface:   #ffffff;   /* tarjetas */
-  --bg-surface-2: #fafafd;
-  --bg-panel:     #ffffff;   /* panel principal (lienzo del contenido) */
-  --bg-sidebar:   transparent;
-
-  /* ══ SIDEBAR (ahora claro, integrado al lienzo) ══ */
-  --side-bg:        transparent;
-  --side-bg-2:      transparent;
-  --side-border:    rgba(23,26,44,0.06);
-  --side-ink:       #1e2430;   /* texto principal (oscuro sobre claro) */
-  --side-ink-2:     #5b6273;
-  --side-ink-3:     #8d94a5;
-  --side-hover:     rgba(108,90,240,0.06);
-  --side-active-bg: var(--violet-soft);
-
-  /* ══ BORDES Y SUPERFICIES ══ */
-  --border-glow:   #ebecf3;
-  --border-active: var(--violet);
-  --glass-light:   #f5f6fa;
-  --glass-hover:   #eeeff6;
-  --glass-dark:    #fafbfd;
-  --shadow-glass:  0 1px 2px rgba(23,26,44,.03), 0 2px 8px rgba(23,26,44,.04);
-  --shadow-md:     0 4px 14px rgba(23,26,44,.07), 0 2px 5px rgba(23,26,44,.04);
-  --shadow-lg:     0 18px 44px rgba(23,26,44,.13);
-  --shadow-violet: 0 8px 22px rgba(108,90,240,.28);
-
-  /* ══ TEXTO ══ */
-  --ink:    #1e2430;
-  --ink-2:  #414958;
-  --ink-3:  #697182;   /* 4.90:1 sobre blanco — cumple WCAG AA */
-  --ink-4:  #8f97a6;   /* solo para texto decorativo/iconos */
-
-  /* ══ ACENTOS ══ */
-  --accent:          var(--violet);
-  --accent-2:        var(--cyan);
-  --accent-gradient: var(--grad-cool);
-  --btn-gradient:    var(--violet);
-  --accent-glow:     rgba(108,90,240,0.09);
-  --on-accent:       #ffffff;
-
-  /* ══ SEMÁNTICOS ══ */
-  --amber:       #d97706;
-  --amber-glow:  rgba(217,119,6,0.10);
-  --red:         #e5484d;
-  --red-glow:    rgba(229,72,77,0.09);
-  --purple:      var(--violet);
-  --purple-glow: rgba(108,90,240,0.10);
-
-  /* ══ LAYOUT ══ */
-  --radius-sm:    9px;
-  --radius:       12px;
-  --radius-lg:    18px;
-  --radius-panel: 26px;   /* esquina del panel blanco principal */
-  --radius-pill:  999px;
-  --blur:      blur(12px);
-  --font:      'DM Sans', system-ui, -apple-system, sans-serif;
-  --mono:      'JetBrains Mono', ui-monospace, monospace;
-  --sidebar-w: 244px;
-  --header-h:  66px;
-}
+var _jsxDEV = function(type,props,key,_s,_src,_self){
 
-/* ══ MODO OSCURO (adaptado a la misma paleta) ══ */
-:root[data-theme="dark"] {
-  /* Escala de elevación: cuanto más "arriba" está el elemento, más claro.
-     Sin esto, panel y tarjetas quedan del mismo tono y las tarjetas se pierden. */
-  --bg-main:      #0b0d18;   /* lienzo — el más oscuro */
-  --bg-panel:     #13162b;   /* panel principal */
-  --bg-surface:   #1b1f39;   /* tarjetas — elevadas sobre el panel */
-  --bg-solid:     #1b1f39;
-  --bg-surface-2: #232848;
-  --bg-sidebar:   transparent;
+  var p = Object.assign({key:key||undefined},props);
 
-  --border-glow:   rgba(255,255,255,0.09);
-  --border-active: var(--violet-light);
-  --glass-light:   rgba(255,255,255,0.05);
-  --glass-hover:   rgba(255,255,255,0.08);
-  --glass-dark:    rgba(0,0,0,0.28);
-  --shadow-glass:  0 1px 2px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04);
-  --shadow-md:     0 8px 22px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
-  --shadow-lg:     0 22px 52px rgba(0,0,0,.62);
-  --shadow-violet: 0 8px 26px rgba(108,90,240,.45);
+  var ch = p.children; delete p.children;
 
-  --ink:    #eef1f8;
-  --ink-2:  #c4cad8;
-  --ink-3:  #8b93a7;
-  --ink-4:  #69798f;
+  return ch===undefined ? React.createElement(type,p)
 
-  --side-bg:        transparent;
-  --side-bg-2:      transparent;
-  --side-border:    rgba(255,255,255,0.07);
-  --side-ink:       #eef1f8;
-  --side-ink-2:     #9aa1bb;
-  --side-ink-3:     #6b7290;
-  --side-hover:     rgba(255,255,255,0.05);
-  --side-active-bg: rgba(108,90,240,0.20);
+       : Array.isArray(ch) ? React.createElement(type,p,...ch)
 
-  --violet-soft:  rgba(108,90,240,0.18);
-  --cyan-soft:    rgba(79,216,240,0.14);
-  --magenta-soft: rgba(216,96,240,0.14);
+       : React.createElement(type,p,ch);
 
-  --accent:          var(--violet-light);
-  /* El degradado cian daba 1.69:1 con texto blanco. Este mantiene 4.6:1+ */
-  --btn-gradient:    linear-gradient(135deg, #6c5af0 0%, #9a4fe0 100%);
-  --accent-glow:     rgba(108,90,240,0.18);
-  --on-accent:       #ffffff;
-  --amber:       #fbbf24;
-  --red:         #f87171;
-  --purple:      var(--violet-light);
-}
+};
 
+/* views/Dashboard.jsx v2 — Multi-escuela */
 
+// Debe reflejar PLANES_LIMITES en api.php (única fuente de verdad real).
 
-html, body {
+// Protección: si views/components/Charts.js no se cargó (porque no se subió o
+// falta la línea en index.html), la vista sigue funcionando en vez de romperse.
+var _sinGrafica = function (texto) {
+  return function () {
+    return React.createElement('div', {
+      style: {
+        padding: '18px', textAlign: 'center', fontSize: 12.5, color: 'var(--ink-4)',
+        border: '1px dashed var(--border-glow)', borderRadius: 'var(--radius)'
+      }
+    }, texto);
+  };
+};
+if (typeof AreaChart === 'undefined')    var AreaChart    = _sinGrafica('Falta cargar Charts.js');
+if (typeof DonutChart === 'undefined')   var DonutChart   = _sinGrafica('Falta cargar Charts.js');
+if (typeof DonutLeyenda === 'undefined') var DonutLeyenda = _sinGrafica('');
 
-  height:100%; font-family:var(--font);
+const PLANES_INFO_DASH = {
 
-  background:var(--bg-main); color:var(--ink);
+  basico:   { label: 'Básico',   max_alumnos: 400, max_planteles: 1,    color: 'var(--ink-3)' },
 
-  font-size:14px; line-height:1.55;
+  avanzado: { label: 'Avanzado', max_alumnos: 800, max_planteles: 1,    color: 'var(--accent)' },
 
-  -webkit-font-smoothing:antialiased;
+  pro:      { label: 'Pro',      max_alumnos: null, max_planteles: null, color: 'var(--magenta)' },
 
-  text-rendering:optimizeLegibility;
+};
 
-  overflow:hidden;
+function Dashboard({
 
-}
+  data,
 
+  user,
 
+  escuela,
 
-/* ── LAYOUT ── */
+  allData
 
-#root { height:100vh; }
+}) {
 
-.app  { display:flex; height:100vh; overflow:hidden; background:var(--bg-main); }
+  const { useState } = React;
 
+  const [filtroEscEstado, setFiltroEscEstado] = useState('todas'); // 'todas' | 'activas' | 'inactivas'
 
+  const esSuper = AuthController.isSuperAdmin(user);
 
-/* ── SIDEBAR ── */
+  
 
-.sidebar {
+  // VERIFICACIÓN DE CAJERO
 
-  width:var(--sidebar-w); flex-shrink:0;
+  const esCajero = user && user.rol === 'cajero'; 
 
-  background:transparent;
 
-  display:flex; flex-direction:column; overflow:hidden;
 
-  border-right:none;
+  const stats = AppModel.getEstadisticas(data.cobros);
 
-}
+  const pendientes = data.cobros.filter(c => c.estado === 'pendiente');
 
-.sidebar-brand { padding:22px 24px 20px; border-bottom:none; }
+  const recientes = [...data.cobros].reverse().slice(0, 6);
 
-.brand-logo    { display:flex; align-items:center; gap:11px; }
+  const totalMetodos = Object.values(stats.cobradosPorMetodo).reduce((a, b) => a + b, 0) || 1;
 
-.brand-icon {
+  // Planteles (sub-escuelas) asociados a la escuela principal que se está viendo
 
-  width:38px; height:38px;
+  const plantelesEscuela = escuela ? (data.planteles || []).filter(p => p.escuela_id === escuela.id) : [];
 
-  background:var(--grad-brand);
 
-  border-radius:50%; display:flex; align-items:center; justify-content:center;
 
-  font-size:17px; box-shadow:var(--shadow-violet); color:#fff; flex-shrink:0; font-weight:800;
+  // Si superadmin sin escuela seleccionada → mostrar overview global
 
-}
+  if (esSuper && !escuela) {
 
-.brand-name { font-size:16.5px; font-weight:700; color:var(--side-ink); letter-spacing:-.3px; }
+    const globalStats = AppModel.getEstadisticasGlobales(allData);
 
-.brand-sub  { font-size:10px; color:var(--side-ink-3); margin-top:1px; font-weight:600; text-transform:uppercase; letter-spacing:.7px; }
+    const statsFiltrados = globalStats.filter(s =>
 
+      filtroEscEstado === 'todas' ? true :
 
+      filtroEscEstado === 'activas' ? s.activa :
 
-.sidebar-nav { flex:1; overflow-y:auto; padding:14px 12px; }
+      !s.activa
 
-.sidebar-brand img { border-radius:10px; }
+    );
 
-.sidebar-nav::-webkit-scrollbar { width:0; }
+    const totalCobrado = statsFiltrados.reduce((a, s) => a + s.totalCobrado, 0);
 
-.nav-section { font-size:10px; font-weight:700; letter-spacing:.9px; text-transform:uppercase; color:var(--side-ink-3); padding:18px 12px 8px; }
+    const totalPend = statsFiltrados.reduce((a, s) => a + s.totalPendiente, 0);
 
-.nav-item {
+    const totalAlumnos = statsFiltrados.reduce((a, s) => a + s.numAlumnos, 0);
 
-  display:flex; align-items:center; gap:12px; padding:12px 24px;
+    return _jsxDEV("div", {
 
-  margin:0 -12px 2px; border-radius:0; cursor:pointer;
+      children: [_jsxDEV("div", {
 
-  transition:background .15s, color .15s;
+        style: {
 
-  color:var(--side-ink-2); font-size:13.5px; font-weight:500;
+          marginBottom: 24
 
-  position:relative;
+        },
 
-}
+        children: [_jsxDEV("h2", {
 
-.nav-item:hover { background:var(--side-hover); color:var(--side-ink); }
+          style: {
 
-.nav-item.active {
+            fontSize: 23,
 
-  background:var(--side-active-bg); color:var(--side-ink); font-weight:600;
+            fontWeight: 700,
 
-}
+            color: 'var(--ink)',
 
-.nav-item.active .nav-icon { color:var(--violet); }
+            letterSpacing: '-.7px'
 
-.nav-item.active::before {
+          },
 
-  content:''; position:absolute; right:0; top:0;
+          children: "Panel Global — Paga la Escuela"
 
-  width:3px; height:100%; border-radius:0; background:var(--violet);
+        }, void 0, false), _jsxDEV("p", {
 
-}
+          style: {
 
-.nav-icon  { font-size:16px; width:20px; text-align:center; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+            fontSize: 13,
 
-.nav-badge {
+            color: 'var(--ink-3)',
 
-  margin-left:auto; background:var(--red);
+            marginTop: 3
 
-  color:#fff; font-size:10px; font-weight:700;
+          },
 
-  padding:2px 7px; border-radius:20px;
+          children: new Date().toLocaleDateString('es-MX', {
 
-  min-width:20px; height:20px; display:flex; align-items:center; justify-content:center;
+            weekday: 'long',
 
-}
+            day: 'numeric',
 
+            month: 'long',
 
+            year: 'numeric'
 
-.sidebar-footer { border-top:1px solid var(--side-border); padding:14px 12px; }
+          })
 
-.user-card { display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:var(--radius); cursor:default; transition:background .15s; }
+        }, void 0, false)]
 
-.user-card:hover { background:var(--side-hover); }
+      }, void 0, true), _jsxDEV("div", {
 
-.avatar {
+        className: "stats-grid",
 
-  width:34px; height:34px; border-radius:9px; display:flex; align-items:center;
+        children: [_jsxDEV("div", {
 
-  justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; font-family:var(--mono);
+          className: "stat-card is-featured",
 
-}
+          children: [_jsxDEV("div", {
 
-.avatar-super  { background:var(--grad-warm) !important; color:#fff !important; }
+            className: "stat-icon",
 
-.avatar-admin  { background:var(--grad-cool) !important; color:#fff !important; }
+            children: _jsxDEV(Icon, {
 
-.avatar-cajero { background:linear-gradient(135deg, var(--green), var(--green-dark)) !important; color:#fff !important; }
+              name: "escuelas",
 
-.user-info { flex:1; min-width:0; }
+              size: 19,
 
-.user-name { font-size:13px; font-weight:600; color:var(--side-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+              color: "currentColor"
 
-.user-role { font-size:11px; color:var(--side-ink-3); margin-top:1px; }
+            }, void 0, false)
 
-.logout-btn { font-size:16px; color:var(--side-ink-3); cursor:pointer; padding:6px; border-radius:8px; transition:all .15s; border:none; background:none; display:flex; align-items:center; }
+          }, void 0, false), _jsxDEV("div", {
 
-.logout-btn:hover { color:var(--red); background:var(--red-glow); }
+            className: "stat-label",
 
+            children: filtroEscEstado === 'todas' ? 'Escuelas' : filtroEscEstado === 'activas' ? 'Escuelas activas' : 'Escuelas inactivas'
 
+          }, void 0, false), _jsxDEV("div", {
 
-/* ── MAIN ── */
+            className: "stat-value",
 
-.main {
-  flex:1; display:flex; flex-direction:column; overflow:hidden;
-  background:var(--bg-panel);
-  border-radius:var(--radius-panel) 0 0 0;
-  border-left:1px solid var(--border-glow);
-  border-top:1px solid var(--border-glow);
-  margin-top:14px;
-}
+            style: {
 
-.topbar {
+              fontSize: 20
 
-  height:var(--header-h); background:transparent;
+            },
 
-  border-bottom:none; display:flex; align-items:center;
+            children: statsFiltrados.length
 
-  padding:0 30px; gap:14px; flex-shrink:0;
+          }, void 0, false)]
 
-}
+        }, void 0, true), _jsxDEV("div", {
 
-.topbar-title   { font-size:16px; font-weight:700; color:var(--ink); letter-spacing:-.2px; }
+          className: "stat-card",
 
-.topbar-actions { margin-left:auto; display:flex; align-items:center; gap:10px; }
+          children: [_jsxDEV("div", {
 
-.content { flex:1; overflow-y:auto; padding:14px 30px 34px; animation:fadeIn .25s ease-out; }
+            className: "stat-icon tint-green",
 
-.content::-webkit-scrollbar { width:8px; }
+            children: _jsxDEV(Icon, {
 
-.content::-webkit-scrollbar-thumb { background:var(--border-glow); border-radius:20px; }
+              name: "pay",
 
-.content::-webkit-scrollbar-thumb:hover { background:var(--ink-4); }
+              size: 19,
 
-@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+              color: "currentColor"
 
+            }, void 0, false)
 
+          }, void 0, false), _jsxDEV("div", {
 
-/* ── BOTONES ── */
+            className: "stat-label",
 
-.btn {
+            children: "Total cobrado"
 
-  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+          }, void 0, false), _jsxDEV("div", {
 
-  padding:10px 18px; border-radius:var(--radius-pill); font-size:13px;
+            className: "stat-value",
 
-  font-weight:600; cursor:pointer; border:1px solid transparent;
+            style: {
 
-  transition:all .15s; font-family:var(--font); white-space:nowrap; line-height:1;
+              fontSize: 20
 
-}
+            },
 
-.btn-primary {
+            children: fmt(totalCobrado)
 
-  background:var(--btn-gradient); color:var(--on-accent);
+          }, void 0, false)]
 
-  box-shadow:var(--shadow-violet);
+        }, void 0, true), _jsxDEV("div", {
 
-}
+          className: "stat-card",
 
-.btn-primary:hover { filter:brightness(1.08); box-shadow:var(--shadow-md); }
+          children: [_jsxDEV("div", {
 
-.btn-secondary { background:var(--bg-solid); border-color:var(--border-glow); color:var(--ink-2); box-shadow:0 1px 2px rgba(16,24,40,.04); }
+            className: "stat-icon tint-amber",
 
-.btn-secondary:hover { background:var(--glass-light); color:var(--ink); border-color:var(--ink-4); }
+            children: _jsxDEV(Icon, {
 
-.btn-ghost { background:transparent; color:var(--ink-3); padding:8px; border:none; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font); }
+              name: "history",
 
-.btn-ghost:hover { background:var(--glass-light); color:var(--ink); }
+              size: 19,
 
+              color: "currentColor"
 
+            }, void 0, false)
 
-.emoji-picker-grid {
+          }, void 0, false), _jsxDEV("div", {
 
-  display:grid; grid-template-columns:repeat(6,1fr); gap:2px;
+            className: "stat-label",
 
-  max-height:170px; overflow-y:auto; padding-right:2px;
+            children: "Por cobrar"
 
-}
+          }, void 0, false), _jsxDEV("div", {
 
-.emoji-picker-item {
+            className: "stat-value",
 
-  font-size:20px; background:transparent; border:none; cursor:pointer;
+            style: {
 
-  border-radius:var(--radius-sm); padding:5px 0; line-height:1;
+              fontSize: 20
 
-  transition:background .12s;
+            },
 
-}
+            children: fmt(totalPend)
 
-.emoji-picker-item:hover { background:var(--bg-surface-2); }
+          }, void 0, false)]
 
-.btn-danger { background:var(--red-glow); color:var(--red); border-color:rgba(220,38,38,.2); }
+        }, void 0, true), _jsxDEV("div", {
 
-.btn-danger:hover { background:rgba(220,38,38,.16); }
+          className: "stat-card",
 
-.btn-success { background:var(--green-glow); color:var(--green-dark); border-color:rgba(47,158,68,.22); }
+          children: [_jsxDEV("div", {
 
-:root[data-theme="dark"] .btn-success { color:var(--green); }
+            className: "stat-icon tint-cyan",
 
-.btn-success:hover { background:rgba(47,158,68,.16); }
+            children: _jsxDEV(Icon, {
 
-.btn-sm { padding:6px 11px !important; font-size:12px !important; border-radius:var(--radius-sm) !important; }
+              name: "alumnos",
 
-.btn:disabled { opacity:.5; cursor:not-allowed; filter:none!important; box-shadow:none!important; }
+              size: 19,
 
+              color: "currentColor"
 
+            }, void 0, false)
 
-/* ── CARDS ── */
+          }, void 0, false), _jsxDEV("div", {
 
-.card {
+            className: "stat-label",
 
-  background:var(--bg-surface);
+            children: "Alumnos totales"
 
-  border:1px solid var(--border-glow); border-radius:var(--radius-lg);
+          }, void 0, false), _jsxDEV("div", {
 
-  padding:24px; box-shadow:var(--shadow-glass);
+            className: "stat-value",
 
-}
+            style: {
 
-.card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; }
+              fontSize: 20
 
-.card-title  { font-size:15px; font-weight:700; color:var(--ink); letter-spacing:-.2px; }
+            },
 
-.card-sub    { font-size:12px; color:var(--ink-3); margin-top:2px; }
+            children: totalAlumnos
 
+          }, void 0, false)]
 
+        }, void 0, true)]
 
-/* ── STAT CARDS ── */
+      }, void 0, true), _jsxDEV("div", {
 
-.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px; margin-bottom:24px; }
+        style: {
 
-.dash-split-grid { display:grid; grid-template-columns:1fr 320px; gap:20px; }
+          display: 'flex',
 
-.stat-card {
+          justifyContent: 'space-between',
 
-  background:var(--bg-surface);
+          alignItems: 'center',
 
-  border:1px solid var(--border-glow); border-radius:var(--radius-lg);
+          marginBottom: 14
 
-  padding:20px 22px; display:flex; flex-direction:column; gap:6px;
+        },
 
-  position:relative; overflow:hidden;
+        children: [_jsxDEV("h3", {
 
-  box-shadow:var(--shadow-glass); transition:transform .2s, box-shadow .2s, border-color .2s;
+          style: { fontSize: 14, fontWeight: 700, color: 'var(--ink)' },
 
-}
+          children: "Escuelas"
 
-.stat-card:hover { transform:translateY(-3px); box-shadow:var(--shadow-md); border-color:#dcdcea; }
+        }, void 0, false), _jsxDEV("div", {
 
-/* Jerarquía del video: icono arriba, número grande, etiqueta debajo.
-   Se reordena por CSS — el marcado de las vistas no se toca. */
-.stat-card > .stat-icon  { order:1; }
-.stat-card > .stat-value { order:2; }
-.stat-card > .stat-label { order:3; }
-.stat-card > .stat-meta  { order:4; }
+          style: { display: 'flex', gap: 6 },
 
-.stat-icon  {
-  width:44px; height:44px; border-radius:14px; display:flex; align-items:center;
-  justify-content:center; font-size:19px; margin-bottom:10px; color:var(--violet);
-  background:var(--violet-soft);
-}
+          children: [
 
-.stat-label { font-size:12.5px; color:var(--ink-3); font-weight:500; text-transform:none; letter-spacing:0; }
+            { id: 'todas',     label: `Todas (${globalStats.length})` },
 
-.stat-value {
-  font-size:29px; font-weight:700; color:var(--ink); letter-spacing:-1.1px;
-  font-family:var(--font); font-variant-numeric:tabular-nums; line-height:1.12;
-}
+            { id: 'activas',   label: `Activas (${globalStats.filter(s => s.activa).length})` },
 
-.stat-meta  { font-size:12px; color:var(--ink-3); }
+            { id: 'inactivas', label: `Inactivas (${globalStats.filter(s => !s.activa).length})` }
 
-.stat-meta.up   { color:var(--green-dark); font-weight:600; }
+          ].map(f => _jsxDEV("button", {
 
-.stat-meta.down { color:var(--red); font-weight:600; }
+            key: f.id,
 
+            className: `btn btn-sm ${filtroEscEstado === f.id ? 'btn-primary' : 'btn-secondary'}`,
 
+            onClick: () => setFiltroEscEstado(f.id),
 
-/* ── TABLAS ── */
+            children: f.label
 
-.table-wrap { overflow-x:auto; }
+          }, f.id, false))
 
-table { width:100%; border-collapse:collapse; }
+        }, void 0, true)]
 
-th {
-  padding:11px 14px; text-align:left; font-size:11.5px; font-weight:600;
-  color:var(--ink-3); text-transform:none; letter-spacing:.2px;
-  background:var(--glass-light); border-bottom:none; white-space:nowrap;
-}
-th:first-child { border-radius:var(--radius-sm) 0 0 var(--radius-sm); }
-th:last-child  { border-radius:0 var(--radius-sm) var(--radius-sm) 0; }
+      }, void 0, true), _jsxDEV("div", {
 
-td { padding:13px 14px; border-bottom:1px solid var(--border-glow); font-size:13px; color:var(--ink-2); vertical-align:middle; transition:background .12s; }
+        style: {
 
-tr:last-child td { border-bottom:none; }
+          display: 'grid',
 
-tbody tr { transition:background .12s; }
+          gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))',
 
-tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
+          gap: 16
 
+        },
 
+        children: statsFiltrados.length ? statsFiltrados.map(s => _jsxDEV("div", {
 
-/* ── BADGES ── */
+          className: "card",
 
-.badge        { display:inline-flex; align-items:center; gap:4px; padding:4px 11px; border-radius:var(--radius-pill); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+          style: {
 
-.badge-green  { background:var(--green-glow); color:var(--green-dark); border:1px solid rgba(47,158,68,.2); }
+            borderLeft: `3px solid ${s.color}`,
 
-.badge-lime   { background:var(--lime-glow);  color:var(--lime-dark); border:1px solid rgba(189,207,0,.25); }
+            opacity: s.activa ? 1 : .6
 
-.badge-amber  { background:var(--amber-glow); color:var(--amber); border:1px solid rgba(217,119,6,.2); }
+          },
 
-.badge-red    { background:var(--red-glow);   color:var(--red); border:1px solid rgba(220,38,38,.2); }
+          children: [_jsxDEV("div", {
 
-.badge-blue   { background:var(--accent-glow); color:var(--violet-dark); border:1px solid rgba(108,90,240,.20); }
+            style: {
 
-.badge-purple { background:var(--magenta-soft); color:#a83fc0; border:1px solid rgba(216,96,240,.22); }
+              display: 'flex',
 
-.badge-gray   { background:var(--glass-light); color:var(--ink-3); border:1px solid var(--border-glow); }
+              alignItems: 'center',
 
-:root[data-theme="dark"] .badge-green { color:var(--green); }
+              gap: 12,
 
-:root[data-theme="dark"] .badge-blue  { color:#818ccc; }
+              marginBottom: 14
 
+            },
 
+            children: [_jsxDEV("div", {
 
-/* ── FORMULARIOS ── */
+              style: {
 
-.form-group { margin-bottom:16px; }
+                fontSize: 28
 
-.form-label { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
+              },
 
-.form-input, .form-select {
+              children: s.emoji
 
-  width:100%; padding:10px 13px; background:var(--bg-solid);
+            }, void 0, false), _jsxDEV("div", {
 
-  border:1px solid var(--border-glow); border-radius:var(--radius);
+              style: { flex: 1, minWidth: 0 },
 
-  color:var(--ink); font-size:13.5px; font-family:var(--font);
+              children: [_jsxDEV("div", {
 
-  transition:border-color .15s, box-shadow .15s; outline:none;
+                style: {
 
-}
+                  fontWeight: 600,
 
-.form-input:focus, .form-select:focus {
+                  fontSize: 14,
 
-  border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow);
+                  color: 'var(--ink)',
 
-}
+                  display: 'flex',
 
-.form-input::placeholder { color:var(--ink-4); }
+                  alignItems: 'center',
 
-.form-select {
+                  gap: 6
 
-  appearance:none;
+                },
 
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23697386' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+                children: [s.nombre, !s.activa && _jsxDEV("span", {
 
-  background-repeat:no-repeat; background-position:right 12px center;
+                  className: "badge badge-red",
 
-  padding-right:32px; cursor:pointer;
+                  children: "Inactiva"
 
-}
+                }, void 0, false), s.numPlanteles > 0 && _jsxDEV("span", {
 
-.form-select option { background:var(--bg-solid); color:var(--ink); }
+                  className: "badge badge-gray",
 
+                  title: "Planteles asociados",
 
+                  style: { display: 'flex', alignItems: 'center', gap: 3 },
 
-/* ── MODAL ── */
+                  children: [_jsxDEV(Icon, {
 
-.modal-backdrop {
+                    name: "escuelas",
 
-  position:fixed; inset:0; background:rgba(16,19,40,.45); backdrop-filter:blur(4px);
+                    size: 10,
 
-  display:flex; align-items:center; justify-content:center; z-index:1000;
+                    color: "currentColor"
 
-  animation:fadeIn .15s ease; padding:20px;
+                  }, void 0, false), s.numPlanteles]
 
-}
+                }, void 0, true)]
 
-.modal {
+              }, void 0, true), _jsxDEV("div", {
 
-  background:var(--bg-surface); border:1px solid var(--border-glow);
+                style: {
 
-  border-radius:var(--radius-panel); width:100%; max-width:480px; max-height:90vh;
+                  fontSize: 12,
 
-  overflow:hidden; display:flex; flex-direction:column;
+                  color: 'var(--ink-3)'
 
-  box-shadow:var(--shadow-lg);
+                },
 
-  animation:slideUp .2s ease;
+                children: [s.numAlumnos, " alumnos · ", s.numCobros, " cobros", s.numPlanteles > 0 ? ` · incluye ${s.numPlanteles} plantel${s.numPlanteles > 1 ? 'es' : ''}` : '']
 
-}
+              }, void 0, true)]
 
-.modal-lg  { max-width:680px; }
+            }, void 0, true)]
 
-@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:none;opacity:1} }
+          }, void 0, true), _jsxDEV("div", {
 
-.modal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
+            style: {
 
-.modal-title  { font-size:16px; font-weight:700; color:var(--ink); }
+              display: 'flex',
 
-.modal-body   { padding:20px 22px; overflow-y:auto; flex:1; }
+              justifyContent: 'space-between'
 
-.modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:16px 22px; border-top:1px solid var(--border-glow); flex-shrink:0; background:var(--bg-main); }
+            },
 
+            children: [_jsxDEV("div", {
 
+              children: [_jsxDEV("div", {
 
-/* ── LOGIN ── */
+                style: {
 
-.login-screen {
+                  fontSize: 11,
 
-  height:100vh; display:flex; align-items:center; justify-content:center;
+                  color: 'var(--ink-4)',
 
-  position:relative; overflow:hidden; padding-bottom:5rem;
+                  textTransform: 'uppercase',
 
-  /* ── Colores ORIGINALES de EduPago, aislados del rediseño ──
-     Redefinir los tokens aquí re-tiñe solo el login: el resto
-     del sistema sigue con la paleta del video.                */
+                  letterSpacing: '.4px'
 
-  --accent:       var(--lime);
+                },
 
-  --accent-glow:  rgba(189,207,0,0.18);
+                children: "Cobrado"
 
-  --btn-gradient: linear-gradient(135deg, #bdcf00 0%, #2f9e44 100%);
+              }, void 0, false), _jsxDEV("div", {
 
-  --border-glow:  rgba(255,255,255,0.07);
+                style: {
 
-  --bg-solid:     #272c52;
+                  fontFamily: 'var(--mono)',
 
-  --bg-surface:   #272c52;
+                  fontWeight: 700,
 
-  --ink:    #eef1f8;
+                  color: 'var(--green)',
 
-  --ink-2:  #c4cad8;
+                  fontSize: 15
 
-  --ink-3:  #8b93a7;
+                },
 
-  --ink-4:  #69798f;
+                children: fmt(s.totalCobrado)
 
-  background:#272c64;
+              }, void 0, false)]
 
-}
+            }, void 0, true), s.totalPendiente > 0 && _jsxDEV("div", {
 
-.login-screen::before {
+              style: {
 
-  content:''; position:absolute; inset:0;
+                textAlign: 'right'
 
-  background:
+              },
 
-    radial-gradient(ellipse 60% 60% at 80% 15%, rgba(189,207,0,.10) 0%, transparent 60%),
+              children: [_jsxDEV("div", {
 
-    radial-gradient(ellipse 60% 60% at 15% 85%, rgba(73,175,84,.10) 0%, transparent 60%);
+                style: {
 
-  pointer-events:none;
+                  fontSize: 11,
 
-}
+                  color: 'var(--ink-4)',
 
-.login-card {
+                  textTransform: 'uppercase',
 
-  width:390px; background:#272c52; border:1px solid rgba(255,255,255,.07);
+                  letterSpacing: '.4px'
 
-  border-radius:var(--radius-lg); padding:34px 32px; box-shadow:0 16px 40px rgba(0,0,0,.5);
+                },
 
-  animation:slideUp .3s ease; position:relative; z-index:1;
+                children: "Pendiente"
 
-}
+              }, void 0, false), _jsxDEV("div", {
 
-.login-logo    { text-align:center; margin-bottom:30px; }
+                style: {
 
-.login-brand   { font-size:28px; font-weight:800; color:var(--ink); letter-spacing:-1px; }
+                  fontFamily: 'var(--mono)',
 
-.login-tagline { font-size:12px; color:var(--green); margin-top:5px; font-weight:600; letter-spacing:.3px; }
+                  fontWeight: 700,
 
-.login-label   { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
+                  color: 'var(--amber)',
 
-.login-input {
+                  fontSize: 15
 
-  width:100%; padding:11px 14px; 
+                },
 
-  /*background:var(--bg-solid);*/
+                children: fmt(s.totalPendiente)
 
-  border:1px solid var(--border-glow); border-radius:var(--radius);
+              }, void 0, false)]
 
-  /*color:var(--ink);*/
+            }, void 0, true)]
 
-  font-size:14px; font-family:var(--font); outline:none;
+          }, void 0, true)]
 
-  transition:border-color .15s, box-shadow .15s;
+        }, s.escuela_id, true)) : _jsxDEV("div", {
 
-}
+          className: "card",
 
-.login-input:focus { border-color:var(--accent); 
+          style: { textAlign: 'center', color: 'var(--ink-4)', padding: 24, gridColumn: '1 / -1' },
 
-box-shadow:0 0 0 3px var(--accent-glow); 
+          children: "No hay escuelas que coincidan con este filtro."
 
-}
+        }, void 0, false)
 
-.login-btn {
+      }, void 0, false)]
 
-  width:100%; margin-top:20px; padding:13px;
-
-  background:var(--btn-gradient);
-
-  color:#fff; font-size:14px; font-weight:700; border:none; border-radius:var(--radius);
-
-  cursor:pointer; transition:all .15s; font-family:var(--font);
-
-  letter-spacing:.2px; box-shadow:0 4px 14px rgba(47,158,68,.28);
-
-}
-
-.login-btn:hover:not(:disabled) { filter:brightness(1.1); box-shadow:var(--shadow-md); }
-
-.login-btn:disabled { opacity:.6; cursor:not-allowed; }
-
-.login-demo { display:flex; gap:8px; margin-top:16px; }
-
-.demo-pill {
-
-  flex:1; padding:8px 6px; background:var(--bg-solid); border:1px solid var(--border-glow);
-
-  border-radius:var(--radius-sm); cursor:pointer; font-size:11px;
-
-  font-weight:500; color:var(--ink-2); text-align:center; transition:all .15s;
-
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-
-}
-
-.demo-pill:hover { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
-
-.login-error { color:var(--red); font-size:12px; margin-top:8px; }
-
-
-
-/* ── POS / CAJA ── */
-
-.pos-layout { display:grid; grid-template-columns:1fr 360px; gap:20px; height:100%; min-height:600px; }
-
-.pos-products { display:flex; flex-direction:column; background:var(--bg-surface); border:1px solid var(--border-glow); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-glass); }
-
-.pos-header { display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
-
-.pos-products-grid { flex:1; overflow-y:auto; padding:14px; display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; align-content:start; }
-
-
-
-.product-card {
-
-  background:var(--bg-solid); border:1px solid var(--border-glow);
-
-  border-radius:var(--radius); padding:14px 12px; cursor:pointer;
-
-  transition:all .15s; text-align:center;
-
-}
-
-.product-card:hover { border-color:var(--violet); transform:translateY(-3px); box-shadow:var(--shadow-md); }
-
-.product-emoji { font-size:26px; margin-bottom:7px; }
-
-.product-name  { font-size:12.5px; font-weight:600; color:var(--ink); margin-bottom:3px; line-height:1.3; }
-
-.product-type  { font-size:10.5px; color:var(--ink-3); margin-bottom:5px; text-transform:capitalize; }
-
-.product-price { font-size:13.5px; font-weight:700; color:var(--violet); font-variant-numeric:tabular-nums; }
-
-:root[data-theme="dark"] .product-price { color:var(--violet-light); }
-
-
-
-.pos-cart { display:flex; flex-direction:column; background:var(--bg-surface); border:1px solid var(--border-glow); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-glass); }
-
-.cart-header { padding:14px 16px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
-
-.cart-customer {
-
-  display:flex; align-items:center; gap:10px; padding:9px 12px;
-
-  background:var(--glass-light); border:1px solid var(--border-glow);
-
-  border-radius:var(--radius-sm); cursor:pointer; margin-top:8px;
-
-  transition:all .15s;
-
-}
-
-.cart-customer:hover { background:var(--glass-hover); border-color:var(--accent); }
-
-.cart-items { flex:1; overflow-y:auto; padding:10px 12px; }
-
-.cart-item { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:var(--radius-sm); border-bottom:1px solid var(--border-glow); }
-
-.cart-item:last-child { border-bottom:none; }
-
-.cart-item-info  { flex:1; min-width:0; }
-
-.cart-item-name  { font-size:13px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-.cart-item-qty   { display:flex; align-items:center; gap:6px; margin-top:3px; }
-
-.qty-btn { width:22px; height:22px; border-radius:5px; border:1px solid var(--border-glow); background:var(--bg-solid); color:var(--ink); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .12s; line-height:1; font-family:var(--mono); }
-
-.qty-btn:hover { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
-
-.qty-num { font-size:12.5px; font-weight:600; font-family:var(--mono); min-width:18px; text-align:center; }
-
-.cart-item-price { font-size:13.5px; font-weight:700; font-family:var(--mono); color:var(--ink); }
-
-.cart-remove { font-size:12px; color:var(--ink-4); cursor:pointer; display:block; margin-top:3px; transition:color .12s; text-align:right; }
-
-.cart-remove:hover { color:var(--red); }
-
-
-
-.cart-totals { padding:12px 16px; border-top:1px solid var(--border-glow); border-bottom:1px solid var(--border-glow); flex-shrink:0; }
-
-.totals-row  { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:13px; color:var(--ink-3); }
-
-.totals-total { font-size:18px; font-weight:800; font-family:var(--mono); color:var(--ink); }
-
-.text-mono { font-family:var(--mono); }
-
-
-
-.payment-methods { display:flex; gap:7px; padding:12px 14px; border-bottom:1px solid var(--border-glow); flex-shrink:0; flex-wrap:wrap; }
-
-.pay-method {
-
-  flex:1; min-width:60px; display:flex; flex-direction:column; align-items:center; gap:4px;
-
-  padding:8px 6px; border-radius:var(--radius-sm); border:1px solid var(--border-glow);
-
-  cursor:pointer; transition:all .15s; font-size:11px; font-weight:600; color:var(--ink-3);
-
-  background:var(--bg-solid);
-
-}
-
-.pay-method:hover { background:var(--glass-light); color:var(--ink); }
-
-.pay-method.selected { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
-
-.pm-icon { font-size:18px; }
-
-.checkout-btn {
-
-  margin:12px; padding:13px; background:var(--btn-gradient);
-
-  color:#fff; font-size:14px; font-weight:700; border:none;
-
-  border-radius:var(--radius); cursor:pointer; transition:all .15s;
-
-  font-family:var(--font); box-shadow:0 1px 2px rgba(16,24,40,.12);
-
-}
-
-.checkout-btn:hover:not(:disabled) { filter:brightness(1.1); box-shadow:var(--shadow-md); }
-
-.checkout-btn:disabled { opacity:.45; cursor:not-allowed; filter:none; box-shadow:none; }
-
-
-
-/* ── SEARCH BAR ── */
-
-.search-bar { position:relative; display:flex; align-items:center; }
-
-.search-bar .search-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:15px; pointer-events:none; color:var(--ink-4); }
-
-.search-bar input {
-
-  width:100%; padding:9px 14px 9px 38px; background:var(--bg-solid);
-
-  border:1px solid var(--border-glow); border-radius:var(--radius-sm);
-
-  color:var(--ink); font-size:13px; font-family:var(--font); outline:none;
-
-  transition:border-color .15s, box-shadow .15s;
-
-}
-
-.search-bar input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
-
-.search-bar input::placeholder { color:var(--ink-4); }
-
-
-
-/* ── EMPTY STATE ── */
-
-.empty-state { text-align:center; padding:40px 20px; }
-
-.empty-icon  { font-size:38px; margin-bottom:10px; opacity:.4; }
-
-.empty-text  { font-size:14px; color:var(--ink-3); font-weight:500; }
-
-.empty-sub   { font-size:12px; color:var(--ink-4); margin-top:4px; }
-
-
-
-/* ── TICKET ��─ */
-
-.ticket { background:#fff; color:#000; padding:18px 16px; border-radius:var(--radius); font-family:var(--mono); font-size:12px; max-width:280px; margin:0 auto; box-shadow:var(--shadow-md); }
-
-.ticket-divider { border:none; border-top:1px dashed #ccc; margin:8px 0; }
-
-
-
-/* ── SPEI BOX ── */
-
-.spei-box {
-
-  background:var(--grad-warm);
-
-  border-radius:var(--radius-lg); padding:22px; margin:12px 0;
-
-  border:none; box-shadow:var(--shadow-violet);
-
-}
-
-.clabe-display { font-family:var(--mono); font-size:22px; font-weight:700; color:#fff; letter-spacing:3px; text-align:center; padding:12px; background:rgba(0,0,0,.2); border-radius:var(--radius); margin:12px 0; }
-
-.spei-info-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; }
-
-.spei-label  { color:rgba(255,255,255,.55); font-size:10px; text-transform:uppercase; letter-spacing:.5px; }
-
-.spei-value  { color:#fff; font-weight:600; font-family:var(--mono); font-size:13px; }
-
-.copy-btn { display:flex; align-items:center; gap:6px; padding:8px 14px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); border-radius:var(--radius-sm); color:#fff; font-size:12px; font-weight:700; cursor:pointer; transition:all .15s; font-family:var(--font); width:100%; justify-content:center; }
-
-.copy-btn:hover  { background:rgba(255,255,255,.2); }
-
-.copy-btn.copied { background:rgba(47,158,68,.35); border-color:rgba(47,158,68,.6); color:#fff; }
-
-
-
-/* ── QR CoDi ── */
-
-.codi-qr { width:180px; height:180px; margin:0 auto; background:#fff; border-radius:var(--radius); padding:10px; display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-glass); }
-
-.qr-svg  { width:100%; height:100%; }
-
-
-
-/* ── SPINNER ── */
-
-.spinner { display:inline-block; width:18px; height:18px; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
-
-@keyframes spin { to { transform:rotate(360deg); } }
-
-
-
-/* ── THEME TOGGLE ── */
-
-.theme-toggle {
-  padding:9px 11px; border-radius:var(--radius-pill); border:1px solid var(--border-glow);
-  background:var(--bg-surface); cursor:pointer; font-size:15px; color:var(--ink-3);
-  transition:all .15s; display:flex; align-items:center; line-height:1;
-}
-
-/* Antes esta regla era `display:none`, así que el usuario no podía cambiar de tema. */
-.theme-toggle:hover { background:var(--violet-soft); color:var(--violet); border-color:var(--violet); }
-
-/* ── MOBILE MENU BUTTON + DRAWER BACKDROP (ocultos en escritorio) ── */
-
-.mobile-menu-btn {
-
-  display:none; align-items:center; justify-content:center;
-
-  width:38px; height:38px; flex-shrink:0;
-
-  border:1px solid var(--border-glow); border-radius:var(--radius-sm);
-
-  background:var(--bg-solid); color:var(--ink-2); cursor:pointer;
-
-  transition:all .15s; padding:0; margin-right:2px;
-
-}
-
-.mobile-menu-btn:hover { background:var(--glass-light); color:var(--ink); }
-
-.nav-backdrop { display:none; }
-
-
-
-/* ── PROGRESS BAR ── */
-
-.progress-bar  { height:6px; background:var(--glass-light); border-radius:10px; overflow:hidden; margin-top:8px; }
-
-.progress-fill { height:100%; border-radius:10px; transition:width 1s ease; background:var(--grad-cool); }
-
-
-
-/* ── VERIF ROW ── */
-
-.verif-row { display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--glass-light); border-radius:var(--radius-sm); margin-top:10px; }
-
-.verif-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-
-.verif-dot.pulse { animation:pulse 1.5s infinite; }
-
-@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
-
-
-
-/* ── Toast animation ── */
-
-@keyframes slideIn {
-
-  from { opacity:0; transform:translateY(-10px) translateX(10px); }
-
-  to   { opacity:1; transform:translateY(0) translateX(0); }
-
-}
-
-
-
-/* ══════════════════════════════════════════════════════
-
-   RESPONSIVE LAYOUT — funciona en cualquier dispositivo
-
-   · ≥ 1025px  → sidebar fijo completo (256px)
-
-   · 769–1024  → sidebar fijo (un poco más angosto) + grids fluidos
-
-   · ≤ 768px   → sidebar como drawer deslizable + botón de menú
-
-══════════════════════════════════════════════════════ */
-
-
-
-/* ── Asegura tablas y bloques anchos con scroll horizontal limpio ── */
-
-.table-wrap { -webkit-overflow-scrolling: touch; }
-
-
-
-/* ── TABLETS / PANTALLAS MEDIANAS (769–1024px) ── */
-
-@media (max-width: 1024px) and (min-width: 769px) {
-
-  :root { --sidebar-w: 220px; }
-
-  .content { padding: 22px; }
-
-  .pos-layout { grid-template-columns: 1fr 320px; }
-
-}
-
-
-
-/* ── TABLETS GRANDES Y MENORES: POS apilado (≤900px) ── */
-
-@media (max-width: 900px) {
-
-  .pos-layout {
-
-    grid-template-columns: 1fr;
-
-    min-height: auto;
-
-    height: auto;
+    }, void 0, true);
 
   }
 
-  .pos-cart { max-height: 60vh; }
+  return _jsxDEV("div", {
 
-  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    children: [_jsxDEV("div", {
 
-}
+      style: {
 
+        marginBottom: 24
 
+      },
 
-/* ── MÓVILES Y TABLETS VERTICALES (≤768px): SIDEBAR COMO DRAWER ── */
+      children: [_jsxDEV("h2", {
 
-@media (max-width: 768px) {
+        style: {
 
-  /* El layout deja de reservar espacio para el sidebar */
+          fontSize: 23,
 
-  .app { display: block; height: 100vh; overflow: hidden; }
+          fontWeight: 700,
 
+          color: 'var(--ink)',
 
+          letterSpacing: '-.7px'
 
-  /* Botón hamburguesa visible en la topbar */
+        },
 
-  .mobile-menu-btn { display: flex; }
+        children: ["Buenos días, ", user.nombre.split(' ')[0]]
 
+      }, void 0, true), _jsxDEV("p", {
 
+        style: {
 
-  /* Sidebar fuera de pantalla, entra al activar el menú */
+          fontSize: 13,
 
-  .sidebar {
+          color: 'var(--ink-3)',
 
-    position: fixed;
+          marginTop: 3
 
-    top: 0;
+        },
 
-    left: 0;
+        children: [escuela && _jsxDEV("span", {
 
-    height: 100%;
+          style: {
 
-    width: 270px;
+            color: escuela.color,
 
-    max-width: 82vw;
+            marginRight: 6
 
-    z-index: 300;
+          },
 
-    transform: translateX(-100%);
+          children: [escuela.logo_emoji, " ", escuela.nombre, " ·"]
 
-    transition: transform .25s ease;
+        }, void 0, true), escuela && !escuela.activa && _jsxDEV("span", {
 
-    box-shadow: var(--shadow-lg);
+          className: "badge badge-red",
 
-  }
+          style: { marginRight: 6 },
 
-  /* En modo drawer sí necesita fondo sólido y borde */
+          children: "Inactiva"
 
-  .sidebar { background: var(--bg-surface); border-right: 1px solid var(--border-glow); }
+        }, void 0, false), 
 
-  /* El panel principal ocupa todo el ancho: sin esquina redondeada ni margen */
+        
 
-  .main { border-radius:0; border-left:none; border-top:none; margin-top:0; height:100vh; }
+        escuela && !esCajero && (() => {
 
-  .topbar  { padding: 0 16px; }
+          const planKey = (escuela.plan || '').toLowerCase();
 
-  .content { padding: 4px 16px 22px; }
+          const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
 
-  /* La barra de acento vuelve al borde izquierdo dentro del drawer */
+          if (!info) return null;
 
-  .nav-item.active::before { right:auto; left:0; }
+          return _jsxDEV("span", {
 
+            className: "badge",
 
-  .app.nav-open .sidebar { transform: translateX(0); }
+            style: { marginRight: 6, color: info.color, borderColor: info.color },
 
+            title: `Plan ${info.label} — ${info.max_alumnos === null ? 'alumnos ilimitados' : `hasta ${info.max_alumnos} alumnos`}, ${info.max_planteles === null ? 'planteles ilimitados' : `hasta ${info.max_planteles} plantel(es)`}`,
 
+            children: ["Plan ", info.label]
 
-  /* Fondo oscuro detrás del drawer */
+          }, void 0, true);
 
-  .nav-backdrop {
+        })(), new Date().toLocaleDateString('es-MX', {
 
-    display: block;
+          weekday: 'long',
 
-    position: fixed;
+          day: 'numeric',
 
-    inset: 0;
+          month: 'long',
 
-    background: rgba(16, 19, 40, .5);
+          year: 'numeric'
 
-    backdrop-filter: blur(2px);
+        })]
 
-    z-index: 200;
+      }, void 0, true)]
 
-    opacity: 0;
+    }, void 0, true), 
 
-    pointer-events: none;
+    
 
-    transition: opacity .25s ease;
+    escuela && !esCajero && (() => {
 
-  }
+      const planKey = (escuela.plan || '').toLowerCase();
 
-  .app.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
+      const info = PLANES_INFO_DASH[planKey] || PLANES_INFO_DASH.basico;
 
+      if (!info) return null;
 
+      const totalAlumnos = typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length;
 
-  /* La zona principal ocupa todo el ancho */
+      const pct = info.max_alumnos ? Math.min(100, Math.round(totalAlumnos / info.max_alumnos * 100)) : null;
 
-  .main { height: 100vh; width: 100%; }
+      const excedido = info.max_alumnos !== null && totalAlumnos > info.max_alumnos;
 
+      const excedidoPlt = info.max_planteles !== null && plantelesEscuela.length > info.max_planteles;
 
+      return _jsxDEV("div", {
 
-  .topbar { padding: 0 14px; height: 58px; gap: 10px; }
+        className: "card",
 
-  .topbar-title { font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        style: { marginBottom: 22, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' },
 
-  .content { padding: 16px; }
+        children: [_jsxDEV("div", {
 
-  .card { padding: 16px; }
+          children: [_jsxDEV("div", { style: { fontSize: 11, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '.4px' }, children: "Tu plan" }, void 0, false),
 
-  .dash-split-grid { grid-template-columns: 1fr; }
+          _jsxDEV("div", { style: { fontSize: 15, fontWeight: 700, color: info.color }, children: info.label }, void 0, false)]
 
+        }, void 0, true), _jsxDEV("div", {
 
+          style: { flex: 1, minWidth: 180 },
 
-  /* Modales a ancho casi completo */
+          children: [_jsxDEV("div", {
 
-  .modal { max-width: 95%; max-height: 88vh; }
+            style: { fontSize: 12, color: excedido ? 'var(--red)' : 'var(--ink-3)', marginBottom: 4 },
 
-  .modal-lg { max-width: 95%; }
+            children: info.max_alumnos === null
 
-  .modal-header { padding: 14px 16px; }
+              ? `${totalAlumnos} alumnos (sin límite)`
 
-  .modal-body { padding: 16px; }
+              : `${totalAlumnos} / ${info.max_alumnos} alumnos${excedido ? ' — superaste el límite' : ''}`
 
-  .modal-footer { padding: 14px 16px; }
+          }, void 0, false), pct !== null && _jsxDEV("div", {
 
+            style: { width: '100%', maxWidth: 260, height: 6, background: 'var(--glass-light)', borderRadius: 3, overflow: 'hidden' },
 
+            children: _jsxDEV("div", { style: { width: `${pct}%`, height: '100%', background: excedido ? 'var(--red)' : 'var(--grad-cool)' } }, void 0, false)
 
-  /* Login */
+          }, void 0, false)]
 
-  .login-card { width: 100%; max-width: 380px; padding: 28px 22px; }
+        }, void 0, true), _jsxDEV("div", {
 
-  .login-brand { font-size: 24px; }
+          style: { fontSize: 12, color: excedidoPlt ? 'var(--red)' : 'var(--ink-3)' },
 
-}
+          children: info.max_planteles === null
 
+            ? `${plantelesEscuela.length} planteles (sin límite)`
 
+            : `${plantelesEscuela.length} / ${info.max_planteles} plantel(es)${excedidoPlt ? ' ⚠' : ''}`
 
-/* ── MÓVILES ESTÁNDAR (≤560px) ── */
+        }, void 0, false), (excedido || excedidoPlt) && _jsxDEV("span", {
 
-@media (max-width: 560px) {
+          style: { fontSize: 11.5, color: 'var(--red)' },
 
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          children: "Contacta a soporte para subir de plan."
 
+        }, void 0, false)]
 
+      }, void 0, true);
 
-  /* "Nuevo cobro" pasa a botón de ícono para ahorrar espacio */
+    })(), 
 
-  .topbar-actions .btn-primary { font-size: 0 !important; gap: 0 !important; padding: 9px !important; }
+    
 
+    // CONDICIÓN AÑADIDA: !esCajero para ocultar la sección de planteles
 
+    !esCajero && plantelesEscuela.length > 0 && _jsxDEV("div", {
 
-  .card-header { flex-wrap: wrap; }
+      style: { marginBottom: 22 },
 
-  .pos-cart { max-height: none; }
+      children: [_jsxDEV("div", {
 
-}
+        style: {
 
+          display: 'flex',
 
+          alignItems: 'center',
 
-/* ── MÓVILES PEQUEÑOS (≤420px) ── */
+          gap: 8,
 
-@media (max-width: 420px) {
+          marginBottom: 10
 
-  .topbar-title { font-size: 14px; }
+        },
 
-  .topbar-actions { gap: 6px; }
+        children: [_jsxDEV(Icon, {
 
-  .content { padding: 12px; }
+          name: "escuelas",
 
+          size: 14,
 
+          color: "var(--ink-3)"
 
-  .stats-grid { grid-template-columns: 1fr; }
+        }, void 0, false), _jsxDEV("h3", {
 
+          style: { fontSize: 13, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '.4px' },
 
+          children: ["Planteles de ", escuela.nombre, " (", plantelesEscuela.length, ")"]
 
-  .pos-products-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+        }, void 0, true)]
 
-  .product-emoji { font-size: 22px; }
+      }, void 0, true), _jsxDEV("div", {
 
-  .product-name { font-size: 11.5px; }
+        style: {
 
+          display: 'grid',
 
+          gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))',
 
-  .ticket { max-width: 100%; }
+          gap: 12
 
-}
+        },
 
+        children: plantelesEscuela.map(p => _jsxDEV("div", {
 
+          className: "card",
 
-/* ── PORTAL FAMILIA: header y pestañas responsive ── */
+          style: {
 
-.pf-tabs {
+            borderLeft: `3px solid ${escuela.color || 'var(--navy)'}`,
 
-  overflow-x: auto;
+            padding: '12px 14px',
 
-  -webkit-overflow-scrolling: touch;
+            opacity: p.activo ? 1 : .6
 
-  scrollbar-width: none;
+          },
 
-}
+          children: [_jsxDEV("div", {
 
-.pf-tabs::-webkit-scrollbar { display: none; }
+            style: {
 
-.pf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
-.pf-grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; }
+              display: 'flex',
 
-@media (max-width: 480px) {
-  .pf-grid-2, .pf-grid-1-2 { grid-template-columns: 1fr; }
-}
+              alignItems: 'center',
 
+              justifyContent: 'space-between',
 
+              gap: 6,
 
-@media (max-width: 640px) {
+              marginBottom: 4
 
-  .pf-header {
+            },
 
-    height: auto !important;
+            children: [_jsxDEV("div", {
 
-    min-height: 60px;
+              style: { fontWeight: 700, fontSize: 13, color: 'var(--ink)' },
 
-    flex-wrap: wrap !important;
+              children: p.nombre
 
-    row-gap: 6px;
+            }, void 0, false), !p.activo && _jsxDEV("span", {
 
-    padding: 10px 14px !important;
+              className: "badge badge-gray",
 
-  }
+              children: "Inactivo"
 
-  .pf-header-actions {
+            }, void 0, false)]
 
-    gap: 8px !important;
+          }, void 0, true), p.direccion && _jsxDEV("div", {
 
-  }
+            style: { fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 2 },
 
-  /* El badge de la escuela y el subtítulo "Portal Familiar" no caben
+            children: p.direccion
 
-     en una pantalla chica — se ocultan y solo queda lo esencial:
+          }, void 0, false), p.responsable && _jsxDEV("div", {
 
-     logo, nombre corto, avatar y botón de salir. */
+            style: { fontSize: 11, color: 'var(--ink-4)' },
 
-  .pf-header-badge { display: none !important; }
+            children: ["Resp: ", p.responsable, p.tel ? ' · ' + p.tel : '']
 
-  .pf-header-user-sub { display: none !important; }
+          }, void 0, true), (() => {
 
-  .pf-header-user-name {
+            const r = (data.resumen_planteles || {})[p.escuela_plantel_id];
 
-    max-width: 110px !important;
+            if (!r) return null;
 
-    overflow: hidden !important;
+            return _jsxDEV("div", {
 
-    text-overflow: ellipsis !important;
+              style: {
 
-    white-space: nowrap !important;
+                display: 'flex', gap: 10, marginTop: 8, paddingTop: 8,
 
-  }
+                borderTop: '1px solid var(--glass-light)', fontSize: 11
 
-}
+              },
 
+              children: [
 
+                _jsxDEV("span", { style: { color: 'var(--ink-3)' }, children: [r.num_alumnos, " alumnos"] }, void 0, true),
 
-@media (max-width: 420px) {
-  .pf-header-user-name { max-width: 78px !important; }
-}
+                _jsxDEV("span", { style: { color: 'var(--green)', fontFamily: 'var(--mono)' }, children: fmt(r.cobrado_90d) }, void 0, false),
 
-/* ══════════════════════════════════════════════════════
-   COMPONENTES NUEVOS — tomados del video de referencia
-   Son opcionales: se activan añadiendo la clase en la vista.
-══════════════════════════════════════════════════════ */
+                r.pendiente_90d > 0 && _jsxDEV("span", { style: { color: 'var(--amber)', fontFamily: 'var(--mono)' }, children: fmt(r.pendiente_90d) + ' pend.' }, void 0, false),
 
-/* ── Encabezado de sección ("Project statistics" en el video) ── */
-.section-title {
-  font-size:23px; font-weight:700; color:var(--ink);
-  letter-spacing:-.7px; display:flex; align-items:center; gap:9px; margin-bottom:18px;
-}
+              ]
 
-/* ── Grupo de píldoras / filtros segmentados (30 días · 90 días · …) ── */
-.pill-group { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.pill {
-  padding:9px 18px; border-radius:var(--radius-pill); font-size:12.5px; font-weight:600;
-  border:1px solid var(--border-glow); background:var(--bg-surface); color:var(--ink-3);
-  cursor:pointer; transition:all .15s; font-family:var(--font); white-space:nowrap; line-height:1;
-}
-.pill:hover { color:var(--ink); border-color:#dcdcea; }
-.pill.active {
-  background:var(--violet); border-color:var(--violet); color:#fff;
-  box-shadow:var(--shadow-violet);
-}
+            }, void 0, true);
 
-/* ── Tarjeta destacada con degradado (la tarjeta "Bounce Rate") ── */
-.stat-card.is-featured {
-  background:var(--grad-brand); border:none; color:#fff;
-  box-shadow:0 10px 28px rgba(108,90,240,.30);
-}
-.stat-card.is-featured .stat-value { color:#fff; }
-.stat-card.is-featured .stat-label { color:rgba(255,255,255,.88); }
-.stat-card.is-featured .stat-meta  { color:rgba(255,255,255,.80); }
-.stat-card.is-featured .stat-icon  { background:rgba(255,255,255,.22); color:#fff; }
-.stat-card.is-featured:hover { border-color:transparent; }
+          })()]
 
-/* ── Indicador de variación arriba a la derecha (▲ 1.2% / ▼ 2.1%) ── */
-.stat-delta {
-  position:absolute; top:20px; right:22px;
-  font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;
-}
-.stat-delta.up   { color:var(--green); }
-.stat-delta.down { color:var(--red); }
-.stat-delta::before { content:'▲'; font-size:8px; }
-.stat-delta.down::before { content:'▼'; }
-.stat-card.is-featured .stat-delta { color:#fff; }
+        }, p.id, true))
 
-/* ── Tintes para los azulejos de icono ── */
-.stat-icon.tint-cyan    { background:var(--cyan-soft);    color:#1aa8c4; }
-.stat-icon.tint-magenta { background:var(--magenta-soft); color:#b845d0; }
-.stat-icon.tint-green   { background:var(--green-glow);   color:var(--green-dark); }
-.stat-icon.tint-amber   { background:var(--amber-glow);   color:var(--amber); }
-.stat-icon.tint-red     { background:var(--red-glow);     color:var(--red); }
+      }, void 0, true)]
 
-/* ── Barras de desplazamiento discretas ── */
-.content::-webkit-scrollbar-thumb,
-.sidebar-nav::-webkit-scrollbar-thumb { background:#dcdde8; border-radius:20px; }
-* { scrollbar-width:thin; scrollbar-color:#dcdde8 transparent; }
+    }, void 0, true), _jsxDEV("div", {
 
-/* ── Encabezado de sección: apila filtros en pantallas angostas ── */
-@media (max-width: 768px) {
-  .section-title {
-    flex-direction:column; align-items:flex-start; gap:12px;
-    font-size:20px; margin-bottom:16px;
-  }
-  .section-title .pill-group { margin-left:0 !important; width:100%; }
-  .pill { padding:8px 14px; font-size:12px; }
-}
+      className: "stats-grid",
 
+      children: [{
 
-/* ══════════════════════════════════════════════════════
-   AJUSTES ESPECÍFICOS DEL MODO OSCURO
-   Detalles que no traducen automáticamente desde el modo claro.
-══════════════════════════════════════════════════════ */
+        /* Tarjeta destacada con degradado — el número principal del panel */
 
-/* ── El drawer móvil debe usar el panel, no la tarjeta ── */
-@media (max-width: 768px) {
-  :root[data-theme="dark"] .sidebar { background:var(--bg-panel); }
-}
+        featured: true,
 
-/* ── El panel se separa del lienzo con un borde superior sutil ── */
-:root[data-theme="dark"] .main {
-  border-left-color:rgba(255,255,255,.07);
-  border-top-color:rgba(255,255,255,.07);
-}
+        label: 'Total cobrado',
 
-/* ── Tarjeta destacada: en oscuro el degradado a full brillo deslumbra ── */
-:root[data-theme="dark"] .stat-card.is-featured {
-  background:linear-gradient(115deg, #2ea8c4 0%, #5946d8 55%, #a845c0 100%);
-  box-shadow:0 10px 30px rgba(108,90,240,.35);
-}
+        val: fmt(stats.totalCobrado),
 
-/* ── Azulejos de icono: tintes translúcidos en vez de pasteles sólidos ── */
-:root[data-theme="dark"] .stat-icon              { background:rgba(108,90,240,.18); color:var(--violet-light); }
-:root[data-theme="dark"] .stat-icon.tint-cyan    { background:rgba(79,216,240,.15);  color:#6fdcf0; }
-:root[data-theme="dark"] .stat-icon.tint-magenta { background:rgba(216,96,240,.15);  color:#e08cf5; }
-:root[data-theme="dark"] .stat-icon.tint-green   { background:rgba(73,175,84,.16);   color:#5fc96c; }
-:root[data-theme="dark"] .stat-icon.tint-amber   { background:rgba(217,119,6,.16);   color:#f0a63a; }
-:root[data-theme="dark"] .stat-icon.tint-red     { background:rgba(229,72,77,.16);   color:#f2777a; }
+        icon: 'pay',
 
-/* ── Píldora inactiva: la superficie de tarjeta la haría desaparecer ── */
-:root[data-theme="dark"] .pill { background:var(--bg-surface-2); }
-:root[data-theme="dark"] .pill:hover { border-color:rgba(255,255,255,.20); }
+        tint: '',
 
-/* ── Hover de fila: el violeta sólido es demasiado fuerte sobre oscuro ── */
-:root[data-theme="dark"] tbody tr:hover td { background:rgba(108,90,240,.14); }
+        meta: (() => {
 
-/* ── Cabecera de tabla sobre la superficie elevada ── */
-:root[data-theme="dark"] th { background:rgba(255,255,255,.045); color:var(--ink-3); }
+          // Tasa de recuperación REAL, calculada con los datos ya cargados. No se inventan variaciones: el backend no envía histórico.
 
-/* ── Botón secundario: necesita contraste contra la tarjeta ── */
-:root[data-theme="dark"] .btn-secondary { background:var(--bg-surface-2); border-color:var(--border-glow); color:var(--ink-2); }
-:root[data-theme="dark"] .btn-secondary:hover { background:rgba(255,255,255,.10); color:var(--ink); }
+          const base = stats.totalCobrado + stats.totalPendiente;
 
-/* ── Campos de formulario ── */
-:root[data-theme="dark"] .form-input,
-:root[data-theme="dark"] .form-select,
-:root[data-theme="dark"] .search-bar input { background:var(--bg-main); color:var(--ink); }
+          const pct = base > 0 ? Math.round(stats.totalCobrado / base * 100) : 0;
 
-/* ── Barras de desplazamiento ── */
-:root[data-theme="dark"] .content::-webkit-scrollbar-thumb,
-:root[data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,.14); }
-:root[data-theme="dark"] * { scrollbar-color:rgba(255,255,255,.14) transparent; }
+          const pagados = data.cobros.filter(c => c.estado === 'pagado').length;
 
-/* ── Transición al cambiar de tema (se respeta reduced-motion) ── */
-@media (prefers-reduced-motion: no-preference) {
-  .app, .main, .sidebar, .card, .stat-card, .topbar, .modal {
-    transition:background-color .22s ease, border-color .22s ease, color .22s ease;
-  }
+          return pct + '% recuperado · ' + pagados + ' cobros pagados';
+
+        })(),
+
+        color: ''
+
+      }, {
+
+        label: 'Por cobrar',
+
+        val: fmt(stats.totalPendiente),
+
+        icon: 'history',
+
+        tint: 'tint-amber',
+
+        meta: pendientes.length + ' cobros pendientes',
+
+        color: ''
+
+      }, {
+
+        label: 'Cobrado hoy',
+
+        val: fmt(stats.cobrosHoy),
+
+        icon: 'cobros',
+
+        tint: 'tint-green',
+
+        meta: data.cobros.filter(c => c.fecha === new Date().toISOString().slice(0, 10) && c.estado === 'pagado').length + ' transacciones hoy',
+
+        color: ''
+
+      }, {
+
+        label: 'Alumnos activos',
+
+        val: data.clientes.filter(c => c.activo).length,
+
+        icon: 'alumnos',
+
+        tint: 'tint-cyan',
+
+        meta: data.clientes.filter(c => c.activo && c.saldo_pendiente > 0).length + ' con saldo pendiente',
+
+        color: ''
+
+      }].map(s => _jsxDEV("div", {
+
+        className: "stat-card" + (s.featured ? " is-featured" : ""),
+
+        children: [_jsxDEV("div", {
+
+          className: "stat-icon" + (s.tint ? " " + s.tint : ""),
+
+          children: _jsxDEV(Icon, {
+
+            name: s.icon,
+
+            size: 19,
+
+            color: "currentColor"
+
+          }, void 0, false)
+
+        }, void 0, false), _jsxDEV("div", {
+
+          className: "stat-value",
+
+          style: {
+
+            color: s.color || undefined
+
+          },
+
+          children: s.val
+
+        }, void 0, false), _jsxDEV("div", {
+
+          className: "stat-label",
+
+          children: s.label
+
+        }, void 0, false), _jsxDEV("div", {
+
+          className: "stat-meta",
+
+          children: s.meta
+
+        }, void 0, false)]
+
+      }, s.label, true))
+
+    }, void 0, false), _jsxDEV("div", {
+
+      className: "card",
+
+      style: { marginBottom: 20 },
+
+      children: (() => {
+
+        // Tendencia de cobranza de los últimos 30 días, agrupada por día. Se construye con los cobros ya cargados: sin llamadas extra.
+
+        const dias = 30;
+
+        const hoyD = new Date();
+
+        const cubos = [];
+
+        for (let k = dias - 1; k >= 0; k--) {
+
+          const d = new Date(hoyD);
+
+          d.setDate(d.getDate() - k);
+
+          cubos.push({ iso: d.toISOString().slice(0, 10), label: d.getDate() + '/' + (d.getMonth() + 1), valor: 0 });
+
+        }
+
+        const idx = {};
+
+        cubos.forEach((c, n) => { idx[c.iso] = n; });
+
+        data.cobros.forEach(c => {
+
+          if (c.estado !== 'pagado') return;
+
+          const n = idx[c.fecha];
+
+          if (n !== undefined) cubos[n].valor += Number(c.total) || 0;
+
+        });
+
+        const suma = cubos.reduce((a, c) => a + c.valor, 0);
+
+        return [
+
+          _jsxDEV("div", {
+
+            className: "card-header",
+
+            children: [
+
+              _jsxDEV("div", {
+
+                children: [
+
+                  _jsxDEV("div", { className: "card-title", children: "Tendencia de cobranza" }, void 0, false),
+
+                  _jsxDEV("div", { className: "card-sub", children: "Últimos 30 días" }, void 0, false)
+
+                ]
+
+              }, void 0, true),
+
+              _jsxDEV("div", {
+
+                style: { fontSize: 19, fontWeight: 700, color: 'var(--violet)', letterSpacing: '-.6px' },
+
+                children: fmt(suma)
+
+              }, void 0, false)
+
+            ]
+
+          }, 'head', true),
+
+          _jsxDEV(AreaChart, {
+
+            datos: cubos,
+
+            alto: 210,
+
+            color: 'var(--violet)',
+
+            formato: fmt
+
+          }, 'chart', false)
+
+        ];
+
+      })()
+
+    }, void 0, false), _jsxDEV("div", {
+
+      className: "dash-split-grid",
+
+      children: [_jsxDEV("div", {
+
+        className: "card",
+
+        children: [_jsxDEV("div", {
+
+          className: "card-header",
+
+          children: _jsxDEV("div", {
+
+            children: [_jsxDEV("div", {
+
+              className: "card-title",
+
+              children: "Cobros recientes"
+
+            }, void 0, false), _jsxDEV("div", {
+
+              className: "card-sub",
+
+              children: "Últimas transacciones"
+
+            }, void 0, false)]
+
+          }, void 0, true)
+
+        }, void 0, false), _jsxDEV("div", {
+
+          className: "table-wrap",
+
+          children: _jsxDEV("table", {
+
+            children: [_jsxDEV("thead", {
+
+              children: _jsxDEV("tr", {
+
+                children: [_jsxDEV("th", {
+
+                  children: "Folio"
+
+                }, void 0, false), _jsxDEV("th", {
+
+                  children: "Cliente"
+
+                }, void 0, false), _jsxDEV("th", {
+
+                  children: "Total"
+
+                }, void 0, false), _jsxDEV("th", {
+
+                  children: "Método"
+
+                }, void 0, false), _jsxDEV("th", {
+
+                  children: "Estado"
+
+                }, void 0, false)]
+
+              }, void 0, true)
+
+            }, void 0, false), _jsxDEV("tbody", {
+
+              children: [recientes.length === 0 && _jsxDEV("tr", {
+
+                children: _jsxDEV("td", {
+
+                  colSpan: 5,
+
+                  children: _jsxDEV("div", {
+
+                    className: "empty-state",
+
+                    style: {
+
+                      padding: '20px 0'
+
+                    },
+
+                    children: _jsxDEV("div", {
+
+                      className: "empty-text",
+
+                      children: "Sin cobros aún"
+
+                    }, void 0, false)
+
+                  }, void 0, false)
+
+                }, void 0, false)
+
+              }, void 0, false), recientes.map(c => _jsxDEV("tr", {
+
+                children: [_jsxDEV("td", {
+
+                  children: _jsxDEV("span", {
+
+                    style: {
+
+                      fontFamily: 'var(--mono)',
+
+                      fontSize: 12
+
+                    },
+
+                    children: c.folio
+
+                  }, void 0, false)
+
+                }, void 0, false), _jsxDEV("td", {
+
+                  style: {
+
+                    maxWidth: 160,
+
+                    overflow: 'hidden',
+
+                    textOverflow: 'ellipsis',
+
+                    whiteSpace: 'nowrap'
+
+                  },
+
+                  children: c.cliente
+
+                }, void 0, false), _jsxDEV("td", {
+
+                  children: _jsxDEV("span", {
+
+                    style: {
+
+                      fontFamily: 'var(--mono)',
+
+                      fontWeight: 600
+
+                    },
+
+                    children: fmt(c.total)
+
+                  }, void 0, false)
+
+                }, void 0, false), _jsxDEV("td", {
+
+                  children: _jsxDEV(MetodoBadge, {
+
+                    metodo: c.metodo
+
+                  }, void 0, false)
+
+                }, void 0, false), _jsxDEV("td", {
+
+                  children: _jsxDEV(EstadoBadge, {
+
+                    estado: c.estado
+
+                  }, void 0, false)
+
+                }, void 0, false)]
+
+              }, c.id, true))]
+
+            }, void 0, true)]
+
+          }, void 0, true)
+
+        }, void 0, false)]
+
+      }, void 0, true), _jsxDEV("div", {
+
+        className: "card",
+
+        children: [_jsxDEV("div", {
+
+          className: "card-header",
+
+          children: _jsxDEV("div", {
+
+            children: [_jsxDEV("div", {
+
+              className: "card-title",
+
+              children: "Por método de pago"
+
+            }, void 0, false), _jsxDEV("div", {
+
+              className: "card-sub",
+
+              children: "Distribución del mes"
+
+            }, void 0, false)]
+
+          }, void 0, true)
+
+        }, void 0, false), _jsxDEV("div", {
+
+          style: { display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
+
+          children: (() => {
+
+            // Dona + leyenda, como "Traffic Sources" del video. Los datos son los mismos que antes mostraban las barras.
+
+            const serie = [
+
+              { label: 'Tarjeta',   valor: stats.cobradosPorMetodo.TC       || 0, color: 'var(--violet)' },
+
+              { label: 'SPEI',      valor: stats.cobradosPorMetodo.SPEI     || 0, color: 'var(--cyan)' },
+
+              { label: 'CoDi / QR', valor: stats.cobradosPorMetodo.CoDi     || 0, color: 'var(--magenta)' },
+
+              { label: 'Efectivo',  valor: stats.cobradosPorMetodo.Efectivo || 0, color: 'var(--green)' }
+
+            ].filter(d => d.valor > 0);
+
+            const total = serie.reduce((a, d) => a + d.valor, 0);
+
+            return [
+
+              _jsxDEV(DonutChart, {
+
+                datos: serie,
+
+                tamano: 168,
+
+                centro: {
+
+                  valor: (v => v >= 1e6 ? '$' + (v/1e6).toFixed(2) + 'M'
+
+                             : v >= 1e3 ? '$' + Math.round(v/1e3) + 'k'
+
+                             : '$' + Math.round(v))(total),
+
+                  etiqueta: 'Cobrado'
+
+                }
+
+              }, 'donut', false),
+
+              _jsxDEV(DonutLeyenda, { datos: serie }, 'leyenda', false)
+
+            ];
+
+          })()
+
+        }, void 0, false), pendientes.length > 0 && _jsxDEV("div", {
+
+          style: {
+
+            marginTop: 16,
+
+            padding: '10px 12px',
+
+            background: 'var(--amber-glow)',
+
+            border: '1px solid rgba(245,158,11,.2)',
+
+            borderRadius: 'var(--radius-sm)'
+
+          },
+
+          children: [_jsxDEV("div", {
+
+            style: {
+
+              fontSize: 12,
+
+              fontWeight: 600,
+
+              color: '#fbbf24',
+
+              marginBottom: 4,
+
+              display: "flex",
+
+              alignItems: "center",
+
+              gap: 6
+
+            },
+
+            children: [_jsxDEV(Icon, {
+
+              name: "warning",
+
+              size: 13,
+
+              color: "#fbbf24"
+
+            }, void 0, false), " Cobros pendientes"]
+
+          }, void 0, true), pendientes.slice(0, 3).map(c => _jsxDEV("div", {
+
+            style: {
+
+              fontSize: 11.5,
+
+              color: 'var(--ink-3)',
+
+              marginBottom: 2
+
+            },
+
+            children: [c.folio, " · ", (c.cliente || 'Cliente general').split(' ')[0], " · ", fmt(c.total)]
+
+          }, c.id, true))]
+
+        }, void 0, true)]
+
+      }, void 0, true)]
+
+    }, void 0, true)]
+
+  }, void 0, true);
+
 }
