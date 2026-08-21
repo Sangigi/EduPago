@@ -217,7 +217,76 @@ function Cobros({
           ]
         }, t.etiqueta, true));
       })()
-    }, void 0, false), _jsxDEV("div", {
+    }, void 0, false), (() => {
+      // Tendencia del listado que se está viendo. Respeta los filtros activos:
+      // al filtrar por método o estado, la gráfica se recalcula sola.
+      const pagados = lista.filter(c => c.estado === 'pagado' && c.fecha);
+      if (pagados.length < 3) return null;
+
+      const fechas = pagados.map(c => String(c.fecha).slice(0, 10)).sort();
+      const desde = new Date(fechas[0] + 'T00:00:00');
+      const hasta = new Date(fechas[fechas.length - 1] + 'T00:00:00');
+      const dias = Math.round((hasta - desde) / 86400000) + 1;
+      if (dias < 2 || dias > 400) return null;
+
+      // Con muchos días se agrupa por semana para que la línea siga siendo legible
+      const porSemana = dias > 70;
+      const cubos = [];
+      const idx = {};
+      for (let k = 0; k < dias; k++) {
+        const d = new Date(desde);
+        d.setDate(d.getDate() + k);
+        const iso = d.toISOString().slice(0, 10);
+        if (porSemana) {
+          const lunes = new Date(d);
+          lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+          const clave = lunes.toISOString().slice(0, 10);
+          if (idx[clave] === undefined) {
+            idx[clave] = cubos.length;
+            cubos.push({ label: lunes.getDate() + '/' + (lunes.getMonth() + 1), valor: 0 });
+          }
+          idx[iso] = idx[clave];
+        } else {
+          idx[iso] = cubos.length;
+          cubos.push({ label: d.getDate() + '/' + (d.getMonth() + 1), valor: 0 });
+        }
+      }
+      pagados.forEach(c => {
+        const n = idx[String(c.fecha).slice(0, 10)];
+        if (n !== undefined) cubos[n].valor += Number(c.total) || 0;
+      });
+      const suma = cubos.reduce((a, c) => a + c.valor, 0);
+
+      return _jsxDEV("div", {
+        className: "card",
+        style: { marginBottom: 20 },
+        children: [
+          _jsxDEV("div", {
+            className: "card-header",
+            children: [
+              _jsxDEV("div", {
+                children: [
+                  _jsxDEV("div", { className: "card-title", children: "Tendencia del periodo" }, void 0, false),
+                  _jsxDEV("div", {
+                    className: "card-sub",
+                    children: porSemana
+                      ? cubos.length + ' semanas · según los filtros aplicados'
+                      : dias + ' días · según los filtros aplicados'
+                  }, void 0, false)
+                ]
+              }, void 0, true),
+              _jsxDEV("div", {
+                style: { fontSize: 19, fontWeight: 700, color: 'var(--violet)', letterSpacing: '-.6px' },
+                children: fmt(suma)
+              }, void 0, false)
+            ]
+          }, 'h', true),
+          (typeof AreaChart !== 'undefined')
+            ? _jsxDEV(AreaChart, { datos: cubos, alto: 200, color: 'var(--violet)', formato: fmt }, 'c', false)
+            : null
+        ]
+      }, void 0, true);
+    })(), _jsxDEV("div", {
       className: "card",
       children: [_jsxDEV("div", {
         className: "card-header",
