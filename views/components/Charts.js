@@ -1,14 +1,11 @@
-/* views/components/Charts.js — Gráficas SVG basadas en el video de referencia.
-   Sin dependencias externas: solo React + SVG. Los colores salen de los tokens
-   del CSS, así que siguen el tema claro/oscuro automáticamente. */
+// views/components/Charts.js — Gráficas SVG basadas en el video de referencia. Sin dependencias externas: solo React + SVG. Los colores salen de los tokens del CSS, así que siguen el tema claro/oscuro automáticamente.
 
 const hC = React.createElement;
 
 /* Paleta de series, alineada con --violet / --cyan / --magenta */
 const SERIE_COLORES = ['#6c5af0', '#4fd8f0', '#d860f0', '#49af54', '#d97706', '#e5484d'];
 
-/* Curva suave (Catmull-Rom convertida a Bézier). Evita los picos duros
-   de una polilínea recta, como la línea del video. */
+// Curva suave (Catmull-Rom convertida a Bézier). Evita los picos duros de una polilínea recta, como la línea del video.
 function curva(pts, tension) {
   if (pts.length < 2) return '';
   const t = tension === undefined ? 0.5 : tension;
@@ -34,14 +31,7 @@ const abreviar = n => {
   return String(Math.round(n));
 };
 
-/* ══════════════════════════════════════════════════════
-   GRÁFICA DE ÁREA — equivalente a "Total visits" del video
-   props:
-     datos   [{ label, valor }]
-     alto    px (por defecto 220)
-     color   color de la línea
-     formato función para el tooltip (por defecto abrevia)
-══════════════════════════════════════════════════════ */
+// ══════════════════════════════════════════════════════ GRÁFICA DE ÁREA — equivalente a "Total visits" del video props: datos   [{ label, valor }] alto    px (por defecto 220) color   color de la línea formato función para el tooltip (por defecto abrevia) ══════════════════════════════════════════════════════
 function AreaChart({ datos, alto, color, formato, sufijo }) {
   const { useState, useId } = React;
   const [activo, setActivo] = useState(null);
@@ -165,13 +155,7 @@ function AreaChart({ datos, alto, color, formato, sufijo }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   DONA — equivalente a "Traffic Sources" del video
-   props:
-     datos   [{ label, valor }]
-     tamano  px (por defecto 190)
-     centro  { valor, etiqueta } opcional; si falta usa el segmento mayor
-══════════════════════════════════════════════════════ */
+// ══════════════════════════════════════════════════════ DONA — equivalente a "Traffic Sources" del video props: datos   [{ label, valor }] tamano  px (por defecto 190) centro  { valor, etiqueta } opcional; si falta usa el segmento mayor ══════════════════════════════════════════════════════
 function DonutChart({ datos, tamano, centro, formato }) {
   const { useState } = React;
   const [activo, setActivo] = useState(null);
