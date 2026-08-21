@@ -182,20 +182,54 @@ function Cobros({
     a.download = `cobros-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
   };
-  return /*#__PURE__*/_jsxDEV("div", {
-    children: [/*#__PURE__*/_jsxDEV("div", {
+  return _jsxDEV("div", {
+    children: [_jsxDEV("div", {
+      className: "stats-grid",
+      children: (() => {
+        // Resumen del listado que se está viendo, con los datos ya cargados.
+        const pagados  = lista.filter(c => c.estado === 'pagado');
+        const pends    = lista.filter(c => c.estado === 'pendiente');
+        const cobrado  = pagados.reduce((a, c) => a + (Number(c.total) || 0), 0);
+        const porCobrar = pends.reduce((a, c) => a + (Number(c.total) || 0), 0);
+        const ticket   = pagados.length ? cobrado / pagados.length : 0;
+        // Tendencia por día para la mini gráfica de la tarjeta destacada
+        const porDia = {};
+        pagados.forEach(c => { const d = (c.fecha || '').slice(0, 10); if (d) porDia[d] = (porDia[d] || 0) + (Number(c.total) || 0); });
+        const serie = Object.keys(porDia).sort().map(k => porDia[k]);
+        const tarjetas = [
+          { destacada: true, tinte: '', icono: 'pay', valor: fmt(cobrado), etiqueta: 'Cobrado en este listado', meta: pagados.length + ' cobros pagados', chispa: serie },
+          { tinte: 'tint-amber', icono: 'history', valor: fmt(porCobrar), etiqueta: 'Por cobrar', meta: pends.length + ' pendientes' },
+          { tinte: 'tint-cyan',  icono: 'cobros',  valor: fmt(ticket),    etiqueta: 'Ticket promedio', meta: 'Sobre los cobros pagados' },
+          { tinte: 'tint-green', icono: 'check',   valor: (lista.length ? Math.round(pagados.length / lista.length * 100) : 0) + '%', etiqueta: 'Tasa de cobro', meta: pagados.length + ' de ' + lista.length }
+        ];
+        return tarjetas.map(t => _jsxDEV("div", {
+          className: "stat-card" + (t.destacada ? " is-featured" : ""),
+          children: [
+            _jsxDEV("div", { className: "stat-icon" + (t.tinte ? " " + t.tinte : ""),
+              children: _jsxDEV(Icon, { name: t.icono, size: 19, color: "currentColor" }, void 0, false) }, void 0, false),
+            _jsxDEV("div", { className: "stat-value", children: t.valor }, void 0, false),
+            _jsxDEV("div", { className: "stat-label", children: t.etiqueta }, void 0, false),
+            _jsxDEV("div", { className: "stat-meta", children: t.meta }, void 0, false),
+            (t.chispa && t.chispa.length > 2 && typeof Sparkline !== 'undefined')
+              ? _jsxDEV("div", { className: "stat-spark", style: { opacity: .9, color: '#fff' },
+                  children: _jsxDEV(Sparkline, { datos: t.chispa, alto: 34, color: '#fff' }, void 0, false) }, void 0, false)
+              : null
+          ]
+        }, t.etiqueta, true));
+      })()
+    }, void 0, false), _jsxDEV("div", {
       className: "card",
-      children: [/*#__PURE__*/_jsxDEV("div", {
+      children: [_jsxDEV("div", {
         className: "card-header",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             className: "card-title",
             children: "Historial de cobros"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), _jsxDEV("div", {
             className: "card-sub",
             children: [paginaBackend ? paginaBackend.total : lista.length, " resultados", buscando && ' · buscando…']
           }, void 0, true)]
-        }, void 0, true), rol !== 'cajero' && /*#__PURE__*/_jsxDEV("button", {
+        }, void 0, true), rol !== 'cajero' && _jsxDEV("button", {
           className: "btn btn-secondary btn-sm",
           onClick: exportarCSV,
           style: {
@@ -203,20 +237,20 @@ function Cobros({
             alignItems: "center",
             gap: 6
           },
-          children: [/*#__PURE__*/_jsxDEV(Icon, {
+          children: [_jsxDEV(Icon, {
             name: "download",
             size: 14,
             color: "currentColor"
           }, void 0, false), " Exportar CSV"]
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         style: {
           display: 'flex',
           gap: 8,
           marginBottom: 14,
           flexWrap: 'wrap'
         },
-        children: [[['todos', 'Todos', 'badge-gray'], ['pagado', 'Pagados', 'badge-green'], ['pendiente', 'Pendientes', 'badge-amber'], ['cancelado', 'Cancelados', 'badge-red']].map(([val, label, cls]) => /*#__PURE__*/_jsxDEV("button", {
+        children: [[['todos', 'Todos', 'badge-gray'], ['pagado', 'Pagados', 'badge-green'], ['pendiente', 'Pendientes', 'badge-amber'], ['cancelado', 'Cancelados', 'badge-red']].map(([val, label, cls]) => _jsxDEV("button", {
           className: `badge ${filtroEstado === val ? cls : 'badge-gray'}`,
           style: {
             cursor: 'pointer',
@@ -226,7 +260,7 @@ function Cobros({
           },
           onClick: () => setFiltroEstado(val),
           children: [label, " (", totales[val] ?? lista.filter(c => c.estado === val).length, ")"]
-        }, val, true)), /*#__PURE__*/_jsxDEV("select", {
+        }, val, true)), _jsxDEV("select", {
           className: "form-select",
           style: {
             fontSize: 12,
@@ -236,102 +270,102 @@ function Cobros({
           },
           value: filtroMetodo,
           onChange: e => setFiltroMetodo(e.target.value),
-          children: [/*#__PURE__*/_jsxDEV("option", {
+          children: [_jsxDEV("option", {
             value: "todos",
             children: "Todos los métodos"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("option", {
+          }, void 0, false), _jsxDEV("option", {
             value: "TC",
             children: "Tarjeta"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("option", {
+          }, void 0, false), _jsxDEV("option", {
             value: "SPEI",
             children: "SPEI"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("option", {
+          }, void 0, false), _jsxDEV("option", {
             value: "CoDi",
             children: "CoDi"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("option", {
+          }, void 0, false), _jsxDEV("option", {
             value: "Efectivo",
             children: "Efectivo"
           }, void 0, false)]
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         className: "search-bar",
         style: {
           marginBottom: 16
         },
-        children: [/*#__PURE__*/_jsxDEV("span", {
+        children: [_jsxDEV("span", {
           className: "search-icon",
-          children: /*#__PURE__*/_jsxDEV(Icon, {
+          children: _jsxDEV(Icon, {
             name: "search",
             size: 15,
             color: "currentColor"
           }, void 0, false)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+        }, void 0, false), _jsxDEV("input", {
           placeholder: "Buscar por folio, cliente, matrícula…",
           value: q,
           onChange: e => setQ(e.target.value)
         }, void 0, false)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), _jsxDEV("div", {
         className: "table-wrap",
-        children: /*#__PURE__*/_jsxDEV("table", {
-          children: [/*#__PURE__*/_jsxDEV("thead", {
-            children: /*#__PURE__*/_jsxDEV("tr", {
-              children: [/*#__PURE__*/_jsxDEV("th", {
+        children: _jsxDEV("table", {
+          children: [_jsxDEV("thead", {
+            children: _jsxDEV("tr", {
+              children: [_jsxDEV("th", {
                 children: "Folio"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Fecha"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Cliente"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Referencia"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Total"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Método"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Estado"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Acción"
               }, void 0, false)]
             }, void 0, true)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
-            children: [lista.length === 0 && /*#__PURE__*/_jsxDEV("tr", {
-              children: /*#__PURE__*/_jsxDEV("td", {
+          }, void 0, false), _jsxDEV("tbody", {
+            children: [lista.length === 0 && _jsxDEV("tr", {
+              children: _jsxDEV("td", {
                 colSpan: 8,
-                children: /*#__PURE__*/_jsxDEV("div", {
+                children: _jsxDEV("div", {
                   className: "empty-state",
-                  children: [/*#__PURE__*/_jsxDEV("div", {
+                  children: [_jsxDEV("div", {
                     className: "empty-icon",
-                    children: /*#__PURE__*/_jsxDEV(Icon, {
+                    children: _jsxDEV(Icon, {
                       name: "cobros",
                       size: 36,
                       color: "currentColor"
                     }, void 0, false)
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                  }, void 0, false), _jsxDEV("div", {
                     className: "empty-text",
                     children: "Sin cobros en este filtro"
                   }, void 0, false)]
                 }, void 0, true)
               }, void 0, false)
-            }, void 0, false), lista.map(c => /*#__PURE__*/_jsxDEV("tr", {
+            }, void 0, false), lista.map(c => _jsxDEV("tr", {
               style: {
                 cursor: 'pointer'
               },
               onClick: () => setDetalle(c),
-              children: [/*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("span", {
+              children: [_jsxDEV("td", {
+                children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontSize: 12
                   },
                   children: c.folio
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", {
                 style: {
                   color: 'var(--ink-3)',
                   fontSize: 12
                 },
                 children: c.fecha
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", {
                 style: {
                   maxWidth: 160,
                   overflow: 'hidden',
@@ -340,8 +374,8 @@ function Cobros({
                   fontSize: 13
                 },
                 children: c.cliente
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontSize: 11,
@@ -349,66 +383,66 @@ function Cobros({
                   },
                   children: c.referencia || '—'
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontWeight: 600
                   },
                   children: fmt(c.total)
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV(MetodoBadge, {
+              }, void 0, false), _jsxDEV("td", {
+                children: _jsxDEV(MetodoBadge, {
                   metodo: c.metodo
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV(EstadoBadge, {
+              }, void 0, false), _jsxDEV("td", {
+                children: _jsxDEV(EstadoBadge, {
                   estado: c.estado
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", {
                 onClick: e => e.stopPropagation(),
-                children: /*#__PURE__*/_jsxDEV("div", {
+                children: _jsxDEV("div", {
                   style: {
                     display: 'flex',
                     gap: 4
                   },
-                  children: [c.estado === 'pendiente' && /*#__PURE__*/_jsxDEV(_Fragment, {
-                    children: [/*#__PURE__*/_jsxDEV("button", {
+                  children: [c.estado === 'pendiente' && _jsxDEV(_Fragment, {
+                    children: [_jsxDEV("button", {
                       className: "btn btn-primary btn-sm",
                       onClick: () => confirmarManual(c.id),
                       disabled: loadingId === c.id,
                       title: "Confirmar",
-                      children: loadingId === c.id ? '…' : /*#__PURE__*/_jsxDEV(Icon, {
+                      children: loadingId === c.id ? '…' : _jsxDEV(Icon, {
                         name: "check",
                         size: 14,
                         color: "currentColor"
                       }, void 0, false)
-                    }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                    }, void 0, false), _jsxDEV("button", {
                       className: "btn btn-ghost btn-sm",
                       onClick: () => cancelar(c.id),
                       disabled: loadingId === c.id,
                       title: "Cancelar",
-                      children: /*#__PURE__*/_jsxDEV(Icon, {
+                      children: _jsxDEV(Icon, {
                         name: "close",
                         size: 16,
                         color: "currentColor"
                       }, void 0, false)
                     }, void 0, false)]
-                  }, void 0, true), c.estado === 'pagado' && c.metodo === 'Cheque' && c.estatus_cheque !== 'rebotado' && /*#__PURE__*/_jsxDEV("button", {
+                  }, void 0, true), c.estado === 'pagado' && c.metodo === 'Cheque' && c.estatus_cheque !== 'rebotado' && _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     onClick: () => rebotar(c.id),
                     disabled: loadingId === c.id,
                     title: "Marcar cheque como rebotado",
                     style: { color: 'var(--red)' },
-                    children: loadingId === c.id ? '…' : /*#__PURE__*/_jsxDEV(Icon, {
+                    children: loadingId === c.id ? '…' : _jsxDEV(Icon, {
                       name: "warning",
                       size: 14,
                       color: "currentColor"
                     }, void 0, false)
-                  }, void 0, false), c.estado === 'pagado' && /*#__PURE__*/_jsxDEV("button", {
+                  }, void 0, false), c.estado === 'pagado' && _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     onClick: () => setDetalle(c),
-                    children: /*#__PURE__*/_jsxDEV(Icon, {
+                    children: _jsxDEV(Icon, {
                       name: "cobros",
                       size: 15,
                       color: "currentColor"
@@ -419,7 +453,7 @@ function Cobros({
             }, c.id, true))]
           }, void 0, true)]
         }, void 0, true)
-      }, void 0, false), paginaBackend && totalPaginas > 1 && /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, false), paginaBackend && totalPaginas > 1 && _jsxDEV("div", {
         style: {
           display: 'flex',
           alignItems: 'center',
@@ -430,16 +464,16 @@ function Cobros({
           color: 'var(--ink-3)',
         },
         children: [
-          /*#__PURE__*/_jsxDEV("span", {
+          _jsxDEV("span", {
             children: `Página ${pagina} de ${totalPaginas} · ${paginaBackend.total} cobros`
           }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", {
+          _jsxDEV("button", {
             className: "btn btn-ghost btn-sm",
             disabled: pagina <= 1 || buscando,
             onClick: () => irAPagina(pagina - 1),
             children: "‹ Anterior"
           }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", {
+          _jsxDEV("button", {
             className: "btn btn-ghost btn-sm",
             disabled: pagina >= totalPaginas || buscando,
             onClick: () => irAPagina(pagina + 1),
@@ -447,47 +481,47 @@ function Cobros({
           }, void 0, false),
         ],
       }, void 0, true)]
-    }, void 0, true), detalle && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true), detalle && _jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setDetalle(null),
-      children: /*#__PURE__*/_jsxDEV("div", {
+      children: _jsxDEV("div", {
         className: "modal",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
+            children: [_jsxDEV("div", {
               className: "modal-title",
               children: detalle.folio
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), _jsxDEV("div", {
               style: {
                 fontSize: 12,
                 color: 'var(--ink-3)',
                 marginTop: 2
               },
-              children: [detalle.fecha, " · ", /*#__PURE__*/_jsxDEV(EstadoBadge, {
+              children: [detalle.fecha, " · ", _jsxDEV(EstadoBadge, {
                 estado: detalle.estado
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+          }, void 0, true), _jsxDEV("button", {
             className: "btn btn-ghost btn-sm",
             onClick: () => setDetalle(null),
-            children: /*#__PURE__*/_jsxDEV(Icon, {
+            children: _jsxDEV(Icon, {
               name: "close",
               size: 16,
               color: "currentColor"
             }, void 0, false)
           }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-body",
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             style: {
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               gap: 12,
               marginBottom: 16
             },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("div", {
+              children: [_jsxDEV("div", {
                 style: {
                   fontSize: 11,
                   color: 'var(--ink-4)',
@@ -496,15 +530,15 @@ function Cobros({
                   marginBottom: 3
                 },
                 children: "Cliente"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, false), _jsxDEV("div", {
                 style: {
                   fontSize: 13,
                   fontWeight: 500
                 },
                 children: detalle.cliente
               }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), _jsxDEV("div", {
+              children: [_jsxDEV("div", {
                 style: {
                   fontSize: 11,
                   color: 'var(--ink-4)',
@@ -513,11 +547,11 @@ function Cobros({
                   marginBottom: 3
                 },
                 children: "Método de pago"
-              }, void 0, false), /*#__PURE__*/_jsxDEV(MetodoBadge, {
+              }, void 0, false), _jsxDEV(MetodoBadge, {
                 metodo: detalle.metodo
               }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), _jsxDEV("div", {
+              children: [_jsxDEV("div", {
                 style: {
                   fontSize: 11,
                   color: 'var(--ink-4)',
@@ -526,15 +560,15 @@ function Cobros({
                   marginBottom: 3
                 },
                 children: "Referencia / Concepto SPEI"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, false), _jsxDEV("div", {
                 style: {
                   fontFamily: 'var(--mono)',
                   fontSize: 13
                 },
                 children: detalle.referencia || '—'
               }, void 0, false)]
-            }, void 0, true), detalle.auth_code && /*#__PURE__*/_jsxDEV("div", {
-              children: [/*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), detalle.auth_code && _jsxDEV("div", {
+              children: [_jsxDEV("div", {
                 style: {
                   fontSize: 11,
                   color: 'var(--ink-4)',
@@ -543,7 +577,7 @@ function Cobros({
                   marginBottom: 3
                 },
                 children: "Autorización"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, false), _jsxDEV("div", {
                 style: {
                   fontFamily: 'var(--mono)',
                   fontSize: 13
@@ -551,13 +585,13 @@ function Cobros({
                 children: detalle.auth_code
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             style: {
               borderTop: '1px solid var(--border-glow)',
               paddingTop: 12,
               marginBottom: 12
             },
-            children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("div", {
               style: {
                 fontSize: 11,
                 color: 'var(--ink-4)',
@@ -566,13 +600,13 @@ function Cobros({
                 marginBottom: 8
               },
               children: "Conceptos"
-            }, void 0, false), itemsDetalle === null ? /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), itemsDetalle === null ? _jsxDEV("div", {
               style: { fontSize: 12.5, color: 'var(--ink-3)', padding: '6px 0' },
               children: "Cargando…"
-            }, void 0, false) : itemsDetalle.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false) : itemsDetalle.length === 0 ? _jsxDEV("div", {
               style: { fontSize: 12.5, color: 'var(--ink-4)', padding: '6px 0' },
               children: "Sin desglose disponible para este cobro."
-            }, void 0, false) : itemsDetalle.map((item, i) => /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false) : itemsDetalle.map((item, i) => _jsxDEV("div", {
               style: {
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -580,21 +614,21 @@ function Cobros({
                 borderBottom: '1px solid var(--glass-light)',
                 fontSize: 13
               },
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                children: [item.nombre, " ", item.cantidad > 1 && /*#__PURE__*/_jsxDEV("span", {
+              children: [_jsxDEV("span", {
+                children: [item.nombre, " ", item.cantidad > 1 && _jsxDEV("span", {
                   style: {
                     color: 'var(--ink-4)'
                   },
                   children: ["×", item.cantidad]
                 }, void 0, true)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, true), _jsxDEV("span", {
                 style: {
                   fontFamily: 'var(--mono)',
                   fontWeight: 500
                 },
                 children: fmt(item.subtotal)
               }, void 0, false)]
-            }, item.id || i, true)), /*#__PURE__*/_jsxDEV("div", {
+            }, item.id || i, true)), _jsxDEV("div", {
               style: {
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -602,9 +636,9 @@ function Cobros({
                 fontWeight: 700,
                 fontSize: 15
               },
-              children: [/*#__PURE__*/_jsxDEV("span", {
+              children: [_jsxDEV("span", {
                 children: "Total"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("span", {
                 style: {
                   fontFamily: 'var(--mono)',
                   color: 'var(--green)'
@@ -613,15 +647,15 @@ function Cobros({
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-footer",
-          children: [detalle.estado === 'pendiente' && /*#__PURE__*/_jsxDEV(_Fragment, {
-            children: [/*#__PURE__*/_jsxDEV("button", {
+          children: [detalle.estado === 'pendiente' && _jsxDEV(_Fragment, {
+            children: [_jsxDEV("button", {
               className: "btn btn-secondary",
               onClick: () => cancelar(detalle.id),
               disabled: !!loadingId,
               children: loadingId ? 'Procesando…' : "Cancelar cobro"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+            }, void 0, false), _jsxDEV("button", {
               className: "btn btn-primary",
               onClick: () => confirmarManual(detalle.id),
               disabled: !!loadingId,
@@ -630,13 +664,13 @@ function Cobros({
                 alignItems: "center",
                 gap: 6
               },
-              children: loadingId ? 'Procesando…' : [/*#__PURE__*/_jsxDEV(Icon, {
+              children: loadingId ? 'Procesando…' : [_jsxDEV(Icon, {
                 name: "check",
                 size: 15,
                 color: "currentColor"
               }, void 0, false), " Confirmar pago"]
             }, void 0, true)]
-          }, void 0, true), detalle.estado === 'pagado' && detalle.metodo === 'Cheque' && detalle.estatus_cheque !== 'rebotado' && /*#__PURE__*/_jsxDEV("button", {
+          }, void 0, true), detalle.estado === 'pagado' && detalle.metodo === 'Cheque' && detalle.estatus_cheque !== 'rebotado' && _jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: () => rebotar(detalle.id),
             disabled: !!loadingId,
@@ -646,12 +680,12 @@ function Cobros({
               alignItems: "center",
               gap: 6
             },
-            children: loadingId ? 'Procesando…' : [/*#__PURE__*/_jsxDEV(Icon, {
+            children: loadingId ? 'Procesando…' : [_jsxDEV(Icon, {
               name: "warning",
               size: 15,
               color: "currentColor"
             }, void 0, false), " Marcar cheque rebotado"]
-          }, void 0, true), detalle.estado !== 'pendiente' && /*#__PURE__*/_jsxDEV("button", {
+          }, void 0, true), detalle.estado !== 'pendiente' && _jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: () => setDetalle(null),
             children: "Cerrar"
