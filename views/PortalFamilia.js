@@ -34,23 +34,49 @@ function PortalFamilia({
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('inicio');
 
-  // Tema del portal. Se guarda en el navegador con la misma llave que el shell
-  // principal, así la preferencia es una sola en toda la plataforma.
-  const [temaOscuro, setTemaOscuro] = useState(() => {
+  // Tema del portal: 'claro', 'oscuro' o 'auto' (sigue al sistema).
+  // Se guarda con la misma llave que el resto de la plataforma, así la
+  // preferencia es una sola en todo el sistema.
+  const [modoTema, setModoTema] = useState(() => {
     try {
       const g = localStorage.getItem('edupago_theme');
-      if (g === 'dark') return true;
-      if (g === 'light') return false;
+      if (g === 'dark') return 'oscuro';
+      if (g === 'light') return 'claro';
     } catch (e) { /* storage bloqueado */ }
+    return 'auto';
+  });
+
+  const sistemaPrefiereOscuro = () => {
     try {
       return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     } catch (e) { return false; }
-  });
+  };
+
+  const temaOscuro = modoTema === 'oscuro' || (modoTema === 'auto' && sistemaPrefiereOscuro());
+
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', temaOscuro ? 'dark' : '');
-    try { localStorage.setItem('edupago_theme', temaOscuro ? 'dark' : 'light'); } catch (e) {}
-  }, [temaOscuro]);
-  const alternarTema = () => setTemaOscuro(v => !v);
+    const aplicar = () => {
+      const oscuro = modoTema === 'oscuro' || (modoTema === 'auto' && sistemaPrefiereOscuro());
+      document.documentElement.setAttribute('data-theme', oscuro ? 'dark' : '');
+    };
+    aplicar();
+    try {
+      if (modoTema === 'auto') localStorage.removeItem('edupago_theme');
+      else localStorage.setItem('edupago_theme', modoTema === 'oscuro' ? 'dark' : 'light');
+    } catch (e) { /* storage bloqueado */ }
+
+    // En modo automático hay que reaccionar si el sistema cambia mientras
+    // la página está abierta (por ejemplo al anochecer en el teléfono).
+    if (modoTema !== 'auto') return;
+    try {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      if (mq.addEventListener) { mq.addEventListener('change', aplicar); return () => mq.removeEventListener('change', aplicar); }
+      if (mq.addListener) { mq.addListener(aplicar); return () => mq.removeListener(aplicar); }
+    } catch (e) { /* navegador sin soporte */ }
+  }, [modoTema]);
+
+  // El botón de la barra alterna entre claro y oscuro de forma explícita
+  const alternarTema = () => setModoTema(temaOscuro ? 'claro' : 'oscuro');
   const [copied, setCopied] = useState('');
   const [pollStatus, setPollStatus] = useState(null);
   const pollRef = useRef(null);
@@ -515,6 +541,7 @@ function PortalFamilia({
   })();
 
   return _jsxDEV("div", {
+    className: 'pf-root',
     style: {
       minHeight: '100vh',
       background: 'var(--bg-main)',
@@ -628,6 +655,7 @@ function PortalFamilia({
 
       // ── Cuerpo ──
       _jsxDEV("div", {
+        className: 'pf-body',
         style: { maxWidth: 1120, margin: '0 auto', padding: 'clamp(18px,3vw,30px)' },
         children: [
 
@@ -2057,6 +2085,41 @@ function PortalFamilia({
       }, void 0, true), tab === 'config' && _jsxDEV("div", {
         style: { display: 'flex', flexDirection: 'column', gap: 18 },
         children: [_jsxDEV("div", {
+          children: [
+            _jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Apariencia" }, void 0, false),
+            _jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Elige c\u00f3mo quieres ver el portal. Tu elecci\u00f3n se guarda en este dispositivo." }, void 0, false),
+            _jsxDEV("div", {
+              style: { ...card(), padding: 14 },
+              children: _jsxDEV("div", {
+                style: { display: 'flex', gap: 10, flexWrap: 'wrap' },
+                children: [
+                  { id: 'claro',  label: 'Claro',      icon: 'sun' },
+                  { id: 'oscuro', label: 'Oscuro',     icon: 'moon' },
+                  { id: 'auto',   label: 'Autom\u00e1tico', icon: 'settings' }
+                ].map(op => _jsxDEV("button", {
+                  onClick: () => setModoTema(op.id),
+                  style: {
+                    flex: '1 1 130px', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 7, padding: '16px 12px',
+                    borderRadius: 'var(--radius)', cursor: 'pointer',
+                    fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
+                    border: '2px solid ' + (modoTema === op.id ? 'var(--violet)' : 'var(--border-glow)'),
+                    background: modoTema === op.id ? 'var(--violet-soft)' : 'var(--bg-surface)',
+                    color: modoTema === op.id ? 'var(--violet)' : 'var(--ink-2)',
+                    transition: 'all .15s'
+                  },
+                  children: [
+                    _jsxDEV(Icon, { name: op.icon, size: 20, color: 'currentColor' }, void 0, false),
+                    _jsxDEV("span", { children: op.label }, void 0, false),
+                    op.id === 'auto'
+                      ? _jsxDEV("span", { style: { fontSize: 10.5, fontWeight: 400, opacity: .75 }, children: "Sigue a tu dispositivo" }, void 0, false)
+                      : null
+                  ]
+                }, op.id, true))
+              }, void 0, false)
+            }, void 0, false)
+          ]
+        }, 'apariencia', true), _jsxDEV("div", {
           children: [_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Mis datos" }, void 0, false),
           _jsxDEV("div", { style: { fontSize: 12, color: PLC.muted, marginBottom: 10 }, children: "Información de contacto del tutor/a de la cuenta." }, void 0, false),
           _jsxDEV("div", {
