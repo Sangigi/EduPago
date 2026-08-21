@@ -1552,3 +1552,22 @@ box-shadow:0 0 0 3px var(--accent-glow);
 .be-limpiar:hover { background:var(--glass-light); color:var(--ink); }
 .be-ayuda { font-size:11.5px; color:var(--ink-4); margin-top:6px; }
 :root[data-theme="dark"] .be-chip { background:rgba(108,90,240,.22); color:#b6a9fa; }
+
+/* ══ Menú de perfil (pie del sidebar) ══ */
+.menu-perfil {
+  position:absolute; bottom:calc(100% + 8px); left:0; right:0; z-index:220;
+  background:var(--bg-surface); border:1px solid var(--border-glow);
+  border-radius:var(--radius); box-shadow:var(--shadow-lg);
+  padding:6px; animation:slideUp .15s ease;
+}
+.menu-perfil-item {
+  width:100%; display:flex; align-items:center; gap:10px;
+  padding:9px 11px; border:none; background:transparent; cursor:pointer;
+  border-radius:var(--radius-sm); font-family:var(--font); font-size:13px;
+  color:var(--ink-2); text-align:left; transition:background .12s, color .12s;
+}
+.menu-perfil-item:hover { background:var(--violet-soft); color:var(--violet); }
+.menu-perfil-item.peligro:hover { background:var(--red-glow); color:var(--red); }
+.menu-perfil-sep { height:1px; background:var(--border-glow); margin:5px 2px; }
+.user-card { border-radius:var(--radius); transition:background .12s; }
+.user-card:hover { background:var(--side-hover); }
