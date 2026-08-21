@@ -95,6 +95,16 @@
   --purple-glow: rgba(108,90,240,0.10);
 
   /* ══ LAYOUT ══ */
+  /* Alias de compatibilidad. Varias vistas usan estos nombres, que nunca
+     existieron como token: sin fallback la propiedad quedaba anulada, y con
+     fallback aplicaban un color oscuro en modo claro. Definirlos aquí corrige
+     13 usos en Alumnos, Caja, Escuelas, Usuarios y Recordatorios. */
+  --bg-2:    var(--bg-surface-2);
+  --border:  var(--border-glow);
+  --glass:   var(--glass-light);
+  --ink-1:   var(--ink);
+  --surface: var(--bg-surface);
+
   --radius-sm:    9px;
   --radius:       12px;
   --radius-lg:    18px;
@@ -463,6 +473,13 @@ html, body {
 .stat-card > .stat-value { order:2; }
 .stat-card > .stat-label { order:3; }
 .stat-card > .stat-meta  { order:4; }
+/* Cualquier otro hijo (por ejemplo una mini gráfica) va al final, no al inicio:
+   sin esto quedaría con order:0 y saltaría arriba del icono. */
+.stat-card > *           { order:5; }
+.stat-card > .stat-icon  { order:1; }
+.stat-card > .stat-value { order:2; }
+.stat-card > .stat-label { order:3; }
+.stat-spark              { order:5; margin-top:10px; width:100%; }
 
 .stat-icon  {
   width:44px; height:44px; border-radius:14px; display:flex; align-items:center;
