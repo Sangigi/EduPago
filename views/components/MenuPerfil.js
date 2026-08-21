@@ -147,6 +147,10 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
 
+  // ¿El correo realmente cambió? De eso depende que la API pida contraseña.
+  const correoCambio = tipo === 'cuenta' &&
+    email.trim().toLowerCase() !== String(user.email || '').trim().toLowerCase();
+
   const titulos = {
     cuenta: 'Editar mi perfil',
     password: 'Cambiar contraseña',
@@ -162,7 +166,14 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
       if (pwNueva !== pwConfirm) return setError('La confirmación no coincide.');
       if (pwNueva === pwActual) return setError('La nueva contraseña debe ser distinta de la actual.');
     }
-    if (tipo === 'cuenta' && !nombre.trim()) return setError('El nombre no puede quedar vacío.');
+    if (tipo === 'cuenta') {
+      if (!nombre.trim()) return setError('El nombre no puede quedar vacío.');
+      // La API exige confirmar la contraseña actual solo si cambias el correo
+      // (editar_usuario, rama $es_propio_perfil). Nombre y foto no la piden.
+      if (correoCambio && !pwActual) {
+        return setError('Para cambiar tu correo necesitas confirmar tu contraseña actual.');
+      }
+    }
 
     setGuardando(true);
     try {
@@ -173,12 +184,18 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
           password_nueva: pwNueva
         });
       } else if (tipo === 'cuenta') {
-        res = await apiPost('editar_usuario', {
+        const cuerpo = {
           id: user.id,
           nombre: nombre.trim(),
-          email: email.trim(),
           foto_url: fotoUrl.trim() || null
-        });
+        };
+        // El correo solo se manda si de verdad cambió: enviarlo siempre hacía
+        // que la API pidiera la contraseña incluso al cambiar solo la foto.
+        if (correoCambio) {
+          cuerpo.email = email.trim();
+          cuerpo.password_actual = pwActual;
+        }
+        res = await apiPost('editar_usuario', cuerpo);
       } else {
         res = await apiPost('editar_escuela', {
           id: escuela.id,
@@ -214,7 +231,17 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
       type: (opts && opts.tipo) || 'text',
       value: valor,
       placeholder: opts && opts.placeholder,
-      autoComplete: opts && opts.autoComplete,
+      // Nombres neutros + autocomplete explícito: sin esto el navegador
+      // interpreta el modal como formulario de acceso y monta encima su
+      // gestor de contraseñas, que llega a tapar los campos.
+      name: (opts && opts.name) || ('campo_' + etiqueta.replace(/\W+/g, '_').toLowerCase()),
+      autoComplete: (opts && opts.autoComplete) || 'off',
+      autoCorrect: 'off',
+      autoCapitalize: 'off',
+      spellCheck: false,
+      'data-lpignore': 'true',      // LastPass
+      'data-1p-ignore': 'true',     // 1Password
+      'data-form-type': 'other',    // Dashlane
       onChange: e => alCambiar(e.target.value)
     }),
     opts && opts.ayuda ? _hMP('div', {
@@ -244,7 +271,12 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
       _hMP('div', { key: 'b', className: 'modal-body' },
         tipo === 'cuenta' ? [
           campo('Nombre', nombre, setNombre),
-          campo('Correo', email, setEmail, { tipo: 'email' }),
+          campo('Correo', email, setEmail, { autoComplete: 'off', inputMode: 'email' }),
+          correoCambio ? campo('Confirma tu contraseña actual', pwActual, setPwActual, {
+            tipo: 'password',
+            autoComplete: 'current-password',
+            ayuda: 'Solo se pide porque estás cambiando tu correo.'
+          }) : null,
           campo('Foto de perfil (enlace)', fotoUrl, setFotoUrl, {
             placeholder: 'https://drive.google.com/…',
             ayuda: 'Pega el enlace público de la imagen. No se sube al sistema: solo se guarda la dirección.'
