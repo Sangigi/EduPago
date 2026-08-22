@@ -92,6 +92,30 @@ function validar_datos_recurrente($input) {
 // petición si la tabla aún no existe (falta correr la migración) — se
 // degrada a silencio + nota en api_log.txt, igual que hicimos con
 // recordatorios.
+// Lista blanca de parentescos. Se valida aqui y no con un ENUM en la tabla
+// para poder agregar valores sin otra migracion. Cualquier valor no previsto
+// cae en 'otro' en lugar de guardarse tal cual.
+function normalizar_parentesco($valor) {
+    $v = strtolower(trim((string)$valor));
+    if ($v === '') return null;
+    $permitidos = ['hijo','hija','hijastro','hijastra','sobrino','sobrina',
+                   'nieto','nieta','ahijado','ahijada','hermano','hermana',
+                   'tutorado','otro'];
+    return in_array($v, $permitidos, true) ? $v : 'otro';
+}
+
+// Valida un enlace que terminara como src de un <img>.
+// Solo http(s): sin esto se podria guardar javascript: o data: con contenido
+// arbitrario. El frontend tambien valida, pero esta es la validacion que cuenta.
+function validar_url_imagen($valor, $etiqueta = 'enlace') {
+    $u = trim((string)$valor);
+    if ($u === '') return null;
+    if (!preg_match('#^https?://#i', $u)) {
+        respond(['success' => false, 'error' => 'El ' . $etiqueta . ' debe empezar con http:// o https://']);
+    }
+    return mb_substr($u, 0, 512);
+}
+
 function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela_id = null) {
     try {
         $stmt = $pdo->prepare(
@@ -198,7 +222,10 @@ $action = $_GET['action'] ?? '';
 // 'verificar_spei' ya NO es pública: sin esto, cualquiera sin sesión podía
 // enumerar cobro_id secuenciales y leer estado/monto/autorización de
 // cualquier cobro del sistema, de cualquier escuela.
-$acciones_publicas = ['login'];
+// Acciones que NO requieren sesion. Se mantiene al minimo a proposito:
+// 'invitacion_ver' e 'invitacion_enviar' son el formulario de alta de colegios,
+// y su unica llave es el token de un solo uso que viaja en la liga.
+$acciones_publicas = ['login', 'invitacion_ver', 'invitacion_enviar'];
 if (!in_array($action, $acciones_publicas)) {
     $usuario_actual = verificar_token_auth();
 }
@@ -1222,29 +1249,28 @@ switch ($action) {
             $params_cli[] = $usuario_actual['familia_id'] ?? -1;
         }
         if ($busqueda_clientes !== '') {
-    // Búsqueda por etiquetas: el frontend manda los términos separados por "|".
-    // Cada término debe coincidir (Y lógica) en alguno de los campos, para poder
-    // acotar combinando apellido + matrícula + teléfono, etc.
-    $terminos = array_filter(array_map('trim', explode('|', $busqueda_clientes)), function ($t) {
-        return $t !== '';
-    });
+            // Busqueda por etiquetas: el frontend manda los terminos separados
+            // por "|". Cada termino debe coincidir (Y logica) en alguno de los
+            // campos, para poder acotar combinando apellido + matricula + etc.
+            $terminos = array_filter(array_map('trim', explode('|', $busqueda_clientes)), function ($t) {
+                return $t !== '';
+            });
+            // Tope defensivo: evita que una peticion manipulada arme una
+            // consulta enorme con cientos de LIKE encadenados.
+            $terminos = array_slice($terminos, 0, 8);
 
-    // Tope defensivo: evita que una petición manipulada arme una consulta enorme.
-    $terminos = array_slice($terminos, 0, 8);
-
-    foreach ($terminos as $t) {
-        $where_cli .= ' AND (nombre LIKE ? OR email LIKE ? OR matricula LIKE ?'
-                    . ' OR telefono LIKE ? OR curp LIKE ? OR grado LIKE ?)';
-        $like = "%$t%";
-        // Un parámetro por cada campo del OR, en el mismo orden
-        $params_cli[] = $like;  // nombre
-        $params_cli[] = $like;  // email
-        $params_cli[] = $like;  // matricula
-        $params_cli[] = $like;  // telefono
-        $params_cli[] = $like;  // curp
-        $params_cli[] = $like;  // grado
-    }
-}
+            foreach ($terminos as $t) {
+                $where_cli .= ' AND (nombre LIKE ? OR email LIKE ? OR matricula LIKE ?'
+                            . ' OR telefono LIKE ? OR curp LIKE ? OR grado LIKE ?)';
+                $like = "%$t%";
+                $params_cli[] = $like;  // nombre
+                $params_cli[] = $like;  // email
+                $params_cli[] = $like;  // matricula
+                $params_cli[] = $like;  // telefono
+                $params_cli[] = $like;  // curp
+                $params_cli[] = $like;  // grado
+            }
+        }
         $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE $where_cli");
         $cnt->execute($params_cli);
         $clientes_total = intval($cnt->fetch()['n'] ?? 0);
@@ -1979,6 +2005,8 @@ switch ($action) {
         $doc_acta_url        = trim($input['doc_acta_url']        ?? '') ?: null;
         $doc_ine_tutor_url   = trim($input['doc_ine_tutor_url']   ?? '') ?: null;
         $nivel_educativo_sat = trim($input['nivel_educativo_sat'] ?? '') ?: null;
+        $parentesco          = normalizar_parentesco($input['parentesco'] ?? '');
+        $foto_url            = validar_url_imagen($input['foto_url'] ?? '', 'enlace de la foto');
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
         // Límite de alumnos según el plan contratado (ver PLANES_LIMITES arriba)
         $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");
@@ -1996,12 +2024,12 @@ switch ($action) {
         $stmt = $pdo->prepare(
             "INSERT INTO clientes (escuela_id, familia_id, tipo, nombre, grado, matricula, curp, email, telefono,
                                     direccion, contacto_emergencia, tel_emergencia, doc_curp_url, doc_acta_url, doc_ine_tutor_url,
-                                    nivel_educativo_sat, activo)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+                                    nivel_educativo_sat, parentesco, foto_url, activo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
         );
         $stmt->execute([$escuela_id, $familia_id, $tipo, $nombre, $grado, $matricula, $curp, $email, $tel,
                          $direccion, $contacto_emergencia, $tel_emergencia, $doc_curp_url, $doc_acta_url, $doc_ine_tutor_url,
-                         $nivel_educativo_sat]);
+                         $nivel_educativo_sat, $parentesco, $foto_url]);
         $id = intval($pdo->lastInsertId());
         respond(['success' => true, 'cliente' => array_merge($input, ['id' => $id, 'activo' => true, 'saldo_pendiente' => 0])]);
     break;
@@ -2292,7 +2320,9 @@ switch ($action) {
             // Los datos fiscales (RFC/razón social/domicilio fiscal) ya NO se
             // editan por alumno — pertenecen al tutor/familia que paga (ver
             // case 'editar_familia'), no a cada hijo individualmente.
-            $campos = ['direccion', 'contacto_emergencia', 'tel_emergencia', 'telefono', 'email'];
+            // 'foto_url' se incluye para que el tutor pueda poner la foto de su
+            // hijo desde el portal familiar. No se le abren mas campos que estos.
+            $campos = ['direccion', 'contacto_emergencia', 'tel_emergencia', 'telefono', 'email', 'foto_url'];
         } else {
             // Admin: solo alumnos de su propia escuela — antes no se validaba
             // esto y un admin podía editar (incluida la reasignación de
@@ -2308,9 +2338,13 @@ switch ($action) {
             }
             $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id',
                        'direccion','contacto_emergencia','tel_emergencia',
-                       'doc_curp_url','doc_acta_url','doc_ine_tutor_url','nivel_educativo_sat'];
+                       'doc_curp_url','doc_acta_url','doc_ine_tutor_url','nivel_educativo_sat',
+                       'parentesco','foto_url','etiquetas','fecha_nac','tipo_sangre','alergias'];
         }
         if (array_key_exists('email', $input)) $input['email'] = validar_email_opcional($input['email']);
+        // Saneado de los campos nuevos, antes de armar el UPDATE
+        if (array_key_exists('parentesco', $input)) $input['parentesco'] = normalizar_parentesco($input['parentesco']);
+        if (array_key_exists('foto_url', $input))   $input['foto_url']   = validar_url_imagen($input['foto_url'], 'enlace de la foto');
         $sets = []; $vals = [];
         foreach ($campos as $c) {
             if (array_key_exists($c, $input)) {
@@ -2399,12 +2433,17 @@ switch ($action) {
         // Una familia edita sus propios datos de contacto y fiscales, pero
         // nunca su 'nombre' (identidad del expediente) — eso queda para
         // admin/superadmin, igual que en editar_cliente.
+        // 'foto_url' y 'etiquetas' se agregan a ambas listas: el tutor puede
+        // poner su propia foto desde el portal familiar.
         $campos = $es_familia_propia
             ? ['contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
-               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto']
+               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto',
+               'foto_url']
             : ['nombre', 'contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
-               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto'];
+               'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto',
+               'foto_url', 'etiquetas'];
         if (array_key_exists('email', $input)) $input['email'] = validar_email_opcional($input['email']);
+        if (array_key_exists('foto_url', $input)) $input['foto_url'] = validar_url_imagen($input['foto_url'], 'enlace de la foto');
         $sets = []; $vals = [];
         foreach ($campos as $c) {
             if (array_key_exists($c, $input)) {
@@ -2607,6 +2646,20 @@ switch ($action) {
         if ($fam_id !== '__NO_ENVIADO__') { $sets[] = 'familia_id = ?'; $vals[] = $fam_id; }
         if ($zona !== '__NO_ENVIADO__') { $sets[] = 'zona = ?'; $vals[] = $zona; }
         if ($zona_id !== '__NO_ENVIADO__') { $sets[] = 'zona_id = ?'; $vals[] = $zona_id; }
+        // Foto de perfil por enlace externo (no se sube archivo, solo la URL).
+        // Solo se toca si la clave viene en la peticion, para que un guardado
+        // parcial no borre una foto ya puesta.
+        if (array_key_exists('foto_url', $input)) {
+            $foto = trim((string)($input['foto_url'] ?? ''));
+            // Solo http(s): este valor termina como src de un <img>, y sin esta
+            // validacion se podria guardar javascript: o data: con contenido
+            // arbitrario. El frontend tambien valida, pero esta es la que cuenta.
+            if ($foto !== '' && !preg_match('#^https?://#i', $foto)) {
+                respond(['success' => false, 'error' => 'El enlace de la foto debe empezar con http:// o https://']);
+            }
+            $sets[] = 'foto_url = ?';
+            $vals[] = ($foto === '' ? null : mb_substr($foto, 0, 512));
+        }
         if ($sets) {
             $vals[] = $id;
             try {
@@ -3098,6 +3151,262 @@ switch ($action) {
         respond(['success' => true, 'alumnos' => $alumnos, 'usuarios' => $usuarios]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  1. Crear invitación  (asesor / admin / superadmin)
+// ══════════════════════════════════════════════════════════════
+case 'invitacion_crear':
+    $rol_actual = $usuario_actual['rol'] ?? '';
+    if (!in_array($rol_actual, ['superadmin', 'admin', 'distribuidor'], true)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => 'Sin permiso']);
+    }
+
+    $c_nombre = trim($input['contacto_nombre'] ?? '');
+    $c_email  = trim($input['contacto_email']  ?? '');
+    $c_tel    = trim($input['contacto_tel']    ?? '');
+    $notas    = trim($input['notas']           ?? '');
+
+    if ($c_nombre === '' || $c_email === '') {
+        respond(['success' => false, 'error' => 'Nombre y correo de contacto son obligatorios']);
+    }
+    if (!filter_var($c_email, FILTER_VALIDATE_EMAIL)) {
+        respond(['success' => false, 'error' => 'El correo de contacto no es válido']);
+    }
+
+    // 256 bits de un generador criptográfico
+    $token        = bin2hex(random_bytes(32));
+    $token_hash   = hash('sha256', $token);
+    $token_prefijo= substr($token, 0, 8);
+    $horas        = intval($input['vigencia_horas'] ?? 72);
+    if ($horas < 1 || $horas > 720) $horas = 72;   // entre 1 h y 30 días
+
+    $stmt = $pdo->prepare(
+        "INSERT INTO invitaciones_colegio
+            (token_hash, token_prefijo, creado_por, distribuidor_id,
+             contacto_nombre, contacto_email, contacto_tel, notas, expira)
+         VALUES (?,?,?,?,?,?,?,?, DATE_ADD(NOW(), INTERVAL ? HOUR))"
+    );
+    $stmt->execute([
+        $token_hash, $token_prefijo,
+        intval($usuario_actual['user_id'] ?? 0),
+        ($rol_actual === 'distribuidor' ? intval($usuario_actual['user_id'] ?? 0) : null),
+        $c_nombre, $c_email, $c_tel, $notas, $horas
+    ]);
+
+    // El token en claro se devuelve UNA sola vez. No vuelve a existir.
+    respond([
+        'success' => true,
+        'id'      => intval($pdo->lastInsertId()),
+        'token'   => $token,
+        // Si no defines APP_URL en config.php, la liga se arma con el host
+        // de la propia peticion, para que funcione sin configuracion extra.
+        'liga'    => (defined('APP_URL') && APP_URL
+                        ? rtrim(APP_URL, '/')
+                        : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                           . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                           . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
+                     . '/registro.html?t=' . $token,
+        'expira_horas' => $horas
+    ]);
+    break;
+
+// ══════════════════════════════════════════════════════════════
+//  2. Ver invitación  (PÚBLICO — sin sesión)
+//     Solo devuelve lo mínimo para pintar el formulario.
+// ══════════════════════════════════════════════════════════════
+case 'invitacion_ver':
+    $token = trim($_GET['t'] ?? $input['token'] ?? '');
+    // Respuesta idéntica en todos los casos malos: no se filtra si existe
+    $generico = ['success' => false, 'error' => 'Esta liga no es válida o ya venció.'];
+
+    if (strlen($token) !== 64 || !ctype_xdigit($token)) respond($generico);
+
+    $stmt = $pdo->prepare(
+        "SELECT id, contacto_nombre, contacto_email, estado, expira, intentos
+           FROM invitaciones_colegio WHERE token_hash = ? LIMIT 1"
+    );
+    $stmt->execute([hash('sha256', $token)]);
+    $inv = $stmt->fetch();
+
+    if (!$inv)                                    respond($generico);
+    if ($inv['estado'] !== 'pendiente')           respond($generico);
+    if (strtotime($inv['expira']) < time()) {
+        $pdo->prepare("UPDATE invitaciones_colegio SET estado='expirada' WHERE id=?")
+            ->execute([$inv['id']]);
+        respond($generico);
+    }
+    if (intval($inv['intentos']) >= 10) {
+        $pdo->prepare("UPDATE invitaciones_colegio SET estado='cancelada' WHERE id=?")
+            ->execute([$inv['id']]);
+        respond($generico);
+    }
+
+    respond([
+        'success'         => true,
+        'contacto_nombre' => $inv['contacto_nombre'],
+        'contacto_email'  => $inv['contacto_email']
+    ]);
+    break;
+
+// ══════════════════════════════════════════════════════════════
+//  3. Enviar datos  (PÚBLICO — sin sesión)
+//     No crea la escuela: solo guarda lo capturado para revisión.
+// ══════════════════════════════════════════════════════════════
+case 'invitacion_enviar':
+    $token = trim($input['token'] ?? '');
+    $generico = ['success' => false, 'error' => 'Esta liga no es válida o ya venció.'];
+
+    if (strlen($token) !== 64 || !ctype_xdigit($token)) respond($generico);
+
+    $stmt = $pdo->prepare(
+        "SELECT id, estado, expira, intentos FROM invitaciones_colegio
+          WHERE token_hash = ? LIMIT 1"
+    );
+    $stmt->execute([hash('sha256', $token)]);
+    $inv = $stmt->fetch();
+    if (!$inv || $inv['estado'] !== 'pendiente' || strtotime($inv['expira']) < time()) {
+        if ($inv) {
+            $pdo->prepare("UPDATE invitaciones_colegio SET intentos = intentos + 1 WHERE id = ?")
+                ->execute([$inv['id']]);
+        }
+        respond($generico);
+    }
+
+    $nombre    = trim($input['nombre']     ?? '');
+    $rfc       = strtoupper(trim($input['rfc'] ?? ''));
+    $rvoe      = trim($input['rvoe']       ?? '');
+    $telefono  = trim($input['telefono']   ?? '');
+    $email     = trim($input['email']      ?? '');
+    $direccion = trim($input['direccion']  ?? '');
+
+    if ($nombre === '' || $email === '') {
+        respond(['success' => false, 'error' => 'Nombre del colegio y correo son obligatorios']);
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        respond(['success' => false, 'error' => 'El correo no es válido']);
+    }
+    // RFC de persona moral (12) o física (13). Se valida forma, no existencia.
+    if ($rfc !== '' && !preg_match('/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/u', $rfc)) {
+        respond(['success' => false, 'error' => 'El RFC no tiene un formato válido']);
+    }
+
+    $datos = json_encode([
+        'nombre'    => mb_substr($nombre, 0, 160),
+        'rfc'       => mb_substr($rfc, 0, 13),
+        'rvoe'      => mb_substr($rvoe, 0, 60),
+        'telefono'  => mb_substr($telefono, 0, 40),
+        'email'     => mb_substr($email, 0, 160),
+        'direccion' => mb_substr($direccion, 0, 300),
+    ], JSON_UNESCAPED_UNICODE);
+
+    $pdo->prepare(
+        "UPDATE invitaciones_colegio
+            SET estado='enviado', datos_enviados=?, usada_en=NOW(), usada_ip=?
+          WHERE id=? AND estado='pendiente'"
+    )->execute([$datos, ($_SERVER['REMOTE_ADDR'] ?? null), $inv['id']]);
+
+    respond([
+        'success' => true,
+        'mensaje' => 'Recibimos tus datos. Te avisaremos por correo en cuanto tu colegio quede activo.'
+    ]);
+    break;
+
+// ══════════════════════════════════════════════════════════════
+//  4. Aprobar o rechazar  (solo superadmin)
+//     Aquí sí se crea la escuela, y nace inactiva hasta este punto.
+// ══════════════════════════════════════════════════════════════
+case 'invitacion_resolver':
+    if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
+        http_response_code(403);
+        respond(['success' => false, 'error' => 'Sin permiso']);
+    }
+    $id     = intval($input['id'] ?? 0);
+    $accion = trim($input['accion'] ?? '');   // 'aprobar' | 'rechazar'
+    if (!$id || !in_array($accion, ['aprobar', 'rechazar'], true)) {
+        respond(['success' => false, 'error' => 'Datos incompletos']);
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM invitaciones_colegio WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    $inv = $stmt->fetch();
+    if (!$inv)                        respond(['success' => false, 'error' => 'Invitación no encontrada']);
+    if ($inv['estado'] !== 'enviado') respond(['success' => false, 'error' => 'Esta invitación no está lista para resolverse']);
+
+    if ($accion === 'rechazar') {
+        $pdo->prepare(
+            "UPDATE invitaciones_colegio
+                SET estado='rechazada', motivo_rechazo=?, aprobada_por=?, aprobada_en=NOW()
+              WHERE id=?"
+        )->execute([
+            mb_substr(trim($input['motivo'] ?? ''), 0, 300),
+            intval($usuario_actual['user_id'] ?? 0), $id
+        ]);
+        respond(['success' => true]);
+    }
+
+    $d = json_decode($inv['datos_enviados'] ?? '{}', true) ?: [];
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            "INSERT INTO escuelas (nombre, rfc, rvoe, telefono, email, direccion,
+                                   activa, plan, fecha_alta, origen_invitacion_id)
+             VALUES (?,?,?,?,?,?, 1, 'basico', NOW(), ?)"
+        )->execute([
+            $d['nombre'] ?? '', $d['rfc'] ?? '', $d['rvoe'] ?? '',
+            $d['telefono'] ?? '', $d['email'] ?? '', $d['direccion'] ?? '', $id
+        ]);
+        $escuela_nueva = intval($pdo->lastInsertId());
+
+        $pdo->prepare(
+            "UPDATE invitaciones_colegio
+                SET estado='aprobada', escuela_id=?, aprobada_por=?, aprobada_en=NOW()
+              WHERE id=?"
+        )->execute([$escuela_nueva, intval($usuario_actual['user_id'] ?? 0), $id]);
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        respond(['success' => false, 'error' => 'No se pudo crear la escuela: ' . $e->getMessage()]);
+    }
+
+    // El usuario administrador del colegio se crea aparte, con
+    // 'crear_usuario', para no generar contraseñas aquí.
+    respond(['success' => true, 'escuela_id' => $escuela_nueva]);
+    break;
+
+// ══════════════════════════════════════════════════════════════
+//  5. Listar invitaciones  (asesor ve las suyas, superadmin todas)
+// ══════════════════════════════════════════════════════════════
+case 'invitaciones_listar':
+    $rol_actual = $usuario_actual['rol'] ?? '';
+    if (!in_array($rol_actual, ['superadmin', 'admin', 'distribuidor'], true)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => 'Sin permiso']);
+    }
+    // Se marcan como expiradas las que ya vencieron, de paso
+    $pdo->query("UPDATE invitaciones_colegio
+                    SET estado='expirada'
+                  WHERE estado='pendiente' AND expira < NOW()");
+
+    if ($rol_actual === 'superadmin') {
+        $stmt = $pdo->query(
+            "SELECT id, token_prefijo, contacto_nombre, contacto_email, contacto_tel,
+                    estado, expira, datos_enviados, escuela_id, fecha_alta
+               FROM invitaciones_colegio ORDER BY fecha_alta DESC LIMIT 200"
+        );
+    } else {
+        $stmt = $pdo->prepare(
+            "SELECT id, token_prefijo, contacto_nombre, contacto_email, contacto_tel,
+                    estado, expira, datos_enviados, escuela_id, fecha_alta
+               FROM invitaciones_colegio WHERE creado_por = ?
+              ORDER BY fecha_alta DESC LIMIT 200"
+        );
+        $stmt->execute([intval($usuario_actual['user_id'] ?? 0)]);
+    }
+    respond(['success' => true, 'invitaciones' => $stmt->fetchAll()]);
+    break;
+
     case 'crear_escuela':
         if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
             http_response_code(403);
@@ -3140,6 +3449,34 @@ switch ($action) {
         ]]);
     break;
     // ══════════════════════════════════════════════════════════════════════════
+    // Actualiza SOLO el logo del colegio.
+    // Va aparte de 'editar_escuela' por dos razones: ese endpoint exige nombre
+    // y clave (mandar solo el logo fallaria), y es exclusivo de superadmin.
+    // El logo es cosmetico, asi que aqui se permite tambien al admin de esa
+    // misma escuela, sin darle acceso a los datos fiscales.
+    case 'editar_logo_escuela':
+        $rol_actual = $usuario_actual['rol'] ?? '';
+        $id = intval($input['id'] ?? 0);
+        if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+
+        $esSuper = ($rol_actual === 'superadmin');
+        $esAdminDeEsta = ($rol_actual === 'admin'
+                          && $id === intval($usuario_actual['escuela_id'] ?? 0));
+        if (!$esSuper && !$esAdminDeEsta) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Sin permiso para cambiar el logo de este colegio.']);
+        }
+
+        $logo = trim((string)($input['logo_url'] ?? ''));
+        // Este valor termina como src de un <img>: solo http(s).
+        if ($logo !== '' && !preg_match('#^https?://#i', $logo)) {
+            respond(['success' => false, 'error' => 'El enlace del logo debe empezar con http:// o https://']);
+        }
+        $stmtLogo = $pdo->prepare("UPDATE escuelas SET logo_url = ? WHERE id = ?");
+        $stmtLogo->execute([($logo === '' ? null : mb_substr($logo, 0, 512)), $id]);
+        respond(['success' => true]);
+        break;
+
     case 'editar_escuela':
         if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
             http_response_code(403);
