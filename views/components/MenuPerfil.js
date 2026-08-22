@@ -67,7 +67,7 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost }) {
   ];
   // Solo superadmin: hoy `editar_escuela` en api.php exige ese rol.
   // Para permitirlo también a admin, ver api_perfil.md.
-  if (escuela && user.rol === 'superadmin') {
+  if (escuela && (user.rol === 'admin' || user.rol === 'superadmin')) {
     opciones.push({ id: 'logo', icono: 'escuelas', label: 'Logo de la escuela' });
   }
 
@@ -197,7 +197,7 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
         }
         res = await apiPost('editar_usuario', cuerpo);
       } else {
-        res = await apiPost('editar_escuela', {
+        res = await apiPost('editar_logo_escuela', {
           id: escuela.id,
           logo_url: logoUrl.trim() || null
         });
