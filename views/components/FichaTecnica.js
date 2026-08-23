@@ -4,7 +4,9 @@
 // nunca se sube el archivo al sistema, solo se guarda la direccion.
 // Sin foto, o si el enlace falla, se dibuja un avatar generico en SVG.
 
-const _hFT = React.createElement;
+// `var` a proposito: con `const`, cargar este archivo dos veces lanza
+// "Identifier already declared" y ese error tumba toda la aplicacion.
+var _hFT = React.createElement;
 
 function AvatarDefecto({ tam }) {
   const s = tam || 96;
@@ -47,7 +49,7 @@ function normalizarEnlaceFoto(url) {
   return u;
 }
 
-const _PARENTESCO_LABEL = {
+var _PARENTESCO_LABEL = {
   hijo: 'Hijo', hija: 'Hija', hijastro: 'Hijastro', hijastra: 'Hijastra',
   sobrino: 'Sobrino', sobrina: 'Sobrina', nieto: 'Nieto', nieta: 'Nieta',
   ahijado: 'Ahijado', ahijada: 'Ahijada', hermano: 'Hermano', hermana: 'Hermana',
