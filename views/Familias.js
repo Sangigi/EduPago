@@ -86,6 +86,8 @@ function Familias({
 
   const [avisoApellido, setAvisoApellido] = useState(null);
 
+  const [fichaTutor, setFichaTutor] = useState(null);
+
   // Parentescos donde SÍ se espera compartir apellido con la familia.
   // En los demás el no-coincidir es lo normal y no se avisa nada.
   const PARENTESCOS = [
@@ -964,6 +966,16 @@ function Familias({
                 children: "+ Añadir estudiante"
 
               }, void 0, false), _jsxDEV("button", {
+
+                className: "btn btn-secondary btn-sm",
+
+                title: "Ver ficha del tutor",
+
+                onClick: () => setFichaTutor(fam),
+
+                children: [_jsxDEV(Icon, { name: 'usuarios', size: 13, color: 'currentColor' }, 'i', false), " Ficha"]
+
+              }, 'fichaTutor', true), _jsxDEV("button", {
 
                 className: "btn btn-ghost btn-sm",
 
@@ -2111,7 +2123,63 @@ function Familias({
 
       }, void 0, true)
 
-    }, void 0, false), avisoApellido && _jsxDEV("div", {
+    }, void 0, false), fichaTutor && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
+
+      tipo: 'tutor',
+
+      registro: fichaTutor,
+
+      extra: (() => {
+
+        const hijos = data.clientes.filter(c => c.familia_id === fichaTutor.id);
+
+        const saldo = hijos.reduce((a, c) => a + (Number(c.saldo_pendiente) || 0), 0);
+
+        return {
+
+          alumnos: hijos.length,
+
+          saldo: saldo,
+
+          saldoTexto: '$' + saldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })
+
+        };
+
+      })(),
+
+      onCerrar: () => setFichaTutor(null),
+
+      onGuardarFoto: async url => {
+
+        const res = await fetch('api.php?action=editar_familia', {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+
+          body: JSON.stringify({ id: fichaTutor.id, foto_url: url })
+
+        }).then(r => r.json());
+
+        if (res && res.success !== false) {
+
+          setFichaTutor(f => f ? { ...f, foto_url: url } : f);
+
+          setData(prev => ({
+
+            ...prev,
+
+            familias: (prev.familias || []).map(f => f.id === fichaTutor.id ? { ...f, foto_url: url } : f)
+
+          }));
+
+        }
+
+        return res;
+
+      }
+
+    }, 'fichaT', false), avisoApellido && _jsxDEV("div", {
 
       className: "modal-backdrop",
 
