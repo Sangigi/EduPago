@@ -4,7 +4,9 @@
 // acotando: "García López" + nombre del tutor + matrícula.
 // Backspace con el campo vacío borra la última etiqueta.
 
-const _hBE = React.createElement;
+// `var` a proposito: con `const`, cargar este archivo dos veces lanza
+// "Identifier already declared" y ese error tumba toda la aplicacion.
+var _hBE = React.createElement;
 
 function BuscadorEtiquetas({ etiquetas, onCambio, placeholder, sugerencias, autoFocus }) {
   const { useState, useRef } = React;
