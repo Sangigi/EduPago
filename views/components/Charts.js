@@ -2,12 +2,14 @@
 // Sin dependencias externas: solo React + SVG.
 // Los colores salen de los tokens del CSS, así que siguen el tema claro/oscuro.
 
-const hC = React.createElement;
+// `var` a proposito: con `const`, cargar este archivo dos veces lanza
+// "Identifier already declared" y ese error tumba toda la aplicacion.
+var hC = React.createElement;
 
-const SERIE_COLORES = ['#6c5af0', '#4fd8f0', '#d860f0', '#49af54', '#d97706', '#e5484d'];
+var SERIE_COLORES = ['#6c5af0', '#4fd8f0', '#d860f0', '#49af54', '#d97706', '#e5484d'];
 
 // Pareja de color para el degradado de cada serie (inicio -> fin)
-const SERIE_GRAD = {
+var SERIE_GRAD = {
   '#6c5af0': ['#8b7cf6', '#5b46e0'],
   '#4fd8f0': ['#7ce6f7', '#28bcd8'],
   '#d860f0': ['#e88ff7', '#c23fd8'],
@@ -58,7 +60,7 @@ function curva(pts, tension) {
   return d;
 }
 
-const abreviar = function (n) {
+var abreviar = function (n) {
   const v = Math.abs(n);
   if (v >= 1e6) return (n / 1e6).toFixed(v >= 1e7 ? 0 : 1).replace('.0', '') + 'M';
   if (v >= 1e3) return (n / 1e3).toFixed(v >= 1e4 ? 0 : 1).replace('.0', '') + 'k';
