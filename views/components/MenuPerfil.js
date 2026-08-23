@@ -6,7 +6,9 @@
 // Si la columna aún no existe, el componente muestra las iniciales como
 // siempre: funciona igual antes y después de la migración.
 
-const _hMP = React.createElement;
+// `var` a proposito: con `const`, cargar este archivo dos veces lanza
+// "Identifier already declared" y ese error tumba toda la aplicacion.
+var _hMP = React.createElement;
 
 // Avatar que prefiere la imagen y cae a iniciales si no hay o si falla la carga
 function AvatarPerfil({ url, iniciales, tam, clase, radio }) {
