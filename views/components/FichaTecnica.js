@@ -1,178 +1,190 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<title>Registro de colegio · Paga la Escuela</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/main.css?v=1787290000">
-<style>
-  body { overflow: auto; }
-  .reg-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center;
-              padding:28px 18px; background:#272c64; }
-  .reg-card { width:100%; max-width:560px; background:#272c52; color:#eef1f8;
-              border:1px solid rgba(255,255,255,.07); border-radius:var(--radius-lg);
-              box-shadow:0 16px 40px rgba(0,0,0,.5); overflow:hidden; }
-  .reg-top  { padding:28px 30px 22px; text-align:center; }
-  .reg-marca{ font-size:24px; font-weight:800; letter-spacing:-.8px; }
-  .reg-sub  { font-size:12px; color:#bdcf00; font-weight:600; margin-top:4px; }
-  .reg-body { padding:0 30px 28px; }
-  .reg-h    { font-size:17px; font-weight:700; margin:0 0 4px; }
-  .reg-p    { font-size:13px; color:#8b93a7; margin:0 0 20px; line-height:1.55; }
-  .reg-campo{ margin-bottom:14px; }
-  .reg-campo label { display:block; font-size:12px; font-weight:600;
-                     color:rgba(255,255,255,.8); margin-bottom:5px; }
-  .reg-campo input, .reg-campo textarea {
-    width:100%; padding:11px 13px; border-radius:var(--radius);
-    border:1px solid rgba(255,255,255,.14); background:#fff; color:#1e2430;
-    font-size:14px; font-family:var(--font); outline:none;
-  }
-  .reg-campo input:focus, .reg-campo textarea:focus {
-    border-color:#bdcf00; box-shadow:0 0 0 3px rgba(189,207,0,.18);
-  }
-  .reg-op   { font-weight:400; color:#69798f; }
-  .reg-btn  { width:100%; margin-top:8px; padding:13px; border:none;
-              border-radius:var(--radius); cursor:pointer; color:#fff;
-              font-size:14px; font-weight:700; font-family:var(--font);
-              background:linear-gradient(135deg,#bdcf00 0%,#2f9e44 100%);
-              box-shadow:0 4px 14px rgba(47,158,68,.28); }
-  .reg-btn:disabled { opacity:.55; cursor:not-allowed; }
-  .reg-msg  { margin-top:14px; padding:11px 14px; border-radius:var(--radius-sm);
-              font-size:13px; line-height:1.5; }
-  .reg-err  { background:rgba(239,68,68,.12); color:#f87171; }
-  .reg-ok   { background:rgba(73,175,84,.14); color:#6fd07a; }
-  .reg-pie  { text-align:center; font-size:11px; color:#69798f; margin-top:18px; }
-  .reg-estado { text-align:center; padding:34px 30px 40px; }
-  .reg-estado-ic { font-size:38px; line-height:1; margin-bottom:14px; }
-</style>
-</head>
-<body>
-<div class="reg-wrap"><div class="reg-card" id="app">
-  <div class="reg-top">
-    <div class="reg-marca">Paga la Escuela</div>
-    <div class="reg-sub">REGISTRO DE COLEGIO</div>
-  </div>
-  <div class="reg-body" id="cuerpo">
-    <p class="reg-p">Verificando tu liga…</p>
-  </div>
-</div></div>
+// views/components/FichaTecnica.js
+// Credencial del alumno o del tutor. La foto entra por enlace externo
+// (Drive, etc.), igual que doc_curp_url y doc_acta_url que ya usabas:
+// nunca se sube el archivo al sistema, solo se guarda la direccion.
+// Sin foto, o si el enlace falla, se dibuja un avatar generico en SVG.
 
-<script>
-(function () {
-  var cuerpo = document.getElementById('cuerpo');
-  var token  = new URLSearchParams(location.search).get('t') || '';
+// `var` a proposito: con `const`, cargar este archivo dos veces lanza
+// "Identifier already declared" y ese error tumba toda la aplicacion.
+var _hFT = React.createElement;
 
-  function esc(t) {
-    return String(t == null ? '' : t)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  function pantalla(icono, titulo, texto) {
-    cuerpo.innerHTML =
-      '<div class="reg-estado">' +
-        '<div class="reg-estado-ic">' + icono + '</div>' +
-        '<div class="reg-h">' + esc(titulo) + '</div>' +
-        '<p class="reg-p" style="margin-top:8px">' + esc(texto) + '</p>' +
-      '</div>';
-  }
-
-  if (!token) {
-    pantalla('&#9888;', 'Falta la liga de invitación',
-      'Abre el enlace completo que te enviamos por correo.');
-    return;
-  }
-
-  fetch('api.php?action=invitacion_ver&t=' + encodeURIComponent(token))
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (!d || d.success === false) {
-        pantalla('&#9888;', 'Liga no válida',
-          (d && d.error) || 'Esta liga no es válida o ya venció. Pide una nueva a tu asesor.');
-        return;
-      }
-      formulario(d);
+function AvatarDefecto({ tam }) {
+  const s = tam || 96;
+  return _hFT('svg', {
+    width: s, height: s, viewBox: '0 0 96 96', style: { display: 'block' }
+  },
+    _hFT('rect', { key: 'bg', width: 96, height: 96, fill: 'var(--violet-soft)' }),
+    _hFT('circle', { key: 'c', cx: 48, cy: 37, r: 16, fill: 'var(--violet)', opacity: 0.6 }),
+    _hFT('path', {
+      key: 'b', d: 'M19 90c0-16 13-29 29-29s29 13 29 29v6H19v-6z',
+      fill: 'var(--violet)', opacity: 0.6
     })
-    .catch(function () {
-      pantalla('&#9888;', 'Sin conexión', 'No pudimos verificar tu liga. Intenta de nuevo en un momento.');
-    });
+  );
+}
 
-  function campo(id, etiqueta, opcional, tipo, ayuda) {
-    return '<div class="reg-campo">' +
-      '<label for="' + id + '">' + esc(etiqueta) +
-        (opcional ? ' <span class="reg-op">(opcional)</span>' : '') + '</label>' +
-      '<input id="' + id + '" type="' + (tipo || 'text') + '" autocomplete="off"' +
-        (ayuda ? ' placeholder="' + esc(ayuda) + '"' : '') + '>' +
-    '</div>';
+function FotoFicha({ url, tam, radio }) {
+  const { useState, useEffect } = React;
+  const [fallo, setFallo] = useState(false);
+  useEffect(function () { setFallo(false); }, [url]);
+  const s = tam || 96;
+  const r = radio === undefined ? 15 : radio;
+  if (!url || fallo) {
+    return _hFT('div', { style: { width: s, height: s, borderRadius: r, overflow: 'hidden' } },
+      _hFT(AvatarDefecto, { tam: s }));
   }
+  return _hFT('img', {
+    src: url, alt: '', onError: function () { setFallo(true); },
+    style: { width: s, height: s, borderRadius: r, objectFit: 'cover', display: 'block',
+             background: 'var(--glass-light)' }
+  });
+}
 
-  function formulario(d) {
-    cuerpo.innerHTML =
-      '<div class="reg-h">Hola, ' + esc((d.contacto_nombre || '').split(' ')[0]) + '</div>' +
-      '<p class="reg-p">Llena los datos de tu colegio. Al enviarlos, nuestro equipo los revisa ' +
-        'y te avisamos por correo en cuanto tu cuenta quede activa.</p>' +
-      campo('nombre',    'Nombre del colegio',   false, 'text', 'Colegio San Marcos') +
-      campo('email',     'Correo institucional', false, 'email', 'contacto@colegio.mx') +
-      campo('telefono',  'Teléfono',             true,  'tel',  '55 1234 5678') +
-      campo('rfc',       'RFC',                  true,  'text', 'ABC010203XY1') +
-      campo('rvoe',      'RVOE',                 true,  'text') +
-      campo('direccion', 'Dirección',            true,  'text') +
-      '<button class="reg-btn" id="enviar">Enviar mis datos</button>' +
-      '<div id="msg"></div>' +
-      '<div class="reg-pie">Tus datos solo se usan para dar de alta tu colegio.</div>';
+// Un enlace normal de Drive devuelve una pagina HTML, no la imagen.
+// Esto lo convierte a la URL que si se puede incrustar en un <img>.
+function normalizarEnlaceFoto(url) {
+  const u = String(url || '').trim();
+  if (!u) return '';
+  const d = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=|thumbnail\?id=)([\w-]{20,})/);
+  if (d) return 'https://drive.google.com/thumbnail?id=' + d[1] + '&sz=w512';
+  return u;
+}
 
-    var email = document.getElementById('email');
-    if (d.contacto_email) email.value = d.contacto_email;
+var _PARENTESCO_LABEL = {
+  hijo: 'Hijo', hija: 'Hija', hijastro: 'Hijastro', hijastra: 'Hijastra',
+  sobrino: 'Sobrino', sobrina: 'Sobrina', nieto: 'Nieto', nieta: 'Nieta',
+  ahijado: 'Ahijado', ahijada: 'Ahijada', hermano: 'Hermano', hermana: 'Hermana',
+  tutorado: 'Bajo tutela', otro: 'Otro'
+};
 
-    var btn = document.getElementById('enviar');
-    var msg = document.getElementById('msg');
+function FichaTecnica({ registro, tipo, escuela, familia, extra, onCerrar, onGuardarFoto, puedeEditar }) {
+  // `extra` es la forma que ya usan las vistas enganchadas (Alumnos):
+  // { familia, saldo, saldoTexto }. Se acepta junto con las props sueltas
+  // para que ambas maneras de invocar el componente funcionen.
+  const _familia = familia || (extra && extra.familia) || null;
+  const _saldo = (extra && typeof extra.saldo === 'number')
+    ? extra.saldo : Number(registro.saldo_pendiente || 0);
+  const _saldoTexto = (extra && extra.saldoTexto)
+    || (typeof fmt === 'function' ? fmt(_saldo)
+        : '$' + Number(_saldo).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
+  // Por omisión se permite editar la foto; las vistas pueden restringirlo
+  const _puedeEditar = puedeEditar === undefined ? true : puedeEditar;
+  const { useState } = React;
+  const [editando, setEditando] = useState(false);
+  const [enlace, setEnlace] = useState(registro.foto_url || '');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
 
-    btn.addEventListener('click', function () {
-      var v = function (id) { return document.getElementById(id).value.trim(); };
-      msg.innerHTML = '';
+  const esAlumno = tipo !== 'tutor';
+  const foto = normalizarEnlaceFoto(registro.foto_url);
 
-      if (!v('nombre') || !v('email')) {
-        msg.innerHTML = '<div class="reg-msg reg-err">El nombre del colegio y el correo son obligatorios.</div>';
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email'))) {
-        msg.innerHTML = '<div class="reg-msg reg-err">El correo no parece válido.</div>';
-        return;
-      }
+  const filas = esAlumno ? [
+    ['Matricula', registro.matricula],
+    ['Grado', registro.grado],
+    ['CURP', registro.curp],
+    ['Parentesco', _PARENTESCO_LABEL[registro.parentesco] || registro.parentesco],
+    ['Familia', _familia && _familia.nombre],
+    ['Fecha de nacimiento', registro.fecha_nac],
+    ['Tipo de sangre', registro.tipo_sangre],
+    ['Alergias', registro.alergias],
+    ['Correo', registro.email],
+    ['Telefono', registro.telefono],
+    ['Contacto de emergencia', registro.contacto_emergencia],
+    ['Tel. de emergencia', registro.tel_emergencia]
+  ] : [
+    ['Contacto', registro.contacto],
+    ['Correo', registro.email],
+    ['Telefono', registro.telefono],
+    ['RFC', registro.rfc_factura],
+    ['Razon social', registro.razon_social_factura]
+  ];
+  const visibles = filas.filter(function (f) {
+    return f[1] !== null && f[1] !== undefined && String(f[1]).trim() !== '';
+  });
 
-      btn.disabled = true;
-      btn.textContent = 'Enviando…';
+  const guardarEnlace = async function () {
+    setError('');
+    const limpio = enlace.trim();
+    if (limpio && !/^https?:\/\//i.test(limpio)) {
+      return setError('El enlace debe empezar con http:// o https://');
+    }
+    setGuardando(true);
+    try {
+      const res = await onGuardarFoto(limpio || null);
+      if (res && res.success === false) setError(res.error || 'No se pudo guardar.');
+      else setEditando(false);
+    } catch (e) {
+      setError('Error de conexion: ' + e.message);
+    }
+    setGuardando(false);
+  };
 
-      fetch('api.php?action=invitacion_enviar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: token,
-          nombre: v('nombre'), email: v('email'), telefono: v('telefono'),
-          rfc: v('rfc').toUpperCase(), rvoe: v('rvoe'), direccion: v('direccion')
-        })
-      })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (res && res.success) {
-          pantalla('&#10003;', 'Datos recibidos',
-            res.mensaje || 'Te avisaremos por correo en cuanto tu colegio quede activo.');
-        } else {
-          btn.disabled = false;
-          btn.textContent = 'Enviar mis datos';
-          msg.innerHTML = '<div class="reg-msg reg-err">' +
-            esc((res && res.error) || 'No pudimos enviar tus datos.') + '</div>';
-        }
-      })
-      .catch(function () {
-        btn.disabled = false;
-        btn.textContent = 'Enviar mis datos';
-        msg.innerHTML = '<div class="reg-msg reg-err">Error de conexión. Intenta de nuevo.</div>';
-      });
-    });
-  }
-})();
-</script>
-</body>
-</html>
+  return _hFT('div', { className: 'modal-backdrop', onClick: onCerrar },
+    _hFT('div', {
+      className: 'modal ficha-tecnica', style: { maxWidth: 430 },
+      onClick: function (e) { e.stopPropagation(); }
+    },
+      _hFT('div', { key: 'top', className: 'ficha-top' },
+        _hFT('button', { key: 'x', className: 'ficha-cerrar', onClick: onCerrar, title: 'Cerrar' },
+          _hFT(Icon, { name: 'close', size: 15, color: 'currentColor' })),
+        _hFT('div', { key: 'f', className: 'ficha-foto' },
+          _hFT(FotoFicha, { url: foto, tam: 96, radio: 15 })),
+        _hFT('div', { key: 'n', className: 'ficha-nombre' }, registro.nombre),
+        _hFT('div', { key: 's', className: 'ficha-sub' },
+          esAlumno
+            ? ([registro.grado, registro.matricula].filter(Boolean).join(' \u00b7 ') || 'Alumno')
+            : 'Tutor responsable'),
+        escuela ? _hFT('div', { key: 'e', className: 'ficha-escuela' }, escuela.nombre) : null
+      ),
+      _hFT('div', { key: 'body', className: 'modal-body' },
+        visibles.length === 0
+          ? _hFT('div', { style: { fontSize: 12.5, color: 'var(--ink-4)' } },
+              'Sin datos adicionales capturados.')
+          : _hFT('div', { className: 'ficha-datos' },
+              visibles.map(function (par) {
+                return _hFT('div', { key: par[0], className: 'ficha-dato' },
+                  _hFT('div', { key: 'k', className: 'ficha-dato-k' }, par[0]),
+                  _hFT('div', { key: 'v', className: 'ficha-dato-v' }, String(par[1])));
+              })),
+        _saldo > 0 ? _hFT('div', {
+          key: 'saldo',
+          style: { marginTop: 14, padding: '10px 13px', borderRadius: 'var(--radius-sm)',
+                   background: 'var(--amber-glow)', color: 'var(--amber)',
+                   fontSize: 12.5, fontWeight: 600 }
+        }, 'Saldo pendiente: ' + _saldoTexto) : null,
+        (onGuardarFoto && _puedeEditar) ? (editando
+          ? _hFT('div', { key: 'ed', style: { marginTop: 16 } },
+              _hFT('label', { key: 'l', className: 'form-label' }, 'Enlace de la foto'),
+              _hFT('input', {
+                key: 'i', className: 'form-input', value: enlace,
+                placeholder: 'https://drive.google.com/file/d/...',
+                autoComplete: 'off', spellCheck: false,
+                onChange: function (e) { setEnlace(e.target.value); }
+              }),
+              _hFT('div', { key: 'a',
+                style: { fontSize: 11.5, color: 'var(--ink-4)', marginTop: 5, lineHeight: 1.5 } },
+                'La imagen no se sube al sistema: solo se guarda la direccion. Si usas Google Drive, comparte el archivo como "cualquiera con el enlace".'),
+              error ? _hFT('div', { key: 'e',
+                style: { marginTop: 9, padding: '8px 11px', borderRadius: 'var(--radius-sm)',
+                         background: 'var(--red-glow)', color: 'var(--red)', fontSize: 12 } },
+                error) : null,
+              _hFT('div', { key: 'b', style: { display: 'flex', gap: 8, marginTop: 11 } },
+                _hFT('button', { key: 'c', className: 'btn btn-secondary btn-sm',
+                  onClick: function () { setEditando(false); setEnlace(registro.foto_url || ''); setError(''); } },
+                  'Cancelar'),
+                _hFT('button', { key: 'g', className: 'btn btn-primary btn-sm',
+                  disabled: guardando, onClick: guardarEnlace },
+                  guardando ? 'Guardando...' : 'Guardar foto'))
+            )
+          : _hFT('button', {
+              key: 'ed', className: 'btn btn-secondary btn-sm', style: { marginTop: 16 },
+              onClick: function () { setEditando(true); },
+              children: [
+                _hFT(Icon, { key: 'i', name: 'edit', size: 13, color: 'currentColor' }),
+                registro.foto_url ? ' Cambiar foto' : ' Agregar foto'
+              ]
+            })
+        ) : null
+      )
+    )
+  );
+}
