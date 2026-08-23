@@ -31,9 +31,11 @@ function Alumnos({
     tel_emergencia: '',
     doc_curp_url: '',
     doc_acta_url: '',
-    doc_ine_tutor_url: ''
+    doc_ine_tutor_url: '',
+    foto_url: ''
   };
   const [modal, setModal] = useState(null);
+  const [ficha, setFicha] = useState(null);   // alumno cuya credencial se muestra
   const [form, setForm] = useState(EMPTY);
   const [q, setQ] = useState('');
   // Términos acumulados del buscador. Se mandan al servidor separados por '|'
@@ -360,7 +362,28 @@ function Alumnos({
   const familiaDeAlumno = fid => fid ? data.familias.find(f => f.id === fid)?.nombre : null;
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
   return _jsxDEV("div", {
-    children: [_jsxDEV("div", {
+    children: [ficha && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
+      tipo: 'alumno',
+      registro: ficha,
+      extra: {
+        familia: (data.familias || []).find(f => f.id === ficha.familia_id) || null,
+        saldo: ficha.saldo_pendiente || 0,
+        saldoTexto: '$' + Number(ficha.saldo_pendiente || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
+      },
+      onCerrar: () => setFicha(null),
+      // Guarda solo el enlace de la foto, sin abrir el formulario completo
+      onGuardarFoto: async url => {
+        const res = await _apiPost('editar_cliente', { id: ficha.id, foto_url: url });
+        if (res && res.success !== false) {
+          setFicha(f => f ? { ...f, foto_url: url } : f);
+          setData(prev => ({
+            ...prev,
+            clientes: (prev.clientes || []).map(c => c.id === ficha.id ? { ...c, foto_url: url } : c)
+          }));
+        }
+        return res;
+      }
+    }, 'ficha', false), _jsxDEV("div", {
       className: "card",
       children: [_jsxDEV("div", {
         className: "card-header",
@@ -472,7 +495,15 @@ function Alumnos({
               }, void 0, false)
             }, void 0, false), lista.map(c => _jsxDEV("tr", {
               style: {
-                opacity: c.activo ? 1 : .5
+                opacity: c.activo ? 1 : .5,
+                cursor: 'pointer'
+              },
+              title: "Ver ficha t\u00e9cnica",
+              // Abrir la ficha, salvo que el clic haya sido sobre un control
+              // de la fila (botones de editar, desactivar, CLABE, etc.)
+              onClick: e => {
+                if (e.target.closest('button, a, input, select, label')) return;
+                setFicha(c);
               },
               children: [_jsxDEV("td", {
                 children: _jsxDEV("div", {
@@ -481,15 +512,13 @@ function Alumnos({
                     alignItems: 'center',
                     gap: 10
                   },
-                  children: [_jsxDEV("div", {
-                    className: "avatar avatar-admin",
-                    style: {
-                      width: 30,
-                      height: 30,
-                      fontSize: 11
-                    },
-                    children: c.nombre.charAt(0)
-                  }, void 0, false), _jsxDEV("span", {
+                  children: [(typeof FotoPerfil !== 'undefined'
+                    ? _jsxDEV(FotoPerfil, { url: c.foto_url, tam: 30, radio: '50%' }, 'foto', false)
+                    : _jsxDEV("div", {
+                        className: "avatar avatar-admin",
+                        style: { width: 30, height: 30, fontSize: 11 },
+                        children: c.nombre.charAt(0)
+                      }, 'ini', false)), _jsxDEV("span", {
                     style: {
                       fontWeight: 500
                     },
