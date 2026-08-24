@@ -27,5 +27,17 @@
 # para que esto pudiera ser estricto de verdad. style-src sí necesita
 # 'unsafe-inline' por el bloque <style> de esa misma animación.
 <IfModule mod_headers.c>
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://api.qrserver.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    # img-src: se abre a cualquier https porque las fotos de alumnos y tutores,
+    # y el logo del colegio, se guardan como enlaces externos (Drive, Dropbox,
+    # OneDrive...). Restringirlo a una lista fija haria que un tutor que pega
+    # un enlace de otro servicio vea la imagen rota sin explicacion.
+    # Una imagen no ejecuta codigo, y script-src sigue estricto (sin
+    # 'unsafe-inline'), asi que el riesgo real de esta apertura es bajo.
+    # Si prefieres cerrarlo, sustituye "https:" por los hosts que uses:
+    #   https://drive.google.com https://*.googleusercontent.com
+    #
+    # frame-src: hacia falta para el reproductor de los tutoriales del portal
+    # de distribuidores. Sin esta directiva caia en default-src 'self' y el
+    # video quedaba bloqueado.
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: ; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 </IfModule>
