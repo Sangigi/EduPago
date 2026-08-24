@@ -195,8 +195,12 @@ function Recordatorios({ data, setData, escuela }) {
 
   // Abrir WhatsApp o correo cuenta como recordatorio: si no, habria que
   // marcarlo a mano cada vez y el historial dejaria de reflejar la realidad.
-  const abrirYRegistrar = (cobro, url, canal) => {
-    window.open(url, '_blank', 'noopener');
+  //
+  // Se usa un <a href> y NO window.open: el navegador bloquea window.open
+  // aunque venga de un clic, devuelve null y no abre nada. Un enlace normal
+  // nunca se bloquea, y mailto: lo entrega al cliente de correo sin dejar
+  // una pestana en blanco.
+  const registrarAlAbrir = (cobro, canal) => {
     if (!yaRecordadoHoy(cobro.id)) registrarRecordatorio(cobro, canal);
   };
 
@@ -227,6 +231,12 @@ function Recordatorios({ data, setData, escuela }) {
     }[orden];
     return lista.slice().sort(cmp);
   }, [pendientes, filtro, q, orden, recordatoriosEnviados, data.clientes, data.familias]);
+
+  // Paginacion local: con cientos de cobros vencidos la lista se volvia
+  // inmanejable. Si el componente no esta cargado, se muestra todo como antes.
+  const pag = (typeof usePaginacion === 'function')
+    ? usePaginacion(filtrados, 25)
+    : { pagina: filtrados, total: filtrados.length, totalPaginas: 1, n: 1, tam: filtrados.length, ir: () => {}, cambiarTam: () => {} };
 
   const FILTROS = [
     { id: 'todos',       label: 'Todos' },
@@ -379,7 +389,7 @@ function Recordatorios({ data, setData, escuela }) {
           }, 'vacio', false)
         : _jsxDEV("div", {
             style: { display: 'flex', flexDirection: 'column', gap: 10 },
-            children: filtrados.map(c => {
+            children: pag.pagina.map(c => {
               const ct = contactoDe(c);
               const hist = historialDe(c.id);
               const wa = telWhatsapp(ct.telefono);
@@ -478,22 +488,26 @@ function Recordatorios({ data, setData, escuela }) {
                       background: 'var(--glass-light)'
                     },
                     children: [
-                      wa ? _jsxDEV("button", {
+                      wa ? _jsxDEV("a", {
                         className: "btn btn-secondary btn-sm",
-                        onClick: () => abrirYRegistrar(c,
-                          'https://wa.me/' + wa + '?text=' + encodeURIComponent(mensajeDe(c)), 'whatsapp'),
+                        href: 'https://wa.me/' + wa + '?text=' + encodeURIComponent(mensajeDe(c)),
+                        target: '_blank',
+                        rel: 'noopener noreferrer',
+                        style: { textDecoration: 'none' },
+                        onClick: () => registrarAlAbrir(c, 'whatsapp'),
                         children: [
                           _jsxDEV(Icon, { name: 'phone', size: 13, color: 'currentColor' }, 'i', false),
                           ' WhatsApp'
                         ]
                       }, 'wa', true) : null,
 
-                      ct.email ? _jsxDEV("button", {
+                      ct.email ? _jsxDEV("a", {
                         className: "btn btn-secondary btn-sm",
-                        onClick: () => abrirYRegistrar(c,
-                          'mailto:' + ct.email
-                            + '?subject=' + encodeURIComponent('Recordatorio de pago' + (c.folio ? ' · ' + c.folio : ''))
-                            + '&body=' + encodeURIComponent(mensajeDe(c)), 'email'),
+                        href: 'mailto:' + ct.email
+                              + '?subject=' + encodeURIComponent('Recordatorio de pago' + (c.folio ? ' \u00b7 ' + c.folio : ''))
+                              + '&body=' + encodeURIComponent(mensajeDe(c)),
+                        style: { textDecoration: 'none' },
+                        onClick: () => registrarAlAbrir(c, 'email'),
                         children: [
                           _jsxDEV(Icon, { name: 'emails', size: 13, color: 'currentColor' }, 'i', false),
                           ' Correo'
@@ -533,7 +547,11 @@ function Recordatorios({ data, setData, escuela }) {
                 ]
               }, c.id, true);
             })
-          }, 'lista', false)
+          }, 'lista', false),
+
+      (typeof Paginador !== 'undefined' && filtrados.length > 0)
+        ? _jsxDEV(Paginador, { ctrl: pag, etiqueta: 'cobros' }, 'pag', false)
+        : null
     ]
   }, void 0, true);
 }
