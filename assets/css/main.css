@@ -1601,3 +1601,32 @@ box-shadow:0 0 0 3px var(--accent-glow);
   letter-spacing:.4px; margin-bottom:2px;
 }
 .ficha-dato-v { font-size:13px; color:var(--ink); word-break:break-word; }
+
+/* ══ Paginador reutilizable ══ */
+.paginador {
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:14px 2px 4px; margin-top:4px;
+}
+.pag-info { font-size:12.5px; color:var(--ink-3); }
+.pag-nav  { display:flex; align-items:center; gap:4px; margin-left:auto; }
+.pag-btn {
+  min-width:32px; height:32px; padding:0 9px; border-radius:var(--radius-sm);
+  border:1px solid var(--border-glow); background:var(--bg-surface);
+  color:var(--ink-2); font-size:12.5px; font-weight:600; cursor:pointer;
+  font-family:var(--font); transition:all .12s;
+}
+.pag-btn:hover:not(:disabled) { border-color:var(--violet); color:var(--violet); }
+.pag-btn:disabled { opacity:.4; cursor:not-allowed; }
+.pag-btn.activo {
+  background:var(--violet); border-color:var(--violet); color:#fff;
+}
+.pag-elipsis { color:var(--ink-4); padding:0 2px; font-size:12.5px; }
+.pag-tam {
+  height:32px; padding:0 9px; border-radius:var(--radius-sm);
+  border:1px solid var(--border-glow); background:var(--bg-surface);
+  color:var(--ink-3); font-size:12px; font-family:var(--font); cursor:pointer;
+}
+@media (max-width: 640px) {
+  .pag-nav { margin-left:0; width:100%; justify-content:center; }
+  .pag-tam { margin-left:auto; }
+}
