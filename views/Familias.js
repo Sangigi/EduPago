@@ -168,6 +168,11 @@ function Familias({
 
   const familias = data.familias.filter(f => coincideEtiquetas(f, etiquetas, camposFamilia));
 
+  // Paginacion local: sin esto se pintaban todas las familias de golpe.
+  const pagFam = (typeof usePaginacion === 'function')
+    ? usePaginacion(familias, 25)
+    : { pagina: familias, total: familias.length, totalPaginas: 1, n: 1, tam: familias.length, ir: () => {}, cambiarTam: () => {} };
+
   const hijosDeFamily = fid => data.clientes.filter(c => c.familia_id === fid);
 
   const saldoFamily = fid => hijosDeFamily(fid).reduce((a, c) => a + (c.saldo_pendiente || 0), 0);
@@ -719,7 +724,7 @@ function Familias({
 
         }, void 0, false)]
 
-      }, void 0, true), familias.map(fam => {
+      }, void 0, true), pagFam.pagina.map(fam => {
 
         const hijos = hijosDeFamily(fam.id);
 
@@ -1451,7 +1456,11 @@ function Familias({
 
         }, fam.id, true);
 
-      }), (() => {
+      }), ((typeof Paginador !== 'undefined' && familias.length > 0)
+
+        ? _jsxDEV(Paginador, { ctrl: pagFam, etiqueta: 'familias' }, 'pagfam', false)
+
+        : null), (() => {
 
         const sinFamilia = data.clientes.filter(c => !c.familia_id && c.activo);
 
