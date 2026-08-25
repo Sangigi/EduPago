@@ -183,6 +183,44 @@ function ModalLigaRegenerada({ liga, expiraHoras, onCerrar }) {
   );
 }
 
+function ModalCredencialesTemp({ email, password, onCerrar }) {
+  const { useState } = React;
+  const [copiado, setCopiado] = useState(false);
+  const copiar = () => {
+    try {
+      navigator.clipboard.writeText(password);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch (e) { /* clipboard no disponible; el input ya queda seleccionado al enfocarlo */ }
+  };
+  return _hPI('div', { className: 'modal-backdrop', onClick: onCerrar },
+    _hPI('div', { className: 'modal', style: { maxWidth: 440 }, onClick: function (e) { e.stopPropagation(); } },
+      _hPI('div', { key: 'h', className: 'modal-header' },
+        _hPI('div', { key: 't', className: 'modal-title' }, 'Colegio creado — el correo de bienvenida falló'),
+        _hPI('button', { key: 'x', className: 'btn-ghost', onClick: onCerrar },
+          _hPI(Icon, { name: 'close', size: 16, color: 'currentColor' }))
+      ),
+      _hPI('div', { key: 'b', className: 'modal-body' },
+        _hPI('div', { key: 'ok', style: { fontSize: 13, color: 'var(--ink-2)', marginBottom: 10 } },
+          'La cuenta se creó, pero no se pudo enviar el correo con las credenciales. Compártelas tú mismo — no se van a volver a mostrar.'),
+        _hPI('div', { key: 'email', className: 'form-group' },
+          _hPI('label', { className: 'form-label' }, 'Usuario'),
+          _hPI('input', { className: 'form-input', readOnly: true, value: email, onFocus: function (e) { e.target.select(); } })
+        ),
+        _hPI('div', { key: 'pass', className: 'form-group' },
+          _hPI('label', { className: 'form-label' }, 'Contraseña temporal'),
+          _hPI('input', { className: 'form-input', readOnly: true, value: password, onFocus: function (e) { e.target.select(); } })
+        ),
+        _hPI('button', { key: 'copiar', className: 'btn btn-secondary btn-sm', onClick: copiar },
+          copiado ? 'Copiada ✓' : 'Copiar contraseña')
+      ),
+      _hPI('div', { key: 'f', className: 'modal-footer' },
+        _hPI('button', { key: 'listo', className: 'btn btn-primary', onClick: onCerrar }, 'Listo')
+      )
+    )
+  );
+}
+
 // `datos_enviados` llega como texto JSON tal como se guardó en la BD — el
 // backend no lo decodifica porque para invitaciones_listar es un valor
 // opaco; aquí sí nos interesa su contenido para el detalle.
@@ -262,6 +300,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
   const [busqueda, setBusqueda] = useState('');
   const [regenerando, setRegenerando] = useState(null);
   const [ligaRegenerada, setLigaRegenerada] = useState(null); // { liga, expira_horas }
+  const [credencialesTemp, setCredencialesTemp] = useState(null); // { email, password }
 
   const cargar = async () => {
     setCargando(true);
@@ -279,8 +318,21 @@ function PanelInvitaciones({ esSuperAdmin }) {
     setResolviendo(id);
     try {
       const res = await _apiPostInv('invitacion_resolver', { id: id, accion: accion });
-      if (res.success === false) alert(res.error || 'No se pudo resolver la invitación.');
-      else { setDetalleId(null); await cargar(); }
+      if (res.success === false) {
+        alert(res.error || 'No se pudo resolver la invitación.');
+      } else {
+        setDetalleId(null);
+        if (accion === 'aprobar') {
+          if (res.usuario_creado && res.correo_enviado) {
+            alert('Colegio creado y activo. Le enviamos sus credenciales de acceso por correo.');
+          } else if (res.usuario_creado && !res.correo_enviado) {
+            setCredencialesTemp({ email: res.email_login, password: res.password_temporal });
+          } else {
+            alert('Colegio creado y activo. Ya existía una cuenta con ese correo, así que no se generó una nueva — crea el acceso a mano si hace falta (Usuarios → Crear usuario).');
+          }
+        }
+        await cargar();
+      }
     } catch (e) {
       alert('Error de conexión: ' + e.message);
     }
@@ -388,6 +440,10 @@ function PanelInvitaciones({ esSuperAdmin }) {
     ligaRegenerada ? _hPI(ModalLigaRegenerada, {
       key: 'regenerada', liga: ligaRegenerada.liga, expiraHoras: ligaRegenerada.expira_horas,
       onCerrar: function () { setLigaRegenerada(null); }
+    }) : null,
+    credencialesTemp ? _hPI(ModalCredencialesTemp, {
+      key: 'credenciales', email: credencialesTemp.email, password: credencialesTemp.password,
+      onCerrar: function () { setCredencialesTemp(null); }
     }) : null
   );
 }

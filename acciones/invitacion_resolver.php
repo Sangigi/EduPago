@@ -29,6 +29,20 @@
 
     $d = json_decode($inv['datos_enviados'] ?? '{}', true) ?: [];
 
+    // La cuenta admin se crea aquí mismo, con contraseña generada al azar —
+    // antes se dejaba "para después" (crear_usuario aparte), así que un
+    // colegio aprobado por este flujo se quedaba activo en la BD pero sin
+    // nadie que pudiera iniciar sesión, y sin ningún aviso de que hacía falta
+    // ese paso manual.
+    $email_login = trim($d['email'] ?? '');
+    $usuario_ya_existe = false;
+    if ($email_login !== '') {
+        $chkUsr = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chkUsr->execute([$email_login]);
+        $usuario_ya_existe = (bool) $chkUsr->fetch();
+    }
+    $password_temporal = $usuario_ya_existe || $email_login === '' ? null : bin2hex(random_bytes(8));
+
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
@@ -63,12 +77,54 @@
             ]);
         }
 
+        $usuario_creado = false;
+        if ($password_temporal !== null) {
+            $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta)
+                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE())"
+            )->execute([
+                $escuela_nueva,
+                $inv['contacto_nombre'] ?: 'Administrador',
+                $email_login,
+                password_hash($password_temporal, PASSWORD_BCRYPT)
+            ]);
+            $usuario_creado = true;
+        }
+
         $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();
         respond(['success' => false, 'error' => 'No se pudo crear la escuela: ' . $e->getMessage()]);
     }
 
-    // El usuario administrador del colegio se crea aparte, con
-    // 'crear_usuario', para no generar contraseñas aquí.
-    respond(['success' => true, 'escuela_id' => $escuela_nueva]);
+    registrar_log($pdo, $usuario_actual, 'invitacion_aprobada', "Invitación #$id aprobada, colegio creado", $escuela_nueva);
+
+    $correo_enviado = false;
+    if ($usuario_creado) {
+        $nombreColegio = $d['nombre'] ?: 'tu colegio';
+        $htmlBienvenida = "
+            <p>Hola,</p>
+            <p><strong>" . htmlspecialchars($nombreColegio) . "</strong> ya está activo en Paga la Escuela.</p>
+            <p>Puedes iniciar sesión con:</p>
+            <p>Usuario: <strong>" . htmlspecialchars($email_login) . "</strong><br>
+               Contraseña temporal: <strong>" . htmlspecialchars($password_temporal) . "</strong></p>
+            <p>Puedes cambiarla cuando quieras desde tu perfil, una vez que inicies sesión.</p>
+            <p>— Pagalaescuela</p>
+        ";
+        $resCorreo = enviar_correo($email_login, 'Tu colegio ya está activo en Paga la Escuela', $htmlBienvenida);
+        $correo_enviado = (bool) ($resCorreo['success'] ?? false);
+        if (!$correo_enviado) {
+            log_api("invitacion_resolver #$id -> escuela $escuela_nueva creada pero falló el correo de bienvenida: " . ($resCorreo['error'] ?? 'desconocido'));
+        }
+    }
+
+    respond([
+        'success'            => true,
+        'escuela_id'         => $escuela_nueva,
+        'usuario_creado'     => $usuario_creado,
+        'correo_enviado'     => $correo_enviado,
+        'email_login'        => $usuario_creado ? $email_login : null,
+        // Solo va en la respuesta si de verdad hace falta que el superadmin
+        // la transmita a mano (no había cuenta que crear, o el correo falló).
+        'password_temporal'  => ($usuario_creado && !$correo_enviado) ? $password_temporal : null,
+    ]);
