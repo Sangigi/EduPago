@@ -62,6 +62,18 @@
                 respond(['success' => false, 'error' => 'La contraseña actual no es correcta.']);
             }
         }
+        // usuarios.email es UNIQUE — sin este chequeo, intentar dejarlo igual
+        // al de otra cuenta tronaba con un PDOException sin capturar (el
+        // catch de más abajo solo sabe recuperarse de la falta de la columna
+        // zona_id, así que cualquier otro error de SQL se re-lanzaba tal cual
+        // y terminaba en 500 en vez de un mensaje entendible).
+        if ($email !== '') {
+            $chkEmailEdit = $pdo->prepare("SELECT id FROM usuarios WHERE email = ? AND id != ?");
+            $chkEmailEdit->execute([$email, $id]);
+            if ($chkEmailEdit->fetch()) {
+                respond(['success' => false, 'error' => 'Ese correo ya está registrado por otra cuenta.']);
+            }
+        }
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
         if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }
@@ -99,7 +111,12 @@
                 // zona_id es columna nueva (migracion_zonas.sql) — si aún no
                 // corrió en esta base, reintenta sin ella en vez de tronar.
                 $setsSinZonaId = array_values(array_filter($sets, fn($s) => strpos($s, 'zona_id') === false));
-                if (count($setsSinZonaId) === count($sets)) throw $e;
+                // Cualquier otro error de SQL (constraint que no anticipamos, etc.)
+                // se responde como error normal — antes se relanzaba tal cual y
+                // terminaba en un 500 sin mensaje útil para quien lo dispara.
+                if (count($setsSinZonaId) === count($sets)) {
+                    respond(['success' => false, 'error' => 'No se pudo guardar: ' . $e->getMessage()]);
+                }
                 $valsSinZonaId = $vals; array_splice($valsSinZonaId, array_search('zona_id = ?', $sets), 1);
                 $pdo->prepare("UPDATE usuarios SET " . implode(', ', $setsSinZonaId) . " WHERE id = ?")->execute($valsSinZonaId);
             }
