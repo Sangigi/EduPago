@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Registro de colegio · Paga la Escuela</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/main.css?v=1787290000">
+<style>
+  body { overflow: auto; }
+  .reg-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center;
+              padding:28px 18px; background:#272c64; }
+  .reg-card { width:100%; max-width:560px; background:#272c52; color:#eef1f8;
+              border:1px solid rgba(255,255,255,.07); border-radius:var(--radius-lg);
+              box-shadow:0 16px 40px rgba(0,0,0,.5); overflow:hidden; }
+  .reg-top  { padding:28px 30px 22px; text-align:center; }
+  .reg-marca{ font-size:24px; font-weight:800; letter-spacing:-.8px; }
+  .reg-sub  { font-size:12px; color:#bdcf00; font-weight:600; margin-top:4px; }
+  .reg-body { padding:0 30px 28px; }
+  .reg-h    { font-size:17px; font-weight:700; margin:0 0 4px; }
+  .reg-p    { font-size:13px; color:#8b93a7; margin:0 0 20px; line-height:1.55; }
+  .reg-campo{ margin-bottom:14px; }
+  .reg-campo label { display:block; font-size:12px; font-weight:600;
+                     color:rgba(255,255,255,.8); margin-bottom:5px; }
+  .reg-campo input, .reg-campo textarea {
+    width:100%; padding:11px 13px; border-radius:var(--radius);
+    border:1px solid rgba(255,255,255,.14); background:#fff; color:#1e2430;
+    font-size:14px; font-family:var(--font); outline:none;
+  }
+  .reg-campo input:focus, .reg-campo textarea:focus {
+    border-color:#bdcf00; box-shadow:0 0 0 3px rgba(189,207,0,.18);
+  }
+  .reg-op   { font-weight:400; color:#69798f; }
+  .reg-btn  { width:100%; margin-top:8px; padding:13px; border:none;
+              border-radius:var(--radius); cursor:pointer; color:#fff;
+              font-size:14px; font-weight:700; font-family:var(--font);
+              background:linear-gradient(135deg,#bdcf00 0%,#2f9e44 100%);
+              box-shadow:0 4px 14px rgba(47,158,68,.28); }
+  .reg-btn:disabled { opacity:.55; cursor:not-allowed; }
+  .reg-msg  { margin-top:14px; padding:11px 14px; border-radius:var(--radius-sm);
+              font-size:13px; line-height:1.5; }
+  .reg-err  { background:rgba(239,68,68,.12); color:#f87171; }
+  .reg-ok   { background:rgba(73,175,84,.14); color:#6fd07a; }
+  .reg-pie  { text-align:center; font-size:11px; color:#69798f; margin-top:18px; }
+  .reg-estado { text-align:center; padding:34px 30px 40px; }
+  .reg-estado-ic { font-size:38px; line-height:1; margin-bottom:14px; }
+</style>
+</head>
+<body>
+<div class="reg-wrap"><div class="reg-card" id="app">
+  <div class="reg-top">
+    <div class="reg-marca">Paga la Escuela</div>
+    <div class="reg-sub">REGISTRO DE COLEGIO</div>
+  </div>
+  <div class="reg-body" id="cuerpo">
+    <p class="reg-p">Verificando tu liga…</p>
+  </div>
+</div></div>
+
+<script src="assets/js/registro.js?v=1787360000"></script>
+</body>
+</html>
