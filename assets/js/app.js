@@ -634,6 +634,7 @@ function App() {
           resumen_escuelas: json.resumen_escuelas || {},
           clientes: json.clientes || [],
           clientes_total: json.clientes_total,
+          clientes_activos_total: json.clientes_activos_total,
           clientes_pagina: json.clientes_pagina,
           clientes_por_pagina: json.clientes_por_pagina,
           planteles: json.planteles || [],

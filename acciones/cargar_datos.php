@@ -126,6 +126,12 @@
         $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE $where_cli");
         $cnt->execute($params_cli);
         $clientes_total = intval($cnt->fetch()['n'] ?? 0);
+        // Aparte del total, Alumnos.js necesita "cuántos de esos son activos"
+        // para el encabezado ("X activos de Y") — sin esto, solo podía contar
+        // los activos DE LA PÁGINA CARGADA (25), no de los 400 reales.
+        $cntAct2 = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE $where_cli AND activo = 1");
+        $cntAct2->execute($params_cli);
+        $clientes_activos_total = intval($cntAct2->fetch()['n'] ?? 0);
         $stmt = $pdo->prepare(
             "SELECT * FROM clientes WHERE $where_cli ORDER BY nombre LIMIT $por_pagina_clientes OFFSET $offset_clientes"
         );
@@ -300,6 +306,7 @@
             'resumen_escuelas'  => $resumen_escuelas,
             'clientes'          => $clientes,
             'clientes_total'    => $clientes_total,
+            'clientes_activos_total' => $clientes_activos_total,
             'clientes_pagina'   => $pagina_clientes,
             'clientes_por_pagina' => $por_pagina_clientes,
             'planteles'         => $planteles,

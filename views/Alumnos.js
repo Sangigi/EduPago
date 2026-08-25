@@ -97,6 +97,7 @@ function Alumnos({
           ...data,
           clientes: json.clientes || [],
           clientes_total: json.clientes_total,
+          clientes_activos_total: json.clientes_activos_total,
           clientes_pagina: json.clientes_pagina,
           clientes_por_pagina: json.clientes_por_pagina,
         };
@@ -393,7 +394,11 @@ function Alumnos({
             children: "Alumnos"
           }, void 0, false), _jsxDEV("div", {
             className: "card-sub",
-            children: [data.clientes.filter(c => c.activo).length, " activos de ", data.clientes.length]
+            children: [
+              typeof data.clientes_activos_total === 'number' ? data.clientes_activos_total : data.clientes.filter(c => c.activo).length,
+              " activos de ",
+              typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length
+            ]
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
           style: { display: 'flex', gap: 8 },

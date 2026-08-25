@@ -215,7 +215,7 @@ function Reportes({
           children: "Alumnos activos"
         }, void 0, false), _jsxDEV("div", {
           className: "stat-value",
-          children: data.clientes.filter(c => c.activo).length
+          children: typeof data.clientes_activos_total === 'number' ? data.clientes_activos_total : data.clientes.filter(c => c.activo).length
         }, void 0, false), _jsxDEV("div", {
           className: "stat-meta",
           children: [data.clientes.filter(c => c.activo && c.saldo_pendiente > 0).length, " con adeudo"]

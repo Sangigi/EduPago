@@ -1042,7 +1042,7 @@ function Dashboard({
 
         label: 'Alumnos activos',
 
-        val: data.clientes.filter(c => c.activo).length,
+        val: typeof data.clientes_activos_total === 'number' ? data.clientes_activos_total : data.clientes.filter(c => c.activo).length,
 
         icon: 'alumnos',
 
