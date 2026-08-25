@@ -34,14 +34,16 @@
         $nUsuarios  = $contar('usuarios');
         $nFamilias  = $contar('familias');
         $nProductos = $contar('productos');
+        $nReferidos = $contar('distribuidor_referidos');
 
-        $hayDatos = $nPlanteles > 0 || $nAlumnos > 0 || $nCobros > 0 || $nClabes > 0;
+        $hayDatos = $nPlanteles > 0 || $nAlumnos > 0 || $nCobros > 0 || $nClabes > 0 || $nReferidos > 0;
         if ($hayDatos && !$forzar) {
             $motivos = array_filter([
-                $nPlanteles > 0 ? "$nPlanteles plantel(es)" : null,
-                $nAlumnos > 0   ? "$nAlumnos alumno(s)"      : null,
-                $nCobros > 0    ? "$nCobros cobro(s)"        : null,
-                $nClabes > 0    ? "$nClabes CLABE(s) en el pool" : null,
+                $nPlanteles > 0  ? "$nPlanteles plantel(es)" : null,
+                $nAlumnos > 0    ? "$nAlumnos alumno(s)"      : null,
+                $nCobros > 0     ? "$nCobros cobro(s)"        : null,
+                $nClabes > 0     ? "$nClabes CLABE(s) en el pool" : null,
+                $nReferidos > 0  ? "$nReferidos comisión(es) de distribuidor asociada(s)" : null,
             ]);
             respond([
                 'success' => false,
@@ -64,6 +66,10 @@
             $pdo->prepare("DELETE FROM clientes WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM familias WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM productos WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            // Sin ON DELETE CASCADE (a diferencia de clientes/familias/usuarios) —
+            // si un distribuidor refirió este colegio, la fila queda apuntando a
+            // su escuela_id y el DELETE de más abajo truena con error 1451.
+            $pdo->prepare("DELETE FROM distribuidor_referidos WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM usuarios WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM planteles WHERE escuela_id = ?")->execute([$id]);
             $pdo->prepare("DELETE FROM escuelas WHERE id IN ($inGrupo)")->execute($idsGrupo);
@@ -73,7 +79,7 @@
             respond(['success' => false, 'error' => 'No se pudo eliminar: ' . $e->getMessage()]);
         }
         $resumenEliminado = $hayDatos
-            ? "$nPlanteles plantel(es), $nAlumnos alumno(s), $nCobros cobro(s), $nUsuarios usuario(s), $nFamilias familia(s), $nProductos producto(s), $nClabes CLABE(s)"
+            ? "$nPlanteles plantel(es), $nAlumnos alumno(s), $nCobros cobro(s), $nUsuarios usuario(s), $nFamilias familia(s), $nProductos producto(s), $nClabes CLABE(s), $nReferidos referido(s) de distribuidor"
             : 'sin historial';
         registrar_log($pdo, $usuario_actual, 'escuela_eliminada', "Colegio #$id '{$escDel['nombre']}' eliminado" . ($hayDatos ? " FORZADO junto con: $resumenEliminado" : ' (sin historial)'));
         respond(['success' => true, 'id' => $id, 'ids_planteles_eliminados' => $idsPlanteles, 'resumen_eliminado' => $hayDatos ? $resumenEliminado : null]);

@@ -412,6 +412,9 @@ function Usuarios({ user, data }) {
     }
     return true;
   });
+  // Sin tope, un colegio que importó cientos de familias por CSV (cada una con
+  // su propia cuenta de acceso) pintaba de golpe toda esa lista en la tabla.
+  const pagUsr = (typeof usePaginacion === 'function') ? usePaginacion(lista, 25) : null;
 
   const ROL_INFO = {
     superadmin:   { label: 'Super Admin',  icon: 'shield',  color: 'var(--amber)', bg: 'var(--amber-glow)',    badge: 'badge-amber'  },
@@ -529,13 +532,16 @@ function Usuarios({ user, data }) {
         className: "stats-grid",
         style: { marginBottom: 20 },
         children: [
-          { rol: 'superadmin', count: usuarios.filter(u => u.rol === 'superadmin').length },
+          // Un admin nunca puede tener ni ver cuentas superadmin (listar_usuarios.php
+          // ya las excluye server-side) — mostrarle esta tarjeta siempre en 0 solo
+          // confunde, así que se oculta por completo si no eres superadmin.
+          esSuper ? { rol: 'superadmin', count: usuarios.filter(u => u.rol === 'superadmin').length } : null,
           { rol: 'admin',      count: usuarios.filter(u => u.rol === 'admin').length },
           { rol: 'cajero',     count: usuarios.filter(u => u.cajero || u.rol === 'cajero').length },
           { rol: 'familia',    count: usuarios.filter(u => u.rol === 'familia').length },
           { rol: 'distribuidor', count: usuarios.filter(u => u.rol === 'distribuidor').length },
           { label: 'Total activos', count: usuarios.filter(u => u.activo !== false).length, icon: 'check', color: 'var(--green)', bg: 'var(--green-glow)' }
-        ].map((s, i) => {
+        ].filter(Boolean).map((s, i) => {
           const info = s.rol ? ROL_INFO[s.rol] : null;
           return _jsxDEV("div", {
             className: "stat-card",
@@ -584,7 +590,7 @@ function Usuarios({ user, data }) {
           _jsxDEV("div", {
             style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' },
             children: [
-              ['todos', 'superadmin', 'admin', 'cajero', 'familia', 'distribuidor'].map(r =>
+              ['todos', ...(esSuper ? ['superadmin'] : []), 'admin', 'cajero', 'familia', 'distribuidor'].map(r =>
                 _jsxDEV("button", {
                   className: `badge ${filtroRol === r ? ROL_INFO[r]?.badge || 'badge-blue' : 'badge-gray'}`,
                   style: {
@@ -633,7 +639,7 @@ function Usuarios({ user, data }) {
                         }, void 0, true)
                       }, void 0, false)
                     }, void 0, false),
-                    lista.map(u => {
+                    (pagUsr ? pagUsr.pagina : lista).map(u => {
                       const info = ROL_INFO[u.rol];
                       const puedeAcc = puedeEditar(u);
                       const esUnoMismo = u.id === user.id;
@@ -725,6 +731,10 @@ function Usuarios({ user, data }) {
               ]
             }, void 0, true)
           }, void 0, false),
+
+          (typeof Paginador !== 'undefined' && lista.length > 0)
+            ? _jsxDEV(Paginador, { ctrl: pagUsr, etiqueta: 'usuarios' }, 'pagusr', false)
+            : null,
 
           /* Leyenda de roles */
           _jsxDEV("div", {

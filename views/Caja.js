@@ -112,7 +112,7 @@ function Caja({
     });
     return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], 'es'));
   })();
-  const clientesFiltrados = data.clientes.filter(c => {
+  const clientesFiltradosTotal = data.clientes.filter(c => {
     if (!c.activo) return false;
     if (!qCliente) return true;
     const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
@@ -123,6 +123,11 @@ function Caja({
     const exacto = busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
     return { c, exacto };
   }).sort((a, b) => (b.exacto - a.exacto)).map(x => x.c);
+  // Tope defensivo: sin buscar nada, un colegio con cientos de alumnos
+  // renderizaba la lista completa dentro del modal — se corta a 40 y se pide
+  // escribir para acotar, igual que el buscador de familia en Alumnos.js.
+  const CLIENTES_CAP = 40;
+  const clientesFiltrados = clientesFiltradosTotal.slice(0, CLIENTES_CAP);
   const clientesFiltradosExactos = new Set(
     clientesFiltrados.filter(c => {
       const busq = qCliente.trim().toLowerCase();
@@ -1124,7 +1129,10 @@ function Caja({
                 children: fmt(c.saldo_pendiente)
               }, void 0, false)]
             }, c.id, true);
-          })]
+          }), clientesFiltradosTotal.length > CLIENTES_CAP && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 11.5, color: 'var(--ink-4)', padding: '8px 4px', textAlign: 'center' },
+            children: `Mostrando ${CLIENTES_CAP} de ${clientesFiltradosTotal.length} — escribe para acotar la búsqueda`
+          }, void 0, false)]
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: /*#__PURE__*/_jsxDEV("button", {
