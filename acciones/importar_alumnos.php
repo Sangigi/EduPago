@@ -23,6 +23,22 @@
         $creadas = 0; $reutilizadas = 0; $alumnosCreados = 0; $cuentasCreadas = [];
         $errores = []; $clientesDetalle = []; $familiasDetalle = [];
 
+        // Detección de alumnos duplicados: nada impedía subir el mismo CSV dos
+        // veces y duplicar 400 alumnos (matricula es la única protección real,
+        // y muchos CSV la traen vacía o distinta cada vez). Se compara por
+        // nombre+grado (normalizado) contra lo que ya existe en esta escuela
+        // Y contra lo que ya se creó dentro de este mismo archivo — cargado una
+        // sola vez en memoria en vez de una query por fila.
+        $normalizarDup = function ($nombre, $grado) {
+            return mb_strtolower(trim($nombre ?? ''), 'UTF-8') . '|' . mb_strtolower(trim($grado ?? ''), 'UTF-8');
+        };
+        $existentesStmt = $pdo->prepare("SELECT nombre, grado FROM clientes WHERE escuela_id = ? AND activo = 1");
+        $existentesStmt->execute([$escuela_id]);
+        $vistosEnEscuela = [];
+        foreach ($existentesStmt->fetchAll() as $ex) {
+            $vistosEnEscuela[$normalizarDup($ex['nombre'], $ex['grado'])] = true;
+        }
+
         foreach ($filas as $idx => $fila) {
             $numFila = $idx + 2; // +2: fila 1 es encabezado, arrays son 0-based
             try {
@@ -34,6 +50,12 @@
                 if (!$alumno_nombre) { $errores[] = ['fila' => $numFila, 'error' => 'alumno_nombre es obligatorio']; continue; }
                 $matricula   = trim($fila['matricula']    ?? '') ?: null;
                 $grado       = trim($fila['grado']        ?? '') ?: null;
+
+                $claveDup = $normalizarDup($alumno_nombre, $grado);
+                if (isset($vistosEnEscuela[$claveDup])) {
+                    $errores[] = ['fila' => $numFila, 'error' => "Ya existe un alumno llamado \"$alumno_nombre\"" . ($grado ? " en \"$grado\"" : '') . " en esta escuela — no se importó (posible duplicado)."];
+                    continue;
+                }
                 $curp        = trim($fila['curp']         ?? '') ?: null;
                 $alumno_email = trim($fila['alumno_email'] ?? '') ?: null;
                 $alumno_tel  = trim($fila['alumno_telefono'] ?? '') ?: null;
@@ -90,6 +112,7 @@
                     'curp' => $curp, 'email' => $alumno_email, 'telefono' => $alumno_tel, 'tel' => $alumno_tel,
                     'nivel_educativo_sat' => $nivel_sat, 'activo' => true, 'saldo_pendiente' => 0,
                 ];
+                $vistosEnEscuela[$claveDup] = true;
                 $alumnosCreados++;
                 $alumnosActuales++;
             } catch (\Throwable $e) {

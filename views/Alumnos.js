@@ -228,6 +228,11 @@ function Alumnos({
         ...prev,
         clientes: [...prev.clientes, ...(res.clientes_detalle || [])],
         familias: [...prev.familias, ...(res.familias_detalle || [])],
+        // Sin esto, el total quedaba desactualizado hasta recargar la página
+        // completa — el Dashboard (barra de "Tu plan") seguía mostrando el
+        // conteo de antes de importar.
+        clientes_total: (typeof prev.clientes_total === 'number' ? prev.clientes_total : prev.clientes.length) + (res.clientes_detalle || []).length,
+        clientes_activos_total: (typeof prev.clientes_activos_total === 'number' ? prev.clientes_activos_total : prev.clientes.filter(c => c.activo).length) + (res.clientes_detalle || []).length,
       }));
       setResultadoImport(res);
       setModalImport('resultado');
