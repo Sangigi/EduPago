@@ -43,14 +43,24 @@
     }
     $password_temporal = $usuario_ya_existe || $email_login === '' ? null : bin2hex(random_bytes(8));
 
+    // `clave` es única (crear_escuela.php/editar_escuela.php siempre la piden
+    // y la validan) pero el formulario público de registro nunca la pide —
+    // no tendría sentido que un colegio inventara su propio código interno.
+    // Se genera aquí a partir del nombre + el id de la invitación: el id es
+    // único y nunca se repite, así que esto nunca choca con otra escuela,
+    // sin necesitar un query extra de verificación ni un loop de reintento.
+    $clave_base  = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $d['nombre'] ?? ''), 0, 6));
+    if ($clave_base === '') $clave_base = 'ESC';
+    $clave_nueva = $clave_base . '-' . $id;
+
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
-            "INSERT INTO escuelas (nombre, rfc, rvoe, telefono, email, direccion,
+            "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion,
                                    activa, plan, fecha_alta, origen_invitacion_id)
-             VALUES (?,?,?,?,?,?, 1, 'basico', NOW(), ?)"
+             VALUES (?,?,?,?,?,?,?, 1, 'basico', NOW(), ?)"
         )->execute([
-            $d['nombre'] ?? '', $d['rfc'] ?? '', $d['rvoe'] ?? '',
+            $d['nombre'] ?? '', $clave_nueva, $d['rfc'] ?? '', $d['rvoe'] ?? '',
             $d['telefono'] ?? '', $d['email'] ?? '', $d['direccion'] ?? '', $id
         ]);
         $escuela_nueva = intval($pdo->lastInsertId());
