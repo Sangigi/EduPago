@@ -146,12 +146,83 @@ function ModalGenerarInvitacion({ onCerrar, onCreada }) {
   );
 }
 
+// `datos_enviados` llega como texto JSON tal como se guardó en la BD — el
+// backend no lo decodifica porque para invitaciones_listar es un valor
+// opaco; aquí sí nos interesa su contenido para el detalle.
+function _datosEnviadosDe(inv) {
+  if (!inv.datos_enviados) return null;
+  try {
+    const d = typeof inv.datos_enviados === 'string' ? JSON.parse(inv.datos_enviados) : inv.datos_enviados;
+    return d && typeof d === 'object' ? d : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function ModalDetalleInvitacion({ inv, esSuperAdmin, onCerrar, onResolver, resolviendo }) {
+  const d = _datosEnviadosDe(inv) || {};
+  const info = _ESTADO_INV[inv.estado] || { label: inv.estado, clase: 'badge-gray' };
+  const fila = function (label, valor) {
+    if (valor === null || valor === undefined || String(valor).trim() === '') return null;
+    return _hPI('div', { key: label, style: { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: '1px solid var(--border-glow)', fontSize: 13 } },
+      _hPI('span', { style: { color: 'var(--ink-3)' } }, label),
+      _hPI('span', { style: { fontWeight: 600, textAlign: 'right' } }, String(valor))
+    );
+  };
+
+  return _hPI('div', { className: 'modal-backdrop', onClick: onCerrar },
+    _hPI('div', { className: 'modal', style: { maxWidth: 460 }, onClick: function (e) { e.stopPropagation(); } },
+      _hPI('div', { key: 'h', className: 'modal-header' },
+        _hPI('div', { key: 't', className: 'modal-title' }, 'Detalle de la invitación'),
+        _hPI('button', { key: 'x', className: 'btn-ghost', onClick: onCerrar },
+          _hPI(Icon, { name: 'close', size: 16, color: 'currentColor' }))
+      ),
+      _hPI('div', { key: 'b', className: 'modal-body' },
+        _hPI('div', { key: 'estado', style: { marginBottom: 10 } },
+          _hPI('span', { className: 'badge ' + info.clase }, info.label)),
+        Object.keys(d).length === 0
+          ? _hPI('div', { key: 'sin', style: { fontSize: 12.5, color: 'var(--ink-4)' } },
+              'El colegio todavía no llena su formulario — aquí aparecerán sus datos en cuanto lo haga.')
+          : _hPI('div', { key: 'datos' },
+              fila('Colegio', d.nombre),
+              fila('Correo', d.email),
+              fila('Teléfono', d.telefono),
+              fila('Número de alumnos', d.num_alumnos),
+              fila('RFC', d.rfc),
+              fila('RVOE', d.rvoe),
+              fila('Dirección', d.direccion)
+            ),
+        _hPI('div', { key: 'sep', style: { margin: '14px 0', borderTop: '1px solid var(--border-glow)' } }),
+        fila('Contacto original', inv.contacto_nombre),
+        fila('Correo de contacto', inv.contacto_email),
+        fila('Teléfono de contacto', inv.contacto_tel),
+        esSuperAdmin ? fila('Generado por', inv.creado_por_nombre ? (inv.creado_por_nombre + (inv.creado_por_rol ? ' · ' + inv.creado_por_rol : '')) : '—') : null,
+        fila('Creada', String(inv.fecha_alta || '').slice(0, 10))
+      ),
+      (esSuperAdmin && inv.estado === 'enviado')
+        ? _hPI('div', { key: 'f', className: 'modal-footer' },
+            _hPI('button', {
+              key: 'r', className: 'btn btn-secondary', disabled: resolviendo,
+              onClick: function () { onResolver(inv.id, 'rechazar'); }
+            }, 'Rechazar'),
+            _hPI('button', {
+              key: 'a', className: 'btn btn-primary', disabled: resolviendo,
+              onClick: function () { onResolver(inv.id, 'aprobar'); }
+            }, resolviendo ? 'Aprobando…' : 'Aprobar y crear colegio')
+          )
+        : null
+    )
+  );
+}
+
 function PanelInvitaciones({ esSuperAdmin }) {
-  const { useState, useEffect } = React;
+  const { useState, useEffect, useMemo } = React;
   const [invitaciones, setInvitaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [detalleId, setDetalleId] = useState(null);
   const [resolviendo, setResolviendo] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
 
   const cargar = async () => {
     setCargando(true);
@@ -170,12 +241,25 @@ function PanelInvitaciones({ esSuperAdmin }) {
     try {
       const res = await _apiPostInv('invitacion_resolver', { id: id, accion: accion });
       if (res.success === false) alert(res.error || 'No se pudo resolver la invitación.');
-      else await cargar();
+      else { setDetalleId(null); await cargar(); }
     } catch (e) {
       alert('Error de conexión: ' + e.message);
     }
     setResolviendo(null);
   };
+
+  // Con esto un superadmin puede ver de un vistazo lo generado por un
+  // distribuidor en particular, sin necesitar una pantalla aparte.
+  const lista = useMemo(function () {
+    const q = busqueda.trim().toLowerCase();
+    if (!q || !esSuperAdmin) return invitaciones;
+    return invitaciones.filter(function (inv) {
+      return [inv.creado_por_nombre, inv.contacto_nombre, inv.contacto_email]
+        .some(function (v) { return String(v || '').toLowerCase().includes(q); });
+    });
+  }, [invitaciones, busqueda, esSuperAdmin]);
+
+  const detalle = detalleId ? invitaciones.find(function (inv) { return inv.id === detalleId; }) : null;
 
   return _hPI('div', { className: 'card', style: { marginTop: 20 } },
     _hPI('div', { key: 'h', className: 'card-header' },
@@ -186,43 +270,44 @@ function PanelInvitaciones({ esSuperAdmin }) {
       _hPI('button', { key: 'b', className: 'btn btn-primary btn-sm', onClick: function () { setModalAbierto(true); } },
         '+ Generar invitación')
     ),
+    (esSuperAdmin && invitaciones.length > 0) ? _hPI('input', {
+      key: 'buscar', className: 'form-input', style: { marginBottom: 12, maxWidth: 280 },
+      placeholder: 'Buscar por distribuidor o contacto…',
+      value: busqueda, onChange: function (e) { setBusqueda(e.target.value); }
+    }) : null,
     cargando
       ? _hPI('div', { key: 'load', className: 'empty-state' }, _hPI('div', { className: 'empty-text' }, 'Cargando…'))
       : invitaciones.length === 0
         ? _hPI('div', { key: 'vacio', className: 'empty-state' }, _hPI('div', { className: 'empty-text' }, 'Aún no has generado ninguna invitación.'))
-        : _hPI('div', { key: 'tabla', className: 'table-wrap' },
+        : lista.length === 0
+          ? _hPI('div', { key: 'sinres', className: 'empty-state' }, _hPI('div', { className: 'empty-text' }, 'Nada coincide con esa búsqueda.'))
+          : _hPI('div', { key: 'tabla', className: 'table-wrap' },
             _hPI('table', {},
               _hPI('thead', {},
                 _hPI('tr', {},
                   _hPI('th', {}, 'Contacto'),
                   _hPI('th', {}, 'Correo'),
+                  esSuperAdmin ? _hPI('th', {}, 'Generado por') : null,
                   _hPI('th', {}, 'Estado'),
                   _hPI('th', {}, 'Creada'),
-                  esSuperAdmin ? _hPI('th', {}, 'Acciones') : null
+                  _hPI('th', {}, 'Detalle')
                 )
               ),
               _hPI('tbody', {},
-                invitaciones.map(function (inv) {
+                lista.map(function (inv) {
                   const info = _ESTADO_INV[inv.estado] || { label: inv.estado, clase: 'badge-gray' };
                   return _hPI('tr', { key: inv.id },
                     _hPI('td', {}, inv.contacto_nombre),
                     _hPI('td', {}, inv.contacto_email),
+                    esSuperAdmin ? _hPI('td', {}, inv.creado_por_nombre || '—') : null,
                     _hPI('td', {}, _hPI('span', { className: 'badge ' + info.clase }, info.label)),
                     _hPI('td', {}, String(inv.fecha_alta || '').slice(0, 10)),
-                    esSuperAdmin ? _hPI('td', {},
-                      inv.estado === 'enviado' ? _hPI('div', { style: { display: 'flex', gap: 6 } },
-                        _hPI('button', {
-                          className: 'btn btn-primary btn-sm',
-                          disabled: resolviendo === inv.id,
-                          onClick: function () { resolver(inv.id, 'aprobar'); }
-                        }, 'Aprobar'),
-                        _hPI('button', {
-                          className: 'btn btn-secondary btn-sm',
-                          disabled: resolviendo === inv.id,
-                          onClick: function () { resolver(inv.id, 'rechazar'); }
-                        }, 'Rechazar')
-                      ) : null
-                    ) : null
+                    _hPI('td', {},
+                      _hPI('button', {
+                        className: 'btn btn-secondary btn-sm',
+                        onClick: function () { setDetalleId(inv.id); }
+                      }, inv.estado === 'enviado' && esSuperAdmin ? 'Revisar' : 'Ver')
+                    )
                   );
                 })
               )
@@ -230,6 +315,11 @@ function PanelInvitaciones({ esSuperAdmin }) {
           ),
     modalAbierto ? _hPI(ModalGenerarInvitacion, {
       key: 'modal', onCerrar: function () { setModalAbierto(false); }, onCreada: cargar
+    }) : null,
+    detalle ? _hPI(ModalDetalleInvitacion, {
+      key: 'detalle', inv: detalle, esSuperAdmin: esSuperAdmin,
+      resolviendo: resolviendo === detalle.id,
+      onCerrar: function () { setDetalleId(null); }, onResolver: resolver
     }) : null
   );
 }

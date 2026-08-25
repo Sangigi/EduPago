@@ -56,12 +56,13 @@
       '<div class="reg-h">Hola, ' + esc((d.contacto_nombre || '').split(' ')[0]) + '</div>' +
       '<p class="reg-p">Llena los datos de tu colegio. Al enviarlos, nuestro equipo los revisa ' +
         'y te avisamos por correo en cuanto tu cuenta quede activa.</p>' +
-      campo('nombre',    'Nombre del colegio',   false, 'text', 'Colegio San Marcos') +
-      campo('email',     'Correo institucional', false, 'email', 'contacto@colegio.mx') +
-      campo('telefono',  'Teléfono',             true,  'tel',  '55 1234 5678') +
-      campo('rfc',       'RFC',                  true,  'text', 'ABC010203XY1') +
-      campo('rvoe',      'RVOE',                 true,  'text') +
-      campo('direccion', 'Dirección',            true,  'text') +
+      campo('nombre',      'Nombre del colegio',        false, 'text',   'Colegio San Marcos') +
+      campo('email',       'Correo institucional',      false, 'email',  'contacto@colegio.mx') +
+      campo('telefono',    'Teléfono',                  true,  'tel',    '55 1234 5678') +
+      campo('num_alumnos', 'Número de alumnos aprox.',  true,  'number', '150') +
+      campo('rfc',         'RFC',                       true,  'text',   'ABC010203XY1') +
+      campo('rvoe',        'RVOE',                      true,  'text') +
+      campo('direccion',   'Dirección',                 true,  'text') +
       '<button class="reg-btn" id="enviar">Enviar mis datos</button>' +
       '<div id="msg"></div>' +
       '<div class="reg-pie">Tus datos solo se usan para dar de alta tu colegio.</div>';
@@ -94,6 +95,7 @@
         body: JSON.stringify({
           token: token,
           nombre: v('nombre'), email: v('email'), telefono: v('telefono'),
+          num_alumnos: v('num_alumnos'),
           rfc: v('rfc').toUpperCase(), rvoe: v('rvoe'), direccion: v('direccion')
         })
       })

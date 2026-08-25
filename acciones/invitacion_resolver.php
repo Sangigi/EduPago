@@ -47,6 +47,22 @@
               WHERE id=?"
         )->execute([$escuela_nueva, intval($usuario_actual['user_id'] ?? 0), $id]);
 
+        // Si la invitación la generó un distribuidor, esta es la única forma en
+        // que puede llegar a cobrar comisión por este colegio: distribuidor_referidos
+        // es la tabla que lee distribuidor_comisiones.php, y hasta ahora nada la
+        // llenaba para invitaciones aprobadas por este flujo — el distribuidor
+        // habría quedado sin comisión sin que nadie lo notara.
+        if (!empty($inv['distribuidor_id'])) {
+            $pdo->prepare(
+                "INSERT INTO distribuidor_referidos
+                    (distribuidor_id, escuela_id, nombre_colegio, num_alumnos, estado, comision_pct, fecha_alta)
+                 VALUES (?, ?, ?, ?, 'activo', 5.00, CURDATE())"
+            )->execute([
+                intval($inv['distribuidor_id']), $escuela_nueva,
+                $d['nombre'] ?? '', $d['num_alumnos'] ?? null
+            ]);
+        }
+
         $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();

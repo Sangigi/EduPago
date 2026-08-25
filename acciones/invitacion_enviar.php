@@ -18,12 +18,13 @@
         respond($generico);
     }
 
-    $nombre    = trim($input['nombre']     ?? '');
-    $rfc       = strtoupper(trim($input['rfc'] ?? ''));
-    $rvoe      = trim($input['rvoe']       ?? '');
-    $telefono  = trim($input['telefono']   ?? '');
-    $email     = trim($input['email']      ?? '');
-    $direccion = trim($input['direccion']  ?? '');
+    $nombre      = trim($input['nombre']     ?? '');
+    $rfc         = strtoupper(trim($input['rfc'] ?? ''));
+    $rvoe        = trim($input['rvoe']       ?? '');
+    $telefono    = trim($input['telefono']   ?? '');
+    $email       = trim($input['email']      ?? '');
+    $direccion   = trim($input['direccion']  ?? '');
+    $num_alumnos = intval($input['num_alumnos'] ?? 0) ?: null;
 
     if ($nombre === '' || $email === '') {
         respond(['success' => false, 'error' => 'Nombre del colegio y correo son obligatorios']);
@@ -37,12 +38,13 @@
     }
 
     $datos = json_encode([
-        'nombre'    => mb_substr($nombre, 0, 160),
-        'rfc'       => mb_substr($rfc, 0, 13),
-        'rvoe'      => mb_substr($rvoe, 0, 60),
-        'telefono'  => mb_substr($telefono, 0, 40),
-        'email'     => mb_substr($email, 0, 160),
-        'direccion' => mb_substr($direccion, 0, 300),
+        'nombre'      => mb_substr($nombre, 0, 160),
+        'rfc'         => mb_substr($rfc, 0, 13),
+        'rvoe'        => mb_substr($rvoe, 0, 60),
+        'telefono'    => mb_substr($telefono, 0, 40),
+        'email'       => mb_substr($email, 0, 160),
+        'direccion'   => mb_substr($direccion, 0, 300),
+        'num_alumnos' => $num_alumnos,
     ], JSON_UNESCAPED_UNICODE);
 
     $pdo->prepare(
