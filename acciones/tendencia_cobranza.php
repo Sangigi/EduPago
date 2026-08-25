@@ -27,11 +27,18 @@
 
         $where_tc = 'escuela_id = ? AND estado = ? AND fecha BETWEEN ? AND ?';
         $params_tc = [$escuela_id_tc, 'pagado', $desde_tc, $hasta_tc];
+        // Método opcional — para que la "Tendencia del periodo" de Cobros.js
+        // pueda respetar el mismo filtro de método que ya tiene la vista.
+        $metodo_tc = trim($input['metodo'] ?? $_GET['metodo'] ?? '');
+        $metodos_validos_tc = ['Efectivo', 'EfectivoRef', 'TC', 'SPEI', 'CoDi', 'Cheque', 'Pendiente'];
+        if ($metodo_tc !== '' && in_array($metodo_tc, $metodos_validos_tc, true)) {
+            $where_tc .= ' AND metodo = ?';
+            $params_tc[] = $metodo_tc;
+        }
         // Misma restricción que listar_cobros/cargar_datos: una familia solo ve
         // la tendencia de SUS PROPIOS hijos, no la de toda la escuela.
         if (($usuario_actual['rol'] ?? '') === 'familia') {
-            $where_tc = 'escuela_id = ? AND estado = ? AND fecha BETWEEN ? AND ?
-                         AND cliente_id IN (SELECT id FROM clientes WHERE familia_id = ?)';
+            $where_tc .= ' AND cliente_id IN (SELECT id FROM clientes WHERE familia_id = ?)';
             $params_tc[] = $usuario_actual['familia_id'] ?? -1;
         }
         $stmt = $pdo->prepare(

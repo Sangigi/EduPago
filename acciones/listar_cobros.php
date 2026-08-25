@@ -10,8 +10,18 @@
         $offset_lc    = ($pagina_lc - 1) * $por_pagina_lc;
         $estado_lc    = trim($input['estado'] ?? $_GET['estado'] ?? '');
         $buscar_lc    = trim($input['buscar'] ?? $_GET['buscar'] ?? '');
+        $desde_lc     = trim($input['desde'] ?? $_GET['desde'] ?? '');
+        $hasta_lc     = trim($input['hasta'] ?? $_GET['hasta'] ?? '');
         $where = 'co.escuela_id = ?';
         $params = [$escuela_id_lc];
+        // Filtro de rango de fechas (antes solo existía del lado del cliente,
+        // sobre la página ya traída — con paginación de servidor activa eso
+        // filtraba cuando mucho 200 filas, nunca "el último año" de verdad).
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $desde_lc) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $hasta_lc)) {
+            $where .= ' AND co.fecha BETWEEN ? AND ?';
+            $params[] = $desde_lc;
+            $params[] = $hasta_lc;
+        }
         // Antes solo se validaba la escuela (arriba): un padre de familia podía
         // paginar/buscar los cobros de TODAS las demás familias de su escuela.
         if (($usuario_actual['rol'] ?? '') === 'familia') {

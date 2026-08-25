@@ -18,7 +18,24 @@ function Cobros({
   } = React;
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroMetodo, setFiltroMetodo] = useState('todos');
-  const [filtroPeriodo, setFiltroPeriodo] = useState('todo');
+  // Rango de fechas: reemplaza al viejo filtroPeriodo (solo hoy/semana/mes/
+  // año/todo, y solo filtraba en el cliente la página ya cargada — con
+  // paginación de servidor activa eso eran cuando mucho 200 filas, nunca
+  // "el último año" de verdad). Mismos presets que Dashboard.js.
+  const RANGOS_TENDENCIA = [
+    { id: 'todo', label: 'Todo' },
+    { id: '1d', label: '1 día', dias: 1 },
+    { id: '5d', label: '5 días', dias: 5 },
+    { id: '7d', label: '7 días', dias: 7 },
+    { id: '1m', label: '1 mes', dias: 30 },
+    { id: '3m', label: '3 meses', dias: 90 },
+    { id: '6m', label: '6 meses', dias: 180 },
+    { id: '1y', label: '1 año', dias: 365 },
+  ];
+  const [rangoTendencia, setRangoTendencia] = useState('todo');
+  const [customDesde, setCustomDesde] = useState('');
+  const [customHasta, setCustomHasta] = useState('');
+  const [tendenciaPorDia, setTendenciaPorDia] = useState(null);
   const [q, setQ] = useState('');
   const [detalle, setDetalle] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
@@ -29,6 +46,29 @@ function Cobros({
   // se ha buscado en el servidor -> se usa el fallback local de data.cobros.
   const [paginaBackend, setPaginaBackend] = useState(null);
   const [itemsDetalle, setItemsDetalle] = useState(null); // null = cargando/no pedido; [] = ya cargó y no hay
+
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  // desdeRango/hastaRango: para la TABLA — "todo" = sin filtro de fecha
+  // (se sigue navegando por página como siempre).
+  const { desdeRango, hastaRango } = (() => {
+    if (rangoTendencia === 'todo') return { desdeRango: '', hastaRango: '' };
+    if (rangoTendencia === 'custom') {
+      return (customDesde && customHasta)
+        ? { desdeRango: customDesde, hastaRango: customHasta }
+        : { desdeRango: '', hastaRango: '' };
+    }
+    const preset = RANGOS_TENDENCIA.find(r => r.id === rangoTendencia);
+    if (!preset) return { desdeRango: '', hastaRango: '' };
+    const d = new Date();
+    d.setDate(d.getDate() - (preset.dias - 1));
+    return { desdeRango: d.toISOString().slice(0, 10), hastaRango: hoyISO };
+  })();
+  // desdeChart/hastaChart: para la GRÁFICA — con "todo" seleccionado, en vez
+  // de no mostrar nada se usa el rango máximo permitido por el servidor
+  // (400 días), para que la gráfica siempre tenga algo que dibujar.
+  const { desdeChart, hastaChart } = rangoTendencia === 'todo'
+    ? { desdeChart: new Date(Date.now() - 399 * 86400000).toISOString().slice(0, 10), hastaChart: hoyISO }
+    : { desdeChart: desdeRango, hastaChart: hastaRango };
 
   React.useEffect(() => {
     if (!detalle) { setItemsDetalle(null); return; }
@@ -63,6 +103,7 @@ function Cobros({
       });
       if (filtroEstado !== 'todos') params.set('estado', filtroEstado);
       if (q) params.set('buscar', q);
+      if (desdeRango && hastaRango) { params.set('desde', desdeRango); params.set('hasta', hastaRango); }
       const res = await fetch('api.php?' + params.toString(), {
         headers: { 'Authorization': 'Bearer ' + token() },
       });
@@ -77,7 +118,7 @@ function Cobros({
     }
   };
 
-  // Debounce de 400ms ante cambios de búsqueda/filtro/escuela; resetea a página 1
+  // Debounce de 400ms ante cambios de búsqueda/filtro/escuela/rango; resetea a página 1
   React.useEffect(() => {
     const t = setTimeout(() => {
       setPagina(1);
@@ -85,7 +126,24 @@ function Cobros({
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, filtroEstado, escuela_id]);
+  }, [q, filtroEstado, escuela_id, desdeRango, hastaRango]);
+
+  // Tendencia del periodo: agregado por día directo al servidor, para que el
+  // rango elegido (hasta "1 año") no dependa de cuántas filas trajo la
+  // página actual de la tabla. Respeta el filtro de método; no el de texto
+  // de búsqueda (buscar por nombre/folio no tiene un equivalente claro en
+  // una suma por día).
+  React.useEffect(() => {
+    if (!escuela_id || !desdeChart || !hastaChart) { setTendenciaPorDia(null); return; }
+    let cancelado = false;
+    const params = new URLSearchParams({ action: 'tendencia_cobranza', escuela_id, desde: desdeChart, hasta: hastaChart });
+    if (filtroMetodo !== 'todos') params.set('metodo', filtroMetodo);
+    fetch('api.php?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + token() } })
+      .then(r => r.json())
+      .then(json => { if (!cancelado && json.success) setTendenciaPorDia(json.por_dia || {}); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [escuela_id, desdeChart, hastaChart, filtroMetodo]);
 
   const irAPagina = p => {
     const totalPaginas = paginaBackend ? Math.max(1, Math.ceil(paginaBackend.total / paginaBackend.por_pagina)) : 1;
@@ -97,27 +155,14 @@ function Cobros({
   // filtroMetodo se sigue aplicando en cliente sobre la página ya traída
   // (filtrar por método no justifica otro roundtrip; es solo la vista actual).
   const fuente = paginaBackend ? paginaBackend.cobros : [...data.cobros].reverse();
-  // Rango del periodo elegido. Se calcula una sola vez, no por cobro.
-  const rangoPeriodo = (() => {
-    if (filtroPeriodo === 'todo') return null;
-    const hoy = new Date();
-    const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-    if (filtroPeriodo === 'semana') {
-      desde.setDate(desde.getDate() - ((hoy.getDay() + 6) % 7));  // lunes de esta semana
-    } else if (filtroPeriodo === 'mes') {
-      desde.setMonth(hoy.getMonth(), 1);
-    } else if (filtroPeriodo === 'anio') {
-      desde.setFullYear(hoy.getFullYear(), 0, 1);
-    }
-    const p = n => String(n).padStart(2, '0');
-    return desde.getFullYear() + '-' + p(desde.getMonth() + 1) + '-' + p(desde.getDate());
-  })();
-
   const lista = fuente.filter(c => {
     if (filtroMetodo !== 'todos' && c.metodo !== filtroMetodo) return false;
-    if (rangoPeriodo) {
+    // Cuando paginaBackend ya trae la página filtrada por rango del
+    // servidor, este check es un no-op (las filas ya vienen dentro del
+    // rango); solo filtra de verdad en el fallback local (data.cobros).
+    if (desdeRango && hastaRango) {
       const f = String(c.fecha || '').slice(0, 10);
-      if (!f || f < rangoPeriodo) return false;
+      if (!f || f < desdeRango || f > hastaRango) return false;
     }
     if (!paginaBackend && filtroEstado !== 'todos' && c.estado !== filtroEstado) return false;
     if (!paginaBackend && q) {
@@ -239,16 +284,15 @@ function Cobros({
         }, t.etiqueta, true));
       })()
     }, void 0, false), (() => {
-      // Tendencia del listado que se está viendo. Respeta los filtros activos:
-      // al filtrar por método o estado, la gráfica se recalcula sola.
-      const pagados = lista.filter(c => c.estado === 'pagado' && c.fecha);
-      if (pagados.length < 3) return null;
-
-      const fechas = pagados.map(c => String(c.fecha).slice(0, 10)).sort();
-      const desde = new Date(fechas[0] + 'T00:00:00');
-      const hasta = new Date(fechas[fechas.length - 1] + 'T00:00:00');
-      const dias = Math.round((hasta - desde) / 86400000) + 1;
-      if (dias < 2 || dias > 400) return null;
+      // Tendencia del periodo, agregada por día en el servidor (respeta el
+      // rango de fechas y el filtro de método elegidos aquí abajo) — antes
+      // se calculaba de `lista` (la página actual de la tabla, o el caché
+      // local de 90 días), así que un rango largo casi nunca tenía
+      // suficientes filas ya cargadas para mostrar más de un par de días.
+      if (!desdeChart || !hastaChart) return null;
+      const desde = new Date(desdeChart + 'T00:00:00');
+      const hasta = new Date(hastaChart + 'T00:00:00');
+      const dias = Math.max(1, Math.round((hasta - desde) / 86400000) + 1);
 
       // Con muchos días se agrupa por semana para que la línea siga siendo legible
       const porSemana = dias > 70;
@@ -258,6 +302,7 @@ function Cobros({
         const d = new Date(desde);
         d.setDate(d.getDate() + k);
         const iso = d.toISOString().slice(0, 10);
+        const valorDia = (tendenciaPorDia && tendenciaPorDia[iso]) || 0;
         if (porSemana) {
           const lunes = new Date(d);
           lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
@@ -266,17 +311,16 @@ function Cobros({
             idx[clave] = cubos.length;
             cubos.push({ label: lunes.getDate() + '/' + (lunes.getMonth() + 1), valor: 0 });
           }
-          idx[iso] = idx[clave];
+          cubos[idx[clave]].valor += valorDia;
         } else {
-          idx[iso] = cubos.length;
-          cubos.push({ label: d.getDate() + '/' + (d.getMonth() + 1), valor: 0 });
+          cubos.push({ label: d.getDate() + '/' + (d.getMonth() + 1), valor: valorDia });
         }
       }
-      pagados.forEach(c => {
-        const n = idx[String(c.fecha).slice(0, 10)];
-        if (n !== undefined) cubos[n].valor += Number(c.total) || 0;
-      });
       const suma = cubos.reduce((a, c) => a + c.valor, 0);
+      const rangoActivo = RANGOS_TENDENCIA.find(r => r.id === rangoTendencia);
+      const etiquetaRango = rangoTendencia === 'custom'
+        ? `${desdeChart} a ${hastaChart}`
+        : (rangoActivo ? rangoActivo.label.toLowerCase() : dias + ' días');
 
       return _jsxDEV("div", {
         className: "card",
@@ -284,15 +328,14 @@ function Cobros({
         children: [
           _jsxDEV("div", {
             className: "card-header",
+            style: { flexWrap: 'wrap', gap: 10 },
             children: [
               _jsxDEV("div", {
                 children: [
                   _jsxDEV("div", { className: "card-title", children: "Tendencia del periodo" }, void 0, false),
                   _jsxDEV("div", {
                     className: "card-sub",
-                    children: porSemana
-                      ? cubos.length + ' semanas · según los filtros aplicados'
-                      : dias + ' días · según los filtros aplicados'
+                    children: etiquetaRango + (filtroMetodo !== 'todos' ? ' · ' + filtroMetodo : '')
                   }, void 0, false)
                 ]
               }, void 0, true),
@@ -302,6 +345,40 @@ function Cobros({
               }, void 0, false)
             ]
           }, 'h', true),
+          _jsxDEV("div", {
+            style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 14 },
+            children: [
+              ...RANGOS_TENDENCIA.map(r => _jsxDEV("button", {
+                type: "button",
+                className: 'btn btn-sm ' + (rangoTendencia === r.id ? 'btn-primary' : 'btn-ghost'),
+                onClick: () => setRangoTendencia(r.id),
+                children: r.label
+              }, r.id, false)),
+              _jsxDEV("button", {
+                type: "button",
+                className: 'btn btn-sm ' + (rangoTendencia === 'custom' ? 'btn-primary' : 'btn-ghost'),
+                onClick: () => setRangoTendencia('custom'),
+                children: "Rango personalizado"
+              }, 'custom', false),
+              rangoTendencia === 'custom' ? _jsxDEV("input", {
+                type: "date",
+                className: "form-input",
+                style: { width: 145, fontSize: 12.5 },
+                value: customDesde,
+                max: hoyISO,
+                onChange: e => setCustomDesde(e.target.value)
+              }, 'desde', false) : null,
+              rangoTendencia === 'custom' ? _jsxDEV("input", {
+                type: "date",
+                className: "form-input",
+                style: { width: 145, fontSize: 12.5 },
+                value: customHasta,
+                min: customDesde || undefined,
+                max: hoyISO,
+                onChange: e => setCustomHasta(e.target.value)
+              }, 'hasta', false) : null
+            ]
+          }, 'rango', true),
           (typeof AreaChart !== 'undefined')
             ? _jsxDEV(AreaChart, { datos: cubos, alto: 200, color: 'var(--violet)', formato: fmt }, 'c', false)
             : null
@@ -350,27 +427,13 @@ function Cobros({
           },
           onClick: () => setFiltroEstado(val),
           children: [label, " (", totales[val] ?? lista.filter(c => c.estado === val).length, ")"]
-        }, val, true)), _jsxDEV("div", {
-          className: "pill-group",
-          style: { marginLeft: 'auto' },
-          children: [
-            { id: 'hoy',    label: 'Hoy' },
-            { id: 'semana', label: 'Semana' },
-            { id: 'mes',    label: 'Mes' },
-            { id: 'anio',   label: 'Año' },
-            { id: 'todo',   label: 'Todo' }
-          ].map(op => _jsxDEV("button", {
-            className: "pill" + (filtroPeriodo === op.id ? " active" : ""),
-            style: { padding: '6px 13px', fontSize: 12 },
-            onClick: () => { setFiltroPeriodo(op.id); setPagina(1); },
-            children: op.label
-          }, op.id, false))
-        }, 'periodo', false), _jsxDEV("select", {
+        }, val, true)), _jsxDEV("select", {
           className: "form-select",
           style: {
             fontSize: 12,
             padding: '4px 10px',
-            width: 'auto'
+            width: 'auto',
+            marginLeft: 'auto'
           },
           value: filtroMetodo,
           onChange: e => setFiltroMetodo(e.target.value),

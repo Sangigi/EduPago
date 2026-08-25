@@ -176,6 +176,15 @@ Secuencia recomendada para no perder notificaciones reales durante el cambio:
 - Probado contra la base de datos real (de solo lectura, sin riesgo): un rango de 30 días para la escuela #1 mostró cobros en 11 días distintos (contra los ~2 que se veían antes), confirmando que el problema era la fuente de datos, no la gráfica en sí. También se probaron rangos inválidos (hasta antes que desde) y el tope de 400 días — ambos rechazados correctamente.
 - No requiere migración SQL (usa la columna `cobros.fecha` que ya existe).
 
+### 5.3p La verdadera "gráfica de historial de cobros" (en Cobros.js) — mismo filtro de rango
+- La gráfica que el usuario tenía en mente en realidad era "Tendencia del periodo" en `views/Cobros.js`, no la del Dashboard (5.3o). Tenía un filtro viejo (`filtroPeriodo`: Hoy/Semana/Mes/Año/Todo) que solo filtraba en el navegador la página ya cargada — con paginación de servidor activa eso eran cuando mucho 200 filas, así que "Año" en la práctica mostraba lo mismo que "Semana".
+- Se reemplazó por el mismo selector de `RANGOS_TENDENCIA` que el Dashboard (1 día, 5 días, 7 días, 1 mes, 3 meses, 6 meses, 1 año, personalizado, más "Todo" sin filtro de fecha) y se conectó de verdad al servidor:
+  - `acciones/listar_cobros.php` ahora acepta `desde`/`hasta` opcionales — la tabla y las tarjetas de resumen ("Cobrado en este listado", etc.) filtran por fecha en la base de datos, no en la página ya traída.
+  - `acciones/tendencia_cobranza.php` (creado en 5.3o) ahora acepta `metodo` opcional, para que la gráfica siga respetando el filtro de método que ya tenía Cobros.js. La gráfica misma se recalculó para usar el agregado del servidor en vez de `lista`.
+  - El filtro de texto de búsqueda (folio/cliente/matrícula) a propósito NO se aplica a la gráfica — no tiene un equivalente claro en una suma por día, solo afecta la tabla.
+- Probado contra la base real (solo lectura): `listar_cobros` con rango de 30 días devolvió cobros dentro del rango correcto; `tendencia_cobranza` con `metodo=TC` devolvió 8 días con pagos por tarjeta en los últimos 90 días.
+- No requiere migración SQL.
+
 ### 5.4 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
 - **`usuarios.zona` / `planteles.zona` (texto) vs `zona_id` (FK a la tabla `zonas`)**: es una migración a normalizado que ya está en curso desde antes, NO un descuido. Hoy solo las filas nuevas (distribuidores #11/#12) tienen `zona_id` poblado — el resto de usuarios/planteles viejos sigue con `zona_id = NULL` y solo el texto libre. **No borres las columnas `zona` (texto) todavía** — primero hay que backfillear `zona_id` en todas las filas viejas cruzando contra `zonas.nombre`, confirmar que quedó 100% poblado, y solo entonces dropear el texto.
 - **`escuelas.clabe_fija`**: legado, reemplazado por el sistema de `clabe_pool` (CLABEs individuales). Confirmado que ningún archivo PHP la lee ya (ni siquiera los webhooks de SPEI/CLABE) — es segura de eliminar cuando quieras, no es urgente.
