@@ -341,6 +341,8 @@ function Usuarios({ user, data }) {
   const [filtroRol, setFiltroRol] = useState('todos');
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
+  const [reenviando, setReenviando] = useState(null);
+  const [credencialesTemp, setCredencialesTemp] = useState(null); // { email, password } — solo si falló el correo
 
   const esSuper = AuthController.isSuperAdmin(user);
 
@@ -495,6 +497,28 @@ function Usuarios({ user, data }) {
     } catch(e) { alert('Error: ' + e.message); }
     await cargarUsuarios();
     setConfirm(null);
+  };
+
+  const reenviarCredenciales = async u => {
+    // No existe forma de "reenviar" la contraseña actual — solo se guarda su
+    // hash. Reenviar credenciales genera una NUEVA contraseña y la manda por
+    // correo, dejando inválida la anterior (mismo criterio que la contraseña
+    // temporal al aprobar una invitación de colegio).
+    if (!window.confirm(`¿Generar una contraseña nueva para ${u.nombre} y reenviarla a ${u.email}? La contraseña actual dejará de funcionar.`)) return;
+    setReenviando(u.id);
+    try {
+      const res = await apiPost('reenviar_credenciales', { id: u.id });
+      if (res.success === false) {
+        alert(res.error || 'No se pudo reenviar las credenciales.');
+      } else if (res.correo_enviado) {
+        alert(`Se envió una contraseña nueva a ${res.email}.`);
+      } else {
+        setCredencialesTemp({ email: res.email, password: res.password_temporal });
+      }
+    } catch (e) {
+      alert('Error de conexión: ' + e.message);
+    }
+    setReenviando(null);
   };
 
   const cerrarSesiones = async u => {
@@ -711,6 +735,13 @@ function Usuarios({ user, data }) {
                                       title: "Cerrar sus sesiones activas (forzar a iniciar sesión de nuevo)",
                                       children: _jsxDEV(Icon, { name: "logout", size: 14, color: "currentColor" }, void 0, false)
                                     }, void 0, false),
+                                    puedeAcc && !esUnoMismo && _jsxDEV("button", {
+                                      className: "btn btn-ghost btn-sm",
+                                      disabled: reenviando === u.id,
+                                      onClick: () => reenviarCredenciales(u),
+                                      title: "Generar una contraseña nueva y reenviarla por correo (por si el correo original no le llegó)",
+                                      children: _jsxDEV(Icon, { name: "history", size: 14, color: "currentColor" }, void 0, false)
+                                    }, void 0, false),
                                     puedeAcc && !u.es_semilla && !esUnoMismo && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => setConfirm({ tipo: 'eliminar', userId: u.id }),
@@ -787,6 +818,13 @@ function Usuarios({ user, data }) {
         peligroso: confirm?.tipo === 'eliminar',
         onConfirmar: confirmarAccion,
         onCancelar: () => setConfirm(null),
+      }, void 0, false),
+
+      /* Fallback cuando "Reenviar credenciales" no pudo mandar el correo —
+         componente compartido con PanelInvitaciones.js (ya se carga antes). */
+      credencialesTemp && typeof ModalCredencialesTemp !== 'undefined' && _jsxDEV(ModalCredencialesTemp, {
+        email: credencialesTemp.email, password: credencialesTemp.password,
+        onCerrar: () => setCredencialesTemp(null)
       }, void 0, false)
     ]
   }, void 0, true);
