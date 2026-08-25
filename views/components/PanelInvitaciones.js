@@ -91,7 +91,8 @@ function ModalGenerarInvitacion({ onCerrar, onCreada }) {
       _hPI('div', { key: 'b', className: 'modal-body' },
         resultado ? [
           _hPI('div', { key: 'ok', style: { fontSize: 13, color: 'var(--ink-2)', marginBottom: 10 } },
-            'Enlace generado. Compártelo con el colegio — expira en ' + resultado.expira_horas + ' horas.'),
+            'Enlace generado. Compártelo con el colegio — expira en ' + resultado.expira_horas + ' horas. ' +
+            'Solo se muestra esta vez: si lo pierdes, usa "Regenerar enlace" en la lista de abajo.'),
           _hPI('div', { key: 'liga', className: 'form-group' },
             _hPI('input', {
               className: 'form-input', readOnly: true, value: resultado.liga,
@@ -141,6 +142,42 @@ function ModalGenerarInvitacion({ onCerrar, onCreada }) {
                 key: 'gen', className: 'btn btn-primary', disabled: guardando, onClick: generar
               }, guardando ? 'Generando…' : 'Generar enlace')
             ]
+      )
+    )
+  );
+}
+
+function ModalLigaRegenerada({ liga, expiraHoras, onCerrar }) {
+  const { useState } = React;
+  const [copiado, setCopiado] = useState(false);
+  const copiar = () => {
+    try {
+      navigator.clipboard.writeText(liga);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch (e) { /* clipboard no disponible; el input ya queda seleccionado al enfocarlo */ }
+  };
+  return _hPI('div', { className: 'modal-backdrop', onClick: onCerrar },
+    _hPI('div', { className: 'modal', style: { maxWidth: 440 }, onClick: function (e) { e.stopPropagation(); } },
+      _hPI('div', { key: 'h', className: 'modal-header' },
+        _hPI('div', { key: 't', className: 'modal-title' }, 'Enlace nuevo generado'),
+        _hPI('button', { key: 'x', className: 'btn-ghost', onClick: onCerrar },
+          _hPI(Icon, { name: 'close', size: 16, color: 'currentColor' }))
+      ),
+      _hPI('div', { key: 'b', className: 'modal-body' },
+        _hPI('div', { key: 'ok', style: { fontSize: 13, color: 'var(--ink-2)', marginBottom: 10 } },
+          'El enlace anterior ya no funciona. Comparte este — expira en ' + expiraHoras + ' horas.'),
+        _hPI('div', { key: 'liga', className: 'form-group' },
+          _hPI('input', {
+            className: 'form-input', readOnly: true, value: liga,
+            onFocus: function (e) { e.target.select(); }
+          })
+        ),
+        _hPI('button', { key: 'copiar', className: 'btn btn-secondary btn-sm', onClick: copiar },
+          copiado ? 'Copiado ✓' : 'Copiar enlace')
+      ),
+      _hPI('div', { key: 'f', className: 'modal-footer' },
+        _hPI('button', { key: 'listo', className: 'btn btn-primary', onClick: onCerrar }, 'Listo')
       )
     )
   );
@@ -223,6 +260,8 @@ function PanelInvitaciones({ esSuperAdmin }) {
   const [detalleId, setDetalleId] = useState(null);
   const [resolviendo, setResolviendo] = useState(null);
   const [busqueda, setBusqueda] = useState('');
+  const [regenerando, setRegenerando] = useState(null);
+  const [ligaRegenerada, setLigaRegenerada] = useState(null); // { liga, expira_horas }
 
   const cargar = async () => {
     setCargando(true);
@@ -246,6 +285,23 @@ function PanelInvitaciones({ esSuperAdmin }) {
       alert('Error de conexión: ' + e.message);
     }
     setResolviendo(null);
+  };
+
+  // El token en claro solo se muestra una vez (ver invitacion_crear.php) — si
+  // se cierra el modal sin copiarlo, de verdad no hay forma de recuperarlo.
+  // Esto no lo "recupera": invalida el enlace viejo y emite uno nuevo para
+  // la misma invitación, sin tener que volver a capturar el contacto.
+  const regenerar = async (id) => {
+    if (!confirm('¿Generar un enlace nuevo para esta invitación? El enlace anterior dejará de funcionar.')) return;
+    setRegenerando(id);
+    try {
+      const res = await _apiPostInv('invitacion_regenerar', { id: id });
+      if (res.success === false) alert(res.error || 'No se pudo regenerar el enlace.');
+      else { setLigaRegenerada(res); await cargar(); }
+    } catch (e) {
+      alert('Error de conexión: ' + e.message);
+    }
+    setRegenerando(null);
   };
 
   // Con esto un superadmin puede ver de un vistazo lo generado por un
@@ -303,10 +359,18 @@ function PanelInvitaciones({ esSuperAdmin }) {
                     _hPI('td', {}, _hPI('span', { className: 'badge ' + info.clase }, info.label)),
                     _hPI('td', {}, String(inv.fecha_alta || '').slice(0, 10)),
                     _hPI('td', {},
-                      _hPI('button', {
-                        className: 'btn btn-secondary btn-sm',
-                        onClick: function () { setDetalleId(inv.id); }
-                      }, inv.estado === 'enviado' && esSuperAdmin ? 'Revisar' : 'Ver')
+                      _hPI('div', { style: { display: 'flex', gap: 6 } },
+                        _hPI('button', {
+                          key: 'ver', className: 'btn btn-secondary btn-sm',
+                          onClick: function () { setDetalleId(inv.id); }
+                        }, inv.estado === 'enviado' && esSuperAdmin ? 'Revisar' : 'Ver'),
+                        inv.estado === 'pendiente' ? _hPI('button', {
+                          key: 'regen', className: 'btn btn-secondary btn-sm',
+                          disabled: regenerando === inv.id,
+                          title: '¿Se perdió el enlace? El servidor solo guarda su hash, no el enlace en sí — no se puede recuperar, pero sí generar uno nuevo.',
+                          onClick: function () { regenerar(inv.id); }
+                        }, regenerando === inv.id ? 'Generando…' : 'Regenerar enlace') : null
+                      )
                     )
                   );
                 })
@@ -320,6 +384,10 @@ function PanelInvitaciones({ esSuperAdmin }) {
       key: 'detalle', inv: detalle, esSuperAdmin: esSuperAdmin,
       resolviendo: resolviendo === detalle.id,
       onCerrar: function () { setDetalleId(null); }, onResolver: resolver
+    }) : null,
+    ligaRegenerada ? _hPI(ModalLigaRegenerada, {
+      key: 'regenerada', liga: ligaRegenerada.liga, expiraHoras: ligaRegenerada.expira_horas,
+      onCerrar: function () { setLigaRegenerada(null); }
     }) : null
   );
 }
