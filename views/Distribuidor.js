@@ -244,6 +244,8 @@ function DistColegiosView({ colegios }) {
               }, void 0, true)
             }, void 0, false)
       }, void 0, false),
+
+      _jsxDEV(PanelInvitaciones, { esSuperAdmin: false }, void 0, false),
     ]
   }, void 0, true);
 }

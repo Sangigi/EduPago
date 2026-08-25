@@ -95,7 +95,12 @@ function FichaTecnica({ registro, tipo, escuela, familia, extra, onCerrar, onGua
     ['Correo', registro.email],
     ['Telefono', registro.telefono],
     ['RFC', registro.rfc_factura],
-    ['Razon social', registro.razon_social_factura]
+    ['Razon social', registro.razon_social_factura],
+    ['Regimen fiscal', registro.regimen_factura],
+    ['Uso de CFDI', registro.uso_cfdi_defecto],
+    ['Codigo postal (fiscal)', registro.cp_factura],
+    ['Domicilio fiscal', registro.domicilio_factura],
+    ['Etiquetas', Array.isArray(registro.etiquetas) ? registro.etiquetas.join(', ') : registro.etiquetas]
   ];
   const visibles = filas.filter(function (f) {
     return f[1] !== null && f[1] !== undefined && String(f[1]).trim() !== '';

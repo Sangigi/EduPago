@@ -757,7 +757,7 @@ function Escuelas({
           }, void 0, true)]
         }, esc.id, true);
       })
-    }, void 0, false), modal === 'form' && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, false), /*#__PURE__*/_jsxDEV(PanelInvitaciones, { esSuperAdmin: true }, void 0, false), modal === 'form' && /*#__PURE__*/_jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setModal(null),
       children: /*#__PURE__*/_jsxDEV("div", {
