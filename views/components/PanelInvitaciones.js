@@ -147,7 +147,12 @@ function ModalGenerarInvitacion({ onCerrar, onCreada }) {
   );
 }
 
-function ModalLigaRegenerada({ liga, expiraHoras, onCerrar }) {
+// Genérico: sirve tanto para "aquí está tu enlace" (invitación nueva/regenerada)
+// como para "el correo falló, aquí está el enlace de activación para que lo
+// compartas tú mismo" (aprobar escuela / reenviar credenciales) — mismo
+// contrato en los tres casos: un enlace de un solo uso que hay que copiar
+// porque no se vuelve a mostrar.
+function ModalLigaCopiar({ liga, expiraHoras, titulo, mensaje, onCerrar }) {
   const { useState } = React;
   const [copiado, setCopiado] = useState(false);
   const copiar = () => {
@@ -160,13 +165,13 @@ function ModalLigaRegenerada({ liga, expiraHoras, onCerrar }) {
   return _hPI('div', { className: 'modal-backdrop', onClick: onCerrar },
     _hPI('div', { className: 'modal', style: { maxWidth: 440 }, onClick: function (e) { e.stopPropagation(); } },
       _hPI('div', { key: 'h', className: 'modal-header' },
-        _hPI('div', { key: 't', className: 'modal-title' }, 'Enlace nuevo generado'),
+        _hPI('div', { key: 't', className: 'modal-title' }, titulo || 'Enlace generado'),
         _hPI('button', { key: 'x', className: 'btn-ghost', onClick: onCerrar },
           _hPI(Icon, { name: 'close', size: 16, color: 'currentColor' }))
       ),
       _hPI('div', { key: 'b', className: 'modal-body' },
         _hPI('div', { key: 'ok', style: { fontSize: 13, color: 'var(--ink-2)', marginBottom: 10 } },
-          'El enlace anterior ya no funciona. Comparte este — expira en ' + expiraHoras + ' horas.'),
+          mensaje || ('Comparte este enlace — expira en ' + expiraHoras + ' horas.')),
         _hPI('div', { key: 'liga', className: 'form-group' },
           _hPI('input', {
             className: 'form-input', readOnly: true, value: liga,
@@ -175,44 +180,6 @@ function ModalLigaRegenerada({ liga, expiraHoras, onCerrar }) {
         ),
         _hPI('button', { key: 'copiar', className: 'btn btn-secondary btn-sm', onClick: copiar },
           copiado ? 'Copiado ✓' : 'Copiar enlace')
-      ),
-      _hPI('div', { key: 'f', className: 'modal-footer' },
-        _hPI('button', { key: 'listo', className: 'btn btn-primary', onClick: onCerrar }, 'Listo')
-      )
-    )
-  );
-}
-
-function ModalCredencialesTemp({ email, password, onCerrar }) {
-  const { useState } = React;
-  const [copiado, setCopiado] = useState(false);
-  const copiar = () => {
-    try {
-      navigator.clipboard.writeText(password);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
-    } catch (e) { /* clipboard no disponible; el input ya queda seleccionado al enfocarlo */ }
-  };
-  return _hPI('div', { className: 'modal-backdrop', onClick: onCerrar },
-    _hPI('div', { className: 'modal', style: { maxWidth: 440 }, onClick: function (e) { e.stopPropagation(); } },
-      _hPI('div', { key: 'h', className: 'modal-header' },
-        _hPI('div', { key: 't', className: 'modal-title' }, 'Colegio creado — el correo de bienvenida falló'),
-        _hPI('button', { key: 'x', className: 'btn-ghost', onClick: onCerrar },
-          _hPI(Icon, { name: 'close', size: 16, color: 'currentColor' }))
-      ),
-      _hPI('div', { key: 'b', className: 'modal-body' },
-        _hPI('div', { key: 'ok', style: { fontSize: 13, color: 'var(--ink-2)', marginBottom: 10 } },
-          'La cuenta se creó, pero no se pudo enviar el correo con las credenciales. Compártelas tú mismo — no se van a volver a mostrar.'),
-        _hPI('div', { key: 'email', className: 'form-group' },
-          _hPI('label', { className: 'form-label' }, 'Usuario'),
-          _hPI('input', { className: 'form-input', readOnly: true, value: email, onFocus: function (e) { e.target.select(); } })
-        ),
-        _hPI('div', { key: 'pass', className: 'form-group' },
-          _hPI('label', { className: 'form-label' }, 'Contraseña temporal'),
-          _hPI('input', { className: 'form-input', readOnly: true, value: password, onFocus: function (e) { e.target.select(); } })
-        ),
-        _hPI('button', { key: 'copiar', className: 'btn btn-secondary btn-sm', onClick: copiar },
-          copiado ? 'Copiada ✓' : 'Copiar contraseña')
       ),
       _hPI('div', { key: 'f', className: 'modal-footer' },
         _hPI('button', { key: 'listo', className: 'btn btn-primary', onClick: onCerrar }, 'Listo')
@@ -300,7 +267,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
   const [busqueda, setBusqueda] = useState('');
   const [regenerando, setRegenerando] = useState(null);
   const [ligaRegenerada, setLigaRegenerada] = useState(null); // { liga, expira_horas }
-  const [credencialesTemp, setCredencialesTemp] = useState(null); // { email, password }
+  const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — cuando el correo de bienvenida falla
 
   const cargar = async () => {
     setCargando(true);
@@ -324,9 +291,9 @@ function PanelInvitaciones({ esSuperAdmin }) {
         setDetalleId(null);
         if (accion === 'aprobar') {
           if (res.usuario_creado && res.correo_enviado) {
-            alert('Colegio creado y activo. Le enviamos sus credenciales de acceso por correo.');
+            alert('Colegio creado y activo. Le enviamos un enlace para que active su cuenta y ponga su propia contraseña.');
           } else if (res.usuario_creado && !res.correo_enviado) {
-            setCredencialesTemp({ email: res.email_login, password: res.password_temporal });
+            setLigaActivacion({ liga: res.activacion_liga });
           } else {
             alert('Colegio creado y activo. Ya existía una cuenta con ese correo, así que no se generó una nueva — crea el acceso a mano si hace falta (Usuarios → Crear usuario).');
           }
@@ -437,13 +404,17 @@ function PanelInvitaciones({ esSuperAdmin }) {
       resolviendo: resolviendo === detalle.id,
       onCerrar: function () { setDetalleId(null); }, onResolver: resolver
     }) : null,
-    ligaRegenerada ? _hPI(ModalLigaRegenerada, {
+    ligaRegenerada ? _hPI(ModalLigaCopiar, {
       key: 'regenerada', liga: ligaRegenerada.liga, expiraHoras: ligaRegenerada.expira_horas,
+      titulo: 'Enlace nuevo generado',
+      mensaje: 'El enlace anterior ya no funciona. Comparte este — expira en ' + ligaRegenerada.expira_horas + ' horas.',
       onCerrar: function () { setLigaRegenerada(null); }
     }) : null,
-    credencialesTemp ? _hPI(ModalCredencialesTemp, {
-      key: 'credenciales', email: credencialesTemp.email, password: credencialesTemp.password,
-      onCerrar: function () { setCredencialesTemp(null); }
+    ligaActivacion ? _hPI(ModalLigaCopiar, {
+      key: 'activacion', liga: ligaActivacion.liga,
+      titulo: 'Colegio creado — el correo de bienvenida falló',
+      mensaje: 'La cuenta se creó, pero no se pudo enviar el correo. Comparte este enlace para que el colegio active su cuenta y ponga su propia contraseña — expira en 72 horas.',
+      onCerrar: function () { setLigaActivacion(null); }
     }) : null
   );
 }

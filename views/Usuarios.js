@@ -342,7 +342,7 @@ function Usuarios({ user, data }) {
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [reenviando, setReenviando] = useState(null);
-  const [credencialesTemp, setCredencialesTemp] = useState(null); // { email, password } — solo si falló el correo
+  const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — solo si falló el correo
 
   const esSuper = AuthController.isSuperAdmin(user);
 
@@ -500,20 +500,20 @@ function Usuarios({ user, data }) {
   };
 
   const reenviarCredenciales = async u => {
-    // No existe forma de "reenviar" la contraseña actual — solo se guarda su
-    // hash. Reenviar credenciales genera una NUEVA contraseña y la manda por
-    // correo, dejando inválida la anterior (mismo criterio que la contraseña
-    // temporal al aprobar una invitación de colegio).
-    if (!window.confirm(`¿Generar una contraseña nueva para ${u.nombre} y reenviarla a ${u.email}? La contraseña actual dejará de funcionar.`)) return;
+    // No se manda contraseña por correo (Outlook la marcaba como phishing —
+    // ver PRODUCCION.md). Esto genera un enlace de activación de un solo uso
+    // para que el propio usuario ponga su contraseña; la actual no cambia
+    // hasta que de verdad entre a ese enlace.
+    if (!window.confirm(`¿Generar un enlace de acceso nuevo para ${u.nombre} y mandarlo a ${u.email}?`)) return;
     setReenviando(u.id);
     try {
       const res = await apiPost('reenviar_credenciales', { id: u.id });
       if (res.success === false) {
-        alert(res.error || 'No se pudo reenviar las credenciales.');
+        alert(res.error || 'No se pudo reenviar el acceso.');
       } else if (res.correo_enviado) {
-        alert(`Se envió una contraseña nueva a ${res.email}.`);
+        alert(`Se envió un enlace de activación a ${res.email}.`);
       } else {
-        setCredencialesTemp({ email: res.email, password: res.password_temporal });
+        setLigaActivacion({ liga: res.activacion_liga });
       }
     } catch (e) {
       alert('Error de conexión: ' + e.message);
@@ -822,9 +822,11 @@ function Usuarios({ user, data }) {
 
       /* Fallback cuando "Reenviar credenciales" no pudo mandar el correo —
          componente compartido con PanelInvitaciones.js (ya se carga antes). */
-      credencialesTemp && typeof ModalCredencialesTemp !== 'undefined' && _jsxDEV(ModalCredencialesTemp, {
-        email: credencialesTemp.email, password: credencialesTemp.password,
-        onCerrar: () => setCredencialesTemp(null)
+      ligaActivacion && typeof ModalLigaCopiar !== 'undefined' && _jsxDEV(ModalLigaCopiar, {
+        liga: ligaActivacion.liga,
+        titulo: 'No se pudo mandar el correo',
+        mensaje: 'Comparte este enlace para que el usuario active su cuenta y ponga su propia contraseña — expira en 72 horas.',
+        onCerrar: () => setLigaActivacion(null)
       }, void 0, false)
     ]
   }, void 0, true);

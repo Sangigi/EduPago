@@ -1,9 +1,10 @@
 <?php
-    // El hash de la contraseña actual no se puede "reenviar" — solo se guarda
-    // el bcrypt, nunca el texto plano (mismo principio que el token de
-    // invitación o la contraseña temporal al aprobar una escuela). Reenviar
-    // credenciales en realidad significa: generar una contraseña NUEVA y
-    // mandarla, dejando la vieja inválida.
+    // No se manda contraseña por correo — se probó y Outlook la marcaba como
+    // phishing (un correo corto con "usuario y contraseña" desde un dominio
+    // con poco historial es justo ese patrón, ver PRODUCCION.md). En vez de
+    // eso se genera un enlace de activación de un solo uso, igual que al
+    // aprobar una escuela — la contraseña actual del usuario NO se toca hasta
+    // que de verdad entre a ese enlace y ponga una nueva.
     $rol_actual = $usuario_actual['rol'] ?? '';
     requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para reenviar credenciales.');
 
@@ -26,31 +27,38 @@
         respond(['success' => false, 'error' => 'No tienes permiso para reenviar credenciales a este usuario.']);
     }
 
-    $password_nueva = bin2hex(random_bytes(8));
-    $pdo->prepare("UPDATE usuarios SET password_hash = ?, sesion_valida_desde = NOW() WHERE id = ?")
-        ->execute([password_hash($password_nueva, PASSWORD_BCRYPT), $id]);
+    $activacion_token = bin2hex(random_bytes(32));
+    $activacion_hash  = hash('sha256', $activacion_token);
+    $pdo->prepare("UPDATE usuarios SET activacion_token_hash = ?, activacion_expira = DATE_ADD(NOW(), INTERVAL 72 HOUR) WHERE id = ?")
+        ->execute([$activacion_hash, $id]);
 
     registrar_log($pdo, $usuario_actual, 'credenciales_reenviadas',
-        "Se generó una contraseña nueva y se reenvió a '{$u['nombre']}' ({$u['email']})", $u['escuela_id']);
+        "Se generó un enlace de activación nuevo y se reenvió a '{$u['nombre']}' ({$u['email']})", $u['escuela_id']);
+
+    $activacion_liga = (defined('APP_URL') && APP_URL
+                            ? rtrim(APP_URL, '/')
+                            : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                               . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                               . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
+                         . '/activar_cuenta.html?t=' . $activacion_token;
 
     $html = "
         <p>Hola,</p>
-        <p>Se generó una nueva contraseña de acceso a tu cuenta en Paga la Escuela.</p>
-        <p>Usuario: <strong>" . htmlspecialchars($u['email']) . "</strong><br>
-           Contraseña temporal: <strong>" . htmlspecialchars($password_nueva) . "</strong></p>
-        <p>Puedes cambiarla cuando quieras desde tu perfil, una vez que inicies sesión.</p>
+        <p>Entra a este enlace para poner una contraseña nueva en tu cuenta de Paga la Escuela ({$u['email']}):</p>
+        <p><a href=\"" . htmlspecialchars($activacion_liga) . "\">" . htmlspecialchars($activacion_liga) . "</a></p>
+        <p>El enlace expira en 72 horas.</p>
         <p>— Pagalaescuela</p>
     ";
-    $resCorreo = enviar_correo($u['email'], 'Tu nueva contraseña de acceso — Paga la Escuela', $html);
+    $resCorreo = enviar_correo($u['email'], 'Tu enlace para entrar a Paga la Escuela', $html);
     $correo_enviado = (bool) ($resCorreo['success'] ?? false);
     if (!$correo_enviado) {
         log_api("reenviar_credenciales #$id ({$u['email']}) -> falló el correo: " . ($resCorreo['error'] ?? 'desconocido'));
     }
 
     respond([
-        'success'           => true,
-        'email'             => $u['email'],
-        'correo_enviado'    => $correo_enviado,
-        // Solo va en la respuesta si de verdad hace falta transmitirla a mano.
-        'password_temporal' => $correo_enviado ? null : $password_nueva,
+        'success'          => true,
+        'email'            => $u['email'],
+        'correo_enviado'   => $correo_enviado,
+        // Solo va en la respuesta si de verdad hace falta transmitirlo a mano.
+        'activacion_liga'  => $correo_enviado ? null : $activacion_liga,
     ]);

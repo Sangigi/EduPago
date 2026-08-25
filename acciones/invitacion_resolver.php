@@ -29,11 +29,16 @@
 
     $d = json_decode($inv['datos_enviados'] ?? '{}', true) ?: [];
 
-    // La cuenta admin se crea aquí mismo, con contraseña generada al azar —
-    // antes se dejaba "para después" (crear_usuario aparte), así que un
-    // colegio aprobado por este flujo se quedaba activo en la BD pero sin
-    // nadie que pudiera iniciar sesión, y sin ningún aviso de que hacía falta
-    // ese paso manual.
+    // La cuenta admin se crea aquí mismo — antes se dejaba "para después"
+    // (crear_usuario aparte), así que un colegio aprobado por este flujo se
+    // quedaba activo en la BD pero sin nadie que pudiera iniciar sesión, y
+    // sin ningún aviso de que hacía falta ese paso manual.
+    // No se manda una contraseña por correo (se probó y Outlook la filtraba
+    // como phishing — un correo corto con "usuario y contraseña" desde un
+    // dominio con poco historial es justo ese patrón, ver PRODUCCION.md). En
+    // vez de eso se manda un enlace de un solo uso para que el propio colegio
+    // fije su contraseña — mismo mecanismo que ya usa la invitación misma
+    // (token al azar, solo se guarda su hash, se muestra/usa una sola vez).
     $email_login = trim($d['email'] ?? '');
     $usuario_ya_existe = false;
     if ($email_login !== '') {
@@ -41,7 +46,9 @@
         $chkUsr->execute([$email_login]);
         $usuario_ya_existe = (bool) $chkUsr->fetch();
     }
-    $password_temporal = $usuario_ya_existe || $email_login === '' ? null : bin2hex(random_bytes(8));
+    $crear_cuenta = !$usuario_ya_existe && $email_login !== '';
+    $activacion_token = $crear_cuenta ? bin2hex(random_bytes(32)) : null;
+    $activacion_hash  = $activacion_token ? hash('sha256', $activacion_token) : null;
 
     // `clave` es única (crear_escuela.php/editar_escuela.php siempre la piden
     // y la validan) pero el formulario público de registro nunca la pide —
@@ -88,15 +95,18 @@
         }
 
         $usuario_creado = false;
-        if ($password_temporal !== null) {
+        if ($crear_cuenta) {
             $pdo->prepare(
-                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta)
-                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE())"
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, activacion_token_hash, activacion_expira)
+                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?, DATE_ADD(NOW(), INTERVAL 72 HOUR))"
             )->execute([
                 $escuela_nueva,
                 $inv['contacto_nombre'] ?: 'Administrador',
                 $email_login,
-                password_hash($password_temporal, PASSWORD_BCRYPT)
+                // Nadie conoce esta contraseña — se reemplaza en cuanto activan
+                // su cuenta con el enlace. Existe solo porque password_hash es NOT NULL.
+                password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                $activacion_hash
             ]);
             $usuario_creado = true;
         }
@@ -110,18 +120,24 @@
     registrar_log($pdo, $usuario_actual, 'invitacion_aprobada', "Invitación #$id aprobada, colegio creado", $escuela_nueva);
 
     $correo_enviado = false;
+    $activacion_liga = null;
     if ($usuario_creado) {
+        $activacion_liga = (defined('APP_URL') && APP_URL
+                                ? rtrim(APP_URL, '/')
+                                : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                                   . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                                   . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
+                             . '/activar_cuenta.html?t=' . $activacion_token;
         $nombreColegio = $d['nombre'] ?: 'tu colegio';
         $htmlBienvenida = "
             <p>Hola,</p>
             <p><strong>" . htmlspecialchars($nombreColegio) . "</strong> ya está activo en Paga la Escuela.</p>
-            <p>Puedes iniciar sesión con:</p>
-            <p>Usuario: <strong>" . htmlspecialchars($email_login) . "</strong><br>
-               Contraseña temporal: <strong>" . htmlspecialchars($password_temporal) . "</strong></p>
-            <p>Puedes cambiarla cuando quieras desde tu perfil, una vez que inicies sesión.</p>
+            <p>Entra a este enlace para crear tu contraseña y empezar a usar tu cuenta ({$email_login}):</p>
+            <p><a href=\"" . htmlspecialchars($activacion_liga) . "\">" . htmlspecialchars($activacion_liga) . "</a></p>
+            <p>El enlace expira en 72 horas.</p>
             <p>— Pagalaescuela</p>
         ";
-        $resCorreo = enviar_correo($email_login, 'Tu colegio ya está activo en Paga la Escuela', $htmlBienvenida);
+        $resCorreo = enviar_correo($email_login, 'Activa tu cuenta — tu colegio ya está en Paga la Escuela', $htmlBienvenida);
         $correo_enviado = (bool) ($resCorreo['success'] ?? false);
         if (!$correo_enviado) {
             log_api("invitacion_resolver #$id -> escuela $escuela_nueva creada pero falló el correo de bienvenida: " . ($resCorreo['error'] ?? 'desconocido'));
@@ -129,12 +145,12 @@
     }
 
     respond([
-        'success'            => true,
-        'escuela_id'         => $escuela_nueva,
-        'usuario_creado'     => $usuario_creado,
-        'correo_enviado'     => $correo_enviado,
-        'email_login'        => $usuario_creado ? $email_login : null,
+        'success'          => true,
+        'escuela_id'       => $escuela_nueva,
+        'usuario_creado'   => $usuario_creado,
+        'correo_enviado'   => $correo_enviado,
+        'email_login'      => $usuario_creado ? $email_login : null,
         // Solo va en la respuesta si de verdad hace falta que el superadmin
-        // la transmita a mano (no había cuenta que crear, o el correo falló).
-        'password_temporal'  => ($usuario_creado && !$correo_enviado) ? $password_temporal : null,
+        // lo transmita a mano (no había cuenta que crear, o el correo falló).
+        'activacion_liga'  => ($usuario_creado && !$correo_enviado) ? $activacion_liga : null,
     ]);

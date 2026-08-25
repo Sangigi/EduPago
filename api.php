@@ -225,7 +225,7 @@ $action = $_GET['action'] ?? '';
 // Acciones que NO requieren sesion. Se mantiene al minimo a proposito:
 // 'invitacion_ver' e 'invitacion_enviar' son el formulario de alta de colegios,
 // y su unica llave es el token de un solo uso que viaja en la liga.
-$acciones_publicas = ['login', 'invitacion_ver', 'invitacion_enviar'];
+$acciones_publicas = ['login', 'invitacion_ver', 'invitacion_enviar', 'activar_cuenta_ver', 'activar_cuenta_confirmar'];
 if (!in_array($action, $acciones_publicas)) {
     $usuario_actual = verificar_token_auth();
 }
