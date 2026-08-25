@@ -119,7 +119,8 @@ function PortalFamilia({
   const PEND_POR_PAGINA = 5;
   const HIST_POR_PAGINA = 10;
   const [paginaPends, setPaginaPends] = useState({}); // { [hijoId]: numeroPagina }
-  const [paginaHistorial, setPaginaHistorial] = useState(1);
+  const totalPaginasHistorial = Math.max(1, Math.ceil(misCobros.length / HIST_POR_PAGINA));
+  const { pagina: paginaHistorial, setPagina: setPaginaHistorial, irAPagina: irAPaginaHistorial } = usePaginaActual(totalPaginasHistorial);
 
   // ── Configuración: datos fiscales de la familia (del tutor que paga, no ──
   // ── de cada hijo — un solo RFC/razón social por familia, no uno por hijo) ──
@@ -1359,10 +1360,10 @@ function PortalFamilia({
           color: PLC.muted
         },
         children: [_jsxDEV("span", {
-          children: `Pagina ${paginaHistorial} de ${Math.max(1, Math.ceil(misCobros.length / HIST_POR_PAGINA))} · ${misCobros.length} cobros`
+          children: `Pagina ${paginaHistorial} de ${totalPaginasHistorial} · ${misCobros.length} cobros`
         }, void 0, false), _jsxDEV("button", {
           disabled: paginaHistorial <= 1,
-          onClick: () => setPaginaHistorial(p => Math.max(1, p - 1)),
+          onClick: () => irAPaginaHistorial(paginaHistorial - 1),
           style: {
             padding: '5px 12px', borderRadius: 7, border: `1px solid ${PLC.border}`,
             background: PLC.card, color: PLC.navy, fontSize: 12, cursor: paginaHistorial <= 1 ? 'default' : 'pointer',
@@ -1370,13 +1371,13 @@ function PortalFamilia({
           },
           children: "‹ Anterior"
         }, void 0, false), _jsxDEV("button", {
-          disabled: paginaHistorial >= Math.ceil(misCobros.length / HIST_POR_PAGINA),
-          onClick: () => setPaginaHistorial(p => p + 1),
+          disabled: paginaHistorial >= totalPaginasHistorial,
+          onClick: () => irAPaginaHistorial(paginaHistorial + 1),
           style: {
             padding: '5px 12px', borderRadius: 7, border: `1px solid ${PLC.border}`,
             background: PLC.card, color: PLC.navy, fontSize: 12,
-            cursor: paginaHistorial >= Math.ceil(misCobros.length / HIST_POR_PAGINA) ? 'default' : 'pointer',
-            opacity: paginaHistorial >= Math.ceil(misCobros.length / HIST_POR_PAGINA) ? .5 : 1
+            cursor: paginaHistorial >= totalPaginasHistorial ? 'default' : 'pointer',
+            opacity: paginaHistorial >= totalPaginasHistorial ? .5 : 1
           },
           children: "Siguiente ›"
         }, void 0, false)]

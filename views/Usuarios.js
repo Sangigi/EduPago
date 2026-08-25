@@ -767,36 +767,16 @@ function Usuarios({ user, data }) {
       }, void 0, false),
 
       /* Modal Confirmar */
-      confirm && _jsxDEV("div", {
-        className: "modal-backdrop",
-        onClick: e => e.target === e.currentTarget && setConfirm(null),
-        children: _jsxDEV("div", {
-          className: "modal",
-          style: { maxWidth: 380 },
-          children: [
-            _jsxDEV("div", { className: "modal-header", children: _jsxDEV("div", { className: "modal-title", children: confirm.tipo === 'toggle' ? 'Cambiar estado' : 'Eliminar usuario' }, void 0, false) }, void 0, false),
-            _jsxDEV("div", {
-              className: "modal-body",
-              children: _jsxDEV("p", {
-                style: { fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6 },
-                children: confirm.tipo === 'toggle'
-                  ? `¿Seguro que quieres ${usuarios.find(u => u.id === confirm.userId)?.activo === false ? 'activar' : 'desactivar'} a ${usuarios.find(u => u.id === confirm.userId)?.nombre}?`
-                  : `¿Eliminar permanentemente a ${usuarios.find(u => u.id === confirm.userId)?.nombre}? Esta acción no se puede revertir del sistema.`
-              }, void 0, false)
-            }, void 0, false),
-            _jsxDEV("div", {
-              className: "modal-footer",
-              children: [
-                _jsxDEV("button", { className: "btn btn-secondary", onClick: () => setConfirm(null), children: "Cancelar" }, void 0, false),
-                _jsxDEV("button", {
-                  className: `btn ${confirm.tipo === 'eliminar' ? 'btn-danger' : 'btn-primary'}`,
-                  onClick: confirmarAccion,
-                  children: confirm.tipo === 'toggle' ? 'Confirmar' : 'Eliminar'
-                }, void 0, false)
-              ]
-            }, void 0, true)
-          ]
-        }, void 0, true)
+      _jsxDEV(ConfirmModal, {
+        abierto: !!confirm,
+        titulo: confirm?.tipo === 'toggle' ? 'Cambiar estado' : 'Eliminar usuario',
+        mensaje: confirm?.tipo === 'toggle'
+          ? `¿Seguro que quieres ${usuarios.find(u => u.id === confirm.userId)?.activo === false ? 'activar' : 'desactivar'} a ${usuarios.find(u => u.id === confirm.userId)?.nombre}?`
+          : `¿Eliminar permanentemente a ${usuarios.find(u => u.id === confirm?.userId)?.nombre}? Esta acción no se puede revertir del sistema.`,
+        textoConfirmar: confirm?.tipo === 'toggle' ? 'Confirmar' : 'Eliminar',
+        peligroso: confirm?.tipo === 'eliminar',
+        onConfirmar: confirmarAccion,
+        onCancelar: () => setConfirm(null),
       }, void 0, false)
     ]
   }, void 0, true);

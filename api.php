@@ -264,6 +264,40 @@ function validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id, $m
         respond(['success' => false, 'error' => $mensaje]);
     }
 }
+// Requiere que $rol_actual esté en la lista de roles permitidos; si no,
+// corta con 403 y el mensaje dado. Reemplaza el patrón
+// "if (!in_array($rolX, [...])) { http_response_code(403); respond([...]); }"
+// que se repetía ~36 veces con distintas combinaciones de roles y mensajes,
+// pero con el mismo cuerpo exacto cada vez.
+function requerir_rol($rol_actual, array $roles_permitidos, $mensaje = 'No tienes permiso para esta acción.') {
+    if (!in_array($rol_actual, $roles_permitidos, true)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => $mensaje]);
+    }
+}
+// Requiere que $rol_actual sea 'superadmin' O que $escuela_id_fila coincida
+// con la escuela del usuario — el patrón "superadmin ve todo, los demás solo
+// lo de su propia escuela" repetido en checks de pertenencia sobre cobros,
+// clientes, planteles, etc. Si $rol_actual ya viene pre-filtrado a un rol que
+// nunca es 'superadmin' (ej. dentro de un if que ya separó admin/cajero),
+// el resultado es el mismo: solo importa el match de escuela_id.
+function requerir_escuela_propia($rol_actual, $escuela_id_fila, $usuario_actual, $mensaje) {
+    if ($rol_actual !== 'superadmin' && intval($escuela_id_fila) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => $mensaje]);
+    }
+}
+// Requiere que $familia_id_fila coincida con la familia del usuario actual.
+// El llamador resuelve aparte si este check aplica (ej. dentro de un
+// if ($rol === 'familia')) y qué pasar como $familia_id_fila cuando la fila
+// no existe (normalmente null, vía "$fila['familia_id'] ?? null" — nunca
+// coincide con un familia_id real, así que se deniega igual que antes).
+function requerir_familia_propia($familia_id_fila, $usuario_actual, $mensaje) {
+    if (intval($familia_id_fila ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => $mensaje]);
+    }
+}
 function curl_post($url, $payload, $headers = []) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -426,18 +460,12 @@ switch ($action) {
         // validaba nada, permitiendo enumerar cobro_id de cualquier escuela.
         if ($cobro) {
             $rolSpei = $usuario_actual['rol'] ?? '';
-            if ($rolSpei !== 'superadmin' && intval($cobro['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
-            }
+            requerir_escuela_propia($rolSpei, $cobro['escuela_id'], $usuario_actual, 'No tienes permiso sobre este cobro.');
             if ($rolSpei === 'familia') {
                 $stmtFamSpei = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
                 $stmtFamSpei->execute([$cobro['cliente_id']]);
                 $famSpei = $stmtFamSpei->fetch();
-                if (!$famSpei || intval($famSpei['familia_id'] ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
-                    http_response_code(403);
-                    respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
-                }
+                requerir_familia_propia($famSpei ? $famSpei['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre este cobro.');
             }
         }
         if ($cobro && $cobro['estado'] === 'pagado') {
@@ -489,10 +517,7 @@ switch ($action) {
         $rowSaldo = $stmtSaldo->fetch();
         if (!$rowSaldo) respond(['success' => false, 'error' => 'Alumno no encontrado']);
         if (($usuario_actual['rol'] ?? '') === 'familia') {
-            if ($rowSaldo['familia_id'] === null || intval($rowSaldo['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No puedes consultar este alumno.']);
-            }
+            requerir_familia_propia($rowSaldo['familia_id'], $usuario_actual, 'No puedes consultar este alumno.');
         }
         respond(['success' => true, 'saldo_pendiente' => floatval($rowSaldo['saldo_pendiente'])]);
     break;
@@ -560,18 +585,12 @@ switch ($action) {
         // solo de sus propios hijos (antes no se validaba nada de esto — cualquier
         // usuario autenticado podía generar la liga de pago de cualquier cobro).
         $rolLiga = $usuario_actual['rol'] ?? '';
-        if ($rolLiga !== 'superadmin' && intval($cobroRow['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
-        }
+        requerir_escuela_propia($rolLiga, $cobroRow['escuela_id'], $usuario_actual, 'No tienes permiso sobre este cobro.');
         if ($rolLiga === 'familia') {
             $stmtFamChk = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
             $stmtFamChk->execute([$cobroRow['cliente_id']]);
             $famChk = $stmtFamChk->fetch();
-            if (!$famChk || intval($famChk['familia_id'] ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
-            }
+            requerir_familia_propia($famChk ? $famChk['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre este cobro.');
         }
         // El monto a cobrar SIEMPRE sale del total real del cobro en BD, nunca
         // del request — antes se usaba $input['total'] directo, permitiendo
@@ -649,10 +668,7 @@ switch ($action) {
         // Cargo automático: acción de staff (cobrar dinero de una tarjeta ya
         // domiciliada), no autoservicio de familia — antes no exigía ningún rol.
         $rolCai = $usuario_actual['rol'] ?? '';
-        if (!in_array($rolCai, ['superadmin', 'admin', 'cajero'], true)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para cobrar cargos automáticos.']);
-        }
+        requerir_rol($rolCai, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para cobrar cargos automáticos.');
         $cliente_id = intval($input['cliente_id'] ?? 0);
         $folio      = trim($input['folio'] ?? '');
         if (!$cliente_id || !$folio) respond(['success' => false, 'error' => 'cliente_id y folio son requeridos']);
@@ -663,10 +679,7 @@ switch ($action) {
         // Antes no se validaba que el alumno perteneciera a la escuela del
         // usuario — un admin de otra escuela podía cobrar la tarjeta de
         // cualquier alumno del sistema.
-        if ($rolCai !== 'superadmin' && intval($cli['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso sobre este alumno.']);
-        }
+        requerir_escuela_propia($rolCai, $cli['escuela_id'], $usuario_actual, 'No tienes permiso sobre este alumno.');
         if ($cli['token_tarjeta_estado'] !== 'activo' || !$cli['token_tarjeta']) {
             respond(['success' => false, 'error' => 'El alumno no tiene una tarjeta domiciliada activa. Debe pagar una liga primero para tokenizar.']);
         }
@@ -1469,10 +1482,7 @@ switch ($action) {
         $chk->execute([$cobro_id]);
         $cobro = $chk->fetch();
         if (!$cobro) respond(['success' => false, 'error' => 'Cobro no encontrado']);
-        if ($usuario_actual['rol'] !== 'superadmin' && $cobro['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso sobre este cobro.']);
-        }
+        requerir_escuela_propia($usuario_actual['rol'], $cobro['escuela_id'], $usuario_actual, 'No tienes permiso sobre este cobro.');
         $hoy = date('Y-m-d');
         // Idempotente: un recordatorio por cobro por día (uq_recordatorio_dia)
         try {
@@ -1490,10 +1500,7 @@ switch ($action) {
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'listar_logs':
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el superadmin puede ver los logs del sistema.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el superadmin puede ver los logs del sistema.');
         $pagina_lg    = max(1, intval($input['pagina'] ?? $_GET['pagina'] ?? 1));
         $por_pagina_lg = max(1, min(intval($input['por_pagina'] ?? $_GET['por_pagina'] ?? 25), 200));
         $offset_lg    = ($pagina_lg - 1) * $por_pagina_lg;
@@ -1536,20 +1543,14 @@ switch ($action) {
         $cobroRow = $chk->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'Cobro no encontrado']);
         $rolDet = $usuario_actual['rol'] ?? '';
-        if ($rolDet !== 'superadmin' && $cobroRow['escuela_id'] != ($usuario_actual['escuela_id'] ?? null)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para ver este cobro.']);
-        }
+        requerir_escuela_propia($rolDet, $cobroRow['escuela_id'], $usuario_actual, 'No tienes permiso para ver este cobro.');
         // Antes solo se validaba la escuela: cualquier padre de familia podía
         // ver el detalle de un cobro de OTRA familia de la misma escuela.
         if ($rolDet === 'familia') {
             $stmtFamDet = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
             $stmtFamDet->execute([$cobroRow['cliente_id']]);
             $famDet = $stmtFamDet->fetch();
-            if (!$famDet || intval($famDet['familia_id'] ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para ver este cobro.']);
-            }
+            requerir_familia_propia($famDet ? $famDet['familia_id'] : null, $usuario_actual, 'No tienes permiso para ver este cobro.');
         }
         try {
             $stmt = $pdo->prepare("SELECT * FROM cobro_items WHERE cobro_id = ? ORDER BY id");
@@ -1567,10 +1568,7 @@ switch ($action) {
         // actual" con "totales para el dashboard").
         $escuela_id_lc = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
         if (!$escuela_id_lc) respond(['success' => false, 'error' => 'escuela_id requerido']);
-        if ($usuario_actual['rol'] !== 'superadmin' && $escuela_id_lc != ($usuario_actual['escuela_id'] ?? null)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para ver los cobros de esa escuela.']);
-        }
+        requerir_escuela_propia($usuario_actual['rol'], $escuela_id_lc, $usuario_actual, 'No tienes permiso para ver los cobros de esa escuela.');
         $pagina_lc    = max(1, intval($input['pagina'] ?? $_GET['pagina'] ?? 1));
         $por_pagina_lc = max(1, min(intval($input['por_pagina'] ?? $_GET['por_pagina'] ?? 25), 200));
         $offset_lc    = ($pagina_lc - 1) * $por_pagina_lc;
@@ -1662,10 +1660,7 @@ switch ($action) {
             if (!$cliCobro) respond(['success' => false, 'error' => 'cliente_id no corresponde a un alumno de esta escuela']);
             // Un usuario rol 'familia' solo puede generar cobros de SUS PROPIOS hijos.
             if (($usuario_actual['rol'] ?? '') === 'familia') {
-                if ($cliCobro['familia_id'] === null || intval($cliCobro['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
-                    http_response_code(403);
-                    respond(['success' => false, 'error' => 'No puedes generar cobros para este alumno.']);
-                }
+                requerir_familia_propia($cliCobro['familia_id'], $usuario_actual, 'No puedes generar cobros para este alumno.');
             }
         }
         // El corte de caja compara las ventas del día contra el efectivo/
@@ -1818,10 +1813,7 @@ switch ($action) {
         // 'familia') podía marcar CUALQUIER cobro de CUALQUIER escuela como
         // pagado sin pagar un centavo.
         $rol_actual_confirmar = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual_confirmar, ['superadmin', 'admin', 'cajero', 'familia'], true)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para confirmar pagos.']);
-        }
+        requerir_rol($rol_actual_confirmar, ['superadmin', 'admin', 'cajero', 'familia'], 'No tienes permiso para confirmar pagos.');
         $cobro_id  = intval($input['cobro_id']  ?? 0);
         $auth_code = trim($input['auth_code']   ?? '');
         $transaccion = trim($input['transaccion'] ?? '');
@@ -1838,10 +1830,7 @@ switch ($action) {
             $chkEscCob = $pdo->prepare("SELECT escuela_id FROM cobros WHERE id = ?");
             $chkEscCob->execute([$cobro_id]);
             $escCob = $chkEscCob->fetch();
-            if (!$escCob || intval($escCob['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para confirmar este cobro.']);
-            }
+            requerir_escuela_propia($rol_actual_confirmar, $escCob ? $escCob['escuela_id'] : null, $usuario_actual, 'No tienes permiso para confirmar este cobro.');
         }
         // Familia: solo puede "confirmar" cobros de SUS PROPIOS hijos, y
         // únicamente cuando el pago YA quedó marcado 'pagado' por el webhook
@@ -1856,10 +1845,7 @@ switch ($action) {
             );
             $chkFamCob->execute([$cobro_id]);
             $famCob = $chkFamCob->fetch();
-            if (!$famCob || $famCob['familia_id'] === null || intval($famCob['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No puedes confirmar este cobro.']);
-            }
+            requerir_familia_propia($famCob ? $famCob['familia_id'] : null, $usuario_actual, 'No puedes confirmar este cobro.');
             if ($famCob['estado'] !== 'pagado') {
                 http_response_code(403);
                 respond(['success' => false, 'error' => 'Este pago todavía no ha sido confirmado por el banco/proveedor.']);
@@ -1905,20 +1891,14 @@ switch ($action) {
         // sin pagar. Nunca se usa desde el Portal de Familia (solo desde
         // views/Cobros.js, del lado admin/cajero).
         $rol_actual_cancelar = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual_cancelar, ['superadmin', 'admin', 'cajero'], true)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para cancelar cobros.']);
-        }
+        requerir_rol($rol_actual_cancelar, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para cancelar cobros.');
         $cobro_id = intval($input['cobro_id'] ?? 0);
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
         if (in_array($rol_actual_cancelar, ['admin', 'cajero'], true)) {
             $chkEscCancel = $pdo->prepare("SELECT escuela_id FROM cobros WHERE id = ?");
             $chkEscCancel->execute([$cobro_id]);
             $escCancel = $chkEscCancel->fetch();
-            if (!$escCancel || intval($escCancel['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para cancelar este cobro.']);
-            }
+            requerir_escuela_propia($rol_actual_cancelar, $escCancel ? $escCancel['escuela_id'] : null, $usuario_actual, 'No tienes permiso para cancelar este cobro.');
         }
         $stmt = $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?");
         $stmt->execute([$cobro_id]);
@@ -1948,20 +1928,14 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'marcar_cheque_rebotado':
         $rol_actual_cheque = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual_cheque, ['superadmin', 'admin', 'cajero'], true)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
-        }
+        requerir_rol($rol_actual_cheque, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para esta acción.');
         $cobro_id = intval($input['cobro_id'] ?? 0);
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
         $stmt = $pdo->prepare("SELECT cliente_id, metodo, estatus_cheque, escuela_id FROM cobros WHERE id = ?");
         $stmt->execute([$cobro_id]);
         $cob_row = $stmt->fetch();
         if (!$cob_row) respond(['success' => false, 'error' => 'Cobro no encontrado']);
-        if (in_array($rol_actual_cheque, ['admin', 'cajero'], true) && intval($cob_row['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para este cobro.']);
-        }
+        requerir_escuela_propia($rol_actual_cheque, $cob_row['escuela_id'], $usuario_actual, 'No tienes permiso para este cobro.');
         if ($cob_row['metodo'] !== 'Cheque') respond(['success' => false, 'error' => 'Este cobro no fue pagado con cheque']);
         if ($cob_row['estatus_cheque'] === 'rebotado') respond(['success' => false, 'error' => 'Este cheque ya estaba marcado como rebotado']);
         $pdo->prepare("UPDATE cobros SET estado = 'pendiente', estatus_cheque = 'rebotado' WHERE id = ?")
@@ -1985,10 +1959,7 @@ switch ($action) {
         // restringido a admin/superadmin más abajo en editar_cliente y
         // toggle_cliente_activo.
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin', 'cajero'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para dar de alta alumnos.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para dar de alta alumnos.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $nombre     = trim($input['nombre']       ?? '');
         $matricula  = trim($input['matricula']    ?? '') ?: null;
@@ -2045,10 +2016,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'importar_alumnos':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para importar alumnos.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para importar alumnos.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
         if ($rol_actual === 'admin') $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
@@ -2164,10 +2132,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'crear_producto':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para crear conceptos de pago.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para crear conceptos de pago.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $nombre     = trim($input['nombre']       ?? '');
         $categoria  = trim($input['categoria']    ?? '') ?: 'otro';
@@ -2194,10 +2159,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_producto':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para editar conceptos de pago.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para editar conceptos de pago.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $campos = ['nombre', 'categoria', 'precio', 'emoji', 'activo'];
@@ -2232,10 +2194,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_producto_activo':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para modificar conceptos de pago.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para modificar conceptos de pago.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $pdo->prepare("UPDATE productos SET activo = NOT activo WHERE id = ?")->execute([$id]);
@@ -2313,10 +2272,7 @@ switch ($action) {
             $chk = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
             $chk->execute([$id]);
             $objetivo = $chk->fetch();
-            if (!$objetivo || $objetivo['familia_id'] === null || intval($objetivo['familia_id']) !== intval($usuario_actual['familia_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No puedes editar la información de este alumno.']);
-            }
+            requerir_familia_propia($objetivo ? $objetivo['familia_id'] : null, $usuario_actual, 'No puedes editar la información de este alumno.');
             // Los datos fiscales (RFC/razón social/domicilio fiscal) ya NO se
             // editan por alumno — pertenecen al tutor/familia que paga (ver
             // case 'editar_familia'), no a cada hijo individualmente.
@@ -2331,10 +2287,7 @@ switch ($action) {
                 $chkEsc = $pdo->prepare("SELECT escuela_id FROM clientes WHERE id = ?");
                 $chkEsc->execute([$id]);
                 $objetivoEsc = $chkEsc->fetch();
-                if (!$objetivoEsc || intval($objetivoEsc['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-                    http_response_code(403);
-                    respond(['success' => false, 'error' => 'No tienes permiso para editar este alumno.']);
-                }
+                requerir_escuela_propia($rol_actual, $objetivoEsc ? $objetivoEsc['escuela_id'] : null, $usuario_actual, 'No tienes permiso para editar este alumno.');
             }
             $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id',
                        'direccion','contacto_emergencia','tel_emergencia',
@@ -2370,10 +2323,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_cliente_activo':
         $rolToggleCli = $usuario_actual['rol'] ?? '';
-        if (!in_array($rolToggleCli, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'El cajero no puede activar/desactivar alumnos.']);
-        }
+        requerir_rol($rolToggleCli, ['superadmin', 'admin'], 'El cajero no puede activar/desactivar alumnos.');
         $id     = intval($input['id']     ?? 0);
         $activo = $input['activar'] ? 1 : 0;
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
@@ -2383,10 +2333,7 @@ switch ($action) {
             $chkEscToggle = $pdo->prepare("SELECT escuela_id FROM clientes WHERE id = ?");
             $chkEscToggle->execute([$id]);
             $objetivoToggle = $chkEscToggle->fetch();
-            if (!$objetivoToggle || intval($objetivoToggle['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso sobre este alumno.']);
-            }
+            requerir_escuela_propia($rolToggleCli, $objetivoToggle ? $objetivoToggle['escuela_id'] : null, $usuario_actual, 'No tienes permiso sobre este alumno.');
         }
         $stmt = $pdo->prepare("UPDATE clientes SET activo = ? WHERE id = ?");
         $stmt->execute([$activo, $id]);
@@ -2425,10 +2372,7 @@ switch ($action) {
             $chkFam = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
             $chkFam->execute([$id]);
             $famObjetivo = $chkFam->fetch();
-            if (!$famObjetivo || intval($famObjetivo['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
-                http_response_code(403);
-                respond(['success' => false, 'error' => 'No tienes permiso para editar esta familia.']);
-            }
+            requerir_escuela_propia($rol_actual_fam, $famObjetivo ? $famObjetivo['escuela_id'] : null, $usuario_actual, 'No tienes permiso para editar esta familia.');
         }
         // Una familia edita sus propios datos de contacto y fiscales, pero
         // nunca su 'nombre' (identidad del expediente) — eso queda para
@@ -2521,10 +2465,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'crear_usuario':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para crear usuarios.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para crear usuarios.');
         $nombre    = trim($input['nombre']     ?? '');
         $email     = trim($input['email']      ?? '');
         $password  = trim($input['password']   ?? '');
@@ -2695,10 +2636,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_usuario':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para esta acción.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         if ($id === intval($usuario_actual['user_id'] ?? 0)) {
@@ -2717,10 +2655,7 @@ switch ($action) {
         // dispositivo o se sospecha que su token se filtró. Antes no existía
         // ninguna forma de revocar un token específico antes de que expirara solo.
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para esta acción.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id);
@@ -2731,10 +2666,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'eliminar_usuario':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para esta acción.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para esta acción.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         if ($id === intval($usuario_actual['user_id'] ?? 0)) {
@@ -2756,14 +2688,8 @@ switch ($action) {
         // importar cuál esté seleccionada en el nav global.
         $escuela_id_pe = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
         if (!$escuela_id_pe) respond(['success' => false, 'error' => 'escuela_id requerido']);
-        if (!in_array($usuario_actual['rol'] ?? '', ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para ver planteles.']);
-        }
-        if (($usuario_actual['rol'] ?? '') === 'admin' && $escuela_id_pe != ($usuario_actual['escuela_id'] ?? null)) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para ver planteles de esa escuela.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'admin'], 'No tienes permiso para ver planteles.');
+        requerir_escuela_propia($usuario_actual['rol'] ?? '', $escuela_id_pe, $usuario_actual, 'No tienes permiso para ver planteles de esa escuela.');
         $stmt = $pdo->prepare("SELECT * FROM planteles WHERE escuela_id = ? ORDER BY id");
         $stmt->execute([$escuela_id_pe]);
         $planteles_pe = array_map(function($p) {
@@ -2776,10 +2702,7 @@ switch ($action) {
     case 'crear_plantel':
         // Validación de permisos
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para crear planteles.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para crear planteles.');
         $escuela_padre_id = intval($input['escuela_id'] ?? 0);
         $nombre           = trim($input['nombre']      ?? '');
         $direccion        = trim($input['direccion']   ?? '');
@@ -2816,10 +2739,7 @@ switch ($action) {
             }
         }
         // Validación de scope para administradores
-        if ($rol_actual === 'admin' && intval($usuario_actual['escuela_id'] ?? 0) !== $escuela_padre_id) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo puedes crear planteles de tu propia escuela.']);
-        }
+        requerir_escuela_propia($rol_actual, $escuela_padre_id, $usuario_actual, 'Solo puedes crear planteles de tu propia escuela.');
         $padre = $pdo->prepare("SELECT * FROM escuelas WHERE id = ? AND es_plantel = 0");
         $padre->execute([$escuela_padre_id]);
         $escuelaPadre = $padre->fetch();
@@ -2896,10 +2816,7 @@ switch ($action) {
         // correo cambió, también el correo de acceso del usuario admin de esa
         // cuenta (así puede seguir iniciando sesión con el nuevo correo).
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para editar planteles.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para editar planteles.');
         $id          = intval($input['id']          ?? 0);
         $nombre      = trim($input['nombre']         ?? '');
         $direccion   = trim($input['direccion']      ?? '');
@@ -2927,10 +2844,7 @@ switch ($action) {
         $plantel = $stmt->fetch();
         if (!$plantel) respond(['success' => false, 'error' => 'Plantel no encontrado']);
         // Scope: un admin solo puede editar planteles de su propia escuela
-        if ($rol_actual === 'admin' && intval($usuario_actual['escuela_id'] ?? 0) !== intval($plantel['escuela_id'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo puedes editar planteles de tu propia escuela.']);
-        }
+        requerir_escuela_propia($rol_actual, $plantel['escuela_id'], $usuario_actual, 'Solo puedes editar planteles de tu propia escuela.');
         $escuela_plantel_id = intval($plantel['escuela_plantel_id']);
         // Si se envía correo, validar que no esté en uso por otra cuenta
         if ($email) {
@@ -2990,10 +2904,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_plantel':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para activar/desactivar planteles.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para activar/desactivar planteles.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $stmt = $pdo->prepare("SELECT escuela_plantel_id, activo FROM planteles WHERE id = ?");
@@ -3015,20 +2926,14 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'eliminar_plantel':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para eliminar planteles.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para eliminar planteles.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $stmt = $pdo->prepare("SELECT * FROM planteles WHERE id = ?");
         $stmt->execute([$id]);
         $plantelDel = $stmt->fetch();
         if (!$plantelDel) respond(['success' => false, 'error' => 'Plantel no encontrado']);
-        if ($rol_actual === 'admin' && intval($usuario_actual['escuela_id'] ?? 0) !== intval($plantelDel['escuela_id'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo puedes eliminar planteles de tu propia escuela.']);
-        }
+        requerir_escuela_propia($rol_actual, $plantelDel['escuela_id'], $usuario_actual, 'Solo puedes eliminar planteles de tu propia escuela.');
         $escPlantelId = intval($plantelDel['escuela_plantel_id']);
         $cntAlumnos = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ?");
         $cntAlumnos->execute([$escPlantelId]);
@@ -3055,10 +2960,7 @@ switch ($action) {
     // ══════════════════════════════════════════════════════════════════════════
     case 'toggle_escuela':
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if ($rol_actual !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede activar/desactivar escuelas.']);
-        }
+        requerir_rol($rol_actual, ['superadmin'], 'Solo el super admin puede activar/desactivar escuelas.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $stmt = $pdo->prepare("UPDATE escuelas SET activa = NOT activa WHERE id = ?");
@@ -3074,10 +2976,7 @@ switch ($action) {
     case 'cambiar_plan_escuela':
         // Endpoint ligero para cambiar SOLO el plan (usado desde el <select>
         // inline en Suscripciones.js) — no exige nombre/clave como editar_escuela.
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede cambiar el plan de un colegio.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede cambiar el plan de un colegio.');
         $id   = intval($input['id'] ?? 0);
         $plan = trim($input['plan'] ?? '');
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
@@ -3098,10 +2997,7 @@ switch ($action) {
         // No hay cobro automático de la mensualidad SaaS en este sistema (se
         // factura/cobra aparte); esto solo mueve la fecha de vencimiento un mes
         // calendario hacia adelante y reactiva los recordatorios para el próximo ciclo.
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede renovar una suscripción.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede renovar una suscripción.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $chk = $pdo->prepare("SELECT nombre, fecha_vencimiento_plan FROM escuelas WHERE id = ? AND es_plantel = 0");
@@ -3123,10 +3019,7 @@ switch ($action) {
         // Búsqueda cruzando TODAS las escuelas — solo superadmin. Sirve para
         // soporte: "no encuentro a mi hijo/mi cuenta" sin adivinar en qué
         // colegio está.
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede usar la búsqueda global.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede usar la búsqueda global.');
         $q = trim($input['q'] ?? $_GET['q'] ?? '');
         if (mb_strlen($q) < 3) {
             respond(['success' => false, 'error' => 'Escribe al menos 3 caracteres para buscar.']);
@@ -3408,10 +3301,7 @@ case 'invitaciones_listar':
     break;
 
     case 'crear_escuela':
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede crear colegios.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede crear colegios.');
         $nombre     = trim($input['nombre']     ?? '');
         $clave      = trim($input['clave']      ?? '');
         $rfc        = trim($input['rfc']        ?? '') ?: null;
@@ -3478,10 +3368,7 @@ case 'invitaciones_listar':
         break;
 
     case 'editar_escuela':
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede editar colegios.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede editar colegios.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $nombre     = trim($input['nombre']     ?? '');
@@ -3520,10 +3407,7 @@ case 'invitaciones_listar':
         // cascada de TODO (alumnos, cobros, usuarios, etc.) — irreversible —
         // pero solo si mandan confirmar_clave = la clave exacta del colegio,
         // como segunda confirmación real (no basta con forzar=true a ciegas).
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede eliminar colegios.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede eliminar colegios.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $forzar = !empty($input['forzar']);
@@ -3603,10 +3487,7 @@ case 'invitaciones_listar':
     case 'importar_clabes':
         // Recibe: { escuela_id, clabes: ["646180...", "646180...", ...] }
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para importar CLABEs.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para importar CLABEs.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $clabes     = $input['clabes'] ?? [];
         if (!$escuela_id || empty($clabes)) {
@@ -3740,10 +3621,7 @@ case 'invitaciones_listar':
         // Elimina CLABEs libres/liberadas del pool (no asignadas)
         // Recibe: { escuela_id, ids: [1,2,3] }
         $rol_actual = $usuario_actual['rol'] ?? '';
-        if (!in_array($rol_actual, ['superadmin', 'admin'])) {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'No tienes permiso para eliminar CLABEs del pool.']);
-        }
+        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para eliminar CLABEs del pool.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $ids = array_filter(array_map('intval', $input['ids'] ?? []), fn($i) => $i > 0);
         if (!$escuela_id || empty($ids)) respond(['success' => false, 'error' => 'Datos insuficientes']);
@@ -3956,10 +3834,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'distribuidor_datos':
-        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo distribuidores pueden ver este panel.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['distribuidor'], 'Solo distribuidores pueden ver este panel.');
         $dist_id = intval($usuario_actual['user_id'] ?? 0);
         $du = $pdo->prepare("SELECT nombre, zona FROM usuarios WHERE id = ?");
         $du->execute([$dist_id]);
@@ -4064,10 +3939,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'distribuidor_invitar_colegio':
-        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo distribuidores pueden invitar colegios.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['distribuidor'], 'Solo distribuidores pueden invitar colegios.');
         $dist_id = intval($usuario_actual['user_id'] ?? 0);
         $nombre_colegio = trim($input['nombre_colegio'] ?? '');
         $num_alumnos = intval($input['num_alumnos'] ?? 0) ?: null;
@@ -4090,10 +3962,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'distribuidor_comisiones':
-        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo distribuidores pueden ver este panel.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['distribuidor'], 'Solo distribuidores pueden ver este panel.');
         $dist_id = intval($usuario_actual['user_id'] ?? 0);
         $rstmt = $pdo->prepare(
             "SELECT r.id, r.escuela_id, r.nombre_colegio, r.comision_pct,
@@ -4162,10 +4031,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'distribuidor_datos_pago':
-        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo distribuidores pueden ver este panel.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['distribuidor'], 'Solo distribuidores pueden ver este panel.');
         $dist_id = intval($usuario_actual['user_id'] ?? 0);
         $stmt = $pdo->prepare("SELECT pago_banco AS banco, pago_clabe AS clabe, pago_titular AS titular FROM usuarios WHERE id = ?");
         $stmt->execute([$dist_id]);
@@ -4178,10 +4044,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'distribuidor_guardar_datos_pago':
-        if (($usuario_actual['rol'] ?? '') !== 'distribuidor') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo distribuidores pueden editar este panel.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['distribuidor'], 'Solo distribuidores pueden editar este panel.');
         $dist_id = intval($usuario_actual['user_id'] ?? 0);
         $banco   = trim($input['banco'] ?? '') ?: null;
         $clabe   = trim($input['clabe'] ?? '') ?: null;
@@ -4211,10 +4074,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'crear_zona':
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede crear zonas.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede crear zonas.');
         $nombreZona = trim($input['nombre'] ?? '');
         if (!$nombreZona) respond(['success' => false, 'error' => 'El nombre de la zona es obligatorio']);
         try {
@@ -4226,10 +4086,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'editar_zona':
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede editar zonas.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede editar zonas.');
         $idZona = intval($input['id'] ?? 0);
         if (!$idZona) respond(['success' => false, 'error' => 'id requerido']);
         $sets = []; $vals = [];
@@ -4252,10 +4109,7 @@ case 'invitaciones_listar':
     // real salvo editando la base de datos directamente.
     // ══════════════════════════════════════════════════════════════════════════
     case 'superadmin_listar_referidos':
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede ver esto.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede ver esto.');
         $stmtRef = $pdo->prepare(
             "SELECT r.id, r.distribuidor_id, r.escuela_id, r.nombre_colegio, r.num_alumnos, r.estado,
                     r.comision_pct, r.fecha_alta, r.notas,
@@ -4287,10 +4141,7 @@ case 'invitaciones_listar':
     break;
     // ══════════════════════════════════════════════════════════════════════════
     case 'superadmin_editar_referido':
-        if (($usuario_actual['rol'] ?? '') !== 'superadmin') {
-            http_response_code(403);
-            respond(['success' => false, 'error' => 'Solo el super admin puede editar referidos.']);
-        }
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede editar referidos.');
         $idRef = intval($input['id'] ?? 0);
         if (!$idRef) respond(['success' => false, 'error' => 'id requerido']);
         $estados_validos_ref = ['prospecto', 'demo_agendada', 'implementacion', 'activo'];
