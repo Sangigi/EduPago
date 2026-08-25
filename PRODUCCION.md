@@ -119,9 +119,10 @@ Secuencia recomendada para no perder notificaciones reales durante el cambio:
 - ⚠️ **Prueba esto antes de confiar en ello en producción**: pasar de `false` a `true` puede fallar si el bundle de certificados CA del servidor de Hostinger está desactualizado. Genera una factura real de prueba (`generar_cfdi`), descárgala (`descargar_cfdi`, ambos tipos xml/pdf) y envíala por correo (`enviar_factura_correo`) — si alguna falla con un error de SSL/certificado, es el hosting, no el código; en ese caso avísame para volver a `false` temporalmente mientras se resuelve con Hostinger.
 - No requiere migración SQL.
 
-### 5.3h Frontend: hook de paginación compartido (`usePaginacion`) — adopción parcial, a propósito
+### 5.3h Frontend: hook de paginación compartido (`usePaginaActual`) — adopción parcial, a propósito
 - Se investigó la duplicación de "adopción amplia de `Badge.js`" del backlog de la Fase 8 y resultó ser un falso positivo: los 57 sitios con clases `badge-*` fuera de `Badge.js` (investigados con 12 agentes, uno por archivo) son badges de rol de usuario, plan de suscripción, activo/inactivo, etapa de embudo de distribuidor, estado de sesión de caja, botones de filtro y contadores de importación CSV — ninguno es un badge de `cobro.estado`/`cobro.metodo`. No había nada que convertir; se eliminó del backlog.
-- Se creó `views/hooks/usePaginacion.js` (cargado en `index.html` junto a los demás componentes compartidos) → `usePaginacion(totalPaginas)`, que centraliza el estado de página actual + una función `irAPagina` que hace clamp a `[1, totalPaginas]`. A propósito NO calcula `totalPaginas` internamente — cada vista sigue calculándolo como ya lo hacía.
+- Se creó `views/hooks/usePaginaActual.js` (cargado en `index.html` junto a los demás componentes compartidos) → `usePaginaActual(totalPaginas)`, que centraliza el estado de página actual + una función `irAPagina` que hace clamp a `[1, totalPaginas]`. A propósito NO calcula `totalPaginas` internamente — cada vista sigue calculándolo como ya lo hacía.
+- ⚠️ Se llamaba originalmente `usePaginacion`, pero una actualización posterior del equipo agregó `views/components/Paginador.js` con una función global del MISMO nombre (`usePaginacion`) y firma/propósito totalmente distintos (pagina una lista completa ya cargada, no solo un número de página). En JavaScript no-strict esto no truena — la que cargue después sobreescribe silenciosamente a la otra — así que se detectó revisando el código, no por un error visible. Se renombró la de aquí a `usePaginaActual` para no chocar; `Paginador.js`/`usePaginacion` (de ellos) se dejó intacto, ya está más integrado (`Familias.js`).
 - **Adoptado en `Logs.js`** (paginación de servidor simple) y en el historial de pagos de `PortalFamilia.js` (paginación de cliente sobre un arreglo ya cargado) — ambos son coincidencias limpias: solo manejaban número de página + clamp, sin nada más acoplado.
 - **A propósito NO adoptado en `Cobros.js` ni `Alumnos.js`**: su `irAPagina` no es solo "cambiar de página" — también dispara un `fetch` al backend (`buscarEnServidor`) para traer esa página. Forzar el hook genérico ahí perdería esa llamada o requeriría un hook más grande y arriesgado ("paginación + fetch"), en las dos vistas de mayor tráfico del sistema, sin pruebas automatizadas. Se dejaron con su lógica original, intacta.
 - **A propósito NO adoptado en la paginación por-hijo de `PortalFamilia.js`** (`paginaPends`, un objeto `{ [hijoId]: numeroPagina }`): son N contadores de página independientes según cuántos hijos tenga la familia, un patrón de "mapa de páginas dinámico" que no se puede resolver llamando un hook una vez por hijo dentro de un `.map()` (violaría las reglas de hooks de React). No es el mismo problema que resuelve `usePaginacion`.
@@ -147,6 +148,34 @@ Secuencia recomendada para no perder notificaciones reales durante el cambio:
 - Verificado con `php -l`, pruebas unitarias aisladas de ambos helpers nuevos (`requerir_escuela_propia`: superadmin exento, admin con escuela distinta deniega, admin con su propia escuela pasa; `requerir_familia_propia`: familia propia pasa, fila no encontrada deniega, familia distinta deniega), y una ejecución real de `api.php` por CLI. No requiere migración SQL.
 - Con esto, de los ~67 checks de autorización originales en `api.php`, quedan **13 sin tocar**: 4 definiciones de helper, 4 de 3 ramas OR, 3 compuestos con `&&`, y 1 que no es de autorización (revisa si un pago ya fue confirmado por el banco). Todos documentados arriba, ninguno es un descuido.
 
+### 5.3l `api.php` dividido: el switch de 79 casos ahora vive en `acciones/`
+- `api.php` era un solo archivo de ~4,200 líneas dominado por un `switch($action)` de 79 casos. Se dividió: cada caso pasó a su propio archivo `acciones/<accion>.php` (ej. `acciones/crear_cobro.php`), y `api.php` quedó en **332 líneas** — solo config, helpers compartidos, autenticación, y un despacho que hace `require __DIR__ . '/acciones/' . $action . '.php'`.
+- **Verificación antes de mover una sola línea**: se confirmó que ningún `case` dependía de fall-through (todos terminan en `break`/`exit`/`respond()`, que a su vez llama `exit`), y que no había `case` apilados ni `break`/`continue` de múltiples niveles — condición necesaria para que la división no cambiara el comportamiento.
+- **Seguridad del despacho**: `$action` vem de `$_GET`, controlado por quien llama. Antes de construir la ruta del archivo se exige que cumpla `^[a-z_]+$` (los 79 nombres de acción reales lo cumplen) — sin esto, alguien podría intentar `action=../../../algo` para forzar la inclusión de un archivo arbitrario. Verificado con pruebas reales: `../config`, path traversal con `/../../`, y nombres con `;`/mayúsculas/guiones — todos rechazados antes de tocar el filesystem.
+- **Verificación de equivalencia**: se comparó el `api.php` viejo (switch) contra el nuevo (despacho) llamando a las mismas acciones con los mismos parámetros — 8 acciones de solo lectura autenticadas (`listar_usuarios`, `listar_logs`, `cargar_datos`, `listar_zonas`, `listar_clabes_pool`, `superadmin_listar_referidos`, `invitaciones_listar`) dieron respuesta **byte por byte idéntica** entre ambas versiones. También se probó `login`/`invitacion_ver` (públicas) y una acción inexistente.
+- ⚠️ **Estas pruebas se corrieron contra la base de datos real** (las credenciales de `config.php` son las de producción) — por eso se usaron exclusivamente acciones de solo lectura, nunca una que cree/modifique/cobre/elimine algo.
+- Se agregó `acciones/.htaccess` y `lib/.htaccess` (ambos con `Require all denied`) — esos archivos PHP solo deben ejecutarse vía `require()` desde `api.php` (que ya resolvió `$pdo`/`$usuario_actual`/`$input` antes de incluirlos), nunca accedidos directo por URL.
+- **Si en el futuro agregas una acción nueva**: ya no se agrega un `case` a `api.php` — se crea un archivo nuevo en `acciones/<nombre_de_la_accion>.php` con el código de esa acción (sin `case`/`break`, el archivo completo ES el cuerpo). Cualquiera que siga trabajando en este repo (incluido el bot/proceso que hace commits automáticos) necesita saber esto — si alguien vuelve a agregar un `case` directo en un switch dentro de `api.php` por costumbre, no se ejecutará nunca porque el switch ya no existe.
+- No requiere migración SQL.
+
+### 5.3m "Recordar sesión" en el login
+- Antes la sesión SIEMPRE se guardaba en `sessionStorage` (se pierde al cerrar la pestaña/navegador). Se agregó una casilla "Recordar sesión en este dispositivo" en `Login.js` — si se marca, `AuthController.login()` guarda en `localStorage` en su lugar, así que la sesión sigue abierta la próxima vez que se entre, hasta que el token expire (`APP_TOKEN_TTL`, 12h en `config.php`) o se cierre sesión manualmente.
+- `getSession()` ahora revisa ambos almacenamientos (localStorage primero, luego sessionStorage) y `logout()` limpia los dos, para no dejar una sesión vieja huérfana en el que no se usó.
+- JS-only, no requiere migración.
+
+### 5.3n Deduplicado: "añadir logo" aparecía dos veces en el menú de perfil
+- `views/components/MenuPerfil.js` tenía dos entradas separadas: "Editar mi perfil" (con un campo para pegar el enlace de tu foto) y "Logo de la escuela" (un modal aparte, casi idéntico, para pegar el enlace del logo). Misma mecánica ("pega un enlace de imagen"), duplicada en dos pantallas.
+- Se fusionó: el campo del logo de la escuela ahora vive dentro de "Editar mi perfil" (solo visible para admin/superadmin con escuela asignada). Al guardar, si el logo cambió, se manda una llamada aparte a `editar_logo_escuela` (sigue siendo una tabla distinta — `escuelas`, no `usuarios` — así que no se puede fusionar en una sola petición al backend), pero desde la vista del usuario es un solo formulario.
+- Se corrigió `assets/js/app.js` (`onActualizado`) para que separe `logo_url` (pertenece a la escuela) del resto de los campos (pertenecen al usuario) al reflejar el cambio en pantalla — antes esperaba un `tipo === 'logo'` que ya no existe.
+- JS-only, no requiere migración.
+
+### 5.3o Gráfica de "Tendencia de cobranza": filtro de rango de fechas real
+- La gráfica del Dashboard mostraba muy pocos días con datos. Causa real: se calculaba en el navegador a partir de `data.cobros`, que `cargar_datos` solo llena con los últimos 90 días (y con un tope de 1000 filas) — cualquier rango más largo simplemente no tenía de dónde sacar datos.
+- Se creó `acciones/tendencia_cobranza.php`: agrega cobros pagados por día (`SUM`/`GROUP BY fecha`) directo en el servidor, para el rango de fechas que pida el usuario — funciona igual de rápido para 7 días que para 1 año, porque nunca manda cobro por cobro al navegador. Mismo modelo de permisos que `listar_cobros` (`requerir_escuela_propia` + familia limitada a sus propios hijos). Tope de 400 días por petición (cubre el preset más largo, 1 año, con margen) para que nadie pida un rango de décadas.
+- En `Dashboard.js` se agregó un selector de rango: **1 día, 5 días, 7 días, 1 mes, 3 meses, 6 meses, 1 año**, o **rango personalizado** (dos campos de fecha). Cambiar el rango dispara la consulta al nuevo endpoint automáticamente.
+- Probado contra la base de datos real (de solo lectura, sin riesgo): un rango de 30 días para la escuela #1 mostró cobros en 11 días distintos (contra los ~2 que se veían antes), confirmando que el problema era la fuente de datos, no la gráfica en sí. También se probaron rangos inválidos (hasta antes que desde) y el tope de 400 días — ambos rechazados correctamente.
+- No requiere migración SQL (usa la columna `cobros.fecha` que ya existe).
+
 ### 5.4 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)
 - **`usuarios.zona` / `planteles.zona` (texto) vs `zona_id` (FK a la tabla `zonas`)**: es una migración a normalizado que ya está en curso desde antes, NO un descuido. Hoy solo las filas nuevas (distribuidores #11/#12) tienen `zona_id` poblado — el resto de usuarios/planteles viejos sigue con `zona_id = NULL` y solo el texto libre. **No borres las columnas `zona` (texto) todavía** — primero hay que backfillear `zona_id` en todas las filas viejas cruzando contra `zonas.nombre`, confirmar que quedó 100% poblado, y solo entonces dropear el texto.
 - **`escuelas.clabe_fija`**: legado, reemplazado por el sistema de `clabe_pool` (CLABEs individuales). Confirmado que ningún archivo PHP la lee ya (ni siquiera los webhooks de SPEI/CLABE) — es segura de eliminar cuando quieras, no es urgente.
@@ -171,8 +200,11 @@ Secuencia recomendada para no perder notificaciones reales durante el cambio:
 ```
 index.html              ← Entrada principal (no requiere build, carga todo por <script src>)
 config.php              ← ⚠ Credenciales (no versionar)
-api.php                 ← Backend PHP unificado (un switch($action) grande)
+api.php                 ← Router (332 líneas): auth + despacho a acciones/<accion>.php
 cron_recordatorios.php  ← Job diario (Hostinger Cron Jobs) — recordatorios + archivado de logs
+
+acciones/               ← Una accion nueva = un archivo nuevo aquí (ya NO un case en api.php)
+  crear_cobro.php, listar_usuarios.php, ...  (79 archivos, uno por acción — ver 5.3l)
 
 lib/                    ← Librerías internas (nunca se llaman por URL directa)
   db.php                ←   Conexión PDO
@@ -196,7 +228,7 @@ controllers/*.js        ← Un controller por dominio (Auth, Caja, Cliente, Cobr
 models/AppModel.js      ← Remanente de localStorage (legado, en limpieza — ver 5.3d)
 views/*.js              ← Una vista por pantalla (Login, PortalFamilia, Cobros, Escuelas...)
 views/components/       ← Componentes compartidos (Badge, Icons, EmojiPicker, ConfirmModal)
-views/hooks/            ← Hooks compartidos (usePaginacion)
+views/hooks/            ← Hooks compartidos (usePaginaActual)
 
 migracion_*.sql         ← Migraciones manuales (correr una vez en phpMyAdmin, ver sección 5)
 ```

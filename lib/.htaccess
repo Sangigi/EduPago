@@ -1,0 +1,3 @@
+# Librerías internas (db.php, mailer.php, helpers_pagos.php, etc.) — solo se
+# usan vía require() desde otros archivos PHP, nunca accedidas directo por URL.
+Require all denied

@@ -39,7 +39,7 @@ function AvatarPerfil({ url, iniciales, tam, clase, radio }) {
 function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost }) {
   const { useState, useEffect, useRef } = React;
   const [abierto, setAbierto] = useState(false);
-  const [modal, setModal] = useState(null);      // 'cuenta' | 'password' | 'logo'
+  const [modal, setModal] = useState(null);      // 'cuenta' | 'password'
   const caja = useRef(null);
 
   // Cerrar al hacer clic fuera o con Escape
@@ -63,15 +63,15 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost }) {
     cajero: 'Cajero', familia: 'Familia', distribuidor: 'Distribuidor'
   }[user.rol] || user.rol;
 
+  // El logo de la escuela (admin/superadmin) se edita dentro de "Editar mi
+  // perfil", junto a la foto propia — antes era una opción de menú aparte
+  // con su propio modal, pero ambas eran "pega el enlace de una imagen"
+  // haciendo básicamente lo mismo, solo que para user.foto_url vs
+  // escuela.logo_url. Unificado en un solo formulario.
   const opciones = [
     { id: 'cuenta',   icono: 'usuarios', label: 'Editar mi perfil' },
     { id: 'password', icono: 'shield',   label: 'Cambiar contraseña' }
   ];
-  // Solo superadmin: hoy `editar_escuela` en api.php exige ese rol.
-  // Para permitirlo también a admin, ver api_perfil.md.
-  if (escuela && (user.rol === 'admin' || user.rol === 'superadmin')) {
-    opciones.push({ id: 'logo', icono: 'escuelas', label: 'Logo de la escuela' });
-  }
 
   return _hMP('div', { ref: caja, style: { position: 'relative' } },
     _hMP('div', {
@@ -153,10 +153,13 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
   const correoCambio = tipo === 'cuenta' &&
     email.trim().toLowerCase() !== String(user.email || '').trim().toLowerCase();
 
+  // Solo superadmin/admin ven y pueden cambiar el logo de la escuela.
+  const puedeEditarLogo = tipo === 'cuenta' && escuela &&
+    (user.rol === 'admin' || user.rol === 'superadmin');
+
   const titulos = {
     cuenta: 'Editar mi perfil',
-    password: 'Cambiar contraseña',
-    logo: 'Logo de la escuela'
+    password: 'Cambiar contraseña'
   };
 
   const guardar = async () => {
@@ -198,11 +201,18 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
           cuerpo.password_actual = pwActual;
         }
         res = await apiPost('editar_usuario', cuerpo);
-      } else {
-        res = await apiPost('editar_logo_escuela', {
-          id: escuela.id,
-          logo_url: logoUrl.trim() || null
-        });
+
+        // Logo de la escuela: es una tabla distinta (escuelas, no usuarios),
+        // así que sigue siendo una llamada aparte — pero solo se manda si el
+        // campo aplica y de verdad cambió, para no gastar un request extra.
+        if (res && res.success !== false && puedeEditarLogo &&
+            logoUrl.trim() !== (escuela.logo_url || '')) {
+          const resLogo = await apiPost('editar_logo_escuela', {
+            id: escuela.id,
+            logo_url: logoUrl.trim() || null
+          });
+          if (resLogo && resLogo.success === false) res = resLogo;
+        }
       }
 
       if (res && res.success === false) {
@@ -210,10 +220,12 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
       } else {
         setOk('Guardado.');
         if (onActualizado) {
-          onActualizado(tipo, tipo === 'password' ? {} :
-            tipo === 'cuenta'
-              ? { nombre: nombre.trim(), email: email.trim(), foto_url: fotoUrl.trim() || null }
-              : { logo_url: logoUrl.trim() || null });
+          onActualizado(tipo, tipo === 'password' ? {} : {
+            nombre: nombre.trim(),
+            email: email.trim(),
+            foto_url: fotoUrl.trim() || null,
+            ...(puedeEditarLogo ? { logo_url: logoUrl.trim() || null } : {})
+          });
         }
         setTimeout(onCerrar, 700);
       }
@@ -283,7 +295,12 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
             placeholder: 'https://drive.google.com/…',
             ayuda: 'Pega el enlace público de la imagen. No se sube al sistema: solo se guarda la dirección.'
           }),
-          previa(fotoUrl)
+          previa(fotoUrl),
+          puedeEditarLogo ? campo('Logo de la escuela (enlace)', logoUrl, setLogoUrl, {
+            placeholder: 'https://…/logo.png',
+            ayuda: 'Aparecerá junto al nombre de la escuela en el sistema.'
+          }) : null,
+          puedeEditarLogo ? previa(logoUrl) : null
         ] : null,
 
         tipo === 'password' ? [
@@ -292,14 +309,6 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
             tipo: 'password', autoComplete: 'new-password', ayuda: 'Mínimo 8 caracteres.'
           }),
           campo('Confirmar nueva contraseña', pwConfirm, setPwConfirm, { tipo: 'password', autoComplete: 'new-password' })
-        ] : null,
-
-        tipo === 'logo' ? [
-          campo('Logo de la escuela (enlace)', logoUrl, setLogoUrl, {
-            placeholder: 'https://…/logo.png',
-            ayuda: 'Aparecerá junto al nombre del perfil en lugar de las iniciales.'
-          }),
-          previa(logoUrl)
         ] : null,
 
         error ? _hMP('div', {

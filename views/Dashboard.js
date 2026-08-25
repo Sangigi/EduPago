@@ -54,9 +54,59 @@ function Dashboard({
 
 }) {
 
-  const { useState } = React;
+  const { useState, useEffect, useMemo } = React;
 
   const [filtroEscEstado, setFiltroEscEstado] = useState('todas'); // 'todas' | 'activas' | 'inactivas'
+
+  // ── Tendencia de cobranza: rango de fechas elegido por el usuario ──
+  // Antes eran siempre los últimos 30 días, calculados en el navegador a
+  // partir de data.cobros (que solo trae 90 días) — un rango de "6 meses" o
+  // "1 año" se habría visto vacío más allá de esos 90 días. Ahora se pide
+  // agregado por día directo al servidor (acciones/tendencia_cobranza.php),
+  // que funciona igual de rápido sin importar qué tan largo sea el rango.
+  const RANGOS_TENDENCIA = [
+    { id: '1d', label: '1 día', dias: 1 },
+    { id: '5d', label: '5 días', dias: 5 },
+    { id: '7d', label: '7 días', dias: 7 },
+    { id: '1m', label: '1 mes', dias: 30 },
+    { id: '3m', label: '3 meses', dias: 90 },
+    { id: '6m', label: '6 meses', dias: 180 },
+    { id: '1y', label: '1 año', dias: 365 },
+  ];
+  const [rangoTendencia, setRangoTendencia] = useState('1m');
+  const [customDesde, setCustomDesde] = useState('');
+  const [customHasta, setCustomHasta] = useState('');
+  const [tendenciaPorDia, setTendenciaPorDia] = useState(null);
+  const [cargandoTendencia, setCargandoTendencia] = useState(false);
+
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const { desdeTendencia, hastaTendencia } = useMemo(() => {
+    if (rangoTendencia === 'custom') {
+      return { desdeTendencia: customDesde, hastaTendencia: customHasta };
+    }
+    const preset = RANGOS_TENDENCIA.find(r => r.id === rangoTendencia) || RANGOS_TENDENCIA[3];
+    const d = new Date();
+    d.setDate(d.getDate() - (preset.dias - 1));
+    return { desdeTendencia: d.toISOString().slice(0, 10), hastaTendencia: hoyISO };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangoTendencia, customDesde, customHasta]);
+
+  useEffect(() => {
+    if (!escuela || !escuela.id) return;
+    if (!desdeTendencia || !hastaTendencia) return; // rango personalizado incompleto
+    setCargandoTendencia(true);
+    const params = new URLSearchParams({
+      action: 'tendencia_cobranza', escuela_id: escuela.id,
+      desde: desdeTendencia, hasta: hastaTendencia,
+    });
+    fetch('api.php?' + params.toString(), {
+      headers: { 'Authorization': 'Bearer ' + AuthController.getToken() },
+    })
+      .then(r => r.json())
+      .then(json => { if (json.success) setTendenciaPorDia(json.por_dia || {}); })
+      .catch(() => {})
+      .finally(() => setCargandoTendencia(false));
+  }, [escuela && escuela.id, desdeTendencia, hastaTendencia]);
 
   const esSuper = AuthController.isSuperAdmin(user);
 
@@ -1056,45 +1106,38 @@ function Dashboard({
 
       children: (() => {
 
-        // Tendencia de cobranza de los últimos 30 días, agrupada por día. Se construye con los cobros ya cargados: sin llamadas extra.
-
-        const dias = 30;
-
-        const hoyD = new Date();
-
+        // Tendencia de cobranza en el rango elegido por el usuario (ver
+        // filtro de rango arriba del componente Dashboard). Se pide
+        // agregado por día al servidor (tendencia_cobranza), no se calcula
+        // de data.cobros (que solo trae 90 días — un rango de "1 año" se
+        // vería vacío más allá de eso).
         const cubos = [];
-
-        for (let k = dias - 1; k >= 0; k--) {
-
-          const d = new Date(hoyD);
-
-          d.setDate(d.getDate() - k);
-
-          cubos.push({ iso: d.toISOString().slice(0, 10), label: d.getDate() + '/' + (d.getMonth() + 1), valor: 0 });
-
+        if (desdeTendencia && hastaTendencia) {
+          let cur = new Date(desdeTendencia + 'T00:00:00');
+          const fin = new Date(hastaTendencia + 'T00:00:00');
+          while (cur <= fin) {
+            const iso = cur.toISOString().slice(0, 10);
+            cubos.push({
+              iso,
+              label: cur.getDate() + '/' + (cur.getMonth() + 1),
+              valor: (tendenciaPorDia && tendenciaPorDia[iso]) || 0,
+            });
+            cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+          }
         }
 
-        const idx = {};
-
-        cubos.forEach((c, n) => { idx[c.iso] = n; });
-
-        data.cobros.forEach(c => {
-
-          if (c.estado !== 'pagado') return;
-
-          const n = idx[c.fecha];
-
-          if (n !== undefined) cubos[n].valor += Number(c.total) || 0;
-
-        });
-
         const suma = cubos.reduce((a, c) => a + c.valor, 0);
+        const rangoActivo = RANGOS_TENDENCIA.find(r => r.id === rangoTendencia);
+        const subtitulo = rangoTendencia === 'custom'
+          ? (customDesde && customHasta ? `${customDesde} a ${customHasta}` : 'Elige un rango')
+          : `Últimos ${rangoActivo ? rangoActivo.label.toLowerCase() : '30 días'}`;
 
         return [
 
           _jsxDEV("div", {
 
             className: "card-header",
+            style: { flexWrap: 'wrap', gap: 10 },
 
             children: [
 
@@ -1104,7 +1147,7 @@ function Dashboard({
 
                   _jsxDEV("div", { className: "card-title", children: "Tendencia de cobranza" }, void 0, false),
 
-                  _jsxDEV("div", { className: "card-sub", children: "Últimos 30 días" }, void 0, false)
+                  _jsxDEV("div", { className: "card-sub", children: cargandoTendencia ? 'Cargando…' : subtitulo }, void 0, false)
 
                 ]
 
@@ -1121,6 +1164,41 @@ function Dashboard({
             ]
 
           }, 'head', true),
+
+          _jsxDEV("div", {
+            style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 14 },
+            children: [
+              ...RANGOS_TENDENCIA.map(r => _jsxDEV("button", {
+                type: "button",
+                className: 'btn btn-sm ' + (rangoTendencia === r.id ? 'btn-primary' : 'btn-ghost'),
+                onClick: () => setRangoTendencia(r.id),
+                children: r.label
+              }, r.id, false)),
+              _jsxDEV("button", {
+                type: "button",
+                className: 'btn btn-sm ' + (rangoTendencia === 'custom' ? 'btn-primary' : 'btn-ghost'),
+                onClick: () => setRangoTendencia('custom'),
+                children: "Rango personalizado"
+              }, 'custom', false),
+              rangoTendencia === 'custom' ? _jsxDEV("input", {
+                type: "date",
+                className: "form-input",
+                style: { width: 145, fontSize: 12.5 },
+                value: customDesde,
+                max: hoyISO,
+                onChange: e => setCustomDesde(e.target.value)
+              }, 'desde', false) : null,
+              rangoTendencia === 'custom' ? _jsxDEV("input", {
+                type: "date",
+                className: "form-input",
+                style: { width: 145, fontSize: 12.5 },
+                value: customHasta,
+                min: customDesde || undefined,
+                max: hoyISO,
+                onChange: e => setCustomHasta(e.target.value)
+              }, 'hasta', false) : null
+            ]
+          }, 'rango', true),
 
           _jsxDEV(AreaChart, {
 

@@ -3654,14 +3654,20 @@ function App() {
                       // Refleja el cambio en pantalla sin recargar
                       onActualizado: (tipo, cambios) => {
                         if (tipo === 'cuenta') {
-                          setUser(prev => prev ? { ...prev, ...cambios } : prev);
-                        } else if (tipo === 'logo' && escuelaActiva) {
-                          setEscuelaActiva(prev => prev ? { ...prev, ...cambios } : prev);
-                          setData(prev => prev ? {
-                            ...prev,
-                            escuelas: (prev.escuelas || []).map(e =>
-                              e.id === escuelaActiva.id ? { ...e, ...cambios } : e)
-                          } : prev);
+                          // El logo de la escuela ahora se edita en el mismo
+                          // formulario que "Editar mi perfil" (antes era un
+                          // modal aparte) — logo_url pertenece a la escuela,
+                          // no al usuario, así que se separa antes de aplicar.
+                          const { logo_url, ...cambiosUsuario } = cambios;
+                          setUser(prev => prev ? { ...prev, ...cambiosUsuario } : prev);
+                          if (logo_url !== undefined && escuelaActiva) {
+                            setEscuelaActiva(prev => prev ? { ...prev, logo_url } : prev);
+                            setData(prev => prev ? {
+                              ...prev,
+                              escuelas: (prev.escuelas || []).map(e =>
+                                e.id === escuelaActiva.id ? { ...e, logo_url } : e)
+                            } : prev);
+                          }
                         }
                       }
                     },

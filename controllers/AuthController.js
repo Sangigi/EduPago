@@ -4,7 +4,12 @@
 const AuthController = (() => {
   const SESSION_KEY = 'edupago_session_v4';
 
-  async function login(email, password) {
+  // "Recordar sesión": por defecto se guarda en sessionStorage (se pierde al
+  // cerrar la pestaña/navegador). Si el usuario marca la casilla, se guarda
+  // en localStorage en su lugar, para que siga con la sesión abierta la
+  // próxima vez que entre — hasta que el token expire (APP_TOKEN_TTL, 12h
+  // en config.php) o cierre sesión manualmente.
+  async function login(email, password, recordar = false) {
     try {
       const response = await fetch('api.php?action=login', {
         method: 'POST',
@@ -12,19 +17,25 @@ const AuthController = (() => {
         body: JSON.stringify({ email, password })
       });
       const result = await response.json();
-      
+
       if (!result.success) return { ok: false, error: result.error };
 
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
+      (recordar ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(result.user));
       return { ok: true, user: result.user };
     } catch (e) {
       return { ok: false, error: 'Error de conexión con el servidor' };
     }
   }
 
-  function logout() { sessionStorage.removeItem(SESSION_KEY); }
+  function logout() {
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
+  }
   function getSession() {
-    try { const s = sessionStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null; } catch(e) { return null; }
+    try {
+      const s = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
+      return s ? JSON.parse(s) : null;
+    } catch(e) { return null; }
   }
   function getToken() { const s = getSession(); return s ? s.token : null; }
   function isSuperAdmin(user) { return user?.rol === 'superadmin'; }
