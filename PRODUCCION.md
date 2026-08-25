@@ -183,6 +183,7 @@ Secuencia recomendada para no perder notificaciones reales durante el cambio:
   - `acciones/tendencia_cobranza.php` (creado en 5.3o) ahora acepta `metodo` opcional, para que la gráfica siga respetando el filtro de método que ya tenía Cobros.js. La gráfica misma se recalculó para usar el agregado del servidor en vez de `lista`.
   - El filtro de texto de búsqueda (folio/cliente/matrícula) a propósito NO se aplica a la gráfica — no tiene un equivalente claro en una suma por día, solo afecta la tabla.
 - Probado contra la base real (solo lectura): `listar_cobros` con rango de 30 días devolvió cobros dentro del rango correcto; `tendencia_cobranza` con `metodo=TC` devolvió 8 días con pagos por tarjeta en los últimos 90 días.
+- **Bug encontrado y corregido de paso**: la mini-gráfica de la tarjeta "Cobrado en este listado" (arriba de la tabla) aparecía al cargar la página y luego desaparecía sola. Causa: se calculaba de `lista`, que al montar el componente refleja el caché local (varios días) pero segundos después cambia a `paginaBackend.cobros` (solo la página actual, 25 filas) en cuanto responde el servidor — con tan pocas filas, casi siempre quedaban 2 días distintos o menos y la mini-gráfica se ocultaba (su propia regla ya existente: solo se dibuja con más de 2 puntos). Se cambió para que use `tendenciaPorDia` (el mismo agregado estable que ya usa "Tendencia del periodo"), que no depende de qué página esté cargada.
 - No requiere migración SQL.
 
 ### 5.4 Columnas de la base de datos — pendientes documentados (no tocar sin leer esto)

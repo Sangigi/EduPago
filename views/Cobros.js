@@ -258,10 +258,20 @@ function Cobros({
         const cobrado  = pagados.reduce((a, c) => a + (Number(c.total) || 0), 0);
         const porCobrar = pends.reduce((a, c) => a + (Number(c.total) || 0), 0);
         const ticket   = pagados.length ? cobrado / pagados.length : 0;
-        // Tendencia por día para la mini gráfica de la tarjeta destacada
-        const porDia = {};
-        pagados.forEach(c => { const d = (c.fecha || '').slice(0, 10); if (d) porDia[d] = (porDia[d] || 0) + (Number(c.total) || 0); });
-        const serie = Object.keys(porDia).sort().map(k => porDia[k]);
+        // Tendencia por día para la mini gráfica de la tarjeta destacada.
+        // A propósito usa tendenciaPorDia (el mismo agregado del servidor
+        // que ya usa "Tendencia del periodo"), NO `pagados`/`lista`: lista
+        // es solo la página actual (25 filas) una vez que responde el
+        // servidor, así que la mini-gráfica aparecía con los datos locales
+        // iniciales y luego se apagaba en cuanto llegaba paginaBackend, al
+        // quedar con 2 o menos días distintos en esa sola página.
+        const serie = tendenciaPorDia
+          ? Object.keys(tendenciaPorDia).sort().map(k => tendenciaPorDia[k])
+          : (() => {
+              const porDia = {};
+              pagados.forEach(c => { const d = (c.fecha || '').slice(0, 10); if (d) porDia[d] = (porDia[d] || 0) + (Number(c.total) || 0); });
+              return Object.keys(porDia).sort().map(k => porDia[k]);
+            })();
         const tarjetas = [
           { destacada: true, tinte: '', icono: 'pay', valor: fmt(cobrado), etiqueta: 'Cobrado en este listado', meta: pagados.length + ' cobros pagados', chispa: serie },
           { tinte: 'tint-amber', icono: 'history', valor: fmt(porCobrar), etiqueta: 'Por cobrar', meta: pends.length + ' pendientes' },
