@@ -98,8 +98,11 @@ function Comisiones({ data, user }) {
 
     [...grupos.values()]
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-      .forEach(g => {
-        filasExcel.push({ estilo: 'grupo', celdas: [g.nombre.toUpperCase()], colspanPrimera: 8 });
+      .forEach((g, i) => {
+        // Cada distribuidor rota por la paleta (navy/verde/magenta/ámbar) —
+        // su franja de nombre y el total de SU grupo comparten ese color,
+        // igual que "Contabilidad" es azul en la plantilla de referencia.
+        filasExcel.push({ estilo: 'grupo', color: i, celdas: [g.nombre.toUpperCase()], colspanPrimera: 8 });
         filasExcel.push({ estilo: 'header', celdas: ['Colegio', 'Alumnos', 'Estado', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada', 'Alta'] });
         let subCobrado = 0, subComisionMes = 0, subComisionAnio = 0;
         g.filas.forEach(r => {
@@ -113,12 +116,12 @@ function Comisiones({ data, user }) {
           subComisionMes += Number(r.comision_mes) || 0;
           subComisionAnio += Number(r.comision_anio) || 0;
         });
-        filasExcel.push({ estilo: 'subtotal', celdas: ['Subtotal', '', '', '', CSVExport.money(subCobrado), CSVExport.money(subComisionMes), CSVExport.money(subComisionAnio), ''] });
+        filasExcel.push({ estilo: 'total', color: i, celdas: ['TOTAL DE COMISIONES', '', '', '', CSVExport.money(subCobrado), CSVExport.money(subComisionMes), CSVExport.money(subComisionAnio), ''] });
         filasExcel.push({ celdas: [] });
         totalCobrado += subCobrado; totalComisionMes += subComisionMes; totalComisionAnio += subComisionAnio;
       });
 
-    filasExcel.push({ estilo: 'total', celdas: ['TOTAL DE COMISIONES', '', '', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio), ''] });
+    filasExcel.push({ estilo: 'granTotal', celdas: ['TOTAL DE COMISIONES', '', '', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio), ''] });
     ExcelExport.descargar(`comisiones-distribuidores-${new Date().toISOString().slice(0, 10)}`, filasExcel);
   };
 

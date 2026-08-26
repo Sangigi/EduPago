@@ -298,7 +298,7 @@ function DistComisionesView() {
       { estilo: 'header', celdas: ['Colegio', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada del año'] },
       ...colegios.map(c => ({ estilo: 'dato', celdas: [c.nombre, `${c.comision_pct}%`, CSVExport.money(c.cobrado_mes), CSVExport.money(c.comision_mes), CSVExport.money(c.comision_anio)] })),
       { celdas: [] },
-      { estilo: 'total', celdas: ['TOTAL DE COMISIONES', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio)] },
+      { estilo: 'granTotal', celdas: ['TOTAL DE COMISIONES', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio)] },
     ];
     ExcelExport.descargar(`comisiones-${nombreDist.toLowerCase().replace(/\s+/g, '-')}-${hoy.toISOString().slice(0, 10)}`, filas);
   };

@@ -248,7 +248,7 @@ function Cobros({
       { estilo: 'header', celdas: ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Estado', 'Referencia', 'Auth'] },
       ...lista.map(c => ({ estilo: 'dato', celdas: [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.estado, c.referencia || '', c.auth_code || ''] })),
       { celdas: [] },
-      { estilo: 'total', celdas: ['TOTAL', '', '', CSVExport.money(totalListado), '', '', '', ''] },
+      { estilo: 'granTotal', celdas: ['TOTAL', '', '', CSVExport.money(totalListado), '', '', '', ''] },
     ];
     ExcelExport.descargar(`cobros-${new Date().toISOString().slice(0, 10)}`, filas);
   };

@@ -75,7 +75,7 @@ function Reportes({
       { estilo: 'header', celdas: ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Referencia'] },
       ...cobrosFilt.map(c => ({ estilo: 'dato', celdas: [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.referencia || ''] })),
       { celdas: [] },
-      { estilo: 'total', celdas: ['TOTAL', '', '', CSVExport.money(totalListado), '', ''] },
+      { estilo: 'granTotal', celdas: ['TOTAL', '', '', CSVExport.money(totalListado), '', ''] },
     ];
     ExcelExport.descargar(`reporte-${escuela?.clave || 'esc'}-${new Date().toISOString().slice(0, 10)}`, filas);
   };
