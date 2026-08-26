@@ -1206,7 +1206,27 @@ function App() {
 
     resumen_escuelas:
 
-      data.resumen_escuelas || {}
+      data.resumen_escuelas || {},
+
+
+
+    // clientes_total/activos_total/pagina/por_pagina: cargar_datos.php ya los
+    // manda (son el total REAL en BD, no solo lo cargado en esta página), pero
+    // dataSegura es una lista blanca de campos — al agregar esos campos nuevos
+    // nunca se agregaron aquí, así que Alumnos.js/Dashboard.js siempre los veían
+    // undefined y caían a su fallback (contar solo data.clientes.length, la
+    // página cargada) por más que la API los regresara bien.
+    clientes_total:
+      data.clientes_total,
+
+    clientes_activos_total:
+      data.clientes_activos_total,
+
+    clientes_pagina:
+      data.clientes_pagina,
+
+    clientes_por_pagina:
+      data.clientes_por_pagina
 
   };
 
@@ -2370,7 +2390,25 @@ function App() {
 
         gd.escuelas ||
 
-        []
+        [],
+
+
+
+      // Igual que arriba: si no se copian aquí, un fetch escopado (ej. la
+      // paginación/búsqueda de Alumnos.js) actualiza clientes/clientes_total
+      // en su vista, pero mergeScoped los tira al re-fusionar con el estado
+      // global — y el próximo render vuelve a mostrar el total viejo/undefined.
+      clientes_total:
+        typeof ns.clientes_total === 'number' ? ns.clientes_total : gd.clientes_total,
+
+      clientes_activos_total:
+        typeof ns.clientes_activos_total === 'number' ? ns.clientes_activos_total : gd.clientes_activos_total,
+
+      clientes_pagina:
+        typeof ns.clientes_pagina === 'number' ? ns.clientes_pagina : gd.clientes_pagina,
+
+      clientes_por_pagina:
+        typeof ns.clientes_por_pagina === 'number' ? ns.clientes_por_pagina : gd.clientes_por_pagina
 
     };
 
