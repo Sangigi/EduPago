@@ -200,32 +200,35 @@ function UsuariosFormModal({
                   ]
                 }, void 0, true),
 
-                /* Contraseña */
-                _jsxDEV("div", {
+                /* Contraseña — solo al editar. Al crear ya no se pide: la cuenta
+                   nace con un enlace de activación de un solo uso que se manda
+                   por correo, mismo criterio que el resto de altas del sistema
+                   (invitaciones, CSV de alumnos) — nadie más que el propio
+                   usuario llega a conocer su contraseña real. */
+                modal === 'editar' && _jsxDEV("div", {
                   className: "form-group",
                   children: [
                     _jsxDEV("label", {
                       className: "form-label",
-                      children: modal === 'editar' ? 'Nueva contraseña (dejar vacío = mantener)' : 'Contraseña *'
+                      children: 'Nueva contraseña (dejar vacío = mantener)'
                     }, void 0, false),
                     _jsxDEV("input", {
                       className: "form-input",
                       type: "password",
-                      placeholder: modal === 'editar' ? '••••••• (opcional)' : 'Mínimo 6 caracteres',
+                      placeholder: '••••••• (opcional)',
                       value: form.password,
                       onChange: e => setForm(f => ({ ...f, password: e.target.value }))
                     }, void 0, false)
                   ]
                 }, void 0, true),
 
-                /* Confirmar contraseña */
-                _jsxDEV("div", {
+                modal === 'editar' && _jsxDEV("div", {
                   className: "form-group",
                   children: [
                     _jsxDEV("label", {
                       className: "form-label",
-                      children: ["Confirmar contraseña", modal === 'editar' ? ' (si cambia)' : ' *']
-                    }, void 0, true),
+                      children: "Confirmar contraseña (si cambia)"
+                    }, void 0, false),
                     _jsxDEV("input", {
                       className: "form-input",
                       type: "password",
@@ -234,6 +237,17 @@ function UsuariosFormModal({
                       onChange: e => setForm(f => ({ ...f, password2: e.target.value }))
                     }, void 0, false)
                   ]
+                }, void 0, true),
+
+                modal === 'crear' && _jsxDEV("div", {
+                  className: "form-group",
+                  children: _jsxDEV("div", {
+                    style: {
+                      fontSize: 12.5, color: 'var(--ink-3)', background: 'var(--bg-2)',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px'
+                    },
+                    children: 'Se le mandará un correo a esta cuenta con un enlace para que cree su propia contraseña.'
+                  }, void 0, false)
                 }, void 0, true),
 
                 /* Contraseña actual (solo al editar tu propio perfil, si cambias password o correo) */
@@ -378,18 +392,14 @@ function Usuarios({ user, data }) {
   }
   const escuelasDisp = AuthController.escuelasDisponibles(user, data.escuelas);
 
+  // Antes se armaba recorriendo data.clientes (alumnos) buscando familia_id —
+  // pero data.clientes solo trae LA PÁGINA actual de alumnos (25 por defecto,
+  // ver Alumnos.js), así que en escuelas grandes casi ninguna familia real
+  // aparecía en este selector. data.familias ya viene completa (hasta 1000
+  // por escuela, sin paginar — ver cargar_datos.php) y con su propio nombre.
   const familiasUnicas = React.useMemo(() => {
-    const lista = [];
-    const idsVistos = new Set();
-    (data.clientes || []).forEach(c => {
-      if (c.familia_id && !idsVistos.has(c.familia_id)) {
-        idsVistos.add(c.familia_id);
-        const nombreFamilia = c.apellido_familia || `Familia de ${c.nombre}`;
-        lista.push({ id: c.familia_id, nombre: nombreFamilia, escuela_id: c.escuela_id });
-      }
-    });
-    return lista;
-  }, [data.clientes]);
+    return (data.familias || []).map(f => ({ id: f.id, nombre: f.nombre, escuela_id: f.escuela_id }));
+  }, [data.familias]);
 
   const nombreEscuela = eid => {
     const e = (data.escuelas || []).find(e => e.id === eid);
@@ -434,14 +444,10 @@ function Usuarios({ user, data }) {
   };
   const guardarNuevo = async () => {
     setErrForm('');
-    if (!form.nombre || !form.email || !form.password || !form.rol)
+    if (!form.nombre || !form.email || !form.rol)
       return setErrForm('Completa todos los campos obligatorios.');
     if (form.rol === 'familia' && !form.familia_id)
       return setErrForm('Debes vincular este usuario a una cuenta familiar obligatoriamente.');
-    if (form.password !== form.password2)
-      return setErrForm('Las contraseñas no coinciden.');
-    if (form.password.length < 6)
-      return setErrForm('La contraseña debe tener al menos 6 caracteres.');
     const payload = {
       ...form,
       escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
@@ -449,10 +455,17 @@ function Usuarios({ user, data }) {
       zona: form.rol === 'distribuidor' ? form.zona.trim() : '',
       zona_id: form.rol === 'distribuidor' ? (parseInt(form.zona_id) || null) : null
     };
-    try { await AuthController.crearUsuario(user, payload, data.escuelas); }
+    let res;
+    try { res = await AuthController.crearUsuario(user, payload, data.escuelas); }
     catch(e) { setErrForm(e.message); return; }
     await cargarUsuarios();
     setModal(null);
+    // La cuenta ya se creó — si el correo de activación no se pudo mandar,
+    // se ofrece el enlace para compartirlo a mano (mismo criterio que
+    // reenviarCredenciales, ver ModalLigaCopiar más abajo).
+    if (res && res.correo_enviado === false && res.activacion_liga) {
+      setLigaActivacion({ liga: res.activacion_liga });
+    }
   };
 
   /* ── Editar ── */

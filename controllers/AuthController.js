@@ -95,7 +95,12 @@ const AuthController = (() => {
   async function crearUsuario(user, payload, escuelas) {
     const res = await apiPost('crear_usuario', payload);
     if (!res.success) throw new Error(res.error);
-    return res.usuario;
+    // Devuelve la respuesta completa (no solo res.usuario): crear_usuario ya
+    // no manda contraseña, manda un enlace de activación por correo, y el
+    // llamador necesita saber si de verdad se envió o si hay que mostrarlo a
+    // mano (correo_enviado/activacion_liga — mismo criterio que el resto de
+    // los flujos de alta de cuentas en el sistema).
+    return res;
   }
 
   async function editarUsuario(user, payload) {
