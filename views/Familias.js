@@ -52,7 +52,9 @@ function Familias({
 
     regimen_factura: '616',
 
-    uso_cfdi_defecto: 'D10'
+    uso_cfdi_defecto: 'D10',
+
+    darAcceso: false
 
   };
 
@@ -87,6 +89,8 @@ function Familias({
   const [avisoApellido, setAvisoApellido] = useState(null);
 
   const [fichaTutor, setFichaTutor] = useState(null);
+
+  const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — solo si falló el correo al dar acceso al portal
 
   // Parentescos donde SÍ se espera compartir apellido con la familia.
   // En los demás el no-coincidir es lo normal y no se avisa nada.
@@ -355,6 +359,11 @@ function Familias({
 
     if (!formFam.nombre) return;
 
+    if (!formFam.id && formFam.darAcceso && !formFam.email) {
+      alert('Falta el correo electrónico para poder crear su acceso al portal.');
+      return;
+    }
+
     try {
 
       let familia;
@@ -402,6 +411,29 @@ function Familias({
         setData(newData);
 
         AppModel.save(newData);
+
+        // La familia ya se creó — si además se pidió darle acceso al portal,
+        // se crea la cuenta ligada (enlace de activación por correo, mismo
+        // criterio que Usuarios.js). Si esto falla, la familia igual queda
+        // creada — no se revierte nada, solo se avisa del error.
+        if (formFam.darAcceso && formFam.email) {
+          try {
+            const resCuenta = await ApiClient.post('crear_usuario', {
+              nombre: formFam.contacto || formFam.nombre,
+              email: formFam.email,
+              rol: 'familia',
+              escuela_id,
+              familia_id: familia.id,
+            });
+            if (!resCuenta.success) {
+              alert(`La familia se creó, pero no se pudo dar de alta su acceso: ${resCuenta.error || 'error desconocido'}`);
+            } else if (resCuenta.correo_enviado === false && resCuenta.activacion_liga) {
+              setLigaActivacion({ liga: resCuenta.activacion_liga });
+            }
+          } catch (e) {
+            alert(`La familia se creó, pero no se pudo dar de alta su acceso: ${e.message}`);
+          }
+        }
 
       }
 
@@ -632,7 +664,16 @@ function Familias({
 
   return _jsxDEV("div", {
 
-    children: [_jsxDEV("div", {
+    children: [
+
+      ligaActivacion && typeof ModalLigaCopiar !== 'undefined' && _jsxDEV(ModalLigaCopiar, {
+        liga: ligaActivacion.liga,
+        titulo: 'No se pudo mandar el correo',
+        mensaje: 'Comparte este enlace para que la familia active su cuenta y ponga su propia contraseña — expira en 72 horas.',
+        onCerrar: () => setLigaActivacion(null)
+      }, void 0, false),
+
+      _jsxDEV("div", {
 
       className: "card",
 
@@ -1796,7 +1837,26 @@ function Familias({
 
             }, void 0, true)]
 
-          }, void 0, true), _jsxDEV("div", {
+          }, void 0, true),
+
+          !formFam.id && _jsxDEV("label", {
+            style: {
+              display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 4,
+              fontSize: 12.5, color: 'var(--ink-3)', cursor: 'pointer', userSelect: 'none'
+            },
+            children: [_jsxDEV("input", {
+              type: "checkbox",
+              checked: !!formFam.darAcceso,
+              onChange: e => setFormFam(f => ({ ...f, darAcceso: e.target.checked }))
+            }, void 0, false),
+            "Darle acceso al portal a este correo (crea su cuenta y le manda un enlace para poner su contraseña)"]
+          }, void 0, true),
+          formFam.darAcceso && !formFam.email && _jsxDEV("div", {
+            style: { fontSize: 11.5, color: 'var(--amber)', marginBottom: 8 },
+            children: "Falta el correo electrónico para poder crear su acceso."
+          }, void 0, false),
+
+          _jsxDEV("div", {
 
             style: {
 

@@ -241,12 +241,13 @@ function Cobros({
     }
   };
   const exportarCSV = () => {
-    const rows = [['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Estado', 'Referencia', 'Auth'], ...lista.map(c => [c.folio, c.fecha, `"${c.cliente}"`, c.total, c.metodo, c.estado, c.referencia || '', c.auth_code || ''])];
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = `cobros-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    const totalListado = lista.reduce((a, c) => a + (Number(c.total) || 0), 0);
+    const rows = [
+      ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Estado', 'Referencia', 'Auth'],
+      ...lista.map(c => [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.estado, c.referencia || '', c.auth_code || '']),
+      ['TOTAL', '', '', CSVExport.money(totalListado), '', '', '', ''],
+    ];
+    CSVExport.descargar(`cobros-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   };
   return _jsxDEV("div", {
     children: [_jsxDEV("div", {

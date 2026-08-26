@@ -118,17 +118,15 @@ function SuperReportes({
 
   const exportarCSV = () => {
 
-    const rows = [['Escuela', 'Plan', 'Alumnos', 'Cobros', 'Total cobrado', 'Pendiente', 'TC', 'SPEI', 'CoDi', 'Efectivo'], ...stats.map(s => [s.nombre, s.plan, s.numAlumnos, s.numCobros, s.totalCobrado, s.totalPendiente, s.porMetodo.TC, s.porMetodo.SPEI, s.porMetodo.CoDi, s.porMetodo.Efectivo])];
+    const sum = campo => stats.reduce((a, s) => a + (Number(campo(s)) || 0), 0);
 
-    const csv = rows.map(r => r.join(',')).join('\n');
+    const rows = [
+      ['Escuela', 'Plan', 'Alumnos', 'Cobros', 'Total cobrado', 'Pendiente', 'TC', 'SPEI', 'CoDi', 'Efectivo'],
+      ...stats.map(s => [s.nombre, s.plan, s.numAlumnos, s.numCobros, CSVExport.money(s.totalCobrado), CSVExport.money(s.totalPendiente), CSVExport.money(s.porMetodo.TC), CSVExport.money(s.porMetodo.SPEI), CSVExport.money(s.porMetodo.CoDi), CSVExport.money(s.porMetodo.Efectivo)]),
+      ['TOTAL', '', sum(s => s.numAlumnos), sum(s => s.numCobros), CSVExport.money(sum(s => s.totalCobrado)), CSVExport.money(sum(s => s.totalPendiente)), CSVExport.money(sum(s => s.porMetodo.TC)), CSVExport.money(sum(s => s.porMetodo.SPEI)), CSVExport.money(sum(s => s.porMetodo.CoDi)), CSVExport.money(sum(s => s.porMetodo.Efectivo))],
+    ];
 
-    const a = document.createElement('a');
-
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-
-    a.download = `edupago-global-${new Date().toISOString().slice(0, 10)}.csv`;
-
-    a.click();
+    CSVExport.descargar(`edupago-global-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 
   };
 

@@ -68,12 +68,13 @@ function Reportes({
   });
   const topAlumnos = Object.entries(porAlumno).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const exportarCSV = () => {
-    const rows = [['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Referencia'], ...cobrosFilt.map(c => [c.folio, c.fecha, `"${c.cliente}"`, c.total, c.metodo, c.referencia || ''])];
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = `reporte-${escuela?.clave || 'esc'}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    const totalListado = cobrosFilt.reduce((a, c) => a + (Number(c.total) || 0), 0);
+    const rows = [
+      ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Referencia'],
+      ...cobrosFilt.map(c => [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.referencia || '']),
+      ['TOTAL', '', '', CSVExport.money(totalListado), '', ''],
+    ];
+    CSVExport.descargar(`reporte-${escuela?.clave || 'esc'}-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   };
   return _jsxDEV("div", {
     children: [_jsxDEV("div", {

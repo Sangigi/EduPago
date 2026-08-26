@@ -77,6 +77,51 @@ function Comisiones({ data, user }) {
     return texto.includes(q.toLowerCase());
   });
 
+  // Exportar agrupado por distribuidor, con subtotal por grupo y un total
+  // general al final — mismo estilo que un reporte de comisiones por
+  // departamento/vendedor, adaptado a lo que el sistema sí guarda
+  // (distribuidor → colegios referidos, sin bancos/IVA/varias personas por venta).
+  const exportarCSV = () => {
+    const grupos = new Map();
+    lista.forEach(r => {
+      const clave = r.distribuidor_id || 0;
+      if (!grupos.has(clave)) grupos.set(clave, { nombre: r.distribuidor_nombre || 'Sin distribuidor asignado', filas: [] });
+      grupos.get(clave).filas.push(r);
+    });
+
+    const rows = [
+      [`Comisiones de distribuidores — ${new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`],
+      [],
+    ];
+
+    let totalCobrado = 0, totalComisionMes = 0, totalComisionAnio = 0;
+
+    [...grupos.values()]
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      .forEach(g => {
+        rows.push([g.nombre.toUpperCase()]);
+        rows.push(['Colegio', 'Alumnos', 'Estado', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada', 'Alta']);
+        let subCobrado = 0, subComisionMes = 0, subComisionAnio = 0;
+        g.filas.forEach(r => {
+          rows.push([
+            r.escuela_nombre || r.nombre_colegio, r.num_alumnos ?? '',
+            (ESTADOS.find(e => e.value === r.estado) || {}).label || r.estado,
+            `${r.comision_pct}%`, CSVExport.money(r.cobrado_mes), CSVExport.money(r.comision_mes), CSVExport.money(r.comision_anio),
+            r.fecha_alta,
+          ]);
+          subCobrado += Number(r.cobrado_mes) || 0;
+          subComisionMes += Number(r.comision_mes) || 0;
+          subComisionAnio += Number(r.comision_anio) || 0;
+        });
+        rows.push(['Subtotal', '', '', '', CSVExport.money(subCobrado), CSVExport.money(subComisionMes), CSVExport.money(subComisionAnio), '']);
+        rows.push([]);
+        totalCobrado += subCobrado; totalComisionMes += subComisionMes; totalComisionAnio += subComisionAnio;
+      });
+
+    rows.push(['TOTAL DE COMISIONES', '', '', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio), '']);
+    CSVExport.descargar(`comisiones-distribuidores-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  };
+
   const abrirEditar = r => {
     setForm({
       id: r.id,
@@ -157,10 +202,18 @@ function Comisiones({ data, user }) {
 
     tab === 'referidos' && _jsxDEV(_Fragment, {
       children: [_jsxDEV("div", {
-        className: "search-bar",
-        style: { marginBottom: 14, maxWidth: 360 },
-        children: [_jsxDEV("span", { className: "search-icon", children: _jsxDEV(Icon, { name: "search", size: 15, color: "currentColor" }, void 0, false) }, void 0, false),
-        _jsxDEV("input", { placeholder: "Buscar distribuidor o colegio…", value: q, onChange: e => setQ(e.target.value) }, void 0, false)]
+        style: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 },
+        children: [_jsxDEV("div", {
+          className: "search-bar",
+          style: { maxWidth: 360, flex: 1 },
+          children: [_jsxDEV("span", { className: "search-icon", children: _jsxDEV(Icon, { name: "search", size: 15, color: "currentColor" }, void 0, false) }, void 0, false),
+          _jsxDEV("input", { placeholder: "Buscar distribuidor o colegio…", value: q, onChange: e => setQ(e.target.value) }, void 0, false)]
+        }, void 0, true),
+        lista.length > 0 && _jsxDEV("button", {
+          className: "btn btn-secondary btn-sm",
+          onClick: exportarCSV,
+          children: [_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Exportar CSV"]
+        }, void 0, true)]
       }, void 0, true),
 
       err && _jsxDEV("div", { style: { color: 'var(--red)', fontSize: 13, marginBottom: 10 }, children: err }, void 0, false),

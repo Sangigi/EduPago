@@ -285,10 +285,42 @@ function DistComisionesView() {
   const colegios = data.colegios || [];
   const maxComision = Math.max(1, ...historial.map(m => m.comision));
 
+  const exportarCSV = () => {
+    const nombreDist = AuthController.getSession()?.nombre || 'Distribuidor';
+    const hoy = new Date();
+    const totalCobrado = colegios.reduce((a, c) => a + (Number(c.cobrado_mes) || 0), 0);
+    const totalComisionMes = colegios.reduce((a, c) => a + (Number(c.comision_mes) || 0), 0);
+    const totalComisionAnio = colegios.reduce((a, c) => a + (Number(c.comision_anio) || 0), 0);
+    const rows = [
+      [`Comisiones — ${nombreDist}`],
+      [`Mes en curso: ${hoy.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`],
+      [],
+      ['Colegio', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada del año'],
+      ...colegios.map(c => [c.nombre, `${c.comision_pct}%`, CSVExport.money(c.cobrado_mes), CSVExport.money(c.comision_mes), CSVExport.money(c.comision_anio)]),
+      [],
+      ['TOTAL DE COMISIONES', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio)],
+    ];
+    CSVExport.descargar(`comisiones-${nombreDist.toLowerCase().replace(/\s+/g, '-')}-${hoy.toISOString().slice(0, 10)}.csv`, rows);
+  };
+
   return _jsxDEV("div", {
     children: [
-      _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Comisiones" }, void 0, false),
-      _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 }, children: "Historial de los últimos 12 meses y detalle por colegio" }, void 0, false),
+      _jsxDEV("div", {
+        style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+        children: [
+          _jsxDEV("div", {
+            children: [
+              _jsxDEV("h2", { style: { fontSize: 20, margin: '0 0 4px', fontWeight: 800 }, children: "Comisiones" }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 20 }, children: "Historial de los últimos 12 meses y detalle por colegio" }, void 0, false),
+            ]
+          }, void 0, true),
+          colegios.length > 0 && _jsxDEV("button", {
+            className: "btn btn-secondary btn-sm",
+            onClick: exportarCSV,
+            children: [_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Exportar CSV"]
+          }, void 0, true),
+        ]
+      }, void 0, true),
 
       _jsxDEV("div", {
         className: "card",

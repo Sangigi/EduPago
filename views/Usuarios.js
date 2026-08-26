@@ -25,8 +25,32 @@ function UsuariosFormModal({
   obtenerNombreFamilia,
   nombreEscuela,
   zonas,
-  onGuardar
+  onGuardar,
+  onCrearFamiliaInline
 }) {
+  const { useState } = React;
+  const [nuevaFamOpen, setNuevaFamOpen] = useState(false);
+  const [nuevaFamNombre, setNuevaFamNombre] = useState('');
+  const [nuevaFamEmail, setNuevaFamEmail] = useState('');
+  const [nuevaFamGuardando, setNuevaFamGuardando] = useState(false);
+  const [nuevaFamError, setNuevaFamError] = useState('');
+
+  const crearFamiliaInline = async () => {
+    if (!nuevaFamNombre.trim()) { setNuevaFamError('Escribe un nombre para la familia.'); return; }
+    setNuevaFamGuardando(true);
+    setNuevaFamError('');
+    try {
+      const fam = await onCrearFamiliaInline({ nombre: nuevaFamNombre.trim(), email: nuevaFamEmail.trim() });
+      setForm(f => ({ ...f, familia_id: String(fam.id), escuela_id: fam.escuela_id || f.escuela_id }));
+      setNuevaFamOpen(false);
+      setNuevaFamNombre('');
+      setNuevaFamEmail('');
+    } catch (e) {
+      setNuevaFamError(e.message);
+    }
+    setNuevaFamGuardando(false);
+  };
+
   return _jsxDEV("div", {
     className: "modal-backdrop",
     onClick: e => e.target === e.currentTarget && setModal(null),
@@ -123,8 +147,53 @@ function UsuariosFormModal({
                   className: "form-group",
                   style: { gridColumn: '1/-1' },
                   children: [
-                    _jsxDEV("label", { className: "form-label", children: "Vincular con Cuenta Familiar / Alumno *" }, void 0, false),
-                    _jsxDEV("select", {
+                    _jsxDEV("div", {
+                      style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+                      children: [
+                        _jsxDEV("label", { className: "form-label", style: { marginBottom: 0 }, children: "Vincular con Cuenta Familiar / Alumno *" }, void 0, false),
+                        modal === 'crear' && !nuevaFamOpen && _jsxDEV("button", {
+                          type: "button",
+                          className: "btn btn-ghost btn-sm",
+                          style: { fontSize: 11.5, padding: '2px 8px' },
+                          onClick: () => { setNuevaFamOpen(true); setNuevaFamError(''); },
+                          children: "+ Nueva familia"
+                        }, void 0, false)
+                      ]
+                    }, void 0, true),
+                    nuevaFamOpen ? _jsxDEV("div", {
+                      style: {
+                        border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                        padding: 12, marginTop: 6, background: 'var(--bg-2)'
+                      },
+                      children: [
+                        _jsxDEV("input", {
+                          className: "form-input", placeholder: "Nombre de la familia *",
+                          value: nuevaFamNombre, onChange: e => setNuevaFamNombre(e.target.value),
+                          style: { marginBottom: 8 }
+                        }, void 0, false),
+                        _jsxDEV("input", {
+                          className: "form-input", type: "email", placeholder: "Correo del tutor (opcional)",
+                          value: nuevaFamEmail, onChange: e => setNuevaFamEmail(e.target.value),
+                          style: { marginBottom: 8 }
+                        }, void 0, false),
+                        nuevaFamError && _jsxDEV("div", { style: { color: 'var(--red)', fontSize: 12, marginBottom: 8 }, children: nuevaFamError }, void 0, false),
+                        _jsxDEV("div", {
+                          style: { display: 'flex', gap: 8 },
+                          children: [
+                            _jsxDEV("button", {
+                              type: "button", className: "btn btn-primary btn-sm", disabled: nuevaFamGuardando,
+                              onClick: crearFamiliaInline,
+                              children: nuevaFamGuardando ? 'Creando…' : 'Crear y vincular'
+                            }, void 0, false),
+                            _jsxDEV("button", {
+                              type: "button", className: "btn btn-ghost btn-sm",
+                              onClick: () => { setNuevaFamOpen(false); setNuevaFamError(''); },
+                              children: "Cancelar"
+                            }, void 0, false)
+                          ]
+                        }, void 0, true)
+                      ]
+                    }, void 0, true) : _jsxDEV("select", {
                       className: "form-select",
                       value: form.familia_id,
                       onChange: e => {
@@ -357,6 +426,13 @@ function Usuarios({ user, data }) {
   const [confirm, setConfirm] = useState(null);
   const [reenviando, setReenviando] = useState(null);
   const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — solo si falló el correo
+  // Familias creadas desde el propio modal de "nuevo usuario" (ver
+  // crearFamiliaInline) — Usuarios.js no recibe setData (a diferencia de
+  // Familias.js/Alumnos.js), así que no puede actualizar data.familias
+  // compartido; se guardan aquí solo para que aparezcan de inmediato en el
+  // selector de esta sesión. Al recargar la página ya vienen en data.familias
+  // como cualquier otra.
+  const [familiasNuevas, setFamiliasNuevas] = useState([]);
 
   const esSuper = AuthController.isSuperAdmin(user);
 
@@ -398,8 +474,10 @@ function Usuarios({ user, data }) {
   // aparecía en este selector. data.familias ya viene completa (hasta 1000
   // por escuela, sin paginar — ver cargar_datos.php) y con su propio nombre.
   const familiasUnicas = React.useMemo(() => {
-    return (data.familias || []).map(f => ({ id: f.id, nombre: f.nombre, escuela_id: f.escuela_id }));
-  }, [data.familias]);
+    const base = (data.familias || []).map(f => ({ id: f.id, nombre: f.nombre, escuela_id: f.escuela_id }));
+    const idsBase = new Set(base.map(f => f.id));
+    return [...base, ...familiasNuevas.filter(f => !idsBase.has(f.id))];
+  }, [data.familias, familiasNuevas]);
 
   const nombreEscuela = eid => {
     const e = (data.escuelas || []).find(e => e.id === eid);
@@ -434,6 +512,19 @@ function Usuarios({ user, data }) {
     cajero:       { label: 'Cajero',       icon: 'cobros',  color: 'var(--green)', bg: 'var(--green-glow)',    badge: 'badge-green'  },
     familia:      { label: 'Familia',      icon: 'home',    color: '#a855f7',      bg: 'rgba(168,85,247,.15)', badge: 'badge-purple' },
     distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   }
+  };
+
+  // Crea una familia sin salir del modal de "nuevo usuario" — antes había
+  // que ir primero a Familias.js, crearla ahí, y volver aquí a vincularla.
+  // Devuelve la familia creada para que el selector la seleccione de una vez.
+  const crearFamiliaInline = async ({ nombre, email }) => {
+    const escId = parseInt(user.escuela_id || form.escuela_id || 0);
+    if (!escId) throw new Error('No se pudo determinar la escuela para la nueva familia.');
+    const res = await ApiClient.post('crear_familia', { escuela_id: escId, nombre, email });
+    if (!res.success) throw new Error(res.error || 'No se pudo crear la familia.');
+    const nueva = { id: res.familia.id, nombre: res.familia.nombre || nombre, escuela_id: escId };
+    setFamiliasNuevas(prev => [...prev, nueva]);
+    return nueva;
   };
 
   /* ── Crear ── */
@@ -558,7 +649,8 @@ function Usuarios({ user, data }) {
   const modalProps = {
     modal, form, setForm, setModal, errForm,
     rolesCreables, escuelasDisp, familiasUnicas,
-    esSuper, user, ROL_INFO, obtenerNombreFamilia, nombreEscuela, zonas
+    esSuper, user, ROL_INFO, obtenerNombreFamilia, nombreEscuela, zonas,
+    onCrearFamiliaInline: crearFamiliaInline
   };
 
   /* ── Render ── */
