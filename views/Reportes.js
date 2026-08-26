@@ -67,14 +67,17 @@ function Reportes({
     porAlumno[c.cliente] = (porAlumno[c.cliente] || 0) + c.total;
   });
   const topAlumnos = Object.entries(porAlumno).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const exportarCSV = () => {
+  const exportarExcel = () => {
     const totalListado = cobrosFilt.reduce((a, c) => a + (Number(c.total) || 0), 0);
-    const rows = [
-      ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Referencia'],
-      ...cobrosFilt.map(c => [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.referencia || '']),
-      ['TOTAL', '', '', CSVExport.money(totalListado), '', ''],
+    const filas = [
+      { estilo: 'titulo', celdas: [`Reporte — ${escuela?.nombre || 'Escuela'} — ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}`], colspanPrimera: 6 },
+      { celdas: [] },
+      { estilo: 'header', celdas: ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Referencia'] },
+      ...cobrosFilt.map(c => ({ estilo: 'dato', celdas: [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.referencia || ''] })),
+      { celdas: [] },
+      { estilo: 'total', celdas: ['TOTAL', '', '', CSVExport.money(totalListado), '', ''] },
     ];
-    CSVExport.descargar(`reporte-${escuela?.clave || 'esc'}-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+    ExcelExport.descargar(`reporte-${escuela?.clave || 'esc'}-${new Date().toISOString().slice(0, 10)}`, filas);
   };
   return _jsxDEV("div", {
     children: [_jsxDEV("div", {
@@ -120,7 +123,7 @@ function Reportes({
           }, val, false))
         }, void 0, false), _jsxDEV("button", {
           className: "btn btn-secondary btn-sm",
-          onClick: exportarCSV,
+          onClick: exportarExcel,
           style: {
             display: "flex",
             alignItems: "center",
@@ -130,7 +133,7 @@ function Reportes({
             name: "download",
             size: 14,
             color: "currentColor"
-          }, void 0, false), " CSV"]
+          }, void 0, false), " Exportar"]
         }, void 0, true)]
       }, void 0, true)]
     }, void 0, true), _jsxDEV("div", {

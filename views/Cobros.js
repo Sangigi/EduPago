@@ -240,14 +240,17 @@ function Cobros({
       setLoadingId(null);
     }
   };
-  const exportarCSV = () => {
+  const exportarExcel = () => {
     const totalListado = lista.reduce((a, c) => a + (Number(c.total) || 0), 0);
-    const rows = [
-      ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Estado', 'Referencia', 'Auth'],
-      ...lista.map(c => [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.estado, c.referencia || '', c.auth_code || '']),
-      ['TOTAL', '', '', CSVExport.money(totalListado), '', '', '', ''],
+    const filas = [
+      { estilo: 'titulo', celdas: [`Historial de cobros — ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}`], colspanPrimera: 8 },
+      { celdas: [] },
+      { estilo: 'header', celdas: ['Folio', 'Fecha', 'Cliente', 'Total', 'Método', 'Estado', 'Referencia', 'Auth'] },
+      ...lista.map(c => ({ estilo: 'dato', celdas: [c.folio, c.fecha, c.cliente, CSVExport.money(c.total), c.metodo, c.estado, c.referencia || '', c.auth_code || ''] })),
+      { celdas: [] },
+      { estilo: 'total', celdas: ['TOTAL', '', '', CSVExport.money(totalListado), '', '', '', ''] },
     ];
-    CSVExport.descargar(`cobros-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+    ExcelExport.descargar(`cobros-${new Date().toISOString().slice(0, 10)}`, filas);
   };
   return _jsxDEV("div", {
     children: [_jsxDEV("div", {
@@ -409,7 +412,7 @@ function Cobros({
           }, void 0, true)]
         }, void 0, true), rol !== 'cajero' && _jsxDEV("button", {
           className: "btn btn-secondary btn-sm",
-          onClick: exportarCSV,
+          onClick: exportarExcel,
           style: {
             display: "flex",
             alignItems: "center",
@@ -419,7 +422,7 @@ function Cobros({
             name: "download",
             size: 14,
             color: "currentColor"
-          }, void 0, false), " Exportar CSV"]
+          }, void 0, false), " Exportar"]
         }, void 0, true)]
       }, void 0, true), _jsxDEV("div", {
         style: {
