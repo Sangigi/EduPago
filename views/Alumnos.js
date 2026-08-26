@@ -89,6 +89,7 @@ function Alumnos({
         pagina_clientes: paginaBuscar || 1,
       });
       const res = await fetch('api.php?' + params.toString(), {
+        cache: 'no-store',
         headers: { 'Authorization': 'Bearer ' + token() },
       });
       const json = await res.json();
@@ -402,8 +403,7 @@ function Alumnos({
             children: [
               typeof data.clientes_activos_total === 'number' ? data.clientes_activos_total : data.clientes.filter(c => c.activo).length,
               " activos de ",
-              typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length,
-              " [DEBUG temporal: total=" + JSON.stringify(data.clientes_total) + " activos_total=" + JSON.stringify(data.clientes_activos_total) + " pagina=" + JSON.stringify(data.clientes_pagina) + " por_pagina=" + JSON.stringify(data.clientes_por_pagina) + " lista.length=" + data.clientes.length + " origen=" + JSON.stringify(data._debugOrigen) + " error=" + JSON.stringify(data._debugError) + "]"
+              typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length
             ]
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {

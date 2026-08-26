@@ -40,4 +40,16 @@
     # de distribuidores. Sin esta directiva caia en default-src 'self' y el
     # video quedaba bloqueado.
     Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: ; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+    # El shell (index.html) referencia las vistas/JS con "?v=timestamp" para
+    # forzar la descarga de la versión nueva en cada deploy — pero eso solo
+    # funciona si el navegador vuelve a pedir index.html. Sin este header,
+    # algunos navegadores lo sirven de caché por horas incluso con Ctrl+F5
+    # en ciertas condiciones, y entonces cargan las vistas/JS VIEJAS (viejos
+    # "?v=") indefinidamente, aunque el deploy en el servidor ya esté al día.
+    <FilesMatch "^index\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
 </IfModule>

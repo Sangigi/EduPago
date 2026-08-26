@@ -135,6 +135,12 @@ function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela
     }
 }
 header('Content-Type: application/json; charset=UTF-8');
+// Todas las respuestas son dinámicas (dependen del usuario/rol/momento): sin
+// esto, algunos navegadores/proxies pueden servir una respuesta GET vieja de
+// cargar_datos cacheada en disco en vez de pedir una fresca — un alumno recién
+// importado o un total actualizado se ve "atorado" hasta que expire el caché.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 // APP_ALLOWED_ORIGIN debe definirse en config.php (ej. 'https://tudominio.com')
 header('Access-Control-Allow-Origin: ' . (defined('APP_ALLOWED_ORIGIN') ? APP_ALLOWED_ORIGIN : '*'));
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');

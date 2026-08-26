@@ -562,8 +562,6 @@ function App() {
 
   const cargarDatosDesdeAPI = async (token, escuelaId) => {
 
-    let _debugInfo = { origen: 'no_llego_a_try' };
-
     try {
 
 
@@ -590,6 +588,8 @@ function App() {
 
         {
 
+          cache: 'no-store',
+
           headers: {
 
             'Authorization': `Bearer ${token}`,
@@ -604,8 +604,6 @@ function App() {
 
 
 
-      _debugInfo = { origen: 'http_status_' + res.status };
-
       if (res.status === 401) {
 
         AuthController.logout();
@@ -619,8 +617,6 @@ function App() {
 
 
       const json = await res.json();
-
-      _debugInfo = { origen: 'json_success_' + json.success, error: json.error || null };
 
       if (json.success) {
 
@@ -645,7 +641,6 @@ function App() {
           productos: json.productos || [],
           cobros: json.cobros || [],
           recordatorios: json.recordatorios || [],
-          _debugOrigen: 'api_ok',
         };
 
         return datosApi;
@@ -658,13 +653,12 @@ function App() {
     } catch (e) {
 
       // * Sin API: * usar localStorage.
-      _debugInfo = { origen: 'catch_exception', error: (e && e.message) || String(e) };
 
     }
 
 
 
-    return { ...AppModel.load(), _debugOrigen: _debugInfo.origen, _debugError: _debugInfo.error || null };
+    return AppModel.load();
 
   };
 
