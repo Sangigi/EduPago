@@ -88,12 +88,23 @@
                             $chkUsr = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
                             $chkUsr->execute([$tutor_email]);
                             if (!$chkUsr->fetch()) {
-                                $passTemp = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8);
+                                // Antes se generaba una contraseña en texto plano para que el
+                                // admin la copiara a mano — mismo patrón de "contraseña dentro
+                                // del correo" que hizo que Outlook marcara como phishing los
+                                // correos de bienvenida de escuelas (ver invitacion_resolver.php).
+                                // Se usa el mismo enlace de activación de un solo uso: nadie
+                                // conoce la contraseña real hasta que el tutor la fija.
+                                $activacion_token = bin2hex(random_bytes(32));
+                                $activacion_hash  = hash('sha256', $activacion_token);
                                 $pdo->prepare(
-                                    "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, familia_id, activo, fecha_alta, creado_por)
-                                     VALUES (?, ?, ?, ?, 'familia', ?, 1, CURDATE(), ?)"
-                                )->execute([$escuela_id, $tutor_nombre ?: $alumno_nombre, $tutor_email, password_hash($passTemp, PASSWORD_BCRYPT), $familia_id, $usuario_actual['user_id'] ?? null]);
-                                $cuentasCreadas[] = ['email' => $tutor_email, 'password_temporal' => $passTemp, 'nombre' => $tutor_nombre ?: $alumno_nombre];
+                                    "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, familia_id, activo, fecha_alta, creado_por, activacion_token_hash, activacion_expira)
+                                     VALUES (?, ?, ?, ?, 'familia', ?, 1, CURDATE(), ?, ?, DATE_ADD(NOW(), INTERVAL 72 HOUR))"
+                                )->execute([
+                                    $escuela_id, $tutor_nombre ?: $alumno_nombre, $tutor_email,
+                                    password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                                    $familia_id, $usuario_actual['user_id'] ?? null, $activacion_hash
+                                ]);
+                                $cuentasCreadas[] = ['email' => $tutor_email, 'nombre' => $tutor_nombre ?: $alumno_nombre, 'activacion_token' => $activacion_token];
                             }
                         }
                         $familiasPorEmail[$emailKey] = $familia_id;
@@ -120,7 +131,44 @@
             }
         }
 
-        registrar_log($pdo, $usuario_actual, 'alumnos_importados_csv', "$alumnosCreados alumnos, $creadas familias nuevas, $reutilizadas reutilizadas, " . count($errores) . " errores", $escuela_id);
+        // Enlace de activación por correo a cada cuenta nueva — con presupuesto
+        // de tiempo: un CSV de cientos de tutores no debe arriesgar que el
+        // import entero truene por timeout del servidor solo por mandar
+        // correos uno por uno. Los que no alcancen a enviarse quedan con su
+        // enlace en la respuesta para compartirlos a mano (mismo criterio que
+        // invitacion_resolver.php cuando el correo automático falla).
+        $inicioImport = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
+        $presupuestoCorreoSeg = 40;
+        $baseUrlActivacion = (defined('APP_URL') && APP_URL
+                ? rtrim(APP_URL, '/')
+                : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                   . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                   . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')));
+        $correosEnviados = 0;
+        foreach ($cuentasCreadas as &$cuentaNueva) {
+            $ligaActivacion = $baseUrlActivacion . '/activar_cuenta.html?t=' . $cuentaNueva['activacion_token'];
+            if ((microtime(true) - $inicioImport) > $presupuestoCorreoSeg) {
+                $cuentaNueva['correo_enviado']  = false;
+                $cuentaNueva['activacion_liga'] = $ligaActivacion;
+            } else {
+                $htmlActivacion = "
+                    <p>Hola,</p>
+                    <p>Ya se dio de alta a tu hijo(a) en Paga la Escuela.</p>
+                    <p>Entra a este enlace para crear tu contraseña y ver la cuenta ({$cuentaNueva['email']}):</p>
+                    <p><a href=\"" . htmlspecialchars($ligaActivacion) . "\">" . htmlspecialchars($ligaActivacion) . "</a></p>
+                    <p>El enlace expira en 72 horas.</p>
+                    <p>— Pagalaescuela</p>
+                ";
+                $resCorreoTutor = enviar_correo($cuentaNueva['email'], 'Activa tu cuenta — Paga la Escuela', $htmlActivacion);
+                $cuentaNueva['correo_enviado']  = (bool) ($resCorreoTutor['success'] ?? false);
+                $cuentaNueva['activacion_liga'] = $cuentaNueva['correo_enviado'] ? null : $ligaActivacion;
+                if ($cuentaNueva['correo_enviado']) $correosEnviados++;
+            }
+            unset($cuentaNueva['activacion_token']);
+        }
+        unset($cuentaNueva);
+
+        registrar_log($pdo, $usuario_actual, 'alumnos_importados_csv', "$alumnosCreados alumnos, $creadas familias nuevas, $reutilizadas reutilizadas, $correosEnviados/" . count($cuentasCreadas) . " correos de activación enviados, " . count($errores) . " errores", $escuela_id);
         respond([
             'success' => true,
             'alumnos_creados'   => $alumnosCreados,

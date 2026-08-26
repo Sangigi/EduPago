@@ -27,6 +27,23 @@ const AuthController = (() => {
     }
   }
 
+  // "Olvidé mi contraseña": público, sin sesión. La respuesta es siempre la
+  // misma exista o no la cuenta (ver recuperar_password_solicitar.php), así
+  // que aquí solo se propaga el mensaje del servidor, nunca se distingue.
+  async function recuperarPassword(email) {
+    try {
+      const response = await fetch('api.php?action=recuperar_password_solicitar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const result = await response.json();
+      return { ok: !!result.success, mensaje: result.mensaje, error: result.error };
+    } catch (e) {
+      return { ok: false, error: 'Error de conexión con el servidor' };
+    }
+  }
+
   function logout() {
     sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_KEY);
@@ -108,5 +125,5 @@ const AuthController = (() => {
     return res.activa;
   }
 
-  return { login, logout, getSession, getToken, isSuperAdmin, isAdmin, isDistribuidor, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela, cerrarSesionesUsuario };
+  return { login, logout, recuperarPassword, getSession, getToken, isSuperAdmin, isAdmin, isDistribuidor, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela, cerrarSesionesUsuario };
 })();

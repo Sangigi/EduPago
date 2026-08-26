@@ -19,6 +19,24 @@ function Login({
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [recordar, setRecordar] = useState(false);
+  const [modoRecuperar, setModoRecuperar] = useState(false);
+  const [emailRecuperar, setEmailRecuperar] = useState('');
+  const [recuperando, setRecuperando] = useState(false);
+  const [mensajeRecuperar, setMensajeRecuperar] = useState('');
+  const [errorRecuperar, setErrorRecuperar] = useState('');
+  const enviarRecuperacion = async e => {
+    e.preventDefault();
+    setRecuperando(true);
+    setErrorRecuperar('');
+    setMensajeRecuperar('');
+    const res = await AuthController.recuperarPassword(emailRecuperar.trim());
+    setRecuperando(false);
+    if (res.ok) {
+      setMensajeRecuperar(res.mensaje || 'Si el correo está registrado, te enviamos un enlace.');
+    } else {
+      setErrorRecuperar(res.error || 'No se pudo procesar la solicitud.');
+    }
+  };
   const submit = async e => {
     e.preventDefault();
     setLoading(true);
@@ -108,16 +126,65 @@ function Login({
               color: 'var(--ink)',
               letterSpacing: '-.3px'
             },
-            children: "Iniciar sesión"
+            children: modoRecuperar ? "Restablecer contraseña" : "Iniciar sesión"
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             style: {
               fontSize: 12.5,
               color: 'var(--ink-3)',
               marginTop: 3
             },
-            children: "Sistema de cobros escolar · Multi-institución"
+            children: modoRecuperar ? "Te mandaremos un enlace a tu correo para poner una contraseña nueva" : "Sistema de cobros escolar · Multi-institución"
           }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("form", {
+        }, void 0, true), modoRecuperar ? /*#__PURE__*/_jsxDEV("form", {
+          onSubmit: enviarRecuperacion,
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "form-group",
+            children: [/*#__PURE__*/_jsxDEV("label", {
+              className: "login-label",
+              children: "Correo electrónico"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              className: "login-input",
+              type: "email",
+              value: emailRecuperar,
+              autoFocus: true,
+              required: true,
+              onChange: e => { setEmailRecuperar(e.target.value); setErrorRecuperar(''); setMensajeRecuperar(''); },
+              placeholder: "usuario@escuela.mx"
+            }, void 0, false)]
+          }, void 0, true),
+          mensajeRecuperar && /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.22)',
+              borderRadius: 'var(--radius-sm)', padding: '9px 12px', marginBottom: 14
+            },
+            children: /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12.5, color: 'var(--ink-2)' }, children: mensajeRecuperar }, void 0, false)
+          }, void 0, false),
+          errorRecuperar && /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'rgba(239,68,68,.10)', border: '1px solid rgba(239,68,68,.22)',
+              borderRadius: 'var(--radius-sm)', padding: '9px 12px', marginBottom: 14
+            },
+            children: /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12.5, color: '#f87171' }, children: errorRecuperar }, void 0, false)
+          }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", {
+            className: "login-btn",
+            type: "submit",
+            disabled: recuperando,
+            style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 },
+            children: recuperando ? "Enviando…" : "Enviar enlace"
+          }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", {
+            type: "button",
+            onClick: () => { setModoRecuperar(false); setErrorRecuperar(''); setMensajeRecuperar(''); },
+            style: {
+              width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 12.5, color: 'var(--ink-3)', textDecoration: 'underline'
+            },
+            children: 'Volver a iniciar sesión'
+          }, void 0, false)]
+        }, void 0, true) : /*#__PURE__*/_jsxDEV("form", {
           onSubmit: submit,
           children: [/*#__PURE__*/_jsxDEV("div", {
             className: "form-group",
@@ -213,7 +280,23 @@ function Login({
                 }, void 0, false)
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("label", {
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: { textAlign: 'right', marginBottom: 14, marginTop: -6 },
+            children: /*#__PURE__*/_jsxDEV("button", {
+              type: 'button',
+              onClick: () => {
+                setModoRecuperar(true);
+                setEmailRecuperar(u);
+                setErrorRecuperar('');
+                setMensajeRecuperar('');
+              },
+              style: {
+                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                fontSize: 12, color: 'var(--ink-3)', textDecoration: 'underline'
+              },
+              children: '¿No recuerdas tu contraseña?'
+            }, void 0, false)
+          }, void 0, false), /*#__PURE__*/_jsxDEV("label", {
             style: {
               display: 'flex',
               alignItems: 'center',
@@ -285,7 +368,7 @@ function Login({
               }, void 0, false)]
             }, void 0, true)
           }, void 0, false)]
-        }, void 0, true), demos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), !modoRecuperar && demos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
           style: {
             display: 'flex',
             alignItems: 'center',
@@ -314,7 +397,7 @@ function Login({
               background: 'var(--border-glow)'
             }
           }, void 0, false)]
-        }, void 0, true), demos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), !modoRecuperar && demos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
           style: {
             display: 'grid',
             gridTemplateColumns: '1fr 1fr 1fr',

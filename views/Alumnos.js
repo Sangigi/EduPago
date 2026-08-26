@@ -43,6 +43,7 @@ function Alumnos({
   // solo en el navegador daría resultados falsos (ver api_busqueda_etiquetas.md).
   const [etiquetas, setEtiquetas] = useState([]);
   const [clabeLoadingId, setClabeLoadingId] = useState(null);
+  const [asignandoClabesMasivo, setAsignandoClabesMasivo] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [buscando, setBuscando] = useState(false);
   const [qFamilia, setQFamilia] = useState('');
@@ -291,6 +292,30 @@ function Alumnos({
     }
   };
 
+  // Asigna CLABE del pool a TODOS los alumnos activos de la escuela que
+  // todavía no tienen una — pensado para escuelas recién subidas por CSV,
+  // donde ir alumno por alumno sería impráctico. El backend regresa solo
+  // conteos (no toca cuál CLABE le tocó a cuál alumno en la respuesta), así
+  // que al terminar se refresca la página actual para ver los resultados.
+  const asignarClabesMasivo = async () => {
+    if (!escuela_id) return;
+    if (!confirm('¿Asignar una CLABE del pool a todos los alumnos activos que aún no tienen una? Se usarán las CLABEs disponibles en orden.')) return;
+    setAsignandoClabesMasivo(true);
+    try {
+      const res = await _apiPost('asignar_clabe_pool_masivo', { escuela_id });
+      if (!res.success) {
+        alert(res.error || 'No se pudieron asignar las CLABEs.');
+        return;
+      }
+      alert(res.mensaje || `Se asignaron ${res.asignadas} CLABEs.`);
+      await buscarEnServidor(etiquetas.length ? etiquetas.join('|') : q, pagina);
+    } catch (e) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setAsignandoClabesMasivo(false);
+    }
+  };
+
   // Libera la CLABE del alumno y la devuelve al pool
   const liberarClabePool = async (alumno, dataBase) => {
     try {
@@ -420,6 +445,14 @@ function Alumnos({
               setModalImport('upload');
             },
             children: [_jsxDEV(Icon, { name: "download", size: 14, color: "currentColor" }, void 0, false), " Importar CSV"]
+          }, void 0, true), _jsxDEV("button", {
+            className: "btn btn-secondary",
+            disabled: !escuela_id || asignandoClabesMasivo,
+            title: !escuela_id ? 'Selecciona una escuela arriba' : 'Asigna una CLABE del pool a todos los alumnos que aún no tienen una',
+            onClick: asignarClabesMasivo,
+            children: asignandoClabesMasivo
+              ? _jsxDEV("span", { style: { display: 'flex', alignItems: 'center', gap: 6 }, children: [_jsxDEV("span", { className: "spinner", style: { width: 12, height: 12 } }, void 0, false), " Asignando…"] }, void 0, true)
+              : "Generar CLABE a todos"
           }, void 0, true), _jsxDEV("button", {
             className: "btn btn-primary",
             disabled: !escuela_id,
@@ -1289,13 +1322,25 @@ function Alumnos({
             resultadoImport.errores.length > 0 && _jsxDEV("span", { className: "badge badge-red", children: [resultadoImport.errores.length, " con error"] }, void 0, true)]
           }, void 0, true), resultadoImport.cuentas_creadas.length > 0 && _jsxDEV("div", {
             style: { marginBottom: 14 },
-            children: [_jsxDEV("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 6 }, children: "Cuentas de acceso nuevas — compártelas con cada tutor:" }, void 0, false),
+            children: [_jsxDEV("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 6 }, children: "Cuentas de acceso nuevas — a cada tutor se le mandó (o falta compartir) su enlace para activar su cuenta:" }, void 0, false),
             _jsxDEV("div", { className: "table-wrap", style: { maxHeight: 200, overflowY: 'auto' }, children: _jsxDEV("table", { className: "table", children: [
-              _jsxDEV("thead", { children: _jsxDEV("tr", { children: [_jsxDEV("th", { children: "Tutor" }, void 0, false), _jsxDEV("th", { children: "Correo" }, void 0, false), _jsxDEV("th", { children: "Contraseña temporal" }, void 0, false)] }, void 0, true) }, void 0, false),
+              _jsxDEV("thead", { children: _jsxDEV("tr", { children: [_jsxDEV("th", { children: "Tutor" }, void 0, false), _jsxDEV("th", { children: "Correo" }, void 0, false), _jsxDEV("th", { children: "Estado" }, void 0, false)] }, void 0, true) }, void 0, false),
               _jsxDEV("tbody", { children: resultadoImport.cuentas_creadas.map((c, i) => _jsxDEV("tr", { children: [
                 _jsxDEV("td", { style: { fontSize: 12.5 }, children: c.nombre || '—' }, void 0, false),
                 _jsxDEV("td", { style: { fontSize: 12.5 }, children: c.email }, void 0, false),
-                _jsxDEV("td", { style: { fontSize: 12.5, fontFamily: 'var(--mono)' }, children: c.password_temporal }, void 0, false)
+                _jsxDEV("td", { style: { fontSize: 12.5 }, children: c.correo_enviado
+                  ? _jsxDEV("span", { className: "badge badge-green", children: "Correo enviado" }, void 0, false)
+                  : _jsxDEV("div", { style: { display: 'flex', gap: 6, alignItems: 'center' }, children: [
+                      _jsxDEV("span", { className: "badge badge-gray", children: "Comparte el enlace" }, void 0, false),
+                      _jsxDEV("button", {
+                        type: 'button',
+                        className: 'btn btn-secondary',
+                        style: { fontSize: 11, padding: '2px 8px' },
+                        onClick: () => navigator.clipboard && navigator.clipboard.writeText(c.activacion_liga || ''),
+                        children: 'Copiar enlace'
+                      }, void 0, false)
+                    ] }, void 0, true)
+                } , void 0, false)
               ] }, i, true)) }, void 0, false)
             ] }, void 0, true) }, void 0, false)]
           }, void 0, true), resultadoImport.errores.length > 0 && _jsxDEV("div", {

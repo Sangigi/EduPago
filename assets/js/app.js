@@ -3674,7 +3674,7 @@ function App() {
                     MenuPerfil,
                     {
                       user: user,
-                      escuela: escuelaActiva,
+                      escuela: escuela,
                       onLogout: handleLogout,
                       // Helper mínimo: manda la acción al API con el token de sesión
                       apiPost: async (accion, cuerpo) => {
@@ -3698,11 +3698,12 @@ function App() {
                           const { logo_url, ...cambiosUsuario } = cambios;
                           setUser(prev => prev ? { ...prev, ...cambiosUsuario } : prev);
                           if (logo_url !== undefined && escuelaActiva) {
-                            setEscuelaActiva(prev => prev ? { ...prev, logo_url } : prev);
+                            // escuelaActiva es el ID (número), no el objeto —
+                            // solo la lista `escuelas` guarda logo_url.
                             setData(prev => prev ? {
                               ...prev,
                               escuelas: (prev.escuelas || []).map(e =>
-                                e.id === escuelaActiva.id ? { ...e, logo_url } : e)
+                                e.id === escuelaActiva ? { ...e, logo_url } : e)
                             } : prev);
                           }
                         }
