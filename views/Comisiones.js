@@ -81,7 +81,7 @@ function Comisiones({ data, user }) {
   // general al final — mismo estilo que un reporte de comisiones por
   // departamento/vendedor, adaptado a lo que el sistema sí guarda
   // (distribuidor → colegios referidos, sin bancos/IVA/varias personas por venta).
-  const exportarCSV = () => {
+  const exportarExcel = () => {
     const grupos = new Map();
     lista.forEach(r => {
       const clave = r.distribuidor_id || 0;
@@ -89,9 +89,9 @@ function Comisiones({ data, user }) {
       grupos.get(clave).filas.push(r);
     });
 
-    const rows = [
-      [`Comisiones de distribuidores — ${new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`],
-      [],
+    const filasExcel = [
+      { estilo: 'titulo', celdas: [`Comisiones de distribuidores — ${new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`], colspanPrimera: 8 },
+      { celdas: [] },
     ];
 
     let totalCobrado = 0, totalComisionMes = 0, totalComisionAnio = 0;
@@ -99,27 +99,27 @@ function Comisiones({ data, user }) {
     [...grupos.values()]
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
       .forEach(g => {
-        rows.push([g.nombre.toUpperCase()]);
-        rows.push(['Colegio', 'Alumnos', 'Estado', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada', 'Alta']);
+        filasExcel.push({ estilo: 'grupo', celdas: [g.nombre.toUpperCase()], colspanPrimera: 8 });
+        filasExcel.push({ estilo: 'header', celdas: ['Colegio', 'Alumnos', 'Estado', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada', 'Alta'] });
         let subCobrado = 0, subComisionMes = 0, subComisionAnio = 0;
         g.filas.forEach(r => {
-          rows.push([
+          filasExcel.push({ estilo: 'dato', celdas: [
             r.escuela_nombre || r.nombre_colegio, r.num_alumnos ?? '',
             (ESTADOS.find(e => e.value === r.estado) || {}).label || r.estado,
             `${r.comision_pct}%`, CSVExport.money(r.cobrado_mes), CSVExport.money(r.comision_mes), CSVExport.money(r.comision_anio),
             r.fecha_alta,
-          ]);
+          ] });
           subCobrado += Number(r.cobrado_mes) || 0;
           subComisionMes += Number(r.comision_mes) || 0;
           subComisionAnio += Number(r.comision_anio) || 0;
         });
-        rows.push(['Subtotal', '', '', '', CSVExport.money(subCobrado), CSVExport.money(subComisionMes), CSVExport.money(subComisionAnio), '']);
-        rows.push([]);
+        filasExcel.push({ estilo: 'subtotal', celdas: ['Subtotal', '', '', '', CSVExport.money(subCobrado), CSVExport.money(subComisionMes), CSVExport.money(subComisionAnio), ''] });
+        filasExcel.push({ celdas: [] });
         totalCobrado += subCobrado; totalComisionMes += subComisionMes; totalComisionAnio += subComisionAnio;
       });
 
-    rows.push(['TOTAL DE COMISIONES', '', '', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio), '']);
-    CSVExport.descargar(`comisiones-distribuidores-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+    filasExcel.push({ estilo: 'total', celdas: ['TOTAL DE COMISIONES', '', '', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio), ''] });
+    ExcelExport.descargar(`comisiones-distribuidores-${new Date().toISOString().slice(0, 10)}`, filasExcel);
   };
 
   const abrirEditar = r => {
@@ -211,8 +211,8 @@ function Comisiones({ data, user }) {
         }, void 0, true),
         lista.length > 0 && _jsxDEV("button", {
           className: "btn btn-secondary btn-sm",
-          onClick: exportarCSV,
-          children: [_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Exportar CSV"]
+          onClick: exportarExcel,
+          children: [_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Exportar"]
         }, void 0, true)]
       }, void 0, true),
 

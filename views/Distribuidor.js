@@ -285,22 +285,22 @@ function DistComisionesView() {
   const colegios = data.colegios || [];
   const maxComision = Math.max(1, ...historial.map(m => m.comision));
 
-  const exportarCSV = () => {
+  const exportarExcel = () => {
     const nombreDist = AuthController.getSession()?.nombre || 'Distribuidor';
     const hoy = new Date();
     const totalCobrado = colegios.reduce((a, c) => a + (Number(c.cobrado_mes) || 0), 0);
     const totalComisionMes = colegios.reduce((a, c) => a + (Number(c.comision_mes) || 0), 0);
     const totalComisionAnio = colegios.reduce((a, c) => a + (Number(c.comision_anio) || 0), 0);
-    const rows = [
-      [`Comisiones — ${nombreDist}`],
-      [`Mes en curso: ${hoy.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`],
-      [],
-      ['Colegio', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada del año'],
-      ...colegios.map(c => [c.nombre, `${c.comision_pct}%`, CSVExport.money(c.cobrado_mes), CSVExport.money(c.comision_mes), CSVExport.money(c.comision_anio)]),
-      [],
-      ['TOTAL DE COMISIONES', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio)],
+    const filas = [
+      { estilo: 'titulo', celdas: [`Comisiones — ${nombreDist}`], colspanPrimera: 5 },
+      { estilo: 'subtitulo', celdas: [`Mes en curso: ${hoy.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`], colspanPrimera: 5 },
+      { celdas: [] },
+      { estilo: 'header', celdas: ['Colegio', '% Comisión', 'Cobrado del mes', 'Comisión del mes', 'Comisión acumulada del año'] },
+      ...colegios.map(c => ({ estilo: 'dato', celdas: [c.nombre, `${c.comision_pct}%`, CSVExport.money(c.cobrado_mes), CSVExport.money(c.comision_mes), CSVExport.money(c.comision_anio)] })),
+      { celdas: [] },
+      { estilo: 'total', celdas: ['TOTAL DE COMISIONES', '', CSVExport.money(totalCobrado), CSVExport.money(totalComisionMes), CSVExport.money(totalComisionAnio)] },
     ];
-    CSVExport.descargar(`comisiones-${nombreDist.toLowerCase().replace(/\s+/g, '-')}-${hoy.toISOString().slice(0, 10)}.csv`, rows);
+    ExcelExport.descargar(`comisiones-${nombreDist.toLowerCase().replace(/\s+/g, '-')}-${hoy.toISOString().slice(0, 10)}`, filas);
   };
 
   return _jsxDEV("div", {
@@ -316,8 +316,8 @@ function DistComisionesView() {
           }, void 0, true),
           colegios.length > 0 && _jsxDEV("button", {
             className: "btn btn-secondary btn-sm",
-            onClick: exportarCSV,
-            children: [_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Exportar CSV"]
+            onClick: exportarExcel,
+            children: [_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Exportar"]
           }, void 0, true),
         ]
       }, void 0, true),
