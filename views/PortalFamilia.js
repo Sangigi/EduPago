@@ -499,7 +499,7 @@ function PortalFamilia({
     // más de un concepto pendiente por separado, tarjeta no puede pagarlos
     // juntos en una sola liga (para eso está SPEI, que sí suma todo).
     if (!autorizoCargoAutomatico) {
-      setSpeiBloqueoFamilia('Debes autorizar el Cargo Automático (domiciliación) para pagar con tarjeta.');
+      setSpeiBloqueoFamilia('Debes autorizar el Cargo Automático para pagar con tarjeta.');
       return;
     }
     const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
