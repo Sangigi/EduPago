@@ -687,8 +687,8 @@ function Caja({
      aquí pensada para imprimirse en vez de para Excel. */
   const TIENDAS_PARTICIPANTES = [
     { nombre: '7-Eleven', archivo: '7-eleven.webp' },
-    { nombre: 'Soriana', archivo: 'soriana.png' },
-    { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.png' },
+    { nombre: 'Soriana', archivo: 'soriana.webp' },
+    { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.webp' },
     { nombre: 'Farmacias Benavides', archivo: 'benavides.png' },
     { nombre: 'City Club', archivo: 'city-club.png' },
     { nombre: 'Extra', archivo: 'extra.png' },
