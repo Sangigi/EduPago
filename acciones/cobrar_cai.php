@@ -28,32 +28,14 @@
         // — antes $total venía de $input y se mandaba tal cual a la pasarela,
         // desligado por completo de lo que el cobro realmente debía.
         $total = floatval($cobroRow['total']);
-        if ($total < 50 || $total > 15000) respond(['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)']);
-        // Reference acotada a rango int32 (ver nota en generar_liga) para evitar
-        // "El formato de la referencia es incorrecto" (code 22).
-        $ref  = strval(mt_rand(1000000000, 2147483647));
-        $payload = [
-            'User'          => PLE_USER,
-            'Password'      => PLE_PASS,
-            'IntegrationID' => intval(PLE_INT_ID_ACTIVO),
-            'SchoolID'      => PLE_SCHOOL_ID_ACTIVO,
-            'BusinessID'    => PLE_SCHOOL_ID_ACTIVO,
-            'Token'         => $cli['token_tarjeta'],
-            'Reference'     => intval($ref), // numérico sin comillas — mismo patrón que Id/IntegrationID
-            'Amount'        => intval(round($total * 100)),
-            'ExpMonth'      => $cli['token_tarjeta_expmes'],
-            'ExpYear'       => $cli['token_tarjeta_expanio'],
-        ];
-        log_api("cobrar_cai -> cliente={$cliente_id} folio={$folio} total={$total} ref={$ref}");
-        $res = curl_post(PLE_URL_DOMICILIACION_PAGAR, $payload);
-        if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
-        $raw = json_decode($res['body'], true) ?? [];
-        $tx  = $raw['txResponse'] ?? [];
-        if (($raw['code'] ?? '') !== '00' || ($tx['response'] ?? '') !== 'approved') {
-            log_api("cobrar_cai FALLÓ -> " . json_encode($raw, JSON_UNESCAPED_UNICODE));
-            respond(['success' => false, 'error' => $raw['message'] ?? ($tx['nb_error'] ?? 'Cargo automático rechazado'), 'raw' => $raw]);
-        }
-        $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', referencia = ?, auth_code = ? WHERE id = ?")
-            ->execute([$ref, $tx['auth'] ?? null, $cobroRow['id']]);
+        // cobrar_via_token (lib/helpers_pagos.php) arma el payload, llama al
+        // proveedor y ya recalcula saldo_pendiente — compartida con el cobro
+        // automático de recurrentes en cron_recordatorios.php, para no
+        // duplicar la llamada a Cobroscontarjeta.com en dos lugares.
+        $resCai = cobrar_via_token(
+            $pdo, intval($cobroRow['id']), $cliente_id, $total,
+            $cli['token_tarjeta'], $cli['token_tarjeta_expmes'], $cli['token_tarjeta_expanio']
+        );
+        if (!$resCai['success']) respond(['success' => false, 'error' => $resCai['error'], 'raw' => $resCai['raw'] ?? null]);
         registrar_log($pdo, $usuario_actual, 'cargo_automatico_cobrado', "Cobro #{$cobroRow['id']} (alumno #{$cliente_id}), folio {$folio}, total \${$total}", $cli['escuela_id']);
-        respond(['success' => true, 'cobro_id' => intval($cobroRow['id']), 'autorizacion' => $tx['auth'] ?? null]);
+        respond(['success' => true, 'cobro_id' => intval($cobroRow['id']), 'autorizacion' => $resCai['auth']]);

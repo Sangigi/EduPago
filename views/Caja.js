@@ -416,6 +416,26 @@ function Caja({
       } finally {
         setEfvRefLoading(false);
       }
+    } else if (metodo === 'CAI') {
+      // Cargo automático (CAI): cobro inmediato con la tarjeta ya
+      // domiciliada del alumno — a diferencia de TC/SPEI/EfectivoRef, no hay
+      // nada que esperar: el proveedor aprueba o rechaza el cargo al
+      // instante, no hace falta ningún modal de polling.
+      setData(newData);
+      try {
+        const res = await CobroController.cobrarCAI(cobro);
+        setData(prev => {
+          const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', metodo: 'TC', auth_code: res.autorizacion || '' } : c) };
+          AppModel.save(upd);
+          return upd;
+        });
+        const resSaldo = await CobroController.confirmarPago(cobro.id, { auth_code: res.autorizacion || '' }).catch(() => null);
+        if (resSaldo) actualizarSaldoCliente(resSaldo);
+        setModal('ticket');
+        resetCarrito();
+      } catch (err) {
+        alert('No se pudo cobrar con la tarjeta guardada: ' + err.message);
+      }
     } else {
       // Efectivo en caja: el cajero recibe el dinero en el momento, cobro
       // inmediato y se imprime el ticket. Distinto de "Efectivo por
@@ -617,6 +637,144 @@ function Caja({
   /* ── FORMATO CLABE ── */
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
 
+  /* ── Número a letras (para el comprobante de pago en efectivo) ── */
+  const numeroALetras = monto => {
+    const entero = Math.floor(monto);
+    const centavos = Math.round((monto - entero) * 100);
+    const UNIDADES = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+    const DIEC = ['DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE'];
+    const VEINT = ['VEINTE', 'VEINTIUNO', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO', 'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE'];
+    const DECENAS = ['', '', '', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+    const CENTENAS = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
+    const menorMil = n => {
+      if (n === 0) return '';
+      if (n === 100) return 'CIEN';
+      let out = '';
+      const c = Math.floor(n / 100), resto = n % 100;
+      if (c > 0) out += CENTENAS[c] + ' ';
+      if (resto > 0) {
+        if (resto < 10) out += UNIDADES[resto];
+        else if (resto < 20) out += DIEC[resto - 10];
+        else if (resto < 30) out += VEINT[resto - 20];
+        else {
+          const d = Math.floor(resto / 10), u = resto % 10;
+          out += DECENAS[d] + (u > 0 ? ' Y ' + UNIDADES[u] : '');
+        }
+      }
+      return out.trim();
+    };
+    const convertir = n => {
+      if (n === 0) return 'CERO';
+      let out = '';
+      const millones = Math.floor(n / 1000000);
+      const miles = Math.floor((n % 1000000) / 1000);
+      const resto = n % 1000;
+      if (millones > 0) out += (millones === 1 ? 'UN MILLÓN ' : menorMil(millones) + ' MILLONES ');
+      if (miles > 0) out += (miles === 1 ? 'MIL ' : menorMil(miles) + ' MIL ');
+      if (resto > 0) out += menorMil(resto);
+      return out.trim();
+    };
+    return `${convertir(entero)} PESOS ${String(centavos).padStart(2, '0')}/100 M.N.`;
+  };
+
+  /* ── Comprobante de pago en efectivo (propio, con marca de la escuela) ──
+     Antes el botón "Ver / imprimir formato de pago (PDF)" abría el formato
+     genérico que hospeda el proveedor (Cobroscontarjeta.com/Pagadetodo,
+     con SU logo) — este abre una página propia, con el logo real de la
+     escuela, lista para imprimir/guardar como PDF desde el navegador. No
+     hay ninguna librería de PDF en el proyecto (ver ExcelExport.js), así
+     que el mecanismo es el mismo usado ahí: una página HTML autocontenida,
+     aquí pensada para imprimirse en vez de para Excel. */
+  const abrirComprobanteEfectivo = () => {
+    if (!efvRefInfo || !cobroActivo) return;
+    const cliente = (data.clientes || []).find(c => c.id === cobroActivo.cliente_id) || null;
+    const familia = cliente?.familia_id ? (data.familias || []).find(f => f.id === cliente.familia_id) : null;
+    const total = Number(cobroActivo.total || 0);
+    const logo = escuela?.logo_url || 'assets/logo.jpeg';
+    const nombreEscuela = escuela?.nombre || 'Paga la Escuela';
+    const hoy = new Date();
+    const fechaEmision = hoy.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const vencimiento = efvRefInfo.vencimiento
+      ? new Date(efvRefInfo.vencimiento + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+      : '';
+    const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Formato de pago — ${esc(cobroActivo.folio || '')}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #eef0f5; font-family: 'Segoe UI', Arial, sans-serif; color: #1e2430; }
+  .voucher { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+  .v-top { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 12px; border-bottom: 3px solid #282d65; }
+  .v-top img { height: 48px; max-width: 200px; object-fit: contain; }
+  .v-titulo { text-align: right; }
+  .v-titulo h1 { margin: 0; font-size: 20px; color: #282d65; }
+  .v-titulo span { font-size: 11px; color: #6b7280; }
+  .v-body { padding: 18px 24px; }
+  .v-cliente { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; margin-bottom: 14px; }
+  .v-cliente .lbl { color: #6b7280; font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; }
+  .v-concepto { background: #f4f5f9; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; margin-bottom: 16px; }
+  .v-total-row { display: flex; align-items: center; justify-content: space-between; background: #282d65; color: #fff; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+  .v-total-row .lbl { font-size: 11px; opacity: .85; text-transform: uppercase; letter-spacing: .5px; }
+  .v-total-row .monto { font-size: 26px; font-weight: 800; }
+  .v-letras { font-size: 10.5px; color: #6b7280; text-align: right; margin: -10px 0 16px; }
+  .v-barcode { text-align: center; margin-bottom: 6px; }
+  .v-barcode img { max-width: 100%; height: 64px; }
+  .v-ref { text-align: center; font-family: 'Courier New', monospace; font-size: 15px; font-weight: 700; letter-spacing: 1px; word-break: break-all; margin-bottom: 18px; }
+  .v-venc { text-align: center; font-size: 11.5px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px; margin-bottom: 18px; }
+  .v-instr h3 { font-size: 12.5px; margin: 0 0 8px; color: #282d65; }
+  .v-instr ol, .v-instr ul { margin: 0 0 16px; padding-left: 20px; font-size: 12px; color: #374151; line-height: 1.6; }
+  .v-foot { text-align: center; font-size: 10.5px; color: #9ca3af; padding: 14px 24px; border-top: 1px solid #e5e7eb; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .voucher { box-shadow: none; max-width: 100%; }
+    .v-noprint { display: none; }
+  }
+</style>
+</head><body>
+  <div class="voucher">
+    <div class="v-top">
+      <img src="${esc(logo)}" alt="${esc(nombreEscuela)}" onerror="this.style.display='none'">
+      <div class="v-titulo"><h1>Formato de Pago</h1><span>${esc(nombreEscuela)}</span></div>
+    </div>
+    <div class="v-body">
+      <div class="v-cliente">
+        <div><div class="lbl">Alumno</div>${esc(cliente?.nombre || 'Cliente general')}</div>
+        ${familia ? `<div style="text-align:right"><div class="lbl">Contacto</div>${esc(familia.contacto || familia.nombre || '')}${familia.email ? `<br>${esc(familia.email)}` : ''}</div>` : ''}
+      </div>
+      <div class="v-concepto">
+        <strong>Concepto:</strong> ${esc(cobroActivo.descripcion || cobroActivo.items?.map(i => i.nombre).filter(Boolean).join(', ') || 'Pago escolar')}<br>
+        <strong>Folio:</strong> ${esc(cobroActivo.folio || '')} &nbsp;·&nbsp; <strong>Fecha de emisión:</strong> ${esc(fechaEmision)}
+      </div>
+      <div class="v-total-row">
+        <span class="lbl">Total a pagar</span>
+        <span class="monto">${fmt(total)}</span>
+      </div>
+      <div class="v-letras">(${esc(numeroALetras(total))})</div>
+      ${efvRefInfo.barcode_url ? `<div class="v-barcode"><img src="${esc(efvRefInfo.barcode_url)}" alt="Código de barras"></div>` : ''}
+      <div class="v-ref">${esc(efvRefInfo.referencia || '')}</div>
+      ${vencimiento ? `<div class="v-venc">Acude a pagar antes del ${esc(vencimiento)}</div>` : ''}
+      <div class="v-instr">
+        <h3>Instrucciones para realizar tu pago</h3>
+        <ul>
+          <li>Acude a cualquier tienda de conveniencia o farmacia participante que reciba pagos de servicios.</li>
+          <li>Solicita hacer un pago de servicios y proporciona el código de barras o el número de referencia de este formato.</li>
+          <li>Realiza tu pago en efectivo. La tienda te entregará un ticket como comprobante — consérvalo por cualquier aclaración.</li>
+          <li>Tu pago se reflejará automáticamente en ${esc(nombreEscuela)} en cuanto la tienda lo confirme.</li>
+        </ul>
+      </div>
+      <button class="v-noprint" onclick="window.print()" style="width:100%; padding:12px; border:none; border-radius:10px; background:#bdcf00; color:#1a1a1a; font-weight:700; font-size:13px; cursor:pointer;">Imprimir / Guardar como PDF</button>
+    </div>
+    <div class="v-foot">Cualquier duda sobre tu pago, contacta a la administración de ${esc(nombreEscuela)}.</div>
+  </div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { alert('Tu navegador bloqueó la ventana emergente. Habilítala para ver el comprobante.'); return; }
+    w.document.write(html);
+    w.document.close();
+  };
+
   /* ── QR CODI (SVG simple) ── */
   const QRSimple = ({
     value
@@ -683,6 +841,12 @@ function Caja({
     label: 'Cheque',
     icon: 'reportes'
   }];
+  // Cargo automático (CAI): solo aparece si el alumno seleccionado ya tiene
+  // una tarjeta domiciliada activa de un pago anterior — no pide tarjeta de
+  // nuevo, cobra directo con el token guardado.
+  const metodosDisponibles = clienteSel?.token_tarjeta_estado === 'activo'
+    ? [...METODOS, { id: 'CAI', label: 'Tarjeta guardada', icon: 'card' }]
+    : METODOS;
   if (requiereCajaAbierta && cajaEstadoCargando) {
     return /*#__PURE__*/_jsxDEV("div", {
       className: "empty-state",
@@ -956,7 +1120,7 @@ function Caja({
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         className: "payment-methods",
-        children: METODOS.map(m => /*#__PURE__*/_jsxDEV("div", {
+        children: metodosDisponibles.map(m => /*#__PURE__*/_jsxDEV("div", {
           className: `pay-method ${metodo === m.id ? 'selected' : ''}`,
           onClick: () => { setMetodo(m.id); setSpeiBloqueo(null); },
           children: [/*#__PURE__*/_jsxDEV("span", {
@@ -1977,10 +2141,9 @@ function Caja({
                 marginBottom: 10
               },
               children: "Copiar referencia"
-            }, void 0, false), efvRefInfo.payformat_url && /*#__PURE__*/_jsxDEV("a", {
-              href: efvRefInfo.payformat_url,
-              target: "_blank",
-              rel: "noreferrer",
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              type: "button",
+              onClick: abrirComprobanteEfectivo,
               className: "btn btn-secondary",
               style: {
                 width: '100%',
@@ -1989,7 +2152,7 @@ function Caja({
                 marginBottom: 10,
                 boxSizing: 'border-box'
               },
-              children: "Ver / imprimir formato de pago (PDF)"
+              children: "Ver / imprimir comprobante de pago"
             }, void 0, false), efvRefInfo.vencimiento && /*#__PURE__*/_jsxDEV("div", {
               style: {
                 fontSize: 12,

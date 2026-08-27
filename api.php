@@ -6,6 +6,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/mailer.php';
 require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/curl_helper.php';
 require_once __DIR__ . '/lib/facturapi.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
@@ -239,10 +240,6 @@ function respond($data) {
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
 }
-function log_api($msg) {
-    if (!API_LOG_ENABLED) return;
-    file_put_contents(API_LOG_FILE, date('Y-m-d H:i:s') . ' | ' . $msg . "\n", FILE_APPEND);
-}
 // Valida un email opcional (puede venir vacío) antes de guardarlo en BD. Sin
 // esto, cualquiera podía poner \r\n en su propio correo (clientes/familias) y
 // usarlo después para inyectar cabeceras/comandos SMTP cuando cron_recordatorios.php
@@ -303,22 +300,6 @@ function requerir_familia_propia($familia_id_fila, $usuario_actual, $mensaje) {
         http_response_code(403);
         respond(['success' => false, 'error' => $mensaje]);
     }
-}
-function curl_post($url, $payload, $headers = []) {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => array_merge(['Content-Type: application/json'], $headers),
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    $result    = curl_exec($ch);
-    $err       = curl_error($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return ['body' => $result, 'error' => $err, 'http_code' => $http_code];
 }
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 // El switch gigante de 79 casos se reemplazó por un despacho a archivos

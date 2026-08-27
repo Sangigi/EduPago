@@ -256,7 +256,11 @@ function PortalFamilia({
     if (!confirm('¿Eliminar la tarjeta guardada de este alumno? Tendrás que capturarla de nuevo en el próximo pago con tarjeta.')) return;
     setEliminandoTarjetaId(hijoId);
     try {
-      const res = await fetch('api.php?action=eliminar_tarjeta_guardada', {
+      // cancelar_cai (no eliminar_tarjeta_guardada) — este sí le avisa al
+      // proveedor que cancele la domiciliación real de la tarjeta; el otro
+      // solo borraba el token de la BD local, dejando la tarjeta viva del
+      // lado de Cobroscontarjeta.com aunque aquí ya dijera "cancelada".
+      const res = await fetch('api.php?action=cancelar_cai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
         body: JSON.stringify({ cliente_id: hijoId }),

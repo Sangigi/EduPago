@@ -236,6 +236,60 @@ try {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// 0.5) COBRO AUTOMÁTICO (CAI): para cada cobro recurrente que siga pendiente
+//      (incluye los que ya llevan recargo aplicado arriba) y cuyo alumno
+//      tenga una tarjeta domiciliada activa, intenta cobrarla directo con
+//      Cobroscontarjeta.com — mismo mecanismo que el botón "Tarjeta guardada"
+//      de Caja.js, compartido vía cobrar_via_token() para no duplicar la
+//      llamada al proveedor. Si falla (tarjeta vencida, fondos, etc.) el
+//      cobro se queda pendiente y lo recoge la sección 2 (recordatorios) como
+//      cualquier otro adeudo — no hay límite de reintentos: se vuelve a
+//      intentar cada día que el cron corra, hasta que se pague o se cancele
+//      la tarjeta domiciliada.
+//
+//      Nota: al momento de escribir esto, NINGÚN alumno llega a tener
+//      token_tarjeta poblado (ver el comentario en acciones/generar_liga.php
+//      sobre por qué la tokenización sigue apuntando al endpoint simple) —
+//      este bloque queda listo y sin costo mientras tanto; empieza a cobrar
+//      solo, sin más cambios de código, en cuanto el proveedor tokenice.
+// ══════════════════════════════════════════════════════════════════════════
+try {
+    $stmtCaiPend = $pdo->query(
+        "SELECT co.id AS cobro_id, co.total, co.escuela_id, co.cliente_id,
+                cl.token_tarjeta, cl.token_tarjeta_expmes, cl.token_tarjeta_expanio,
+                cl.email AS cliente_email, cl.nombre AS cliente_nombre, fa.email AS familia_email
+         FROM cobros co
+         JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
+         JOIN clientes cl ON cl.id = co.cliente_id
+         LEFT JOIN familias fa ON fa.id = cl.familia_id
+         WHERE co.estado = 'pendiente' AND cl.token_tarjeta_estado = 'activo' AND cl.token_tarjeta IS NOT NULL"
+    );
+    foreach ($stmtCaiPend->fetchAll() as $row) {
+        $resCai = cobrar_via_token(
+            $pdo, intval($row['cobro_id']), intval($row['cliente_id']), floatval($row['total']),
+            $row['token_tarjeta'], $row['token_tarjeta_expmes'], $row['token_tarjeta_expanio']
+        );
+        if ($resCai['success']) {
+            $resumen[] = "OK cargo automático (CAI) cobro #{$row['cobro_id']} (alumno #{$row['cliente_id']}), total \${$row['total']}";
+            $emailCai = $row['cliente_email'] ?: $row['familia_email'];
+            if ($emailCai) {
+                $totalFmt = '$' . number_format((float) $row['total'], 2) . ' MXN';
+                $html = "
+                    <p>Hola,</p>
+                    <p>Se realizó un cargo automático de <strong>$totalFmt</strong> a tu tarjeta guardada para " . htmlspecialchars($row['cliente_nombre']) . ".</p>
+                    <p>— Pagalaescuela</p>
+                ";
+                enviar_correo($emailCai, 'Se cobró tu pago automático', $html);
+            }
+        } else {
+            $resumen[] = "AVISO cargo automático (CAI) cobro #{$row['cobro_id']} rechazado: " . $resCai['error'];
+        }
+    }
+} catch (\PDOException $e) {
+    $resumen[] = "ERROR cobro automático CAI: " . $e->getMessage();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // 1) VENCIMIENTO DE SUSCRIPCIÓN (plan SaaS)
 // ══════════════════════════════════════════════════════════════════════════
 try {

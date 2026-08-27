@@ -85,4 +85,9 @@
             'referencia' => $ref,
             'cobro_id'   => intval($cobroRow['id']),
             'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
+            // false a propósito: este endpoint (PLE_URL_LIGA_SIMPLE) no
+            // tokeniza la tarjeta — ver el comentario arriba sobre por qué.
+            // El frontend usa esto para avisarle al cajero que el pago se
+            // procesará normal pero la tarjeta no quedará domiciliada.
+            'con_cai'    => false,
         ]);
