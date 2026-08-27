@@ -754,7 +754,7 @@ function Caja({
 </head><body>
   <div class="voucher">
     <div class="v-top">
-      <img src="${esc(logo)}" alt="${esc(nombreEscuela)}" onerror="this.style.display='none'">
+      <img src="${esc(logo)}" alt="${esc(nombreEscuela)}" class="js-imgfallback">
       <div class="v-titulo"><h1>Formato de Pago</h1><span>${esc(nombreEscuela)}</span></div>
     </div>
     <div class="v-body">
@@ -777,7 +777,7 @@ function Caja({
       <div class="v-instr">
         <h3>Tiendas participantes</h3>
         <div class="v-tiendas">
-          ${TIENDAS_PARTICIPANTES.map(t => `<div class="v-tienda"><img src="assets/tiendas/${esc(t.archivo)}" alt="${esc(t.nombre)}" onerror="this.style.display='none'">${esc(t.nombre)}</div>`).join('')}
+          ${TIENDAS_PARTICIPANTES.map(t => `<div class="v-tienda"><img src="assets/tiendas/${esc(t.archivo)}" alt="${esc(t.nombre)}" class="js-imgfallback">${esc(t.nombre)}</div>`).join('')}
         </div>
         <h3>Instrucciones para realizar tu pago</h3>
         <ul>
@@ -787,16 +787,31 @@ function Caja({
           <li>Tu pago se reflejará automáticamente en ${esc(nombreEscuela)} en cuanto la tienda lo confirme.</li>
         </ul>
       </div>
-      <button class="v-noprint" onclick="window.print()" style="width:100%; padding:12px; border:none; border-radius:10px; background:#bdcf00; color:#1a1a1a; font-weight:700; font-size:13px; cursor:pointer;">Imprimir / Guardar como PDF</button>
+      <button class="v-noprint" id="btnImprimir" style="width:100%; padding:12px; border:none; border-radius:10px; background:#bdcf00; color:#1a1a1a; font-weight:700; font-size:13px; cursor:pointer;">Imprimir / Guardar como PDF</button>
     </div>
     <div class="v-foot">Cualquier duda sobre tu pago, contacta a la administración de ${esc(nombreEscuela)}.</div>
   </div>
+  <script>
+    // Oculta cualquier imagen que no cargue (logo de escuela o de tienda),
+    // sin usar atributos onerror inline (bloqueados por la CSP del sitio).
+    document.querySelectorAll('.js-imgfallback').forEach(function (img) {
+      img.addEventListener('error', function () { img.style.display = 'none'; }, { once: true });
+    });
+    document.getElementById('btnImprimir').addEventListener('click', function () { window.print(); });
+    // Imprime automáticamente en cuanto la ventana y sus imágenes terminan
+    // de cargar, para ir directo al diálogo de "Guardar como PDF" del
+    // navegador sin que el usuario tenga que dar clic.
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); }, 300);
+    });
+  </script>
 </body></html>`;
 
-    const w = window.open('', '_blank');
+    const blob = new Blob([html], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, '_blank');
     if (!w) { alert('Tu navegador bloqueó la ventana emergente. Habilítala para ver el comprobante.'); return; }
-    w.document.write(html);
-    w.document.close();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   };
 
   /* ── QR CODI (SVG simple) ── */
