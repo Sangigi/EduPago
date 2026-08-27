@@ -686,7 +686,7 @@ function Caja({
      que el mecanismo es el mismo usado ahí: una página HTML autocontenida,
      aquí pensada para imprimirse en vez de para Excel. */
   const TIENDAS_PARTICIPANTES = [
-    { nombre: '7-Eleven', archivo: '7eleven.png' },
+    { nombre: '7-Eleven', archivo: '7-eleven.webp' },
     { nombre: 'Soriana', archivo: 'soriana.png' },
     { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.png' },
     { nombre: 'Farmacias Benavides', archivo: 'benavides.png' },
