@@ -702,6 +702,34 @@ function Caja({
   // Rutas esperadas: assets/tiendas/<archivo> — coloca ahí los logos con
   // autorización/convenio de cada cadena. Si falta el archivo, se
   // oculta la imagen y solo se ve el nombre (ver onerror abajo).
+  // Abre un HTML autocontenido en una pestaña nueva vía Blob URL (evita el
+  // <script> inline que la CSP del sitio bloquea) y dispara la impresión
+  // apenas termina de cargar. Reutilizado por los comprobantes de
+  // Efectivo y SPEI.
+  const abrirDocumentoImprimible = (html) => {
+    const blob = new Blob([html], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, '_blank');
+    if (!w) { alert('Tu navegador bloqueó la ventana emergente. Habilítala para ver el documento.'); return; }
+    const configurarVentana = () => {
+      try {
+        const doc = w.document;
+        doc.querySelectorAll('.js-imgfallback').forEach(img => {
+          img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
+        });
+        const btn = doc.getElementById('btnImprimir');
+        if (btn) btn.addEventListener('click', () => w.print());
+        setTimeout(() => { try { w.print(); } catch (e) {} }, 400);
+      } catch (e) { /* la ventana pudo cerrarse antes de cargar */ }
+    };
+    if (w.document.readyState === 'complete') configurarVentana();
+    else w.addEventListener('load', configurarVentana);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  };
+  const escHtml = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Ruta relativa → absoluta contra el sitio (necesario porque el
+  // documento se abre desde un blob:, que no comparte base con el sitio).
+  const rutaAbsoluta = ruta => { try { return new URL(ruta, window.location.href).href; } catch (e) { return ruta; } };
   const abrirComprobanteEfectivo = () => {
     if (!efvRefInfo || !cobroActivo) return;
     const cliente = (data.clientes || []).find(c => c.id === cobroActivo.cliente_id) || null;
@@ -714,13 +742,8 @@ function Caja({
     const vencimiento = efvRefInfo.vencimiento
       ? new Date(efvRefInfo.vencimiento + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
       : '';
-    const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    // El comprobante se abre desde un blob: URL (necesario para evitar el
-    // <script> inline bloqueado por la CSP), y un blob: no comparte base
-    // con el sitio — cualquier ruta relativa ("assets/...") dejaría de
-    // resolver. Se convierten a absolutas contra location.href ANTES de
-    // insertarlas en el HTML.
-    const abs = ruta => { try { return new URL(ruta, window.location.href).href; } catch (e) { return ruta; } };
+    const esc = escHtml;
+    const abs = rutaAbsoluta;
 
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <title>Formato de pago — ${esc(cobroActivo.folio || '')}</title>
@@ -807,30 +830,122 @@ function Caja({
     // ya abiertos usando la API del DOM — eso no cuenta como "inline
     // script" para la CSP, porque no se está inyectando código nuevo en
     // el documento del comprobante.
-    const blob = new Blob([html], { type: 'text/html' });
-    const blobUrl = URL.createObjectURL(blob);
-    const w = window.open(blobUrl, '_blank');
-    if (!w) { alert('Tu navegador bloqueó la ventana emergente. Habilítala para ver el comprobante.'); return; }
+    abrirDocumentoImprimible(html);
+  };
 
-    const configurarVentana = () => {
-      try {
-        const doc = w.document;
-        doc.querySelectorAll('.js-imgfallback').forEach(img => {
-          img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
-        });
-        const btn = doc.getElementById('btnImprimir');
-        if (btn) btn.addEventListener('click', () => w.print());
-        // Imprime automáticamente en cuanto termina de cargar la ventana
-        // (da tiempo a que los logos/código de barras carguen), para ir
-        // directo al diálogo "Guardar como PDF" sin que el usuario tenga
-        // que dar clic. El botón queda como respaldo si cierran el diálogo.
-        setTimeout(() => { try { w.print(); } catch (e) {} }, 400);
-      } catch (e) { /* la ventana pudo cerrarse antes de cargar */ }
-    };
-    if (w.document.readyState === 'complete') configurarVentana();
-    else w.addEventListener('load', configurarVentana);
+  /* ── Documento de pago SPEI (banco + CLABE + beneficiario + monto) ──
+     Antes esos datos solo vivían dentro del modal 'spei' de la app — no
+     había nada que el cajero pudiera entregar/enviar al padre de familia
+     con las instrucciones de la transferencia. Mismo patrón que el
+     comprobante de efectivo: HTML autocontenido, listo para imprimir o
+     guardar como PDF. */
+  const abrirComprobanteSPEI = () => {
+    if (!cobroActivo || !cobroActivo.clabe) return;
+    const cliente = (data.clientes || []).find(c => c.id === cobroActivo.cliente_id) || null;
+    const familia = cliente?.familia_id ? (data.familias || []).find(f => f.id === cliente.familia_id) : null;
+    const total = Number(cobroActivo.total || 0);
+    const logo = escuela?.logo_url || 'assets/logo.jpeg';
+    const nombreEscuela = escuela?.nombre || 'Paga la Escuela';
+    const hoy = new Date();
+    const fechaEmision = hoy.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const esc = escHtml;
+    const abs = rutaAbsoluta;
+    const concepto = cobroActivo.referencia_spei || cobroActivo.referencia || cobroActivo.folio || '';
+    const clabeEspaciada = cobroActivo.clabe ? cobroActivo.clabe.match(/.{1,4}/g).join(' ') : '—';
 
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Instrucciones de pago SPEI — ${esc(cobroActivo.folio || '')}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #eef0f5; font-family: 'Segoe UI', Arial, sans-serif; color: #1e2430; }
+  .voucher { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+  .v-top { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 12px; border-bottom: 3px solid #282d65; }
+  .v-top img { height: 48px; max-width: 200px; object-fit: contain; }
+  .v-titulo { text-align: right; }
+  .v-titulo h1 { margin: 0; font-size: 20px; color: #282d65; }
+  .v-titulo span { font-size: 11px; color: #6b7280; }
+  .v-body { padding: 18px 24px; }
+  .v-cliente { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; margin-bottom: 14px; }
+  .v-cliente .lbl { color: #6b7280; font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; }
+  .v-concepto { background: #f4f5f9; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; margin-bottom: 16px; }
+  .v-total-row { display: flex; align-items: center; justify-content: space-between; background: #282d65; color: #fff; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+  .v-total-row .lbl { font-size: 11px; opacity: .85; text-transform: uppercase; letter-spacing: .5px; }
+  .v-total-row .monto { font-size: 26px; font-weight: 800; }
+  .v-letras { font-size: 10.5px; color: #6b7280; text-align: right; margin: -10px 0 16px; }
+  .v-spei { background: #f4f5f9; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .v-spei-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 6px 0; border-bottom: 1px solid #e5e7eb; }
+  .v-spei-row:last-child { border-bottom: none; }
+  .v-spei-lbl { font-size: 10.5px; color: #6b7280; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
+  .v-spei-val { font-size: 13px; font-weight: 700; color: #1e2430; text-align: right; word-break: break-word; }
+  .v-clabe { font-family: 'Courier New', monospace; font-size: 15px; letter-spacing: 1px; }
+  .v-warn { text-align: center; font-size: 11.5px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px; margin-bottom: 18px; }
+  .v-instr h3 { font-size: 12.5px; margin: 0 0 8px; color: #282d65; }
+  .v-instr ol, .v-instr ul { margin: 0 0 16px; padding-left: 20px; font-size: 12px; color: #374151; line-height: 1.6; }
+  .v-foot { text-align: center; font-size: 10.5px; color: #9ca3af; padding: 14px 24px; border-top: 1px solid #e5e7eb; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .voucher { box-shadow: none; max-width: 100%; }
+    .v-noprint { display: none; }
+  }
+</style>
+</head><body>
+  <div class="voucher">
+    <div class="v-top">
+      <img src="${esc(abs(logo))}" alt="${esc(nombreEscuela)}" class="js-imgfallback">
+      <div class="v-titulo"><h1>Instrucciones de pago SPEI</h1><span>${esc(nombreEscuela)}</span></div>
+    </div>
+    <div class="v-body">
+      <div class="v-cliente">
+        <div><div class="lbl">Alumno</div>${esc(cliente?.nombre || 'Cliente general')}</div>
+        ${familia ? `<div style="text-align:right"><div class="lbl">Contacto</div>${esc(familia.contacto || familia.nombre || '')}${familia.email ? `<br>${esc(familia.email)}` : ''}</div>` : ''}
+      </div>
+      <div class="v-concepto">
+        <strong>Concepto:</strong> ${esc(cobroActivo.descripcion || cobroActivo.items?.map(i => i.nombre).filter(Boolean).join(', ') || 'Pago escolar')}<br>
+        <strong>Folio:</strong> ${esc(cobroActivo.folio || '')} &nbsp;·&nbsp; <strong>Fecha de emisión:</strong> ${esc(fechaEmision)}
+      </div>
+      <div class="v-total-row">
+        <span class="lbl">Total a transferir</span>
+        <span class="monto">${fmt(total)}</span>
+      </div>
+      <div class="v-letras">(${esc(numeroALetras(total))})</div>
+      <div class="v-spei">
+        <div class="v-spei-row">
+          <span class="v-spei-lbl">Banco</span>
+          <span class="v-spei-val">${esc(cobroActivo.banco || 'STP')}</span>
+        </div>
+        <div class="v-spei-row">
+          <span class="v-spei-lbl">Beneficiario</span>
+          <span class="v-spei-val">${esc(cobroActivo.beneficiario || nombreEscuela)}</span>
+        </div>
+        <div class="v-spei-row">
+          <span class="v-spei-lbl">CLABE interbancaria</span>
+          <span class="v-spei-val v-clabe">${esc(clabeEspaciada)}</span>
+        </div>
+        ${concepto ? `<div class="v-spei-row">
+          <span class="v-spei-lbl">${cobroActivo.clabe_es_individual ? 'Concepto (opcional)' : 'Concepto (obligatorio)'}</span>
+          <span class="v-spei-val v-clabe">${esc(concepto)}</span>
+        </div>` : ''}
+      </div>
+      ${cobroActivo.clabe_es_individual
+        ? `<div class="v-warn">Esta CLABE es exclusiva de ${esc(cliente?.nombre || 'este alumno')}. Cualquier transferencia recibida en ella se identifica automáticamente, sin importar el concepto.</div>`
+        : `<div class="v-warn">Copia el concepto exactamente como aparece arriba — es indispensable para identificar tu pago.</div>`}
+      <div class="v-instr">
+        <h3>Instrucciones para realizar tu pago</h3>
+        <ol>
+          <li>Abre la app de tu banco y elige la opción de transferencia SPEI.</li>
+          <li>Captura la CLABE interbancaria y el monto exacto que se muestran arriba.</li>
+          ${cobroActivo.clabe_es_individual ? '' : '<li>Copia el concepto de pago exactamente como se indica — sin este dato el pago no se puede identificar.</li>'}
+          <li>Confirma y envía la transferencia. Guarda el comprobante que te entregue tu banco.</li>
+          <li>Tu pago se reflejará automáticamente en ${esc(nombreEscuela)} en cuanto el banco confirme la transferencia (unos minutos en horario bancario).</li>
+        </ol>
+      </div>
+      <button class="v-noprint" id="btnImprimir" style="width:100%; padding:12px; border:none; border-radius:10px; background:#bdcf00; color:#1a1a1a; font-weight:700; font-size:13px; cursor:pointer;">Imprimir / Guardar como PDF</button>
+    </div>
+    <div class="v-foot">Cualquier duda sobre tu pago, contacta a la administración de ${esc(nombreEscuela)}.</div>
+  </div>
+</body></html>`;
+
+    abrirDocumentoImprimible(html);
   };
 
   /* ── QR CODI (SVG simple) ── */
@@ -1532,6 +1647,12 @@ function Caja({
                 className: `copy-btn ${copiedCLABE ? 'copied' : ''}`,
                 onClick: copiarCLABE,
                 children: copiedCLABE ? 'CLABE copiada' : 'Copiar CLABE al portapapeles'
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                type: "button",
+                onClick: abrirComprobanteSPEI,
+                className: "btn btn-secondary",
+                style: { width: '100%', display: 'block', textAlign: 'center', marginTop: 8, boxSizing: 'border-box' },
+                children: "Ver / imprimir instrucciones de pago"
               }, void 0, false)]
             }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("div", {
               className: "verif-row",
