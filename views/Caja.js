@@ -685,6 +685,23 @@ function Caja({
      hay ninguna librería de PDF en el proyecto (ver ExcelExport.js), así
      que el mecanismo es el mismo usado ahí: una página HTML autocontenida,
      aquí pensada para imprimirse en vez de para Excel. */
+  const TIENDAS_PARTICIPANTES = [
+    { nombre: '7-Eleven', archivo: '7eleven.png' },
+    { nombre: 'Soriana', archivo: 'soriana.png' },
+    { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.png' },
+    { nombre: 'Farmacias Benavides', archivo: 'benavides.png' },
+    { nombre: 'City Club', archivo: 'city-club.png' },
+    { nombre: 'Extra', archivo: 'extra.png' },
+    { nombre: 'Walmart', archivo: 'walmart.png' },
+    { nombre: 'Bodega Aurrerá', archivo: 'bodega-aurrera.png' },
+    { nombre: 'Suburbia', archivo: 'suburbia.png' },
+    { nombre: "Sam's Club", archivo: 'sams-club.png' },
+    { nombre: 'Circle K', archivo: 'circle-k.png' },
+    { nombre: 'Abarrotes Monterrey', archivo: 'abarrotes-monterrey.png' },
+  ];
+  // Rutas esperadas: assets/tiendas/<archivo> — coloca ahí los logos con
+  // autorización/convenio de cada cadena. Si falta el archivo, se
+  // oculta la imagen y solo se ve el nombre (ver onerror abajo).
   const abrirComprobanteEfectivo = () => {
     if (!efvRefInfo || !cobroActivo) return;
     const cliente = (data.clientes || []).find(c => c.id === cobroActivo.cliente_id) || null;
@@ -724,6 +741,9 @@ function Caja({
   .v-venc { text-align: center; font-size: 11.5px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px; margin-bottom: 18px; }
   .v-instr h3 { font-size: 12.5px; margin: 0 0 8px; color: #282d65; }
   .v-instr ol, .v-instr ul { margin: 0 0 16px; padding-left: 20px; font-size: 12px; color: #374151; line-height: 1.6; }
+  .v-tiendas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .v-tienda { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 8px 6px; border-radius: 10px; background: #f4f5f9; border: 1px solid #e5e7eb; font-size: 9.5px; font-weight: 700; color: #282d65; line-height: 1.2; min-height: 48px; }
+  .v-tienda img { max-width: 100%; max-height: 26px; object-fit: contain; }
   .v-foot { text-align: center; font-size: 10.5px; color: #9ca3af; padding: 14px 24px; border-top: 1px solid #e5e7eb; }
   @media print {
     body { background: #fff; padding: 0; }
@@ -755,6 +775,10 @@ function Caja({
       <div class="v-ref">${esc(efvRefInfo.referencia || '')}</div>
       ${vencimiento ? `<div class="v-venc">Acude a pagar antes del ${esc(vencimiento)}</div>` : ''}
       <div class="v-instr">
+        <h3>Tiendas participantes</h3>
+        <div class="v-tiendas">
+          ${TIENDAS_PARTICIPANTES.map(t => `<div class="v-tienda"><img src="assets/tiendas/${esc(t.archivo)}" alt="${esc(t.nombre)}" onerror="this.style.display='none'">${esc(t.nombre)}</div>`).join('')}
+        </div>
         <h3>Instrucciones para realizar tu pago</h3>
         <ul>
           <li>Acude a cualquier tienda de conveniencia o farmacia participante que reciba pagos de servicios.</li>
