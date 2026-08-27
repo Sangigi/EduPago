@@ -23,6 +23,14 @@ function PortalFamilia({
   const [misCobros, setMisCobros] = useState([]);
   const [saldoTotal, setSaldoTotal] = useState(0);
   const [metodo, setMetodo] = useState('SPEI');
+  // Consentimiento explícito para domiciliar la tarjeta (Cargo Automático).
+  // Desde que generar_liga.php migró a PLE_URL_LIGA_TOKEN, CUALQUIER pago con
+  // tarjeta que apruebe el proveedor devuelve un token y lo guarda — sin este
+  // checkbox el padre de familia nunca decidía si quería eso, quedaba
+  // domiciliado de forma implícita solo por pagar. Se resetea a false cada
+  // vez que se cambia de alumno o de método para no arrastrar el consentimiento
+  // de un pago anterior a uno nuevo.
+  const [autorizoCargoAutomatico, setAutorizoCargoAutomatico] = useState(false);
   // El pago siempre es de UN alumno a la vez (un cobro necesita un cliente_id
   // real de `clientes`; antes se mandaba el saldo combinado de la familia con
   // el id de `familias` como cliente_id, lo que nunca actualizaba el saldo del
@@ -490,6 +498,10 @@ function PortalFamilia({
     // nuevo aquí (mismo motivo que arriba: evitar duplicar la deuda). Si hay
     // más de un concepto pendiente por separado, tarjeta no puede pagarlos
     // juntos en una sola liga (para eso está SPEI, que sí suma todo).
+    if (!autorizoCargoAutomatico) {
+      setSpeiBloqueoFamilia('Debes autorizar el Cargo Automático (domiciliación) para pagar con tarjeta.');
+      return;
+    }
     const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
     if (cobrosPendientesHijo.length !== 1) {
       setSpeiBloqueoFamilia(cobrosPendientesHijo.length === 0
@@ -1454,7 +1466,7 @@ function PortalFamilia({
                 style: { fontSize: 12, color: PLC.muted, marginBottom: 8 },
                 children: "Los pagos son por alumno — selecciona a quién le vas a pagar:"
               }, void 0, false), hijosConSaldo.map(h => _jsxDEV("div", {
-                onClick: () => { setHijoPagoId(h.id); setSpeiBloqueoFamilia(null); },
+                onClick: () => { setHijoPagoId(h.id); setSpeiBloqueoFamilia(null); setAutorizoCargoAutomatico(false); },
                 style: {
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -1554,7 +1566,7 @@ function PortalFamilia({
                   flexWrap: 'wrap'
                 },
                 children: [_jsxDEV("div", {
-                  onClick: () => { setMetodo('SPEI'); setSpeiBloqueoFamilia(null); },
+                  onClick: () => { setMetodo('SPEI'); setSpeiBloqueoFamilia(null); setAutorizoCargoAutomatico(false); },
                   style: {
                     flex: 1,
                     minWidth: 140,
@@ -1664,6 +1676,27 @@ function PortalFamilia({
                     color: PLC.green
                   }, void 0, false)]
                 }, void 0, true)]
+              }, void 0, true), metodo === 'TC' && _jsxDEV("label", {
+                style: {
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  marginBottom: 14,
+                  padding: '12px 14px',
+                  borderRadius: 9,
+                  background: 'rgba(40,45,101,.04)',
+                  border: `1px solid ${autorizoCargoAutomatico ? PLC.navy : PLC.border}`,
+                  cursor: 'pointer',
+                },
+                children: [_jsxDEV("input", {
+                  type: 'checkbox',
+                  checked: autorizoCargoAutomatico,
+                  onChange: e => { setAutorizoCargoAutomatico(e.target.checked); setSpeiBloqueoFamilia(null); },
+                  style: { marginTop: 2, width: 16, height: 16, flexShrink: 0, cursor: 'pointer' },
+                }, void 0, false), _jsxDEV("span", {
+                  style: { fontSize: 12, color: PLC.text, lineHeight: 1.5 },
+                  children: "Autorizo que mi tarjeta quede guardada de forma segura para futuros Cargos Automáticos (domiciliación) de los adeudos de este alumno. Podré cancelar esta autorización en cualquier momento desde \"Tarjeta guardada\"."
+                }, void 0, false)]
               }, void 0, true), speiBloqueoFamilia && _jsxDEV("div", {
                 style: {
                   marginBottom: 14, padding: '10px 12px', borderRadius: 8,
@@ -1673,7 +1706,7 @@ function PortalFamilia({
                 children: speiBloqueoFamilia
               }, void 0, false), _jsxDEV("button", {
                 onClick: pagarSaldo,
-                disabled: loading || !hijoSeleccionado,
+                disabled: loading || !hijoSeleccionado || (metodo === 'TC' && !autorizoCargoAutomatico),
                 style: {
                   width: '100%',
                   padding: '14px 0',
