@@ -686,18 +686,18 @@ function Caja({
      que el mecanismo es el mismo usado ahí: una página HTML autocontenida,
      aquí pensada para imprimirse en vez de para Excel. */
   const TIENDAS_PARTICIPANTES = [
-    { nombre: '7-Eleven', archivo: '7eleven.png' },
-    { nombre: 'Soriana', archivo: 'soriana.png' },
-    { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.png' },
-    { nombre: 'Farmacias Benavides', archivo: 'benavides.png' },
-    { nombre: 'City Club', archivo: 'city-club.png' },
-    { nombre: 'Extra', archivo: 'extra.png' },
-    { nombre: 'Walmart', archivo: 'walmart.png' },
-    { nombre: 'Bodega Aurrerá', archivo: 'bodega-aurrera.png' },
-    { nombre: 'Suburbia', archivo: 'suburbia.png' },
-    { nombre: "Sam's Club", archivo: 'sams-club.png' },
-    { nombre: 'Circle K', archivo: 'circle-k.png' },
-    { nombre: 'Abarrotes Monterrey', archivo: 'abarrotes-monterrey.png' },
+    { nombre: '7-Eleven', archivo: '7-eleven.webp' },
+    { nombre: 'Soriana', archivo: 'soriana.webp' },
+    { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.webp' },
+    { nombre: 'Farmacias Benavides', archivo: 'benavides.webp' },
+    { nombre: 'City Club', archivo: 'city-club.webp' },
+    { nombre: 'Extra', archivo: 'extra.webp' },
+    { nombre: 'Walmart', archivo: 'walmart.webp' },
+    { nombre: 'Bodega Aurrerá', archivo: 'bodega-aurrera.webp' },
+    { nombre: 'Suburbia', archivo: 'suburbia.webp' },
+    { nombre: "Sam's Club", archivo: 'sams-club.webp' },
+    { nombre: 'Circle K', archivo: 'circle-k.webp' },
+    { nombre: 'Abarrotes Monterrey', archivo: 'abarrotes-monterrey.webp' },
   ];
   // Rutas esperadas: assets/tiendas/<archivo> — coloca ahí los logos con
   // autorización/convenio de cada cadena. Si falta el archivo, se
