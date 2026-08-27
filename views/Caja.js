@@ -686,18 +686,18 @@ function Caja({
      que el mecanismo es el mismo usado ahí: una página HTML autocontenida,
      aquí pensada para imprimirse en vez de para Excel. */
   const TIENDAS_PARTICIPANTES = [
-    { nombre: '7-Eleven', archivo: '7-eleven.webp' },
-    { nombre: 'Soriana', archivo: 'soriana.webp' },
-    { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.webp' },
-    { nombre: 'Farmacias Benavides', archivo: 'benavides.webp' },
-    { nombre: 'City Club', archivo: 'city-club.webp' },
-    { nombre: 'Extra', archivo: 'extra.webp' },
-    { nombre: 'Walmart', archivo: 'walmart.webp' },
-    { nombre: 'Bodega Aurrerá', archivo: 'bodega-aurrera.webp' },
-    { nombre: 'Suburbia', archivo: 'suburbia.webp' },
-    { nombre: "Sam's Club", archivo: 'sams-club.webp' },
-    { nombre: 'Circle K', archivo: 'circle-k.webp' },
-    { nombre: 'Abarrotes Monterrey', archivo: 'abarrotes-monterrey.webp' },
+    { nombre: '7-Eleven', archivo: '7eleven.png' },
+    { nombre: 'Soriana', archivo: 'soriana.png' },
+    { nombre: 'Farmacias del Ahorro', archivo: 'farmacias-del-ahorro.png' },
+    { nombre: 'Farmacias Benavides', archivo: 'benavides.png' },
+    { nombre: 'City Club', archivo: 'city-club.png' },
+    { nombre: 'Extra', archivo: 'extra.png' },
+    { nombre: 'Walmart', archivo: 'walmart.png' },
+    { nombre: 'Bodega Aurrerá', archivo: 'bodega-aurrera.png' },
+    { nombre: 'Suburbia', archivo: 'suburbia.png' },
+    { nombre: "Sam's Club", archivo: 'sams-club.png' },
+    { nombre: 'Circle K', archivo: 'circle-k.png' },
+    { nombre: 'Abarrotes Monterrey', archivo: 'abarrotes-monterrey.png' },
   ];
   // Rutas esperadas: assets/tiendas/<archivo> — coloca ahí los logos con
   // autorización/convenio de cada cadena. Si falta el archivo, se
@@ -715,6 +715,12 @@ function Caja({
       ? new Date(efvRefInfo.vencimiento + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
       : '';
     const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // El comprobante se abre desde un blob: URL (necesario para evitar el
+    // <script> inline bloqueado por la CSP), y un blob: no comparte base
+    // con el sitio — cualquier ruta relativa ("assets/...") dejaría de
+    // resolver. Se convierten a absolutas contra location.href ANTES de
+    // insertarlas en el HTML.
+    const abs = ruta => { try { return new URL(ruta, window.location.href).href; } catch (e) { return ruta; } };
 
     const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <title>Formato de pago — ${esc(cobroActivo.folio || '')}</title>
@@ -754,7 +760,7 @@ function Caja({
 </head><body>
   <div class="voucher">
     <div class="v-top">
-      <img src="${esc(logo)}" alt="${esc(nombreEscuela)}" class="js-imgfallback">
+      <img src="${esc(abs(logo))}" alt="${esc(nombreEscuela)}" class="js-imgfallback">
       <div class="v-titulo"><h1>Formato de Pago</h1><span>${esc(nombreEscuela)}</span></div>
     </div>
     <div class="v-body">
@@ -777,7 +783,7 @@ function Caja({
       <div class="v-instr">
         <h3>Tiendas participantes</h3>
         <div class="v-tiendas">
-          ${TIENDAS_PARTICIPANTES.map(t => `<div class="v-tienda"><img src="assets/tiendas/${esc(t.archivo)}" alt="${esc(t.nombre)}" class="js-imgfallback">${esc(t.nombre)}</div>`).join('')}
+          ${TIENDAS_PARTICIPANTES.map(t => `<div class="v-tienda"><img src="${esc(abs('assets/tiendas/' + t.archivo))}" alt="${esc(t.nombre)}" class="js-imgfallback">${esc(t.nombre)}</div>`).join('')}
         </div>
         <h3>Instrucciones para realizar tu pago</h3>
         <ul>
@@ -791,26 +797,39 @@ function Caja({
     </div>
     <div class="v-foot">Cualquier duda sobre tu pago, contacta a la administración de ${esc(nombreEscuela)}.</div>
   </div>
-  <script>
-    // Oculta cualquier imagen que no cargue (logo de escuela o de tienda),
-    // sin usar atributos onerror inline (bloqueados por la CSP del sitio).
-    document.querySelectorAll('.js-imgfallback').forEach(function (img) {
-      img.addEventListener('error', function () { img.style.display = 'none'; }, { once: true });
-    });
-    document.getElementById('btnImprimir').addEventListener('click', function () { window.print(); });
-    // Imprime automáticamente en cuanto la ventana y sus imágenes terminan
-    // de cargar, para ir directo al diálogo de "Guardar como PDF" del
-    // navegador sin que el usuario tenga que dar clic.
-    window.addEventListener('load', function () {
-      setTimeout(function () { window.print(); }, 300);
-    });
-  </script>
 </body></html>`;
 
+    // Sin <script> dentro del HTML generado: la CSP del sitio
+    // (script-src 'self' ...) bloquea tanto atributos onclick/onerror
+    // inline como cualquier <script> embebido sin nonce/hash. En vez de
+    // eso, este mismo código (que sí corre con permiso, es del bundle de
+    // la app) engancha los eventos directamente sobre la ventana/documento
+    // ya abiertos usando la API del DOM — eso no cuenta como "inline
+    // script" para la CSP, porque no se está inyectando código nuevo en
+    // el documento del comprobante.
     const blob = new Blob([html], { type: 'text/html' });
     const blobUrl = URL.createObjectURL(blob);
     const w = window.open(blobUrl, '_blank');
     if (!w) { alert('Tu navegador bloqueó la ventana emergente. Habilítala para ver el comprobante.'); return; }
+
+    const configurarVentana = () => {
+      try {
+        const doc = w.document;
+        doc.querySelectorAll('.js-imgfallback').forEach(img => {
+          img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
+        });
+        const btn = doc.getElementById('btnImprimir');
+        if (btn) btn.addEventListener('click', () => w.print());
+        // Imprime automáticamente en cuanto termina de cargar la ventana
+        // (da tiempo a que los logos/código de barras carguen), para ir
+        // directo al diálogo "Guardar como PDF" sin que el usuario tenga
+        // que dar clic. El botón queda como respaldo si cierran el diálogo.
+        setTimeout(() => { try { w.print(); } catch (e) {} }, 400);
+      } catch (e) { /* la ventana pudo cerrarse antes de cargar */ }
+    };
+    if (w.document.readyState === 'complete') configurarVentana();
+    else w.addEventListener('load', configurarVentana);
+
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   };
 
