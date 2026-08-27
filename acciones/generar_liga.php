@@ -57,14 +57,13 @@
             'ExpirationDate' => date('Y-m-d', strtotime('+1 day')),
         ];
         log_api("generar_liga -> folio={$folio} total={$total} ref={$ref}");
-        // PLE_URL_LIGA_SIMPLE (GenerarLigaIndi) en vez de PLE_URL_LIGA_TOKEN
-        // (GenerarLigaDomiciliacionIndi): el endpoint de domiciliación/CAI nunca
-        // devolvió un solo "code":"success" pese a probar todos los formatos de
-        // Reference documentados; el simple es el único con éxito comprobado.
-        // Efecto secundario: no se tokeniza la tarjeta, así que "Cargo Automático"
-        // (cobrar_cai) no tendrá tarjetas nuevas que cobrar hasta que
-        // Cobroscontarjeta.com aprovisione bien la Domiciliación para esta cuenta.
-        $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload);
+        // MIGRADO a PLE_URL_LIGA_TOKEN (GenerarLigaDomiciliacionIndi): el
+        // proveedor confirmó (ago-2026) que el endpoint de domiciliación ya
+        // responde "code":"success" con el mismo formato de Id/Reference
+        // (9/15 dígitos, ceros a la izquierda, como STRING) — verificado con
+        // una prueba real antes de este cambio. webhook_liga.php ya sabe
+        // reconstruir la referencia envuelta que regresa este endpoint.
+        $res = curl_post(PLE_URL_LIGA_TOKEN, $payload);
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
         $data_resp = [];
@@ -85,9 +84,9 @@
             'referencia' => $ref,
             'cobro_id'   => intval($cobroRow['id']),
             'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
-            // false a propósito: este endpoint (PLE_URL_LIGA_SIMPLE) no
-            // tokeniza la tarjeta — ver el comentario arriba sobre por qué.
-            // El frontend usa esto para avisarle al cajero que el pago se
-            // procesará normal pero la tarjeta no quedará domiciliada.
-            'con_cai'    => false,
+            // true: PLE_URL_LIGA_TOKEN sí tokeniza la tarjeta — el webhook
+            // (webhook_liga.php) guardará number_tkn/exp si el proveedor lo
+            // manda al confirmar el pago. El frontend ya no necesita avisar
+            // que la domiciliación no está disponible.
+            'con_cai'    => true,
         ]);
