@@ -295,21 +295,24 @@ try {
             if (!$mailAv) continue;
             $montoAv = '$' . number_format((float) $av['total'], 2) . ' MXN';
             $fechaAv = date('d/m/Y', strtotime($av['fecha'] . ' +' . CAI_DIAS_AVISO . ' days'));
-            try {
-                enviar_correo(
-                    $mailAv,
-                    'Aviso: se procesara un cargo automatico el ' . $fechaAv,
-                    "<p>Hola,</p>
-                     <p>Te avisamos que el <strong>{$fechaAv}</strong> se procesara un cargo automatico de
-                     <strong>{$montoAv}</strong> a la tarjeta que tienes domiciliada para "
-                     . htmlspecialchars($av['cliente_nombre']) . ".</p>
-                     <p>No necesitas hacer nada: el cobro se aplica solo.</p>
-                     <p>Si no reconoces este cargo o quieres cancelar la domiciliacion,
-                     contacta al colegio antes de esa fecha.</p>"
-                );
-                $resumen[] = "Aviso previo de cargo automatico enviado (cobro #{$av['cobro_id']})";
-            } catch (\Throwable $e) {
-                $resumen[] = "ERROR aviso previo de cargo #{$av['cobro_id']}: " . $e->getMessage();
+            // enviar_correo() NO lanza excepcion: devuelve
+            // ['success' => bool, 'error' => ...]. Sin revisar ese valor, un
+            // fallo de SMTP se reportaba como "enviado" y quedaba invisible.
+            $rAv = enviar_correo(
+                $mailAv,
+                'Aviso: se procesara un cargo automatico el ' . $fechaAv,
+                "<p>Hola,</p>
+                 <p>Te avisamos que el <strong>{$fechaAv}</strong> se procesara un cargo automatico de
+                 <strong>{$montoAv}</strong> a la tarjeta que tienes domiciliada para "
+                 . htmlspecialchars($av['cliente_nombre']) . ".</p>
+                 <p>No necesitas hacer nada: el cobro se aplica solo.</p>
+                 <p>Si no reconoces este cargo o quieres cancelar la domiciliacion,
+                 contacta al colegio antes de esa fecha.</p>"
+            );
+            if (!empty($rAv['success'])) {
+                $resumen[] = "OK aviso previo de cargo automatico (cobro #{$av['cobro_id']}) -> {$mailAv}";
+            } else {
+                $resumen[] = "ERROR aviso previo de cargo #{$av['cobro_id']}: " . ($rAv['error'] ?? 'desconocido');
             }
         }
     } catch (\Throwable $e) {
