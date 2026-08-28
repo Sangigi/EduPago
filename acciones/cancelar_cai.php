@@ -29,6 +29,14 @@
         $res = curl_post(PLE_URL_DOMICILIACION_CANCELAR, $payload);
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
-        $pdo->prepare("UPDATE clientes SET token_tarjeta_estado = 'cancelado' WHERE id = ?")->execute([$cliente_id]);
+        // Se limpian tambien los datos de la tarjeta, no solo el estado.
+        // El proveedor ya elimino el token de su cofre (ver doc CAI: "procedera
+        // a eliminar el token de la tarjeta"), asi que conservarlo aqui deja un
+        // dato de tarjeta almacenado que ya no sirve para nada.
+        $pdo->prepare(
+            "UPDATE clientes SET token_tarjeta = NULL, token_tarjeta_expmes = NULL,
+                    token_tarjeta_expanio = NULL, token_tarjeta_estado = 'cancelado'
+              WHERE id = ?"
+        )->execute([$cliente_id]);
         registrar_log($pdo, $usuario_actual, 'tarjeta_domiciliada_cancelada', "Alumno #{$cliente_id}", $cli['escuela_id']);
         respond(['success' => true, 'mensaje' => $raw['message'] ?? 'Tarjeta desvinculada']);
