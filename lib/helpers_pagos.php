@@ -54,15 +54,35 @@ require_once __DIR__ . '/curl_helper.php';
 // Si el proveedor llegara a rechazar el formato de 13 (codigo 22), define
 // REFERENCIA_FORMATO_LARGO = true en config.php para volver al de 15 digitos
 // sin tocar codigo.
+// Construye el Reference del pago.
+//
+// La doc (IntegracionesCAI_V1_1, pags. 4, 9 y 13) pide Numerico (13):
+//     000000000 + 0000  =  9 digitos del alumno + 4 del pago
+//
+// PERO esta cuenta rechaza 13 digitos con codigo 22 ("El formato de la
+// referencia es incorrecto") — probado el 27-ago-2026. La doc es de mayo 2022
+// y describe pagalaescuela.mx; esta integracion corre contra pagadetodo.mx
+// con otro IntegrationID, y ahi el largo aceptado es 15.
+//
+// Ademas hay una restriccion propia: webhook_liga.php reconstruye nuestra
+// referencia a partir de los ULTIMOS 9 DIGITOS del codigo envuelto que
+// devuelve el proveedor. Si la parte significativa pasa de 9 digitos, el
+// webhook ya no encuentra el cobro y el pago se queda sin confirmar.
+//
+// Por eso la parte con informacion son 9 digitos, dentro de un largo de 15:
+//     000000 + 00000 + 0000
+//              alumno   pago
+//
+// Se conserva lo que la doc realmente busca —que la referencia identifique al
+// alumno— dentro de lo que esta cuenta acepta. Soporta 99,999 alumnos y
+// 9,999 pagos por alumno.
 function construir_referencia_pago(PDO $pdo, $clienteId): string
 {
-    if (defined('REFERENCIA_FORMATO_LARGO') && REFERENCIA_FORMATO_LARGO) {
-        $base = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
-        return str_pad($base, 15, '0', STR_PAD_LEFT);
-    }
+    $largoTotal = defined('REFERENCIA_DIGITOS') ? intval(REFERENCIA_DIGITOS) : 15;
+    if ($largoTotal < 13) $largoTotal = 13;
 
     // Sin cliente (cobro general) se usa 0 en el bloque de alumno.
-    $alumno = str_pad(strval(max(0, intval($clienteId))), 9, '0', STR_PAD_LEFT);
+    $alumno = str_pad(strval(max(0, intval($clienteId)) % 100000), 5, '0', STR_PAD_LEFT);
 
     $stmt = $pdo->prepare(
         "SELECT COUNT(*) AS n FROM cobros
@@ -71,15 +91,17 @@ function construir_referencia_pago(PDO $pdo, $clienteId): string
     $stmt->execute([intval($clienteId)]);
     $desde = intval($stmt->fetch()['n'] ?? 0) + 1;
 
+    // La doc exige que sea unica e irrepetible (codigo 23): se avanza el
+    // consecutivo hasta dar con uno que no exista ya.
     $chk = $pdo->prepare("SELECT 1 FROM cobros WHERE referencia = ? LIMIT 1");
-    for ($i = 0; $i < 300; $i++) {
-        $consecutivo = ($desde + $i) % 10000;
-        $ref = $alumno . str_pad(strval($consecutivo), 4, '0', STR_PAD_LEFT);
+    for ($i = 0; $i < 500; $i++) {
+        $pago = str_pad(strval(($desde + $i) % 10000), 4, '0', STR_PAD_LEFT);
+        $ref  = str_pad($alumno . $pago, $largoTotal, '0', STR_PAD_LEFT);
         $chk->execute([$ref]);
         if (!$chk->fetch()) return $ref;
     }
-    // Salida de emergencia: no deberia llegar aqui con 10000 combinaciones.
-    return $alumno . str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
+    $pago = str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
+    return str_pad($alumno . $pago, $largoTotal, '0', STR_PAD_LEFT);
 }
 
 function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, string $token, $expMes, $expAnio): array
