@@ -33,7 +33,7 @@ require_once __DIR__ . '/lib/helpers_pagos.php';
 
 // Dias de aviso previo antes de aplicar un cargo automatico. Define
 // CAI_DIAS_AVISO en config.php para cambiarlo sin tocar este archivo.
-if (!defined('CAI_DIAS_AVISO')) define('CAI_DIAS_AVISO', 0);
+if (!defined('CAI_DIAS_AVISO')) define('CAI_DIAS_AVISO', 3);
 
 // Debe reflejar PLANES_LIMITES en api.php — la única fuente de verdad real
 // (límites/permisos) es el backend; aquí solo se usa para el texto del correo.
