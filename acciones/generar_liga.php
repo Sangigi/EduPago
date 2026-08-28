@@ -34,9 +34,17 @@
         // número JSON). Los intentos con Reference numérico sin ceros (10 o 13
         // dígitos, con o sin comillas) fallaron todos con code 22 "El formato de
         // la referencia es incorrecto".
-        $base    = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
-        $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
-        $ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
+        // Entropía: antes solo time()+mt_rand(3 dígitos) — con reintentos rápidos
+        // (abandonar la liga y volver a intentar) el proveedor podía recibir la
+        // MISMA Reference dos veces y responder código 23 "La referencia es
+        // única e irrepetible". Se reemplaza por microtime() real (resolución de
+        // microsegundos) + random_int criptográfico, mismo formato de dígitos.
+        $segundos = substr(strval(time()), -6);
+        $micro    = sprintf('%06d', intval((microtime(true) - floor(microtime(true))) * 1000000));
+        $azar     = sprintf('%03d', random_int(0, 999));
+        $base     = $segundos . $micro . $azar; // 15 dígitos
+        $id_pago  = substr($base, -9);
+        $ref      = $base;
         $payload = [
             'User'           => PLE_USER,
             'Password'       => PLE_PASS,

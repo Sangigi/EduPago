@@ -247,11 +247,10 @@ try {
 //      intentar cada día que el cron corra, hasta que se pague o se cancele
 //      la tarjeta domiciliada.
 //
-//      Nota: al momento de escribir esto, NINGÚN alumno llega a tener
-//      token_tarjeta poblado (ver el comentario en acciones/generar_liga.php
-//      sobre por qué la tokenización sigue apuntando al endpoint simple) —
-//      este bloque queda listo y sin costo mientras tanto; empieza a cobrar
-//      solo, sin más cambios de código, en cuanto el proveedor tokenice.
+//      generar_liga.php ya tokeniza (PLE_URL_LIGA_TOKEN, confirmado con el
+//      proveedor ago-2026) — este bloque cobra solo en cuanto un alumno
+//      tenga token_tarjeta_estado='activo' (primer pago con tarjeta donde
+//      se marcó "guardar mi tarjeta"), sin más cambios de código.
 // ══════════════════════════════════════════════════════════════════════════
 try {
     $stmtCaiPend = $pdo->query(

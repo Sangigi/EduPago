@@ -445,6 +445,53 @@ function PortalFamilia({
   }, []);
   const hijosConSaldo = misHijos.filter(h => h.saldo_pendiente > 0);
   const hijoSeleccionado = hijosConSaldo.find(h => h.id === hijoPagoId) || hijosConSaldo[0] || null;
+  // Si el método quedó en "Tarjeta guardada" y luego se cambia de alumno a
+  // uno sin tarjeta domiciliada activa, no dejar el formulario atorado en un
+  // método que ya no aplica para él.
+  useEffect(() => {
+    if (metodo === 'CAI' && hijoSeleccionado?.token_tarjeta_estado !== 'activo') setMetodo('SPEI');
+  }, [hijoSeleccionado?.id]);
+
+  // Cargo directo con la tarjeta ya domiciliada del alumno (CAI) — a
+  // diferencia de TC, es una respuesta síncrona del proveedor: no hay
+  // ninguna liga que abrir ni tarjeta que volver a capturar, y no hace
+  // falta el checkbox de autorización (esa tarjeta ya se autorizó en un
+  // pago anterior).
+  const cobrarConTarjetaGuardada = async () => {
+    if (!hijoSeleccionado) return;
+    const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
+    if (cobrosPendientesHijo.length !== 1) {
+      setSpeiBloqueoFamilia(cobrosPendientesHijo.length === 0
+        ? 'No se encontró el cobro pendiente de este alumno. Recarga la página e intenta de nuevo.'
+        : `${hijoSeleccionado.nombre} tiene ${cobrosPendientesHijo.length} conceptos pendientes por separado. Con la tarjeta guardada solo se puede cobrar uno a la vez — usa SPEI para pagarlos juntos.`);
+      return;
+    }
+    setLoading(true);
+    setSpeiBloqueoFamilia(null);
+    try {
+      const cobro = { ...cobrosPendientesHijo[0], _cliente_id: hijoSeleccionado.id };
+      const res = await CobroController.cobrarCAI(cobro);
+      const token = AuthController.getToken ? AuthController.getToken() : '';
+      const rSaldo = await fetch('api.php?action=verificar_saldo_alumno', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+        body: JSON.stringify({ cliente_id: hijoSeleccionado.id }),
+      });
+      const jSaldo = await rSaldo.json().catch(() => ({}));
+      setData(prev => ({
+        ...prev,
+        clientes: prev.clientes.map(c => c.id === hijoSeleccionado.id
+          ? { ...c, saldo_pendiente: jSaldo.success ? jSaldo.saldo_pendiente : Math.max(0, (c.saldo_pendiente || 0) - cobro.total) }
+          : c),
+        cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', metodo: 'TC', auth_code: res.autorizacion || '' } : c),
+      }));
+      setModal(null);
+      alert(`Pago aplicado con tu tarjeta guardada. Autorización: ${res.autorizacion || ''}`);
+    } catch (err) {
+      setSpeiBloqueoFamilia('No se pudo cobrar con la tarjeta guardada: ' + err.message + ' Puedes intentar pagando con otra tarjeta.');
+    }
+    setLoading(false);
+  };
 
   const pagarSaldo = async () => {
     if (!hijoSeleccionado || hijoSeleccionado.saldo_pendiente <= 0) return;
@@ -1675,6 +1722,56 @@ function PortalFamilia({
                     size: 18,
                     color: PLC.green
                   }, void 0, false)]
+                }, void 0, true),
+                // Solo aparece si este alumno ya tiene una tarjeta domiciliada
+                // de un pago anterior — evita volver a pedirla y a pedir el
+                // consentimiento de nuevo, ya se dio la primera vez.
+                hijoSeleccionado?.token_tarjeta_estado === 'activo' && _jsxDEV("div", {
+                  onClick: () => { setMetodo('CAI'); setSpeiBloqueoFamilia(null); },
+                  style: {
+                    flex: 1,
+                    minWidth: 140,
+                    padding: '14px 16px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    border: `2px solid ${metodo === 'CAI' ? PLC.navy : PLC.border}`,
+                    background: metodo === 'CAI' ? 'rgba(40,45,101,.05)' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    transition: 'all .15s'
+                  },
+                  children: [_jsxDEV("div", {
+                    style: {
+                      width: 40,
+                      height: 40,
+                      borderRadius: 9,
+                      background: metodo === 'CAI' ? PLC.navy : 'var(--glass-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all .15s',
+                      flexShrink: 0
+                    },
+                    children: _jsxDEV(Icon, {
+                      name: "card",
+                      size: 20,
+                      color: metodo === 'CAI' ? PLC.white : PLC.muted
+                    }, void 0, false)
+                  }, void 0, false), _jsxDEV("div", {
+                    style: { flex: 1 },
+                    children: [_jsxDEV("div", {
+                      style: { fontWeight: 600, fontSize: 13, color: PLC.text },
+                      children: "Tarjeta guardada"
+                    }, void 0, false), _jsxDEV("div", {
+                      style: { fontSize: 11, color: PLC.muted },
+                      children: ["Cobro inmediato · vence ", hijoSeleccionado.token_tarjeta_expmes, "/", hijoSeleccionado.token_tarjeta_expanio]
+                    }, void 0, true)]
+                  }, void 0, true), metodo === 'CAI' && _jsxDEV(Icon, {
+                    name: "check",
+                    size: 18,
+                    color: PLC.green
+                  }, void 0, false)]
                 }, void 0, true)]
               }, void 0, true), metodo === 'TC' && _jsxDEV("label", {
                 style: {
@@ -1705,7 +1802,7 @@ function PortalFamilia({
                 },
                 children: speiBloqueoFamilia
               }, void 0, false), _jsxDEV("button", {
-                onClick: pagarSaldo,
+                onClick: metodo === 'CAI' ? cobrarConTarjetaGuardada : pagarSaldo,
                 disabled: loading || !hijoSeleccionado || (metodo === 'TC' && !autorizoCargoAutomatico),
                 style: {
                   width: '100%',
@@ -1741,7 +1838,7 @@ function PortalFamilia({
                     name: "pay",
                     size: 18,
                     color: PLC.navy
-                  }, void 0, false), "Pagar ", fmt(hijoSeleccionado?.saldo_pendiente || 0), " con ", metodo === 'SPEI' ? 'SPEI' : 'Tarjeta']
+                  }, void 0, false), "Pagar ", fmt(hijoSeleccionado?.saldo_pendiente || 0), " con ", metodo === 'SPEI' ? 'SPEI' : metodo === 'CAI' ? 'tarjeta guardada' : 'Tarjeta']
                 }, void 0, true)
               }, void 0, false), _jsxDEV("div", {
                 style: {
