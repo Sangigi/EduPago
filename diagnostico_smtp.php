@@ -23,6 +23,20 @@ require_once __DIR__ . '/config.php';
 
 $destino = $argv[1] ?? null;
 
+// Lee una respuesta SMTP completa. Puede venir en varias lineas: la ultima
+// lleva un ESPACIO en la 4a posicion ("250 OK") y las intermedias un guion
+// ("250-EXTENSION"). Leer solo la primera desfasa todo el dialogo — es
+// exactamente lo que hacia este script antes, y por eso interpretaba el
+// segundo renglon del saludo como si fuera la respuesta al EHLO.
+function leer_respuesta($socket) {
+    $buffer = '';
+    while (($linea = fgets($socket, 1024)) !== false) {
+        $buffer .= $linea;
+        if (strlen($linea) < 4 || $linea[3] === ' ') break;
+    }
+    return $buffer;
+}
+
 function paso($n, $texto) { echo "\n[$n] $texto\n"; }
 function ok($m)   { echo "    OK    $m\n"; }
 function falla($m, $ayuda = '') {
@@ -75,22 +89,20 @@ if (!$socket) {
           "       Si el error es 'Connection refused', el puerto esta cerrado o es el equivocado.");
 }
 stream_set_timeout($socket, 15);
-$saludo = fgets($socket, 1024);
+$saludo = leer_respuesta($socket);
 if (strpos($saludo, '220') !== 0) {
     falla("el servidor no saludo con 220: " . trim($saludo));
 }
-ok('conectado — ' . trim($saludo));
+// Se muestra solo la primera linea: algunos servidores mandan un aviso legal
+// de varios renglones que no aporta nada al diagnostico.
+ok('conectado — ' . trim(strtok($saludo, "\n")));
 
 // ── 3. EHLO ──────────────────────────────────────────────────
 paso(3, 'Presentandose (EHLO)');
 
 fwrite($socket, "EHLO " . $domFrom . "\r\n");
-$resp = '';
-while ($linea = fgets($socket, 1024)) {
-    $resp .= $linea;
-    if (isset($linea[3]) && $linea[3] === ' ') break;
-}
-if (strpos($resp, '250') === false) falla("EHLO rechazado: " . trim($resp));
+$resp = leer_respuesta($socket);
+if (strpos($resp, '250') !== 0) falla("EHLO rechazado: " . trim($resp));
 ok('aceptado');
 
 $soportaAuth = stripos($resp, 'AUTH') !== false;
@@ -103,7 +115,7 @@ paso(4, 'Autenticando');
 
 function cmd($socket, $linea, $esperado) {
     fwrite($socket, $linea . "\r\n");
-    $r = fgets($socket, 1024);
+    $r = leer_respuesta($socket);
     return [strpos($r, (string)$esperado) === 0, trim($r)];
 }
 
@@ -158,7 +170,7 @@ $cuerpo = "From: $nombre <" . SMTP_FROM_EMAIL . ">\r\n"
         . "<p>Enviado desde diagnostico_smtp.php el " . date('d/m/Y H:i:s') . ".</p>\r\n"
         . ".\r\n";
 fwrite($socket, $cuerpo);
-$r = fgets($socket, 1024);
+$r = leer_respuesta($socket);
 if (strpos($r, '250') !== 0) falla("el servidor no acepto el mensaje: " . trim($r));
 
 ok('mensaje aceptado por el servidor');
