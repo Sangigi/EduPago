@@ -43,9 +43,19 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     if ($total < 50 || $total > 15000) {
         return ['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)'];
     }
-    // Reference acotada a rango int32 (mismo motivo que generar_liga/cobrar_cai:
-    // el proveedor rechaza formatos de referencia fuera de este patrón).
-    $ref = strval(mt_rand(1000000000, 2147483647));
+    // Formato de referencia: se usa EXACTAMENTE el mismo patron que
+    // acciones/generar_liga.php, que es el unico confirmado como valido por
+    // el proveedor: Id de 9 digitos y Reference de 15, ambos con ceros a la
+    // izquierda y enviados como STRING (no como numero JSON).
+    //
+    // ANTES: se mandaba mt_rand(1000000000, 2147483647) convertido con
+    // intval() — es decir, 10 digitos, sin ceros y como numero. Ese es
+    // justo uno de los formatos que el propio comentario de generar_liga
+    // documenta como fallidos con code 22 "El formato de la referencia es
+    // incorrecto", que era el error que impedia cobrar con tarjeta guardada.
+    $base    = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
+    $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
+    $ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
     $payload = [
         'User'          => PLE_USER,
         'Password'      => PLE_PASS,
@@ -53,7 +63,8 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
         'SchoolID'      => PLE_SCHOOL_ID_ACTIVO,
         'BusinessID'    => PLE_SCHOOL_ID_ACTIVO,
         'Token'         => $token,
-        'Reference'     => intval($ref),
+        'Id'            => $id_pago,
+        'Reference'     => $ref,
         'Amount'        => intval(round($total * 100)),
         'ExpMonth'      => $expMes,
         'ExpYear'       => $expAnio,
