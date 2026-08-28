@@ -168,11 +168,11 @@ define('FACTURAPI_KEY', 'sk_test_oC5ZzoaR5Hvmig4maAfxbcevwPoMPNDbZHQg8s3zEr');
 // ─── Correo saliente (SMTP) — recordatorios de vencimiento y cobros ──────────
 // Usado por mailer.php / cron_recordatorios.php. Cuenta real de correo del
 // panel de Hostinger (mail.pagalaescuela.com), puerto 465 con SSL/TLS implícito.
-define('SMTP_HOST',       'mail.pagalaescuela.com');
+define('SMTP_HOST',       'mail.seguroslux.mx');
 define('SMTP_PORT',       465);
 define('SMTP_SECURE',     'ssl');
-define('SMTP_USER',       'contacto@pagalaescuela.com');
-define('SMTP_PASS',       'P4g@L43sch00l');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
-define('SMTP_FROM_EMAIL', 'contacto@pagalaescuela.com');  // debe ser igual a SMTP_USER: muchos servidores rechazan un From distinto al autenticado
+define('SMTP_USER',       'contacto@seguroslux.mx');
+define('SMTP_PASS',       'S3gur0$2026');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
+define('SMTP_FROM_EMAIL', 'contacto@seguroslux.mx');  // debe ser igual a SMTP_USER: muchos servidores rechazan un From distinto al autenticado
 define('SMTP_FROM_NAME',  'Pagalaescuela');
 define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');

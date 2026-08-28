@@ -29,6 +29,32 @@
         $res = curl_post(PLE_URL_DOMICILIACION_CANCELAR, $payload);
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
-        $pdo->prepare("UPDATE clientes SET token_tarjeta_estado = 'cancelado' WHERE id = ?")->execute([$cliente_id]);
+        // Se limpian tambien los datos de la tarjeta, no solo el estado. El
+        // proveedor ya elimino el token de su cofre (doc CAI: "procedera a
+        // eliminar el token de la tarjeta"), asi que conservarlo aqui deja un
+        // dato de tarjeta almacenado que ya no sirve.
+        //
+        // Y se limpia para TODOS los alumnos de la escuela que compartan ese
+        // token, no solo el que se cancelo. El token es determinista por
+        // tarjeta (doc CAI pag. 7: "se devolvera el mismo token activo"), asi
+        // que dos hermanos que pagan con la misma tarjeta tienen el MISMO
+        // token. Al cancelar solo uno, el otro quedaba marcado como activo con
+        // un token ya eliminado del lado del proveedor, y su siguiente cargo
+        // automatico fallaba con codigo 12 ("El Token no existe").
+        //
+        // El alcance es la escuela del usuario, que es hasta donde llega su
+        // permiso. Si la misma tarjeta se usara en otra escuela, ahi habria
+        // que cancelarla por separado.
+        $stmtLimpia = $pdo->prepare(
+            "UPDATE clientes
+                SET token_tarjeta = NULL, token_tarjeta_expmes = NULL,
+                    token_tarjeta_expanio = NULL, token_tarjeta_estado = 'cancelado'
+              WHERE token_tarjeta = ? AND escuela_id = ?"
+        );
+        $stmtLimpia->execute([$cli['token_tarjeta'], $cli['escuela_id']]);
+        $afectados = $stmtLimpia->rowCount();
         registrar_log($pdo, $usuario_actual, 'tarjeta_domiciliada_cancelada', "Alumno #{$cliente_id}", $cli['escuela_id']);
-        respond(['success' => true, 'mensaje' => $raw['message'] ?? 'Tarjeta desvinculada']);
+        respond(['success' => true, 'alumnos_afectados' => $afectados,
+                 'mensaje' => ($afectados > 1
+                     ? "Tarjeta desvinculada de {$afectados} alumnos que la compartian."
+                     : ($raw['message'] ?? 'Tarjeta desvinculada'))]);

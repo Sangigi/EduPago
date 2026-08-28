@@ -38,14 +38,89 @@ require_once __DIR__ . '/curl_helper.php';
  *
  * @return array{success:bool, error?:string, auth?:?string, raw?:array}
  */
+// Construye el Reference segun la documentacion de Cobroscontarjeta.com
+// (IntegracionesCAI_V1_1, pag. 4, 9 y 13):
+//
+//     Numerico (13) = 000000000 + 0000
+//     9 digitos para el alumno + 4 digitos para el pago de ese alumno
+//
+// Antes se mandaba un numero basado en time() sin relacion con el alumno, y
+// de 15 digitos. Funcionaba, pero incumple la spec en longitud y, sobre todo,
+// impide identificar de quien es el pago en los reportes del proveedor.
+//
+// La doc tambien exige que sea unica e irrepetible (codigo 23), por eso se
+// avanza el consecutivo hasta encontrar uno que no exista ya en cobros.
+//
+// Si el proveedor llegara a rechazar el formato de 13 (codigo 22), define
+// REFERENCIA_FORMATO_LARGO = true en config.php para volver al de 15 digitos
+// sin tocar codigo.
+// Construye el Reference del pago.
+//
+// La doc (IntegracionesCAI_V1_1, pags. 4, 9 y 13) pide Numerico (13):
+//     000000000 + 0000  =  9 digitos del alumno + 4 del pago
+//
+// PERO esta cuenta rechaza 13 digitos con codigo 22 ("El formato de la
+// referencia es incorrecto") — probado el 27-ago-2026. La doc es de mayo 2022
+// y describe pagalaescuela.mx; esta integracion corre contra pagadetodo.mx
+// con otro IntegrationID, y ahi el largo aceptado es 15.
+//
+// Ademas hay una restriccion propia: webhook_liga.php reconstruye nuestra
+// referencia a partir de los ULTIMOS 9 DIGITOS del codigo envuelto que
+// devuelve el proveedor. Si la parte significativa pasa de 9 digitos, el
+// webhook ya no encuentra el cobro y el pago se queda sin confirmar.
+//
+// Por eso la parte con informacion son 9 digitos, dentro de un largo de 15:
+//     000000 + 00000 + 0000
+//              alumno   pago
+//
+// Se conserva lo que la doc realmente busca —que la referencia identifique al
+// alumno— dentro de lo que esta cuenta acepta. Soporta 99,999 alumnos y
+// 9,999 pagos por alumno.
+function construir_referencia_pago(PDO $pdo, $clienteId): string
+{
+    $largoTotal = defined('REFERENCIA_DIGITOS') ? intval(REFERENCIA_DIGITOS) : 15;
+    if ($largoTotal < 13) $largoTotal = 13;
+
+    // Sin cliente (cobro general) se usa 0 en el bloque de alumno.
+    $alumno = str_pad(strval(max(0, intval($clienteId)) % 100000), 5, '0', STR_PAD_LEFT);
+
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) AS n FROM cobros
+          WHERE cliente_id = ? AND referencia IS NOT NULL AND referencia <> ''"
+    );
+    $stmt->execute([intval($clienteId)]);
+    $desde = intval($stmt->fetch()['n'] ?? 0) + 1;
+
+    // La doc exige que sea unica e irrepetible (codigo 23): se avanza el
+    // consecutivo hasta dar con uno que no exista ya.
+    $chk = $pdo->prepare("SELECT 1 FROM cobros WHERE referencia = ? LIMIT 1");
+    for ($i = 0; $i < 500; $i++) {
+        $pago = str_pad(strval(($desde + $i) % 10000), 4, '0', STR_PAD_LEFT);
+        $ref  = str_pad($alumno . $pago, $largoTotal, '0', STR_PAD_LEFT);
+        $chk->execute([$ref]);
+        if (!$chk->fetch()) return $ref;
+    }
+    $pago = str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
+    return str_pad($alumno . $pago, $largoTotal, '0', STR_PAD_LEFT);
+}
+
 function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, string $token, $expMes, $expAnio): array
 {
     if ($total < 50 || $total > 15000) {
         return ['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)'];
     }
-    // Reference acotada a rango int32 (mismo motivo que generar_liga/cobrar_cai:
-    // el proveedor rechaza formatos de referencia fuera de este patrón).
-    $ref = strval(mt_rand(1000000000, 2147483647));
+    // Formato de referencia: se usa EXACTAMENTE el mismo patron que
+    // acciones/generar_liga.php, que es el unico confirmado como valido por
+    // el proveedor: Id de 9 digitos y Reference de 15, ambos con ceros a la
+    // izquierda y enviados como STRING (no como numero JSON).
+    //
+    // ANTES: se mandaba mt_rand(1000000000, 2147483647) convertido con
+    // intval() — es decir, 10 digitos, sin ceros y como numero. Ese es
+    // justo uno de los formatos que el propio comentario de generar_liga
+    // documenta como fallidos con code 22 "El formato de la referencia es
+    // incorrecto", que era el error que impedia cobrar con tarjeta guardada.
+    $ref     = construir_referencia_pago($pdo, $clienteId);
+    $id_pago = str_pad(strval(max(0, intval($clienteId))), 9, '0', STR_PAD_LEFT);
     $payload = [
         'User'          => PLE_USER,
         'Password'      => PLE_PASS,
@@ -53,7 +128,8 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
         'SchoolID'      => PLE_SCHOOL_ID_ACTIVO,
         'BusinessID'    => PLE_SCHOOL_ID_ACTIVO,
         'Token'         => $token,
-        'Reference'     => intval($ref),
+        'Id'            => $id_pago,
+        'Reference'     => $ref,
         'Amount'        => intval(round($total * 100)),
         'ExpMonth'      => $expMes,
         'ExpYear'       => $expAnio,
@@ -72,5 +148,9 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', referencia = ?, auth_code = ? WHERE id = ?")
         ->execute([$ref, $tx['auth'] ?? null, $cobroId]);
     recalcular_saldo_pendiente($pdo, $clienteId);
+    // Antes el exito NO dejaba rastro: solo se registraba el fallo, asi que
+    // la unica forma de saber si un cargo habia pasado era su ausencia en el
+    // log. Ahora se registra igual que el fallo, con el codigo de autorizacion.
+    log_api("cobrar_via_token OK -> cobro={$cobroId} cliente={$clienteId} total={$total} ref={$ref} auth=" . ($tx['auth'] ?? 'sin-auth'));
     return ['success' => true, 'auth' => $tx['auth'] ?? null, 'raw' => $raw];
 }

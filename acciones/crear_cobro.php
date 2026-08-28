@@ -12,6 +12,14 @@
         // Validar contra el enum real de la columna `cobros.metodo` — sin esto,
         // un typo o un cliente mal formado inserta basura silenciosa (así se
         // coló el cobro con metodo='' que encontramos en el dump).
+        // 'CAI' (cargo automatico con tarjeta domiciliada) NO es un metodo de
+        // pago distinto: es la forma de cobrar una tarjeta ya guardada, y el
+        // medio real sigue siendo tarjeta. Tampoco existe como valor del enum
+        // `cobros.metodo`, asi que se traduce a 'TC' antes de validar.
+        // Sin esto, cobrar con tarjeta guardada fallaba con "Metodo de pago
+        // invalido" antes de siquiera crear el cobro.
+        if ($metodo === 'CAI') $metodo = 'TC';
+
         $metodos_validos = ['Efectivo', 'EfectivoRef', 'TC', 'SPEI', 'CoDi', 'Cheque'];
         if (!in_array($metodo, $metodos_validos, true)) {
             respond(['success' => false, 'error' => 'Método de pago inválido']);
