@@ -34,9 +34,11 @@
         // número JSON). Los intentos con Reference numérico sin ceros (10 o 13
         // dígitos, con o sin comillas) fallaron todos con code 22 "El formato de
         // la referencia es incorrecto".
-        $base    = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
-        $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
-        $ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
+        // Reference con el formato de la doc (9 digitos alumno + 4 de pago).
+        // construir_referencia_pago() vive en lib/helpers_pagos.php para que
+        // este servicio y el de domiciliacion usen exactamente el mismo formato.
+        $ref     = construir_referencia_pago($pdo, $cobroRow['cliente_id']);
+        $id_pago = str_pad(strval(max(0, intval($cobroRow['cliente_id']))), 9, '0', STR_PAD_LEFT);
         $payload = [
             'User'           => PLE_USER,
             'Password'       => PLE_PASS,
