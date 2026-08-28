@@ -117,6 +117,13 @@ $number_tkn  = trim($data['number_tkn'] ?? '');
 $cc_expmonth = trim($data['cc_expmonth'] ?? '');
 $cc_expyear  = trim($data['cc_expyear'] ?? '');
 $nb_error    = trim($data['nb_error'] ?? '');
+// Evidencia del pago que antes se descartaba por completo (no había dónde
+// guardarla): la doc trae cc_mask como campo propio ("Número de la máscara
+// de la tarjeta"), pero por si el proveedor solo manda cc_number en la
+// práctica (como pasa en otros de sus webhooks), se usa como respaldo.
+$cc_mask     = trim($data['cc_mask'] ?? $data['cc_number'] ?? '');
+$cc_type     = trim($data['cc_type'] ?? '');
+$pago_email  = trim($data['email'] ?? '');
 
 if (!$reference) {
     if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ WEBHOOK LIGA: sin 'reference' en el body");
@@ -185,24 +192,27 @@ try {
 
     $pdo->beginTransaction();
 
-    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', auth_code = ? WHERE id = ?")
-        ->execute([$auth ?: $foliocpagos, $cobro['id']]);
+    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', auth_code = ?, cc_mask = ?, cc_type = ?, pago_email = ? WHERE id = ?")
+        ->execute([$auth ?: $foliocpagos, $cc_mask ?: null, $cc_type ?: null, $pago_email ?: null, $cobro['id']]);
 
     // Recalcular saldo_pendiente del cliente vinculado (mismo patrón que confirmar_pago).
     if (!empty($cobro['cliente_id'])) {
         recalcular_saldo_pendiente($pdo, intval($cobro['cliente_id']));
 
         // Tokenización para CAI: solo si Pagalaescuela mandó un token válido.
+        // cc_mask/cc_type también se guardan aquí (no solo en el cobro): es la
+        // única forma de mostrar "tarjeta terminada en ****" en la UI sin
+        // tener que ir a buscar el cobro que la originó.
         if ($number_tkn) {
             $pdo->prepare(
-                "UPDATE clientes SET token_tarjeta = ?, token_tarjeta_expmes = ?, token_tarjeta_expanio = ?, token_tarjeta_estado = 'activo' WHERE id = ?"
-            )->execute([$number_tkn, $cc_expmonth, $cc_expyear, $cobro['cliente_id']]);
+                "UPDATE clientes SET token_tarjeta = ?, token_tarjeta_expmes = ?, token_tarjeta_expanio = ?, token_tarjeta_estado = 'activo', token_tarjeta_mask = ?, token_tarjeta_tipo = ? WHERE id = ?"
+            )->execute([$number_tkn, $cc_expmonth, $cc_expyear, $cc_mask ?: null, $cc_type ?: null, $cobro['cliente_id']]);
         }
     }
 
     $pdo->commit();
 
-    log_api_liga("LIGA confirmada -> cobro_id:{$cobro['id']} ref:{$reference} auth:{$auth} tokenizado:" . ($number_tkn ? 'sí' : 'no'));
+    log_api_liga("LIGA confirmada -> cobro_id:{$cobro['id']} ref:{$reference} auth:{$auth} tarjeta:" . ($cc_mask ?: 's/d') . " tokenizado:" . ($number_tkn ? 'sí' : 'no'));
     responder_liga(true, 'Pago confirmado');
 
 } catch (\Throwable $e) {

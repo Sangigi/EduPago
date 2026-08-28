@@ -257,14 +257,16 @@ try {
 //      se marcó "guardar mi tarjeta"), sin más cambios de código.
 // ══════════════════════════════════════════════════════════════════════════
 try {
+    // cliente_nombre/cliente_email/familia_email ya no se seleccionan aquí:
+    // el correo de confirmación ahora lo manda cobrar_via_token() por su
+    // cuenta (consulta lo que necesita internamente), no hacía falta
+    // duplicar esos datos en esta consulta.
     $stmtCaiPend = $pdo->query(
         "SELECT co.id AS cobro_id, co.total, co.escuela_id, co.cliente_id,
-                cl.token_tarjeta, cl.token_tarjeta_expmes, cl.token_tarjeta_expanio,
-                cl.email AS cliente_email, cl.nombre AS cliente_nombre, fa.email AS familia_email
+                cl.token_tarjeta, cl.token_tarjeta_expmes, cl.token_tarjeta_expanio
          FROM cobros co
          JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
          JOIN clientes cl ON cl.id = co.cliente_id
-         LEFT JOIN familias fa ON fa.id = cl.familia_id
          WHERE co.estado = 'pendiente' AND cl.token_tarjeta_estado = 'activo'
            AND cl.token_tarjeta IS NOT NULL
            AND co.fecha <= DATE_SUB(CURDATE(), INTERVAL " . CAI_DIAS_AVISO . " DAY)"
@@ -324,17 +326,10 @@ try {
             $row['token_tarjeta'], $row['token_tarjeta_expmes'], $row['token_tarjeta_expanio']
         );
         if ($resCai['success']) {
+            // El correo de confirmación ya lo manda cobrar_via_token() —
+            // centralizado ahí para que el cobro manual (botón "Tarjeta
+            // guardada") avise igual, sin duplicar el texto en dos archivos.
             $resumen[] = "OK cargo automático (CAI) cobro #{$row['cobro_id']} (alumno #{$row['cliente_id']}), total \${$row['total']}";
-            $emailCai = $row['cliente_email'] ?: $row['familia_email'];
-            if ($emailCai) {
-                $totalFmt = '$' . number_format((float) $row['total'], 2) . ' MXN';
-                $html = "
-                    <p>Hola,</p>
-                    <p>Se realizó un cargo automático de <strong>$totalFmt</strong> a tu tarjeta guardada para " . htmlspecialchars($row['cliente_nombre']) . ".</p>
-                    <p>— Pagalaescuela</p>
-                ";
-                enviar_correo($emailCai, 'Se cobró tu pago automático', $html);
-            }
         } else {
             $resumen[] = "AVISO cargo automático (CAI) cobro #{$row['cobro_id']} rechazado: " . $resCai['error'];
         }

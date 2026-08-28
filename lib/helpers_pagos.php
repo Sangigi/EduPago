@@ -26,6 +26,7 @@ function recalcular_saldo_pendiente(PDO $pdo, int $cliente_id): void
 }
 
 require_once __DIR__ . '/curl_helper.php';
+require_once __DIR__ . '/mailer.php';
 
 /**
  * Cobra un cobro pendiente con la tarjeta ya domiciliada (token) de un
@@ -84,12 +85,20 @@ function construir_referencia_pago(PDO $pdo, $clienteId): string
     // Sin cliente (cobro general) se usa 0 en el bloque de alumno.
     $alumno = str_pad(strval(max(0, intval($clienteId)) % 100000), 5, '0', STR_PAD_LEFT);
 
-    $stmt = $pdo->prepare(
-        "SELECT COUNT(*) AS n FROM cobros
-          WHERE cliente_id = ? AND referencia IS NOT NULL AND referencia <> ''"
-    );
-    $stmt->execute([intval($clienteId)]);
-    $desde = intval($stmt->fetch()['n'] ?? 0) + 1;
+    // Bug real (reportado: "pago, salgo, reintento — a la 2a/3a vez falla con
+    // 'la referencia es única e irrepetible'"): el consecutivo se calculaba
+    // contando cuántas filas de `cobros` de este cliente tienen referencia no
+    // vacía. Pero generar_liga.php/cobrar_via_token SOBRESCRIBEN la referencia
+    // del MISMO cobro pendiente en cada reintento (no insertan una fila
+    // nueva) — así que ese conteo nunca avanzaba más allá de 1, y cada
+    // reintento recalculaba una referencia que YA se le había mandado al
+    // proveedor en un intento anterior (localmente "olvidada" al
+    // sobrescribirse, pero el proveedor la recuerda para siempre: por eso
+    // rechazaba con su código 23). Se reemplaza por el tiempo actual —nunca
+    // se "olvida" ni se puede repetir sin importar cuántas veces se
+    // sobrescriba `cobros.referencia`— y se deja el ciclo de abajo como
+    // respaldo si por casualidad coincidiera con algo ya usado localmente.
+    $desde = (intval(time()) % 10000) + 1;
 
     // La doc exige que sea unica e irrepetible (codigo 23): se avanza el
     // consecutivo hasta dar con uno que no exista ya.
@@ -145,12 +154,56 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
         log_api("cobrar_via_token FALLÓ -> " . json_encode($raw, JSON_UNESCAPED_UNICODE));
         return ['success' => false, 'error' => $raw['message'] ?? ($tx['nb_error'] ?? 'Cargo automático rechazado'), 'raw' => $raw];
     }
-    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', referencia = ?, auth_code = ? WHERE id = ?")
-        ->execute([$ref, $tx['auth'] ?? null, $cobroId]);
+    // Evidencia del pago: antes se descartaba por completo (cc_number/cc_type
+    // no se leían de $tx ni se guardaban en ningún lado) — sin esto no hay
+    // forma de confirmar "qué tarjeta terminada en qué dígitos" se cobró.
+    // El campo se llama cc_number en la doc de este endpoint (Servicio de
+    // pago por domiciliación), pero ya viene como el valor enmascarado
+    // (ej. "1111"), no el número completo.
+    $ccMask = trim((string) ($tx['cc_number'] ?? ''));
+    $ccType = trim((string) ($tx['cc_type'] ?? ''));
+
+    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', referencia = ?, auth_code = ?, cc_mask = ?, cc_type = ? WHERE id = ?")
+        ->execute([$ref, $tx['auth'] ?? null, $ccMask ?: null, $ccType ?: null, $cobroId]);
+    if ($ccMask || $ccType) {
+        $pdo->prepare("UPDATE clientes SET token_tarjeta_mask = ?, token_tarjeta_tipo = ? WHERE id = ?")
+            ->execute([$ccMask ?: null, $ccType ?: null, $clienteId]);
+    }
     recalcular_saldo_pendiente($pdo, $clienteId);
     // Antes el exito NO dejaba rastro: solo se registraba el fallo, asi que
     // la unica forma de saber si un cargo habia pasado era su ausencia en el
     // log. Ahora se registra igual que el fallo, con el codigo de autorizacion.
     log_api("cobrar_via_token OK -> cobro={$cobroId} cliente={$clienteId} total={$total} ref={$ref} auth=" . ($tx['auth'] ?? 'sin-auth'));
+
+    // Correo de confirmación al titular — antes SOLO lo mandaba el cron de
+    // cargos automáticos (cron_recordatorios.php), así que un cobro MANUAL
+    // (botón "Tarjeta guardada" en Caja.js/PortalFamilia.js) no avisaba a
+    // nadie. Se centraliza aquí para que ambos caminos avisen por igual, sin
+    // duplicar el texto del correo en dos archivos distintos.
+    try {
+        $stmtDest = $pdo->prepare(
+            "SELECT cl.nombre AS cliente_nombre, cl.email AS cliente_email, fa.email AS familia_email
+               FROM clientes cl LEFT JOIN familias fa ON fa.id = cl.familia_id
+              WHERE cl.id = ?"
+        );
+        $stmtDest->execute([$clienteId]);
+        $dest = $stmtDest->fetch();
+        $destinoEmail = $dest ? ($dest['cliente_email'] ?: $dest['familia_email']) : null;
+        if ($destinoEmail) {
+            $totalFmt = '$' . number_format($total, 2) . ' MXN';
+            $tarjetaTxt = $ccMask ? " (tarjeta terminada en {$ccMask})" : '';
+            enviar_correo(
+                $destinoEmail,
+                'Se cobró tu pago automático',
+                "<p>Hola,</p>
+                 <p>Se realizó un cargo de <strong>{$totalFmt}</strong> a tu tarjeta guardada{$tarjetaTxt} para "
+                 . htmlspecialchars($dest['cliente_nombre'] ?? '') . ".</p>
+                 <p>— Pagalaescuela</p>"
+            );
+        }
+    } catch (\Throwable $eMail) {
+        log_api('cobrar_via_token: no se pudo mandar el correo de confirmación -> ' . $eMail->getMessage());
+    }
+
     return ['success' => true, 'auth' => $tx['auth'] ?? null, 'raw' => $raw];
 }
