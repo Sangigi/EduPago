@@ -77,6 +77,24 @@ if (!is_array($data)) {
     }
 }
 
+// Ultimo recurso: algunos proveedores mandan la notificacion como GET con
+// los datos en la query string. Antes solo se leia $_POST y el body, asi que
+// ese aviso se descartaba y el cobro se quedaba en 'pendiente' pese a pagarse.
+if ((!is_array($data) || empty($data)) && !empty($_GET)) {
+    $data = $_GET;
+}
+
+// Una llamada COMPLETAMENTE vacia (sin body, sin POST y sin GET) no es una
+// notificacion de pago: es una prueba de alcance del proveedor, o alguien
+// abriendo la URL en el navegador. Se responde 200 OK para que la validacion
+// del endpoint pase, en vez de un error que lo marque como caido.
+if ((!is_array($data) || empty($data)) && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+    if (API_LOG_ENABLED) {
+        webhook_log(API_LOG_FILE, 'WEBHOOK LIGA: ping sin datos desde ' . ($_SERVER['REMOTE_ADDR'] ?? '?') . ' - respondido 200 OK');
+    }
+    responder_liga(true, 'Webhook activo');
+}
+
 if (!is_array($data) || empty($data)) {
     if (API_LOG_ENABLED) {
         webhook_log(
