@@ -31,6 +31,10 @@ require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/mailer.php';
 require_once __DIR__ . '/lib/helpers_pagos.php';
 
+// Dias de aviso previo antes de aplicar un cargo automatico. Define
+// CAI_DIAS_AVISO en config.php para cambiarlo sin tocar este archivo.
+if (!defined('CAI_DIAS_AVISO')) define('CAI_DIAS_AVISO', 3);
+
 // Debe reflejar PLANES_LIMITES en api.php — la única fuente de verdad real
 // (límites/permisos) es el backend; aquí solo se usa para el texto del correo.
 $PLAN_INFO = [
@@ -262,8 +266,56 @@ try {
          JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
          JOIN clientes cl ON cl.id = co.cliente_id
          LEFT JOIN familias fa ON fa.id = cl.familia_id
-         WHERE co.estado = 'pendiente' AND cl.token_tarjeta_estado = 'activo' AND cl.token_tarjeta IS NOT NULL"
+         WHERE co.estado = 'pendiente' AND cl.token_tarjeta_estado = 'activo'
+           AND cl.token_tarjeta IS NOT NULL
+           AND co.fecha <= DATE_SUB(CURDATE(), INTERVAL " . CAI_DIAS_AVISO . " DAY)"
     );
+    // ── Aviso PREVIO al cargo automatico ──
+    // Antes solo se avisaba despues de cobrar ("Se realizo un cargo..."). La
+    // certificacion de Cobroscontarjeta.com pide la notificacion con la que se
+    // avisa que un cargo SE VA A procesar, y es lo razonable: al titular se le
+    // avisa antes de tocarle la tarjeta.
+    //
+    // Por eso el cobro no se cobra el mismo dia que se genera: espera
+    // CAI_DIAS_AVISO dias, y en ese lapso sale este correo.
+    try {
+        $stmtPorAvisar = $pdo->query(
+            "SELECT co.id AS cobro_id, co.total, co.fecha, cl.nombre AS cliente_nombre,
+                    cl.email AS cliente_email, fa.email AS familia_email
+               FROM cobros co
+               JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
+               JOIN clientes cl ON cl.id = co.cliente_id
+               LEFT JOIN familias fa ON fa.id = cl.familia_id
+              WHERE co.estado = 'pendiente' AND cl.token_tarjeta_estado = 'activo'
+                AND cl.token_tarjeta IS NOT NULL
+                AND co.fecha > DATE_SUB(CURDATE(), INTERVAL " . CAI_DIAS_AVISO . " DAY)"
+        );
+        foreach ($stmtPorAvisar->fetchAll() as $av) {
+            $mailAv = $av['cliente_email'] ?: $av['familia_email'];
+            if (!$mailAv) continue;
+            $montoAv = '$' . number_format((float) $av['total'], 2) . ' MXN';
+            $fechaAv = date('d/m/Y', strtotime($av['fecha'] . ' +' . CAI_DIAS_AVISO . ' days'));
+            try {
+                enviar_correo(
+                    $mailAv,
+                    'Aviso: se procesara un cargo automatico el ' . $fechaAv,
+                    "<p>Hola,</p>
+                     <p>Te avisamos que el <strong>{$fechaAv}</strong> se procesara un cargo automatico de
+                     <strong>{$montoAv}</strong> a la tarjeta que tienes domiciliada para "
+                     . htmlspecialchars($av['cliente_nombre']) . ".</p>
+                     <p>No necesitas hacer nada: el cobro se aplica solo.</p>
+                     <p>Si no reconoces este cargo o quieres cancelar la domiciliacion,
+                     contacta al colegio antes de esa fecha.</p>"
+                );
+                $resumen[] = "Aviso previo de cargo automatico enviado (cobro #{$av['cobro_id']})";
+            } catch (\Throwable $e) {
+                $resumen[] = "ERROR aviso previo de cargo #{$av['cobro_id']}: " . $e->getMessage();
+            }
+        }
+    } catch (\Throwable $e) {
+        $resumen[] = "ERROR consultando cobros por avisar: " . $e->getMessage();
+    }
+
     foreach ($stmtCaiPend->fetchAll() as $row) {
         $resCai = cobrar_via_token(
             $pdo, intval($row['cobro_id']), intval($row['cliente_id']), floatval($row['total']),
