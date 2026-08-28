@@ -172,7 +172,7 @@ define('SMTP_HOST',       'mail.seguroslux.mx');
 define('SMTP_PORT',       465);
 define('SMTP_SECURE',     'ssl');
 define('SMTP_USER',       'contacto@seguroslux.mx');
-define('SMTP_PASS',       'S3guro$1ux2026');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
+define('SMTP_PASS',       'S3gur0$2026');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
 define('SMTP_FROM_EMAIL', 'contacto@seguroslux.mx');  // debe ser igual a SMTP_USER: muchos servidores rechazan un From distinto al autenticado
 define('SMTP_FROM_NAME',  'Pagalaescuela');
 define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');
