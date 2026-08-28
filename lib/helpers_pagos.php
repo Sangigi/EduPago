@@ -83,5 +83,9 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', referencia = ?, auth_code = ? WHERE id = ?")
         ->execute([$ref, $tx['auth'] ?? null, $cobroId]);
     recalcular_saldo_pendiente($pdo, $clienteId);
+    // Antes el exito NO dejaba rastro: solo se registraba el fallo, asi que
+    // la unica forma de saber si un cargo habia pasado era su ausencia en el
+    // log. Ahora se registra igual que el fallo, con el codigo de autorizacion.
+    log_api("cobrar_via_token OK -> cobro={$cobroId} cliente={$clienteId} total={$total} ref={$ref} auth=" . ($tx['auth'] ?? 'sin-auth'));
     return ['success' => true, 'auth' => $tx['auth'] ?? null, 'raw' => $raw];
 }
