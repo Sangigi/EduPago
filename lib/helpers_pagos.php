@@ -38,6 +38,50 @@ require_once __DIR__ . '/curl_helper.php';
  *
  * @return array{success:bool, error?:string, auth?:?string, raw?:array}
  */
+// Construye el Reference segun la documentacion de Cobroscontarjeta.com
+// (IntegracionesCAI_V1_1, pag. 4, 9 y 13):
+//
+//     Numerico (13) = 000000000 + 0000
+//     9 digitos para el alumno + 4 digitos para el pago de ese alumno
+//
+// Antes se mandaba un numero basado en time() sin relacion con el alumno, y
+// de 15 digitos. Funcionaba, pero incumple la spec en longitud y, sobre todo,
+// impide identificar de quien es el pago en los reportes del proveedor.
+//
+// La doc tambien exige que sea unica e irrepetible (codigo 23), por eso se
+// avanza el consecutivo hasta encontrar uno que no exista ya en cobros.
+//
+// Si el proveedor llegara a rechazar el formato de 13 (codigo 22), define
+// REFERENCIA_FORMATO_LARGO = true en config.php para volver al de 15 digitos
+// sin tocar codigo.
+function construir_referencia_pago(PDO $pdo, $clienteId): string
+{
+    if (defined('REFERENCIA_FORMATO_LARGO') && REFERENCIA_FORMATO_LARGO) {
+        $base = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
+        return str_pad($base, 15, '0', STR_PAD_LEFT);
+    }
+
+    // Sin cliente (cobro general) se usa 0 en el bloque de alumno.
+    $alumno = str_pad(strval(max(0, intval($clienteId))), 9, '0', STR_PAD_LEFT);
+
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*) AS n FROM cobros
+          WHERE cliente_id = ? AND referencia IS NOT NULL AND referencia <> ''"
+    );
+    $stmt->execute([intval($clienteId)]);
+    $desde = intval($stmt->fetch()['n'] ?? 0) + 1;
+
+    $chk = $pdo->prepare("SELECT 1 FROM cobros WHERE referencia = ? LIMIT 1");
+    for ($i = 0; $i < 300; $i++) {
+        $consecutivo = ($desde + $i) % 10000;
+        $ref = $alumno . str_pad(strval($consecutivo), 4, '0', STR_PAD_LEFT);
+        $chk->execute([$ref]);
+        if (!$chk->fetch()) return $ref;
+    }
+    // Salida de emergencia: no deberia llegar aqui con 10000 combinaciones.
+    return $alumno . str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
+}
+
 function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, string $token, $expMes, $expAnio): array
 {
     if ($total < 50 || $total > 15000) {
@@ -53,9 +97,8 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     // justo uno de los formatos que el propio comentario de generar_liga
     // documenta como fallidos con code 22 "El formato de la referencia es
     // incorrecto", que era el error que impedia cobrar con tarjeta guardada.
-    $base    = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
-    $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
-    $ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
+    $ref     = construir_referencia_pago($pdo, $clienteId);
+    $id_pago = str_pad(strval(max(0, intval($clienteId))), 9, '0', STR_PAD_LEFT);
     $payload = [
         'User'          => PLE_USER,
         'Password'      => PLE_PASS,
