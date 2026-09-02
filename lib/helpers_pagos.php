@@ -138,6 +138,13 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     // incorrecto", que era el error que impedia cobrar con tarjeta guardada.
     $ref     = construir_referencia_pago($pdo, $clienteId);
     $id_pago = str_pad(strval(max(0, intval($clienteId))), 9, '0', STR_PAD_LEFT);
+    // Reservar la referencia YA, antes de mandarla al proveedor — no hasta
+    // que el cargo tenga éxito. Bug real de producción (2026-08-28): si el
+    // intento falla, construir_referencia_pago() nunca se enteraba y volvía a
+    // proponer la MISMA referencia en el siguiente reintento — el proveedor
+    // sí la recuerda desde el primer intento y la rechaza como duplicada
+    // ("La referencia es única e irrepetible"). Mismo fix que generar_liga.php.
+    $pdo->prepare("UPDATE cobros SET referencia = ? WHERE id = ?")->execute([$ref, $cobroId]);
     $payload = [
         'User'          => PLE_USER,
         'Password'      => PLE_PASS,
@@ -171,8 +178,10 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     $ccMask = trim((string) ($tx['cc_number'] ?? ''));
     $ccType = trim((string) ($tx['cc_type'] ?? ''));
 
-    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', referencia = ?, auth_code = ?, cc_mask = ?, cc_type = ? WHERE id = ?")
-        ->execute([$ref, $tx['auth'] ?? null, $ccMask ?: null, $ccType ?: null, $cobroId]);
+    // referencia ya se guardó arriba (antes de llamar al proveedor) — aquí
+    // solo falta marcar el cobro como pagado con el resto de la evidencia.
+    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', auth_code = ?, cc_mask = ?, cc_type = ? WHERE id = ?")
+        ->execute([$tx['auth'] ?? null, $ccMask ?: null, $ccType ?: null, $cobroId]);
     if ($ccMask || $ccType) {
         $pdo->prepare("UPDATE clientes SET token_tarjeta_mask = ?, token_tarjeta_tipo = ? WHERE id = ?")
             ->execute([$ccMask ?: null, $ccType ?: null, $clienteId]);

@@ -43,6 +43,21 @@
         // prefirió sobre ese parche.)
         $ref     = construir_referencia_pago($pdo, $cobroRow['cliente_id']);
         $id_pago = str_pad(strval(max(0, intval($cobroRow['cliente_id']))), 9, '0', STR_PAD_LEFT);
+        // Reservar la referencia YA, antes de mandarla al proveedor — no
+        // hasta que la llamada tenga éxito. Bug real encontrado en producción
+        // (2026-08-28, log "La referencia es única e irrepetible" repetido):
+        // construir_referencia_pago() solo evita repetir una referencia que
+        // YA está guardada en cobros — pero antes esta línea solo corría
+        // DESPUÉS de un "code":"success". Si el intento fallaba (como pasó
+        // varias veces seguidas ese día), la referencia nunca se guardaba, así
+        // que el siguiente reintento del MISMO cobro (o incluso de otro folio
+        // distinto) volvía a calcular la MISMA referencia — el proveedor sí la
+        // recuerda desde el primer intento, aunque nosotros la "olvidemos", y
+        // la rechaza como duplicada. Guardarla de inmediato hace que el
+        // siguiente cálculo de construir_referencia_pago() ya la vea usada y
+        // salte a la siguiente, sin importar si este intento en particular
+        // tiene éxito o no.
+        $pdo->prepare("UPDATE cobros SET referencia = ? WHERE id = ?")->execute([$ref, $cobroRow['id']]);
         $payload = [
             'User'           => PLE_USER,
             'Password'       => PLE_PASS,
@@ -81,8 +96,8 @@
             log_api("generar_liga FALLÓ -> respuesta: " . json_encode($data_resp, JSON_UNESCAPED_UNICODE) . " | http_code: " . ($res['http_code'] ?? '?') . " | payload_enviado: " . json_encode($payload_log, JSON_UNESCAPED_UNICODE));
             respond(['success' => false, 'error' => $data_resp['message'] ?? ($data_resp['Message'] ?? 'Sin URL de pago'), 'raw' => $data_resp]);
         }
-        // Guardar la Reference en el cobro para poder casarla con el webhook.
-        $pdo->prepare("UPDATE cobros SET referencia = ? WHERE id = ?")->execute([$ref, $cobroRow['id']]);
+        // La Reference ya se guardó arriba (antes de llamar al proveedor) —
+        // aquí solo queda registrar el log de éxito.
         registrar_log($pdo, $usuario_actual, 'liga_pago_generada', "Cobro #{$cobroRow['id']} folio {$folio}, total \${$total}, ref {$ref}", $cobroRow['escuela_id']);
         respond([
             'success'    => true,
