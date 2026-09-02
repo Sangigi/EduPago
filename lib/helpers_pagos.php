@@ -118,6 +118,14 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     if ($total < 50 || $total > 15000) {
         return ['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)'];
     }
+    // NOTA: aquí vivía un candado que exigía clientes.autorizacion_cai_estado
+    // = 'firmada' (autorización firmada por DocuSign) antes de cobrar — se
+    // quitó a petición del usuario mientras se decide cómo/cuándo implementar
+    // la firma de verdad. El esqueleto queda listo sin usar: migración
+    // migracion_2026_08_28_autorizacion_firmada_cai.sql, lib/docusign_helper.php,
+    // acciones/iniciar_firma_cai.php, webhooks/webhook_docusign.php. Para
+    // reactivar el candado, restaurar el bloque que consultaba
+    // autorizacion_cai_estado aquí (ver PRODUCCION.md 5.3ar).
     // Formato de referencia: se usa EXACTAMENTE el mismo patron que
     // acciones/generar_liga.php, que es el unico confirmado como valido por
     // el proveedor: Id de 9 digitos y Reference de 15, ambos con ceros a la
@@ -192,7 +200,7 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
         if ($destinoEmail) {
             $totalFmt = '$' . number_format($total, 2) . ' MXN';
             $tarjetaTxt = $ccMask ? " (tarjeta terminada en {$ccMask})" : '';
-            enviar_correo(
+            $rCorreo = enviar_correo(
                 $destinoEmail,
                 'Se cobró tu pago automático',
                 "<p>Hola,</p>
@@ -200,6 +208,14 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
                  . htmlspecialchars($dest['cliente_nombre'] ?? '') . ".</p>
                  <p>— Pagalaescuela</p>"
             );
+            // enviar_correo() solo deja rastro en CORREOS_LOG_FILE cuando
+            // FALLA — un envío exitoso no dejaba ninguna línea en ningún lado,
+            // así que no había forma directa de comprobar "sí se mandó" salvo
+            // que llegara a la bandeja real. Se deja constancia explícita
+            // aquí también, para que sea fácil de verificar sin depender de
+            // revisar el correo de alguien más.
+            log_api('cobrar_via_token: correo de confirmación a ' . $destinoEmail
+                . ' -> ' . (!empty($rCorreo['success']) ? 'OK' : ('FALLÓ: ' . ($rCorreo['error'] ?? 'desconocido'))));
         }
     } catch (\Throwable $eMail) {
         log_api('cobrar_via_token: no se pudo mandar el correo de confirmación -> ' . $eMail->getMessage());

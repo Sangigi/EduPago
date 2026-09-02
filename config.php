@@ -64,6 +64,37 @@ define('PLE_URL_LIGA_SIMPLE',       PLE_HOST_BASE . '/Service/GenerarLigaIndi');
 define('PLE_URL_DOMICILIACION_PAGAR',    PLE_HOST_BASE . '/Service/PagarDomiciliacionIndi');
 define('PLE_URL_DOMICILIACION_CANCELAR', PLE_HOST_BASE . '/Service/CancelarDomiciliacionIndi');
 
+// ─── DocuSign (firma electrónica de la autorización de Cargos Automáticos) ──
+// Cobroscontarjeta.com/el banco emisor rechaza domiciliaciones autorizadas
+// solo con un checkbox de "acepto términos y condiciones" — piden una
+// autorización firmada de verdad. Ver lib/docusign_helper.php.
+//
+// Pasos para llenar esto (cuenta de desarrollador, gratis, en
+// developers.docusign.com):
+//   1. Crea una Integration Key (app de OAuth) en el Admin de esa cuenta.
+//   2. Genera un par de llaves RSA (o sube tu propia llave pública) para esa
+//      Integration Key — pega la llave PRIVADA completa abajo.
+//   3. Copia tu User ID y tu Account ID (ambos son GUID, están en el Admin).
+//   4. Da tu consentimiento UNA VEZ visitando (mientras estás logueado):
+//      https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=TU_INTEGRATION_KEY&redirect_uri=https://www.docusign.com
+//      (usa account.docusign.com en vez de account-d.docusign.com si es
+//      cuenta de producción, no de desarrollo/sandbox).
+// Mientras estas 4 constantes no tengan un valor real, docusign_configurado()
+// regresa false y las acciones que dependen de esto responden con un error
+// claro en vez de tronar.
+define('DOCUSIGN_INTEGRATION_KEY', ''); // <-- GUID de tu Integration Key
+define('DOCUSIGN_USER_ID',         ''); // <-- GUID de tu usuario DocuSign
+define('DOCUSIGN_ACCOUNT_ID',      ''); // <-- GUID de tu cuenta DocuSign
+define('DOCUSIGN_PRIVATE_KEY', ''); // <-- Llave privada RSA completa, formato PEM (-----BEGIN RSA PRIVATE KEY-----...-----END RSA PRIVATE KEY-----)
+// account-d.docusign.com = sandbox/desarrollo. Cambiar a account.docusign.com
+// solo cuando se pase a una cuenta de producción real de DocuSign.
+define('DOCUSIGN_AUTH_HOST', 'account-d.docusign.com');
+// Opcional pero recomendado: en DocuSign Admin → Connect, al crear la
+// configuración de este webhook, activa "HMAC Signature" y pon aquí ese
+// mismo secreto compartido — sin esto, cualquiera que adivine la URL del
+// webhook podría fingir que una firma ya se completó.
+define('DOCUSIGN_CONNECT_HMAC_KEY', '');
+
 // ─── CLABE FIJA (legado / fallback) ──────────────────────────────────────────
 // Se mantiene como respaldo, pero el sistema ahora genera una CLABE INDIVIDUAL
 // por cada alumno/familia vía PDT_URL_CLABE (GenerarClabeIndi).

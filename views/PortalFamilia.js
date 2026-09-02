@@ -1773,7 +1773,8 @@ function PortalFamilia({
                     color: PLC.green
                   }, void 0, false)]
                 }, void 0, true)]
-              }, void 0, true), metodo === 'TC' && _jsxDEV("label", {
+              }, void 0, true),
+              metodo === 'TC' && _jsxDEV("label", {
                 style: {
                   display: 'flex',
                   alignItems: 'flex-start',
