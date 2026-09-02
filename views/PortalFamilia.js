@@ -624,6 +624,7 @@ function PortalFamilia({
         valor: 0
       });
     }
+    //hui
     const idx = {};
     meses.forEach((m, i) => { idx[m.clave] = i; });
     misCobros.forEach(c => {
