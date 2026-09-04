@@ -11,7 +11,7 @@ define('PDT_INT_ID',       '125');
 define('PDT_BUS_ID_SPEI',  '000002');
 define('PDT_BUS_ID_TC',    '000002');
 
-define('DB_HOST', 'sistemasedupago.com');
+define('DB_HOST', 'http://sistemasedupago.com');
 define('DB_NAME', 'grupoide_pagalaescuela');
 define('DB_USER', 'grupoide_leonel');
 define('DB_PASS', 'M4imvdG#O&NQ');
