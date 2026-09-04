@@ -1060,7 +1060,15 @@ function App() {
 
 
 
-            children: "Cargando…"
+            children: typeof Cargando !== 'undefined'
+
+
+
+              ? _jsxDEV(Cargando, { variante: 'simple', texto: 'Cargando\u2026' }, void 0, false)
+
+
+
+              : 'Cargando\u2026'
 
           },
 
@@ -1134,7 +1142,15 @@ function App() {
 
 
 
-        children: "Cargando…"
+        children: typeof Cargando !== 'undefined'
+
+
+
+          ? _jsxDEV(Cargando, { variante: 'simple', texto: 'Cargando\u2026' }, void 0, false)
+
+
+
+          : 'Cargando\u2026'
 
       },
 
