@@ -63,14 +63,12 @@
             'Password'       => PLE_PASS,
             'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
             'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
-            // BusinessID: mientras el sandbox de Pago en Línea/CAI corre
-            // temporalmente en pagadetodo.mx (aviso de Cobroscontarjeta.com
-            // 18-ago-2026), su validador puede esperar el campo con el
-            // vocabulario de "comercio" (BusinessID) en vez de "escuela"
-            // (SchoolID). Se mandan ambos con el mismo valor para cubrir
-            // los dos casos sin romper nada cuando regrese a pagalaescuela.mx.
+            // BusinessID: se manda con el mismo valor que SchoolID para
+            // cubrir ambos vocabularios del validador del proveedor (viene
+            // del workaround temporal en pagadetodo.mx, ago-2026 — ya no
+            // corre ahí, pero se deja porque no rompe nada en producción).
             'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
-            'PaymentTypes'   => '401', // Contado (único código válido en Sandbox)
+            'PaymentTypes'   => '401', // Contado — no se ha reconfirmado si producción acepta otros códigos
             'Id'             => $id_pago,
             'Description'    => substr($descripcion, 0, 50),
             'Amount'         => intval(round($total * 100)),

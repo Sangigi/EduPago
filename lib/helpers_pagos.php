@@ -61,9 +61,13 @@ require_once __DIR__ . '/mailer.php';
 //     000000000 + 0000  =  9 digitos del alumno + 4 del pago
 //
 // PERO esta cuenta rechaza 13 digitos con codigo 22 ("El formato de la
-// referencia es incorrecto") — probado el 27-ago-2026. La doc es de mayo 2022
-// y describe pagalaescuela.mx; esta integracion corre contra pagadetodo.mx
-// con otro IntegrationID, y ahi el largo aceptado es 15.
+// referencia es incorrecto") — probado el 27-ago-2026, MIENTRAS la
+// integracion corria en el Sandbox de pagadetodo.mx (workaround temporal,
+// ver 5.3aw en PRODUCCION.md). Desde el 2026-09-08 corre en produccion real
+// contra pagalaescuela.mx (el dominio que la doc original de mayo 2022 sí
+// describe) — el formato de 15 digitos NO se ha vuelto a probar contra el
+// validador de producción real; si algún cobro real regresa código 22, este
+// es el primer lugar a revisar.
 //
 // Ademas hay una restriccion propia: webhook_liga.php reconstruye nuestra
 // referencia a partir de los ULTIMOS 9 DIGITOS del codigo envuelto que

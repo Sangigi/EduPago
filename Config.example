@@ -53,7 +53,6 @@ define('SPEI_BENEFICIARIO','Paga la Escuela S.A. de C.V.');
 // Cada CLABE generada se asigna y permanece ligada al alumno hasta que
 // se da de baja (deja la escuela), momento en que se libera/cancela.
 define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadetodo
-define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local de respaldo
 
 // ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
 // IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
@@ -63,15 +62,6 @@ define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local
 // Después de desplegar esto, hay que darle este mismo valor a Pagadetodo en su
 // configuración de webhook (?token=...), si no, sus notificaciones dejarán de pasar.
 define('WEBHOOK_SPEI_TOKEN', 'CAMBIA_ESTO_openssl_rand_-hex_32');
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=' . WEBHOOK_SPEI_TOKEN);
-
-// ─── Webhook de Liga/CAI (EntregarPagoLigaToken) — Pagalaescuela ─────────────
-// Este endpoint NO lleva token en query string porque el protocolo de
-// Cobroscontarjeta.com para EntregarPagoLigaToken no soporta parámetros
-// extra en la URL (la ruta debe ser exactamente /Service/EntregarPagoLigaToken).
-// La validación de origen se hace verificando que 'reference' exista en
-// nuestra tabla `cobros` y no esté ya pagada — igual patrón que webhook_spei.
-define('WEBHOOK_LIGA_URL', 'https://test.grupoideasmx.com/webhook_liga.php');
 
 // ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
 // El correo no especifica un BusinessID distinto para efectivo; se usa el
@@ -86,9 +76,6 @@ define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
 // dale la URL sin token a Cobroscontarjeta.com tal como pide su doc
 // (ellos llaman /Service/ConsultaReferencia/?r=REFERENCIA tal cual).
 define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
-
-// ─── Configuración del super-admin ───────────────────────────────────────────
-define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 define('API_LOG_ENABLED', true);
@@ -106,12 +93,6 @@ define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
 
 // ─── Zona horaria ────────────────────────────────────────────────────────────
 date_default_timezone_set('America/Mexico_City');
-
-// ─── Credenciales del PAC (Ej. Facturama) ────────────────────────────────────
-// Usa las credenciales de Sandbox para desarrollo y las reales para producción.
-define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
-define('PAC_USER',    'tu_usuario_pac');
-define('PAC_PASS',    'tu_password_pac');
 
 // ─── Credenciales de Facturapi ───────────────────────────────────────────────
 define('FACTURAPI_KEY', 'TU_LLAVE_FACTURAPI');
