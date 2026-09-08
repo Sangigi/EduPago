@@ -60,6 +60,13 @@ define('PLE_SCHOOL_ID_ACTIVO', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false 
 // arriba, por si algún día se vuelve a usar el workaround de Pagadetodo.
 define('REFERENCIA_DIGITOS', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? 15 : 13);
 
+// PaymentTypes para Liga/CAI: '401' (Contado) es EXPLÍCITAMENTE solo de
+// Sandbox según la doc del proveedor ("Cabe mencionar que este código solo
+// es para el ambiente de Sandbox"). Cobroscontarjeta.com confirmó por
+// correo (08-sep-2026) que el código de Contado en producción es '41'.
+// Igual que las constantes de arriba, se elige según el host activo.
+define('PLE_PAYMENT_TYPES', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? '401' : '41');
+
 // Liga con token: sirve para pago simple en línea Y deja el número de
 // tarjeta tokenizado, habilitando después los Cargos Automáticos (CAI) sin
 // pedirle tarjeta de nuevo al padre de familia.

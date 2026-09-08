@@ -68,7 +68,7 @@
             // del workaround temporal en pagadetodo.mx, ago-2026 — ya no
             // corre ahí, pero se deja porque no rompe nada en producción).
             'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
-            'PaymentTypes'   => '401', // Contado — no se ha reconfirmado si producción acepta otros códigos
+            'PaymentTypes'   => PLE_PAYMENT_TYPES, // Contado — '41' en producción, '401' solo en Sandbox
             'Id'             => $id_pago,
             'Description'    => substr($descripcion, 0, 50),
             'Amount'         => intval(round($total * 100)),

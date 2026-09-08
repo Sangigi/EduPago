@@ -29,7 +29,7 @@ require __DIR__ . '/lib/curl_helper.php';
 // cobro real de producción para esta prueba.
 $base    = intval(substr(strval(time()), -6)) . mt_rand(100, 999);
 $id_pago = str_pad($base, 9,  '0', STR_PAD_LEFT);
-$ref     = str_pad($base, 15, '0', STR_PAD_LEFT);
+$ref     = str_pad($base, REFERENCIA_DIGITOS, '0', STR_PAD_LEFT);
 
 $payload = [
     'User'           => PLE_USER,
@@ -37,7 +37,7 @@ $payload = [
     'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
     'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
     'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
-    'PaymentTypes'   => '401',
+    'PaymentTypes'   => PLE_PAYMENT_TYPES,
     'Id'             => $id_pago,
     'Description'    => 'PRUEBA domiciliacion - borrar',
     'Amount'         => 5000, // $50.00 de prueba
