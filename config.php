@@ -49,6 +49,17 @@ define('PLE_HOST_BASE', 'https://pagalaescuela.mx/Pagalaescuela');
 define('PLE_INT_ID_ACTIVO',    strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? PDT_INT_ID      : PLE_INT_ID);
 define('PLE_SCHOOL_ID_ACTIVO', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? PDT_BUS_ID_TC    : PLE_SCHOOL_ID);
 
+// Largo total de la Reference que arma construir_referencia_pago() (usada
+// por generar_liga.php y cobrar_via_token para Liga/CAI). La doc original
+// (mayo 2022, IntegracionesCAI_V1_1) pide 13 para pagalaescuela.mx (9
+// dígitos de alumno + 4 de pago); el Sandbox de pagadetodo.mx (workaround
+// temporal, ago-2026) solo aceptaba 15 — confirmado con código 22 ("El
+// formato de la referencia es incorrecto") al mandar 15 dígitos ya en
+// producción real contra pagalaescuela.mx (08-sep-2026). Se elige
+// automáticamente según el host activo, igual que las dos constantes de
+// arriba, por si algún día se vuelve a usar el workaround de Pagadetodo.
+define('REFERENCIA_DIGITOS', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? 15 : 13);
+
 // Liga con token: sirve para pago simple en línea Y deja el número de
 // tarjeta tokenizado, habilitando después los Cargos Automáticos (CAI) sin
 // pedirle tarjeta de nuevo al padre de familia.
