@@ -15,7 +15,7 @@ define('PDT_INT_ID',       '125');
 define('PDT_BUS_ID_SPEI',  '000067');
 define('PDT_BUS_ID_TC',    '000067');
 
-define('DB_HOST', 'test.grupoideasmx.com');
+define('DB_HOST', 'localhost');
 define('DB_NAME', 'grupoide_pagalaescuela');
 define('DB_USER', 'grupoide_leonel');
 define('DB_PASS', 'M4imvdG#O&NQ');
@@ -112,6 +112,18 @@ define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadet
 // Después de desplegar esto, hay que darle este mismo valor a Pagadetodo en su
 // configuración de webhook (?token=...), si no, sus notificaciones dejarán de pasar.
 define('WEBHOOK_SPEI_TOKEN', 'd415bc71bb74b30892b017848882bfa6897c8c2a0c8ca6519a432798955c0956');
+<<<<<<< HEAD
+=======
+define('WEBHOOK_URL', 'https://sistemasedupago.com/webhooks/webhook_spei.php?token=' . WEBHOOK_SPEI_TOKEN);
+
+// ─── Webhook de Liga/CAI (EntregarPagoLigaToken) — Pagalaescuela ─────────────
+// Este endpoint NO lleva token en query string porque el protocolo de
+// Cobroscontarjeta.com para EntregarPagoLigaToken no soporta parámetros
+// extra en la URL (la ruta debe ser exactamente /Service/EntregarPagoLigaToken).
+// La validación de origen se hace verificando que 'reference' exista en
+// nuestra tabla `cobros` y no esté ya pagada — igual patrón que webhook_spei.
+define('WEBHOOK_LIGA_URL', 'https://sistemasedupago.com/webhooks/webhook_liga.php');
+>>>>>>> 67d5d3b7e9e9cbf484abc09678b529f6e087310d
 
 // ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
 // El correo no especifica un BusinessID distinto para efectivo; se usa el

@@ -1630,3 +1630,86 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .pag-nav { margin-left:0; width:100%; justify-content:center; }
   .pag-tam { margin-left:auto; }
 }
+
+/* ══ Animación de espera (esqueleto de carga) ══ */
+.sk-envoltura { animation: skEntra .18s ease both; }
+@keyframes skEntra { from { opacity: 0 } to { opacity: 1 } }
+
+.sk-bloque {
+  position: relative;
+  overflow: hidden;
+  background: var(--glass-light);
+}
+/* Barrido de luz: una banda diagonal que recorre el bloque. Da sensación de
+   avance sin el mareo de un círculo girando indefinidamente. */
+.sk-bloque::after {
+  content: '';
+  position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,.55) 50%,
+    transparent 100%);
+  animation: skBarrido 1.4s ease-in-out infinite;
+}
+:root[data-theme="dark"] .sk-bloque::after {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,.09) 50%,
+    transparent 100%);
+}
+@keyframes skBarrido { 100% { transform: translateX(100%) } }
+
+.sk-grid {
+  display: grid; gap: 16px; margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.sk-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+}
+.sk-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px 8px;
+}
+.sk-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 16px; margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-glow);
+}
+.sk-fila {
+  display: flex; align-items: center; gap: 18px;
+  padding: 15px 0; border-bottom: 1px solid var(--border-glow);
+}
+.sk-fila:last-child { border-bottom: none; }
+
+/* Variante compacta: tres puntos que laten por turnos */
+.sk-simple {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; padding: 46px 20px;
+}
+.sk-puntos { display: flex; gap: 7px; }
+.sk-puntos span {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--violet);
+  animation: skLatido 1.1s ease-in-out infinite;
+}
+.sk-puntos span:nth-child(2) { animation-delay: .16s; }
+.sk-puntos span:nth-child(3) { animation-delay: .32s; }
+@keyframes skLatido {
+  0%, 70%, 100% { transform: scale(.7); opacity: .35 }
+  35%           { transform: scale(1);  opacity: 1 }
+}
+.sk-texto { font-size: 13px; color: var(--ink-3); }
+
+/* Si el sistema pide menos movimiento, se quitan las animaciones y quedan
+   los bloques estáticos: sigue comunicando que algo está cargando. */
+@media (prefers-reduced-motion: reduce) {
+  .sk-bloque::after { animation: none; opacity: 0; }
+  .sk-puntos span   { animation: none; opacity: .6; }
+  .sk-envoltura     { animation: none; }
+}
