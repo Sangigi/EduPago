@@ -23,6 +23,12 @@
             'User'           => PDT_USER,
             'Password'       => PDT_PASS,
             'IntegrationID'  => PLE_INT_ID,
+            // SchoolID: el backend de Pagalaescuela regresó código 8 "El ID
+            // de la escuela es obligatorio" cuando solo se mandaba
+            // BusinessID (vocabulario de Pagadetodo) — se mandan ambos con
+            // el mismo valor para cubrir los dos vocabularios, mismo patrón
+            // ya usado en generar_liga.php.
+            'SchoolID'       => PLE_SCHOOL_ID,
             'BusinessID'     => PLE_SCHOOL_ID,
             'Description'    => substr($descripcion, 0, 50),
             'Amount'         => intval(round($total * 100)),
