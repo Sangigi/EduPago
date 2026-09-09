@@ -1465,7 +1465,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 :root[data-theme="dark"] .stat-card.is-featured {
   /* background:linear-gradient(115deg, #2ea8c4 0%, #5946d8 55%, #a845c0 100%); */
   background:linear-gradient(#5946d8);
-  box-shadow:0 10px 30px rgba(108,90,240,.35);
+  /* box-shadow:0 10px 30px rgba(108,90,240,.35); */
 }
 
 /* ── Azulejos de icono: tintes translúcidos en vez de pasteles sólidos ── */
