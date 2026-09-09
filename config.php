@@ -132,11 +132,14 @@ define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadet
 define('WEBHOOK_SPEI_TOKEN', 'd415bc71bb74b30892b017848882bfa6897c8c2a0c8ca6519a432798955c0956');
 
 // ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
-// Cobroscontarjeta.com indicó uno específico (09-sep-2026), distinto del de
-// SPEI/TC: mientras investigaban el error "No se pudo obtener la
-// información del subEmisor" con BusinessID 000067 (el de producción de
-// SPEI/TC), pidieron regresar este servicio en particular a 000002.
-define('PDT_BUS_ID_EFECTIVO', '000002');
+// Corregido 09-sep-2026: durante el diagnóstico del error 26 ("no vinculado")
+// se probó temporalmente con 000002, pero Cobroscontarjeta.com confirmó por
+// escrito la pareja correcta: Pagadetodo (IntegrationID 125) = BusinessID
+// 000067; Pagalaescuela (IntegrationID 106) = BusinessID 000002 (ver
+// PLE_SCHOOL_ID). El 000002 era el de Pagalaescuela, no el de Pagadetodo —
+// por eso fallaba "no vinculado" con IntegrationID 125. Efectivo es un
+// servicio de Pagadetodo, así que usa el mismo BusinessID que SPEI/TC.
+define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
 
 // Token compartido para los 3 endpoints EMISOR de Referencias
 // (ConsultaReferencia / PagoReferencia / CancelaPago). Cobroscontarjeta.com
