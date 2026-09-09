@@ -1403,7 +1403,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 /* ── Tarjeta destacada con degradado (la tarjeta "Bounce Rate") ── */
 .stat-card.is-featured {
   background:var(--grad-brand); border:none; color:#fff;
-  box-shadow:0 10px 28px rgba(108,90,240,.30);
+  /* box-shadow:0 10px 28px rgba(108,90,240,.30); */
 }
 .stat-card.is-featured .stat-value { color:#fff; }
 .stat-card.is-featured .stat-label { color:rgba(255,255,255,.88); }
