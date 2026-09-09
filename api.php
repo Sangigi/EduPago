@@ -8,6 +8,7 @@ require_once __DIR__ . '/lib/mailer.php';
 require_once __DIR__ . '/lib/helpers_pagos.php';
 require_once __DIR__ . '/lib/curl_helper.php';
 require_once __DIR__ . '/lib/facturapi.php';
+require_once __DIR__ . '/lib/uploads.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
@@ -111,10 +112,13 @@ function normalizar_parentesco($valor) {
 function validar_url_imagen($valor, $etiqueta = 'enlace') {
     $u = trim((string)$valor);
     if ($u === '') return null;
-    if (!preg_match('#^https?://#i', $u)) {
-        respond(['success' => false, 'error' => 'El ' . $etiqueta . ' debe empezar con http:// o https://']);
-    }
-    return mb_substr($u, 0, 512);
+    if (preg_match('#^https?://#i', $u)) return mb_substr($u, 0, 512);
+    // Ruta generada por guardar_archivo_subido() (lib/uploads.php) — permite
+    // que un formulario que reenvía sin cambios el foto_url ya guardado (ej.
+    // Alumnos.js -> editar_cliente al editar otro campo del alumno) no la
+    // rechace solo porque ahora es un archivo subido y no un enlace externo.
+    if (preg_match('#^uploads/[a-z0-9_]+/[A-Za-z0-9_.-]+$#', $u)) return $u;
+    respond(['success' => false, 'error' => 'El ' . $etiqueta . ' debe empezar con http:// o https://']);
 }
 
 function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela_id = null) {

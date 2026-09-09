@@ -1,6 +1,21 @@
 /* views/CorteCaja.js — Apertura / cierre / historial de caja */
 const h = React.createElement;
 
+const DENOMINACIONES_MXN = [
+  { valor: 1000, tipo: 'billete' }, { valor: 500, tipo: 'billete' }, { valor: 200, tipo: 'billete' },
+  { valor: 100,  tipo: 'billete' }, { valor: 50,  tipo: 'billete' }, { valor: 20,  tipo: 'billete' },
+  { valor: 10,   tipo: 'moneda'  }, { valor: 5,   tipo: 'moneda'  }, { valor: 2,   tipo: 'moneda'  },
+  { valor: 1,    tipo: 'moneda'  }, { valor: 0.5, tipo: 'moneda'  },
+];
+
+const CONCEPTOS_FRECUENTES_CAJA = [
+  { value: '', label: 'Concepto frecuente (opcional)…' },
+  { value: 'Retiro de efectivo', label: 'Retiro de efectivo' },
+  { value: 'Préstamo a caja chica', label: 'Préstamo a caja chica' },
+  { value: 'Compra de insumos menores', label: 'Compra de insumos menores' },
+  { value: 'Otro', label: 'Otro (especificar abajo)' },
+];
+
 function CorteCaja({ user, escuela }) {
   const { useState, useEffect, useCallback } = React;
 
@@ -22,8 +37,18 @@ function CorteCaja({ user, escuela }) {
   const [modalMovimiento, setModalMovimiento] = useState(false);
   const [movTipo, setMovTipo] = useState('egreso');
   const [movConcepto, setMovConcepto] = useState('');
+  const [movConceptoPreset, setMovConceptoPreset] = useState('');
   const [movTotal, setMovTotal] = useState('');
   const [busy, setBusy] = useState(false);
+  // Desglose de denominaciones al cerrar caja (solo ayuda visual/de
+  // precisión al cajero — no se persiste, "Efectivo contado" sigue siendo
+  // el campo real que se manda al backend).
+  const [mostrarDenominaciones, setMostrarDenominaciones] = useState(false);
+  const [denominaciones, setDenominaciones] = useState({}); // { [valor]: cantidadStr }
+  // Preview de "esperado" para exigir observación en frontend antes de
+  // cerrar — el backend (caja_cerrar.php) recalcula esto mismo y es la
+  // fuente de verdad; este preview es solo UX.
+  const [esperadoPreview, setEsperadoPreview] = useState(null);
 
   const cargarSucursales = useCallback(async () => {
     if (!escuela?.id) return;
@@ -64,6 +89,33 @@ function CorteCaja({ user, escuela }) {
   useEffect(() => { cargarSucursales(); }, [cargarSucursales]);
   useEffect(() => { if (sucursalId) { cargarEstado(sucursalId); cargarHistorial(sucursalId); } }, [sucursalId]);
 
+  // Al abrir el modal de cierre, calcula un preview de "esperado" (misma
+  // fórmula que caja_cerrar.php: apertura + ventas efectivo + ingresos -
+  // egresos) reusando caja_resumen (ya existente) — solo para poder exigir
+  // observación en frontend antes de habilitar el botón de cerrar.
+  useEffect(() => {
+    if (!modalCierre || !cajaAbierta) { setEsperadoPreview(null); return; }
+    let cancelado = false;
+    (async () => {
+      try {
+        const r = await CajaController.resumen(cajaAbierta.id);
+        const ventasEfectivo = (r.ventas || [])
+          .filter(v => v.metodo === 'Efectivo' && v.estado === 'pagado')
+          .reduce((s, v) => s + parseFloat(v.total), 0);
+        const ingresos = (r.movimientos || []).filter(m => m.tipo === 'ingreso').reduce((s, m) => s + parseFloat(m.total), 0);
+        const egresos  = (r.movimientos || []).filter(m => m.tipo === 'egreso').reduce((s, m) => s + parseFloat(m.total), 0);
+        if (!cancelado) setEsperadoPreview(parseFloat(cajaAbierta.monto_apertura) + ventasEfectivo + ingresos - egresos);
+      } catch (e) {
+        if (!cancelado) setEsperadoPreview(null); // si falla, no bloquea el cierre: el backend valida igual
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [modalCierre, cajaAbierta]);
+
+  const diferenciaPreview = (esperadoPreview != null && montoCierre !== '')
+    ? parseFloat(montoCierre) - esperadoPreview : 0;
+  const requiereObservacion = esperadoPreview != null && montoCierre !== '' && Math.abs(diferenciaPreview) > 0.01;
+
   const abrirCaja = async () => {
     const monto = parseFloat(montoApertura);
     if (isNaN(monto) || monto < 0) { alert('Ingresa un monto de apertura válido.'); return; }
@@ -83,7 +135,7 @@ function CorteCaja({ user, escuela }) {
     setBusy(true);
     try {
       await CajaController.registrarMovimiento({ caja_id: cajaAbierta.id, tipo: movTipo, concepto: movConcepto, total });
-      setModalMovimiento(false); setMovConcepto(''); setMovTotal(''); setMovTipo('egreso');
+      setModalMovimiento(false); setMovConcepto(''); setMovConceptoPreset(''); setMovTotal(''); setMovTipo('egreso');
     } catch (e) {
       alert('Error al registrar movimiento: ' + e.message);
     } finally { setBusy(false); }
@@ -92,10 +144,15 @@ function CorteCaja({ user, escuela }) {
   const cerrarCaja = async () => {
     const monto = parseFloat(montoCierre);
     if (isNaN(monto) || monto < 0) { alert('Ingresa el monto contado en caja.'); return; }
+    if (requiereObservacion && !obsCierre.trim()) {
+      alert('Hay una diferencia entre lo esperado y lo contado. Indica una observación antes de cerrar.');
+      return;
+    }
     setBusy(true);
     try {
       const cerrada = await CajaController.cerrar({ caja_id: cajaAbierta.id, monto_cierre: monto, observaciones: obsCierre });
       setModalCierre(false); setMontoCierre(''); setObsCierre('');
+      setDenominaciones({}); setMostrarDenominaciones(false); setEsperadoPreview(null);
       setCajaAbierta(null);
       setDetalle({ caja: cerrada, ventas: [], movimientos: [] });
       cargarHistorial(sucursalId);
@@ -189,11 +246,12 @@ function CorteCaja({ user, escuela }) {
   );
 
   // ── Modal: registrar movimiento ─────────────────────────────────────────
-  const elModalMovimiento = modalMovimiento && h('div', { className: 'modal-backdrop', onClick: () => setModalMovimiento(false) },
+  const cerrarModalMovimiento = () => { setModalMovimiento(false); setMovConceptoPreset(''); };
+  const elModalMovimiento = modalMovimiento && h('div', { className: 'modal-backdrop', onClick: cerrarModalMovimiento },
     h('div', { className: 'modal', onClick: e => e.stopPropagation() },
       h('div', { className: 'modal-header' },
         h('div', { className: 'modal-title' }, 'Registrar movimiento'),
-        h('button', { className: 'btn-ghost', onClick: () => setModalMovimiento(false) }, h(Icon, { name: 'close', size: 16, color: 'currentColor' }))
+        h('button', { className: 'btn-ghost', onClick: cerrarModalMovimiento }, h(Icon, { name: 'close', size: 16, color: 'currentColor' }))
       ),
       h('div', { className: 'modal-body' },
         h('div', { className: 'form-group' },
@@ -204,7 +262,19 @@ function CorteCaja({ user, escuela }) {
           )
         ),
         h('div', { className: 'form-group' },
-          h('label', { className: 'form-label' }, 'Concepto'),
+          h('label', { className: 'form-label' }, 'Concepto frecuente'),
+          h('select', {
+            className: 'form-select', value: movConceptoPreset,
+            onChange: e => {
+              const val = e.target.value;
+              setMovConceptoPreset(val);
+              if (val && val !== 'Otro') setMovConcepto(val);
+              else setMovConcepto('');
+            },
+          }, CONCEPTOS_FRECUENTES_CAJA.map(o => h('option', { key: o.value, value: o.value }, o.label)))
+        ),
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Concepto (detalle)'),
           h('input', { className: 'form-input', type: 'text', value: movConcepto, onChange: e => setMovConcepto(e.target.value), placeholder: 'Ej. compra de papelería' })
         ),
         h('div', { className: 'form-group' },
@@ -213,13 +283,23 @@ function CorteCaja({ user, escuela }) {
         )
       ),
       h('div', { className: 'modal-footer' },
-        h('button', { className: 'btn btn-secondary', onClick: () => setModalMovimiento(false) }, 'Cancelar'),
+        h('button', { className: 'btn btn-secondary', onClick: cerrarModalMovimiento }, 'Cancelar'),
         h('button', { className: 'btn btn-primary', disabled: busy, onClick: registrarMovimiento }, busy ? 'Guardando…' : 'Guardar')
       )
     )
   );
 
   // ── Modal: cerrar caja ───────────────────────────────────────────────────
+  const totalDenominaciones = DENOMINACIONES_MXN.reduce(
+    (sum, d) => sum + d.valor * (parseInt(denominaciones[d.valor], 10) || 0), 0
+  );
+  const actualizarDenominacion = (valor, cantidadStr) => {
+    const next = { ...denominaciones, [valor]: cantidadStr };
+    setDenominaciones(next);
+    const total = DENOMINACIONES_MXN.reduce((s, d) => s + d.valor * (parseInt(next[d.valor], 10) || 0), 0);
+    setMontoCierre(total ? total.toFixed(2) : '');
+  };
+
   const elModalCierre = modalCierre && h('div', { className: 'modal-backdrop', onClick: () => setModalCierre(false) },
     h('div', { className: 'modal', onClick: e => e.stopPropagation() },
       h('div', { className: 'modal-header' },
@@ -233,13 +313,45 @@ function CorteCaja({ user, escuela }) {
           h('input', { className: 'form-input', type: 'number', min: '0', step: '0.01', value: montoCierre, onChange: e => setMontoCierre(e.target.value) })
         ),
         h('div', { className: 'form-group' },
-          h('label', { className: 'form-label' }, 'Observaciones (opcional)'),
-          h('input', { className: 'form-input', type: 'text', value: obsCierre, onChange: e => setObsCierre(e.target.value) })
-        )
+          h('button', {
+            type: 'button', className: 'btn btn-ghost btn-sm',
+            onClick: () => setMostrarDenominaciones(v => !v),
+          }, mostrarDenominaciones ? '– Ocultar desglose' : '+ Contar por denominaciones'),
+          mostrarDenominaciones && h('div', { style: { marginTop: 10 } },
+            h('div', { className: 'table-wrap' },
+              h('table', {},
+                h('thead', {}, h('tr', {}, ['Denominación', 'Cantidad', 'Subtotal'].map(t => h('th', { key: t }, t)))),
+                h('tbody', {}, DENOMINACIONES_MXN.map(d => h('tr', { key: d.valor },
+                  h('td', {}, (d.tipo === 'billete' ? 'Billete ' : 'Moneda ') + fmt(d.valor)),
+                  h('td', {}, h('input', {
+                    className: 'form-input', type: 'number', min: '0', step: '1', style: { width: 80 },
+                    value: denominaciones[d.valor] || '',
+                    onChange: e => actualizarDenominacion(d.valor, e.target.value),
+                  })),
+                  h('td', {}, fmt(d.valor * (parseInt(denominaciones[d.valor], 10) || 0)))
+                )))
+              )
+            ),
+            h('div', { style: { textAlign: 'right', fontWeight: 700, marginTop: 6 } }, 'Total contado: ' + fmt(totalDenominaciones))
+          )
+        ),
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, requiereObservacion ? 'Observaciones (obligatorio: hay una diferencia)' : 'Observaciones (opcional)'),
+          h('input', {
+            className: 'form-input', type: 'text', value: obsCierre, onChange: e => setObsCierre(e.target.value),
+            style: requiereObservacion && !obsCierre.trim() ? { borderColor: 'var(--red)' } : {},
+          })
+        ),
+        requiereObservacion && h('div', { style: { fontSize: 12, color: 'var(--red)' } },
+          `Diferencia estimada: ${fmt(diferenciaPreview)}. Explica el motivo para poder cerrar.`)
       ),
       h('div', { className: 'modal-footer' },
         h('button', { className: 'btn btn-secondary', onClick: () => setModalCierre(false) }, 'Cancelar'),
-        h('button', { className: 'btn btn-danger', disabled: busy, onClick: cerrarCaja }, busy ? 'Cerrando…' : 'Cerrar caja')
+        h('button', {
+          className: 'btn btn-danger',
+          disabled: busy || (requiereObservacion && !obsCierre.trim()),
+          onClick: cerrarCaja,
+        }, busy ? 'Cerrando…' : 'Cerrar caja')
       )
     )
   );

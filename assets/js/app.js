@@ -78,6 +78,18 @@ const NAV_ITEMS = [{
 
 }, {
 
+  id: 'gastos',
+
+  label: 'Gastos',
+
+  icon: 'pay',
+
+  section: 'principal',
+
+  roles: ['admin']
+
+}, {
+
   id: 'alumnos',
 
   label: 'Alumnos',
@@ -107,6 +119,18 @@ const NAV_ITEMS = [{
   label: 'Conceptos de pago',
 
   icon: 'productos',
+
+  section: 'configuración',
+
+  roles: ['admin']
+
+}, {
+
+  id: 'proveedores',
+
+  label: 'Proveedores',
+
+  icon: 'bank',
 
   section: 'configuración',
 
@@ -639,6 +663,7 @@ function App() {
           resumen_planteles: json.resumen_planteles || {},
           familias: json.familias || [],
           productos: json.productos || [],
+          proveedores: json.proveedores || [],
           cobros: json.cobros || [],
           recordatorios: json.recordatorios || [],
         };
@@ -1202,6 +1227,12 @@ function App() {
 
 
 
+    proveedores:
+
+      data.proveedores || [],
+
+
+
     cobros:
 
       data.cobros || [],
@@ -1311,6 +1342,16 @@ function App() {
           productos:
 
             dataSegura.productos.filter(
+
+              p => p.escuela_id === escuelaActiva
+
+            ),
+
+
+
+          proveedores:
+
+            dataSegura.proveedores.filter(
 
               p => p.escuela_id === escuelaActiva
 
@@ -1702,7 +1743,14 @@ function App() {
 
         );
 
+      case 'gastos':
 
+        return _jsxDEV(
+          Gastos,
+          { data: dataScopeed, escuela_id: escuelaActiva },
+          void 0,
+          false
+        );
 
 
 
@@ -1858,7 +1906,18 @@ function App() {
 
         );
 
+      case 'proveedores':
 
+        return _jsxDEV(
+          Proveedores,
+          {
+            data: dataScopeed,
+            setData: d => setData(mergeScoped(data, typeof d === 'function' ? d(dataScopeed) : d, escuelaActiva)),
+            escuela_id: escuelaActiva
+          },
+          void 0,
+          false
+        );
 
 
 
@@ -2359,6 +2418,24 @@ function App() {
 
 
         ...(ns.productos || [])
+
+      ],
+
+
+
+      proveedores: [
+
+        ...(gd.proveedores || [])
+
+          .filter(
+
+            p => p.escuela_id !== eid
+
+          ),
+
+
+
+        ...(ns.proveedores || [])
 
       ],
 

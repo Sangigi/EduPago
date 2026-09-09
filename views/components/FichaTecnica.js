@@ -1,8 +1,9 @@
 // views/components/FichaTecnica.js
-// Credencial del alumno o del tutor. La foto entra por enlace externo
-// (Drive, etc.), igual que doc_curp_url y doc_acta_url que ya usabas:
-// nunca se sube el archivo al sistema, solo se guarda la direccion.
-// Sin foto, o si el enlace falla, se dibuja un avatar generico en SVG.
+// Credencial del alumno o del tutor. Para el TUTOR la foto sigue entrando
+// por enlace externo (Drive, etc.), igual que doc_curp_url/doc_acta_url.
+// Para el ALUMNO la foto se sube como archivo real (ver acciones/
+// subir_foto_cliente.php) — el padre selecciona una imagen de su equipo,
+// no pega un link. Sin foto, o si falla, se dibuja un avatar generico SVG.
 
 // `var` a proposito: con `const`, cargar este archivo dos veces lanza
 // "Identifier already declared" y ese error tumba toda la aplicacion.
@@ -68,14 +69,23 @@ function FichaTecnica({ registro, tipo, escuela, familia, extra, onCerrar, onGua
         : '$' + Number(_saldo).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
   // Por omisión se permite editar la foto; las vistas pueden restringirlo
   const _puedeEditar = puedeEditar === undefined ? true : puedeEditar;
-  const { useState } = React;
+  const { useState, useEffect } = React;
   const [editando, setEditando] = useState(false);
   const [enlace, setEnlace] = useState(registro.foto_url || '');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  // Solo para alumno: archivo real seleccionado + su preview local, antes
+  // de subirlo. MAX_FOTO_BYTES es solo para dar feedback rapido en la UI;
+  // la validacion que cuenta es la del servidor (UPLOADS_MAX_BYTES_FOTO).
+  const MAX_FOTO_BYTES = 5 * 1024 * 1024;
+  const [archivo, setArchivo] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  useEffect(function () {
+    return function () { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
 
   const esAlumno = tipo !== 'tutor';
-  const foto = normalizarEnlaceFoto(registro.foto_url);
+  const foto = previewUrl || normalizarEnlaceFoto(registro.foto_url);
 
   const filas = esAlumno ? [
     ['Matricula', registro.matricula],
@@ -123,6 +133,57 @@ function FichaTecnica({ registro, tipo, escuela, familia, extra, onCerrar, onGua
     setGuardando(false);
   };
 
+  // Solo alumno: seleccionar archivo -> preview local inmediato.
+  const onArchivoSeleccionado = function (e) {
+    setError('');
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (!/^image\//.test(f.type)) return setError('Selecciona una imagen (JPG, PNG o WEBP).');
+    if (f.size > MAX_FOTO_BYTES) return setError('La imagen pesa mas de 5 MB. Elige una mas ligera.');
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setArchivo(f);
+    setPreviewUrl(URL.createObjectURL(f));
+  };
+
+  // Solo alumno: sube el archivo real a subir_foto_cliente.php. La subida
+  // YA escribe clientes.foto_url en el servidor -- onGuardarFoto aqui solo
+  // sirve para que el padre (PortalFamilia/Alumnos) sincronice su estado
+  // local con la nueva foto_url, no vuelve a hacer ningun POST.
+  const subirFoto = async function () {
+    if (!archivo) return setError('Selecciona una imagen primero.');
+    setError('');
+    setGuardando(true);
+    try {
+      const fd = new FormData();
+      fd.append('id', registro.id);
+      fd.append('foto', archivo);
+      const token = (typeof AuthController !== 'undefined' && AuthController.getToken) ? AuthController.getToken() : '';
+      const res = await fetch('api.php?action=subir_foto_cliente', {
+        method: 'POST',
+        headers: { 'Authorization': token ? ('Bearer ' + token) : '' },
+        body: fd
+      });
+      if (res.status === 401) {
+        if (typeof AuthController !== 'undefined' && AuthController.logout) AuthController.logout();
+        window.location.reload();
+        return;
+      }
+      const json = await res.json();
+      if (json && json.success) {
+        await onGuardarFoto(json.foto_url);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setArchivo(null);
+        setPreviewUrl('');
+        setEditando(false);
+      } else {
+        setError((json && json.error) || 'No se pudo subir la foto.');
+      }
+    } catch (e) {
+      setError('Error de conexion: ' + e.message);
+    }
+    setGuardando(false);
+  };
+
   return _hFT('div', { className: 'modal-backdrop', onClick: onCerrar },
     _hFT('div', {
       className: 'modal ficha-tecnica', style: { maxWidth: 430 },
@@ -157,28 +218,55 @@ function FichaTecnica({ registro, tipo, escuela, familia, extra, onCerrar, onGua
                    fontSize: 12.5, fontWeight: 600 }
         }, 'Saldo pendiente: ' + _saldoTexto) : null,
         (onGuardarFoto && _puedeEditar) ? (editando
-          ? _hFT('div', { key: 'ed', style: { marginTop: 16 } },
-              _hFT('label', { key: 'l', className: 'form-label' }, 'Enlace de la foto'),
-              _hFT('input', {
-                key: 'i', className: 'form-input', value: enlace,
-                placeholder: 'https://drive.google.com/file/d/...',
-                autoComplete: 'off', spellCheck: false,
-                onChange: function (e) { setEnlace(e.target.value); }
-              }),
-              _hFT('div', { key: 'a',
-                style: { fontSize: 11.5, color: 'var(--ink-4)', marginTop: 5, lineHeight: 1.5 } },
-                'La imagen no se sube al sistema: solo se guarda la direccion. Si usas Google Drive, comparte el archivo como "cualquiera con el enlace".'),
-              error ? _hFT('div', { key: 'e',
-                style: { marginTop: 9, padding: '8px 11px', borderRadius: 'var(--radius-sm)',
-                         background: 'var(--red-glow)', color: 'var(--red)', fontSize: 12 } },
-                error) : null,
-              _hFT('div', { key: 'b', style: { display: 'flex', gap: 8, marginTop: 11 } },
-                _hFT('button', { key: 'c', className: 'btn btn-secondary btn-sm',
-                  onClick: function () { setEditando(false); setEnlace(registro.foto_url || ''); setError(''); } },
-                  'Cancelar'),
-                _hFT('button', { key: 'g', className: 'btn btn-primary btn-sm',
-                  disabled: guardando, onClick: guardarEnlace },
-                  guardando ? 'Guardando...' : 'Guardar foto'))
+          ? (esAlumno
+            ? _hFT('div', { key: 'ed', style: { marginTop: 16 } },
+                _hFT('label', { key: 'l', className: 'form-label' }, 'Foto del alumno'),
+                _hFT('input', {
+                  key: 'i', type: 'file', accept: 'image/*', className: 'form-input',
+                  onChange: onArchivoSeleccionado
+                }),
+                _hFT('div', { key: 'a',
+                  style: { fontSize: 11.5, color: 'var(--ink-4)', marginTop: 5, lineHeight: 1.5 } },
+                  'JPG, PNG o WEBP, maximo 5 MB.'),
+                error ? _hFT('div', { key: 'e',
+                  style: { marginTop: 9, padding: '8px 11px', borderRadius: 'var(--radius-sm)',
+                           background: 'var(--red-glow)', color: 'var(--red)', fontSize: 12 } },
+                  error) : null,
+                _hFT('div', { key: 'b', style: { display: 'flex', gap: 8, marginTop: 11 } },
+                  _hFT('button', { key: 'c', className: 'btn btn-secondary btn-sm',
+                    onClick: function () {
+                      setEditando(false);
+                      if (previewUrl) URL.revokeObjectURL(previewUrl);
+                      setArchivo(null); setPreviewUrl(''); setError('');
+                    } },
+                    'Cancelar'),
+                  _hFT('button', { key: 'g', className: 'btn btn-primary btn-sm',
+                    disabled: guardando || !archivo, onClick: subirFoto },
+                    guardando ? 'Subiendo...' : 'Guardar foto'))
+              )
+            : _hFT('div', { key: 'ed', style: { marginTop: 16 } },
+                _hFT('label', { key: 'l', className: 'form-label' }, 'Enlace de la foto'),
+                _hFT('input', {
+                  key: 'i', className: 'form-input', value: enlace,
+                  placeholder: 'https://drive.google.com/file/d/...',
+                  autoComplete: 'off', spellCheck: false,
+                  onChange: function (e) { setEnlace(e.target.value); }
+                }),
+                _hFT('div', { key: 'a',
+                  style: { fontSize: 11.5, color: 'var(--ink-4)', marginTop: 5, lineHeight: 1.5 } },
+                  'La imagen no se sube al sistema: solo se guarda la direccion. Si usas Google Drive, comparte el archivo como "cualquiera con el enlace".'),
+                error ? _hFT('div', { key: 'e',
+                  style: { marginTop: 9, padding: '8px 11px', borderRadius: 'var(--radius-sm)',
+                           background: 'var(--red-glow)', color: 'var(--red)', fontSize: 12 } },
+                  error) : null,
+                _hFT('div', { key: 'b', style: { display: 'flex', gap: 8, marginTop: 11 } },
+                  _hFT('button', { key: 'c', className: 'btn btn-secondary btn-sm',
+                    onClick: function () { setEditando(false); setEnlace(registro.foto_url || ''); setError(''); } },
+                    'Cancelar'),
+                  _hFT('button', { key: 'g', className: 'btn btn-primary btn-sm',
+                    disabled: guardando, onClick: guardarEnlace },
+                    guardando ? 'Guardando...' : 'Guardar foto'))
+              )
             )
           : _hFT('button', {
               key: 'ed', className: 'btn btn-secondary btn-sm', style: { marginTop: 16 },

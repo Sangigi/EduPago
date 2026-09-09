@@ -125,6 +125,12 @@ const AppModel = (() => {
     // Reemplaza al antiguo módulo de "Correos": registro de recordatorios de
     // cobros pendientes/vencidos que se marcan manualmente desde el panel.
     recordatorios: [],
+
+    // ── Proveedores ──────────────────────────────────────────────────────────
+    // Fallback vacío para el modo offline/localStorage — sin datos demo
+    // falsos. Los gastos en sí se consultan bajo demanda vía listar_gastos.php,
+    // no viven en este estado.
+    proveedores: [],
   };
 
   function load() {

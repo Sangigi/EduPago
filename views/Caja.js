@@ -49,6 +49,11 @@ function Caja({
   const [efvRefInfo, setEfvRefInfo] = useState(null); // { referencia, barcode_url, payformat_url, vencimiento }
   const [efvRefLoading, setEfvRefLoading] = useState(false);
   const [efvRefError, setEfvRefError] = useState(null);
+  // Efectivo directo (cobro inmediato en caja, distinto de "Efectivo por
+  // referencia"/OXXO): monto que el cliente entrega físicamente, para
+  // calcular el cambio a devolver. Vive SOLO en el frontend — no se
+  // persiste en BD, nada en el proyecto pide auditar el cambio entregado.
+  const [montoRecibido, setMontoRecibido] = useState('');
   // Cheque
   const [chequeInfo, setChequeInfo] = useState({
     banco: '',
@@ -436,14 +441,24 @@ function Caja({
       } catch (err) {
         alert('No se pudo cobrar con la tarjeta guardada: ' + err.message);
       }
-    } else {
-      // Efectivo en caja: el cajero recibe el dinero en el momento, cobro
-      // inmediato y se imprime el ticket. Distinto de "Efectivo por
-      // referencia" (OXXO), que deja el cobro pendiente hasta el pago real.
+    } else if (metodo === 'Efectivo') {
+      // Efectivo directo: el cajero cuenta el dinero en el momento. Se pide
+      // el monto recibido para calcular el cambio a devolver (solo en
+      // frontend, no se persiste) y SOLO al confirmar en el modal se marca
+      // el cobro como pagado — mismo patrón que Cheque: el cobro ya se creó
+      // 'pendiente' arriba, nunca se asume pagado sin llamar confirmarPago.
       setData(newData);
-      AppModel.save(newData);
-      setModal('ticket');
-      resetCarrito();
+      setMontoRecibido('');
+      setModal('efectivo');
+    } else {
+      // Red de seguridad para un método sin rama propia: antes este bloque
+      // (el único "else") cerraba el ticket sin llamar nunca a
+      // confirmarPago, dejando el cobro 'pendiente' para siempre en la BD
+      // si alguna vez se disparaba. Ahora nunca marca nada como pagado
+      // solo; el cobro queda pendiente y visible en Cobros.
+      setData(newData);
+      console.error(`cobrar(): método de pago sin manejar: "${metodo}"`);
+      alert('Método de pago no reconocido. El cobro se guardó como pendiente; contacta a soporte.');
     }
   };
 
@@ -522,6 +537,7 @@ function Caja({
     setTcError(null);
     setEfvRefInfo(null);
     setEfvRefError(null);
+    setMontoRecibido('');
     setChequeInfo({
       banco: '',
       num_cuenta: '',
@@ -998,6 +1014,10 @@ function Caja({
     { value: 'S01', label: 'S01 — Sin efectos fiscales' },
   ];
   const METODOS = [{
+    id: 'Efectivo',
+    label: 'Efectivo',
+    icon: 'caja'
+  }, {
     id: 'TC',
     label: 'Tarjeta',
     icon: 'card'
@@ -2780,6 +2800,122 @@ function Caja({
               resetCarrito();
             },
             children: "Registrar cheque"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modal === 'efectivo' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && cerrarModal(),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "caja",
+              size: 17,
+              color: "currentColor"
+            }, void 0, false), " Cobro en efectivo"]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: cerrarModal,
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "close",
+              size: 16,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            style: {
+              marginBottom: 14,
+              padding: '10px 14px',
+              background: 'var(--accent-glow)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 13,
+              display: 'flex',
+              justifyContent: 'space-between'
+            },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              style: {
+                color: 'var(--ink-3)'
+              },
+              children: "Total a cobrar"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              style: {
+                fontFamily: 'var(--mono)',
+                fontWeight: 700,
+                fontSize: 15
+              },
+              children: fmt(cobroActivo.total)
+            }, void 0, false)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            className: "form-group",
+            children: [/*#__PURE__*/_jsxDEV("label", {
+              className: "form-label",
+              children: "Monto recibido del cliente"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              className: "form-input",
+              type: "number",
+              min: "0",
+              step: "0.01",
+              autoFocus: true,
+              placeholder: "0.00",
+              value: montoRecibido,
+              onChange: e => setMontoRecibido(e.target.value)
+            }, void 0, false)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              marginTop: 4,
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 13,
+              display: 'flex',
+              justifyContent: 'space-between',
+              background: (parseFloat(montoRecibido) || 0) < cobroActivo.total ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)'
+            },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              children: "Cambio a devolver"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              style: {
+                fontFamily: 'var(--mono)',
+                fontWeight: 700,
+                fontSize: 15
+              },
+              children: fmt(Math.max(0, (parseFloat(montoRecibido) || 0) - cobroActivo.total))
+            }, void 0, false)]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: cerrarModal,
+            children: "Cancelar"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            disabled: (parseFloat(montoRecibido) || 0) < cobroActivo.total,
+            onClick: () => {
+              // Igual que Cheque: se confirma el pago YA CREADO como
+              // 'pendiente' — esto es lo que la rama muerta original
+              // nunca hacia, dejando el cobro pendiente para siempre.
+              CobroController.confirmarPago(cobroActivo.id).then(res => {
+                actualizarSaldoCliente(res);
+              }).catch(()=>{});
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+                AppModel.save(upd); return upd;
+              });
+              setModal('ticket');
+              resetCarrito();
+            },
+            children: "Confirmar cobro"
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)

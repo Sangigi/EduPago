@@ -403,17 +403,16 @@ function Alumnos({
         saldoTexto: '$' + Number(ficha.saldo_pendiente || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
       },
       onCerrar: () => setFicha(null),
-      // Guarda solo el enlace de la foto, sin abrir el formulario completo
+      // La foto ya se subió como archivo real vía subir_foto_cliente.php
+      // (llamado desde dentro de FichaTecnica) antes de invocar esto —
+      // aquí solo se sincroniza el estado local, sin volver a escribir.
       onGuardarFoto: async url => {
-        const res = await _apiPost('editar_cliente', { id: ficha.id, foto_url: url });
-        if (res && res.success !== false) {
-          setFicha(f => f ? { ...f, foto_url: url } : f);
-          setData(prev => ({
-            ...prev,
-            clientes: (prev.clientes || []).map(c => c.id === ficha.id ? { ...c, foto_url: url } : c)
-          }));
-        }
-        return res;
+        setFicha(f => f ? { ...f, foto_url: url } : f);
+        setData(prev => ({
+          ...prev,
+          clientes: (prev.clientes || []).map(c => c.id === ficha.id ? { ...c, foto_url: url } : c)
+        }));
+        return { success: true };
       }
     }, 'ficha', false), _jsxDEV("div", {
       className: "card",

@@ -44,14 +44,22 @@ function PortalFamilia({
   // Ficha técnica que se está viendo: { registro, tipo }
   const [ficha, setFicha] = useState(null);
 
-  // Guarda el enlace de la foto y refleja el cambio sin recargar
+  // Para ALUMNO, la foto ya se subió como archivo real vía
+  // subir_foto_cliente.php (llamado desde dentro de FichaTecnica) antes de
+  // invocar esto — aquí solo se sincroniza el estado local, sin volver a
+  // escribir en el servidor. Para TUTOR sigue siendo un enlace externo, así
+  // que aquí sí se hace el POST a editar_familia como antes.
   const guardarFotoFicha = async (url) => {
     const f = ficha;
     if (!f) return { success: false, error: 'Sin selección' };
     const esAlumno = f.tipo !== 'tutor';
-    const accion = esAlumno ? 'editar_cliente' : 'editar_familia';
+    if (esAlumno) {
+      setFicha(prev => prev ? { ...prev, registro: { ...prev.registro, foto_url: url } } : prev);
+      setMisHijos(prev => prev.map(h => h.id === f.registro.id ? { ...h, foto_url: url } : h));
+      return { success: true };
+    }
     try {
-      const res = await fetch('api.php?action=' + accion, {
+      const res = await fetch('api.php?action=editar_familia', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,9 +70,6 @@ function PortalFamilia({
       const json = await res.json();
       if (json && json.success !== false) {
         setFicha(prev => prev ? { ...prev, registro: { ...prev.registro, foto_url: url } } : prev);
-        if (esAlumno) {
-          setMisHijos(prev => prev.map(h => h.id === f.registro.id ? { ...h, foto_url: url } : h));
-        }
       }
       return json;
     } catch (e) {

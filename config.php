@@ -197,4 +197,17 @@ define('SMTP_USER',       'contacto@seguroslux.mx');
 define('SMTP_PASS',       'S3gur0$2026');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
 define('SMTP_FROM_EMAIL', 'contacto@seguroslux.mx');  // debe ser igual a SMTP_USER: muchos servidores rechazan un From distinto al autenticado
 define('SMTP_FROM_NAME',  'Pagalaescuela');
+
+// ─── Subida de archivos (fotos de alumno, comprobantes de gastos) ────────────
+// Usado por lib/uploads.php. UPLOADS_DIR_ABS es la ruta absoluta en disco;
+// las rutas que se guardan en BD (ej. clientes.foto_url) son siempre
+// relativas ('uploads/...'), listas para usarse directo como src de <img>.
+define('UPLOADS_DIR_ABS',  __DIR__ . '/uploads');
+define('UPLOADS_URL_BASE', 'uploads');
+
+define('UPLOADS_MAX_BYTES_FOTO',        5 * 1024 * 1024); // 5 MB — foto de alumno
+define('UPLOADS_MAX_BYTES_COMPROBANTE', 8 * 1024 * 1024); // 8 MB — comprobante de gasto (puede ser PDF escaneado)
+
+define('UPLOADS_EXT_FOTO',        ['jpg', 'jpeg', 'png', 'webp']);
+define('UPLOADS_EXT_COMPROBANTE', ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
 define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');

@@ -84,6 +84,7 @@
                 'planteles'        => [],
                 'familias'         => [],
                 'productos'        => [],
+                'proveedores'      => [],
                 'cobros'           => [],
                 'requiere_escuela_id_ver' => true,
             ]);
@@ -214,6 +215,14 @@
             $p['precio'] = floatval($p['precio']);
             return $p;
         }, $productos_raw);
+        // ── Proveedores ── (catálogo chico, igual patrón que Productos;
+        // los Gastos en sí se consultan bajo demanda vía listar_gastos.php)
+        $stmtProv = $pdo->prepare("SELECT * FROM proveedores WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
+        $stmtProv->execute([$escuela_id_ver]);
+        $proveedores = array_map(function($p) {
+            $p['activo'] = (bool)$p['activo'];
+            return $p;
+        }, $stmtProv->fetchAll());
         // ── Cobros (últimos 90 días, con tope duro adicional) ──
         // Nota: este campo alimenta también Dashboard.js y el badge de
         // "pendientes" en app.js, que necesitan el conjunto agregado, no una
@@ -313,6 +322,7 @@
             'resumen_planteles' => $resumen_planteles,
             'familias'          => $familias,
             'productos'         => $productos,
+            'proveedores'       => $proveedores,
             'cobros'            => $cobros,
             'cobros_resumen'    => $cobros_resumen,
             'recordatorios'     => $recordatorios,

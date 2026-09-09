@@ -1,0 +1,12 @@
+# Permite servir estos archivos como estáticos (imágenes, PDFs) pero
+# bloquea que se EJECUTE cualquier cosa aquí, aunque un archivo lograra
+# pasar la validación de MIME/extensión de lib/uploads.php (defensa en
+# profundidad, no la única capa). Lo opuesto de acciones/.htaccess, que
+# niega todo acceso web.
+<FilesMatch "\.(php|phtml|php\d|phar|pl|py|cgi|sh|asp|aspx)$">
+    Require all denied
+</FilesMatch>
+Options -Indexes -ExecCGI
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>

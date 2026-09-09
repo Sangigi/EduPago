@@ -472,7 +472,60 @@ try {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// 3) ARCHIVADO DE logs_sistema — es la tabla que más rápido crece en
+// 3) CAJAS ABIERTAS DEMASIADO TIEMPO: aviso (NO cierre automático) para
+//    estado='abierta' con más de 18 horas desde fecha_apertura. No se
+//    cierran solas: un "monto contado" inventado por el cron corrompería
+//    el registro financiero con una diferencia falsa — solo se avisa al
+//    cajero dueño y a los admins de esa escuela para que la cierren a
+//    mano. El cron corre una vez al día, así que un turno que sigue
+//    abierto al día siguiente recibe un aviso nuevo cada corrida
+//    (recordatorio diario hasta que se cierre).
+// ══════════════════════════════════════════════════════════════════════════
+try {
+    $stmtCajasAbiertas = $pdo->query(
+        "SELECT ca.id, ca.fecha_apertura, ca.usuario_id,
+                u.nombre AS cajero_nombre, u.email AS cajero_email,
+                s.nombre AS sucursal_nombre, s.escuela_id, e.nombre AS escuela_nombre
+         FROM caja ca
+         JOIN usuarios u   ON u.id = ca.usuario_id
+         JOIN sucursales s ON s.id = ca.sucursal_id
+         JOIN escuelas e   ON e.id = s.escuela_id
+         WHERE ca.estado = 'abierta' AND ca.fecha_apertura <= DATE_SUB(NOW(), INTERVAL 18 HOUR)"
+    );
+    foreach ($stmtCajasAbiertas->fetchAll() as $ca) {
+        $horasAbierta = round((time() - strtotime($ca['fecha_apertura'])) / 3600);
+
+        $destinatarios = [];
+        if (!empty($ca['cajero_email'])) $destinatarios[] = $ca['cajero_email'];
+        $stmtAdminsCaja = $pdo->prepare("SELECT email FROM usuarios WHERE escuela_id = ? AND rol = 'admin' AND activo = 1");
+        $stmtAdminsCaja->execute([$ca['escuela_id']]);
+        foreach ($stmtAdminsCaja->fetchAll() as $a) $destinatarios[] = $a['email'];
+        $destinatarios = array_values(array_unique(array_filter($destinatarios)));
+        if (!$destinatarios) {
+            $resumen[] = "AVISO: caja #{$ca['id']} lleva {$horasAbierta}h abierta pero no hay correo de cajero ni admin activo para avisar.";
+            continue;
+        }
+
+        $asunto = "Caja abierta desde hace {$horasAbierta} horas — " . $ca['sucursal_nombre'];
+        $html = "
+            <p>Hola,</p>
+            <p>La caja de <strong>" . htmlspecialchars($ca['sucursal_nombre']) . "</strong> (" . htmlspecialchars($ca['escuela_nombre']) . "), abierta por <strong>" . htmlspecialchars($ca['cajero_nombre']) . "</strong>, sigue abierta desde el " . date('d/m/Y H:i', strtotime($ca['fecha_apertura'])) . " (hace {$horasAbierta} horas).</p>
+            <p>Por seguridad y control financiero, cierra el turno y haz el corte de caja correspondiente en cuanto sea posible.</p>
+            <p>— Pagalaescuela</p>
+        ";
+        $r = enviar_correo($destinatarios, $asunto, $html);
+        if ($r['success']) {
+            $resumen[] = "OK aviso caja abierta #{$ca['id']} ({$horasAbierta}h) -> " . implode(',', $destinatarios);
+        } else {
+            $resumen[] = "ERROR aviso caja abierta #{$ca['id']}: " . $r['error'];
+        }
+    }
+} catch (\PDOException $e) {
+    $resumen[] = "ERROR revisando cajas abiertas prolongadas: " . $e->getMessage();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 4) ARCHIVADO DE logs_sistema — es la tabla que más rápido crece en
 //    producción real (registra cada login exitoso, no solo los fallidos).
 //    Corre solo el día 1 de cada mes (no hace falta hacerlo a diario): mueve
 //    lo de más de 180 días a logs_sistema_archivo (mismo esquema, se crea

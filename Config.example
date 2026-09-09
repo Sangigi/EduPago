@@ -94,3 +94,13 @@ date_default_timezone_set('America/Mexico_City');
 
 // ─── Credenciales de Facturapi ───────────────────────────────────────────────
 define('FACTURAPI_KEY', 'TU_LLAVE_FACTURAPI');
+
+// ─── Subida de archivos (fotos de alumno, comprobantes de gastos) ────────────
+define('UPLOADS_DIR_ABS',  __DIR__ . '/uploads');
+define('UPLOADS_URL_BASE', 'uploads');
+
+define('UPLOADS_MAX_BYTES_FOTO',        5 * 1024 * 1024); // 5 MB — foto de alumno
+define('UPLOADS_MAX_BYTES_COMPROBANTE', 8 * 1024 * 1024); // 8 MB — comprobante de gasto
+
+define('UPLOADS_EXT_FOTO',        ['jpg', 'jpeg', 'png', 'webp']);
+define('UPLOADS_EXT_COMPROBANTE', ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
