@@ -72,6 +72,7 @@
                     log_api("generar_cfdi -> IEDU omitido por datos incompletos (cobro:{$cobro_id}) curp:" . ($curp_alumno ? 'ok' : 'falta') . " nivel:" . ($nivel_educativo ? 'ok' : 'falta') . " rvoe:" . ($rvoe ? 'ok' : 'falta'));
                 }
             }
+            requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $al ? $al['escuela_id'] : null, ['caja', 'facturacion']);
         }
         // 1. Estructuramos el payload para Facturapi
         // Facturapi calcula automáticamente el subtotal e IVA a partir del precio final

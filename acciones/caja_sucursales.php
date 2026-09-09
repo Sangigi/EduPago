@@ -2,6 +2,7 @@
         // Lista sucursales de la escuela del usuario (o todas si es superadmin y manda escuela_id)
         $escuela_id = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? $usuario_actual['escuela_id'] ?? 0);
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id, ['caja', 'corte_caja']);
         $stmt = $pdo->prepare("SELECT id, nombre, activa FROM sucursales WHERE escuela_id = ? AND activa = 1 ORDER BY nombre");
         $stmt->execute([$escuela_id]);
         $sucursales = $stmt->fetchAll();

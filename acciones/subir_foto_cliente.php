@@ -21,6 +21,7 @@ if ($rol_actual === 'familia') {
     requerir_familia_propia($cliente['familia_id'], $usuario_actual, 'No puedes cambiar la foto de este alumno.');
 } else {
     requerir_escuela_propia($rol_actual, $cliente['escuela_id'], $usuario_actual, 'No tienes permiso para cambiar la foto de este alumno.');
+    requerir_seccion_habilitada($pdo, $rol_actual, $cliente['escuela_id'], ['alumnos']);
 }
 
 if (empty($_FILES['foto'])) respond(['success' => false, 'error' => 'No se recibió ninguna foto.']);

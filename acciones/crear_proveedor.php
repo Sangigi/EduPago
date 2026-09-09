@@ -5,6 +5,7 @@
         $nombre     = trim($input['nombre'] ?? '');
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
         requerir_escuela_propia($rol_actual, $escuela_id, $usuario_actual, 'No tienes permiso para crear proveedores de esa escuela.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['proveedores']);
         $categoria         = trim($input['categoria']        ?? '') ?: 'otro';
         $rfc               = trim($input['rfc']               ?? '') ?: null;
         $contacto_nombre   = trim($input['contacto_nombre']   ?? '') ?: null;

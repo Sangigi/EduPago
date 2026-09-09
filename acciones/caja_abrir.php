@@ -5,6 +5,10 @@
         $usuario_id     = intval($usuario_actual['user_id']);
         if (!$sucursal_id) respond(['success' => false, 'error' => 'sucursal_id requerido']);
         if ($monto_apertura < 0) respond(['success' => false, 'error' => 'Monto de apertura inválido']);
+        $stmtSuc = $pdo->prepare("SELECT escuela_id FROM sucursales WHERE id = ?");
+        $stmtSuc->execute([$sucursal_id]);
+        $sucCaja = $stmtSuc->fetch();
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $sucCaja ? $sucCaja['escuela_id'] : null, ['caja', 'corte_caja']);
         // No permitir dos cajas abiertas simultáneas del mismo usuario en la misma sucursal
         $chk = $pdo->prepare("SELECT id FROM caja WHERE sucursal_id = ? AND usuario_id = ? AND estado = 'abierta'");
         $chk->execute([$sucursal_id, $usuario_id]);

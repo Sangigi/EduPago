@@ -14,6 +14,7 @@
         // usuario — un admin de otra escuela podía cobrar la tarjeta de
         // cualquier alumno del sistema.
         requerir_escuela_propia($rolCai, $cli['escuela_id'], $usuario_actual, 'No tienes permiso sobre este alumno.');
+        requerir_seccion_habilitada($pdo, $rolCai, $cli['escuela_id'], ['caja']);
         if ($cli['token_tarjeta_estado'] !== 'activo' || !$cli['token_tarjeta']) {
             respond(['success' => false, 'error' => 'El alumno no tiene una tarjeta domiciliada activa. Debe pagar una liga primero para tokenizar.']);
         }

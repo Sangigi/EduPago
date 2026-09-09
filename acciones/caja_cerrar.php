@@ -21,6 +21,8 @@
         $caja_actual = $stmt->fetch();
         if (!$caja_actual) respond(['success' => false, 'error' => 'Caja no encontrada o ya cerrada']);
 
+        requerir_seccion_habilitada($pdo, $rol_actual_cierre, $caja_actual['escuela_id'], ['corte_caja']);
+
         // cajero: solo SU PROPIA caja. admin: solo cajas de su escuela.
         // superadmin: cualquiera (requerir_escuela_propia ya lo exceptúa).
         if ($rol_actual_cierre === 'cajero' && intval($caja_actual['usuario_id']) !== intval($usuario_actual['user_id'] ?? -1)) {

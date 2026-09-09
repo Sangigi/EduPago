@@ -14,6 +14,7 @@
         // Un admin solo puede crear usuarios dentro de su propia escuela
         if ($rol_actual === 'admin') {
             $esc_id = $usuario_actual['escuela_id'] ?? null;
+            requerir_seccion_habilitada($pdo, $rol_actual, $esc_id, ['miequipo', 'familias']);
         }
         // Un distribuidor no pertenece a ninguna escuela; su "zona" es informativa.
         // zona_id referencia el catálogo compartido `zonas` (usado también por

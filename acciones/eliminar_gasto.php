@@ -11,6 +11,7 @@
         $gastoDel = $stmt->fetch();
         if (!$gastoDel) respond(['success' => false, 'error' => 'Gasto no encontrado']);
         requerir_escuela_propia($rol_actual, $gastoDel['escuela_id'], $usuario_actual, 'No tienes permiso para eliminar gastos de esa escuela.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $gastoDel['escuela_id'], ['gastos']);
         $pdo->prepare("DELETE FROM gastos WHERE id = ?")->execute([$id]);
         registrar_log($pdo, $usuario_actual, 'gasto_eliminado', "Gasto #{$id} eliminado: {$gastoDel['concepto']}, \${$gastoDel['monto']}", $gastoDel['escuela_id']);
         // El archivo en uploads/ referenciado por comprobante_url (si existía)

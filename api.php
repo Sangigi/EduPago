@@ -315,6 +315,35 @@ function requerir_escuela_propia($rol_actual, $escuela_id_fila, $usuario_actual,
         respond(['success' => false, 'error' => $mensaje]);
     }
 }
+// Defensa en profundidad para el toggle de secciones por escuela
+// (superadmin_toggle_seccion_escuela.php / escuelas.secciones_deshabilitadas):
+// hasta ahora ese campo solo se usaba para ocultar el ítem de menú en el
+// frontend (assets/js/app.js), así que un admin/cajero con la sección oculta
+// podía seguir llamando el endpoint directo por API. Este helper bloquea eso.
+//
+// Solo aplica a roles 'admin'/'cajero' — el toggle es sobre EL MENÚ admin/
+// cajero de una escuela: superadmin (dueño del toggle) y los portales de
+// autoservicio (familia, distribuidor) nunca deben verse afectados por él.
+// $secciones acepta una o varias secciones "dueñas" de la acción: si CUALQUIERA
+// de ellas sigue habilitada, se permite — solo bloquea cuando TODAS las
+// secciones que legítimamente usan este endpoint están deshabilitadas para
+// esa escuela. Esto evita romper flujos compartidos entre dos secciones
+// (ej. generar_cfdi lo usan tanto 'caja' como 'facturacion') con solo
+// apagar una de las dos.
+function requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, $secciones, $mensaje = 'Esta sección no está disponible para tu cuenta.') {
+    if ($rol_actual !== 'admin' && $rol_actual !== 'cajero') return;
+    if (!$escuela_id) return;
+    $stmt = $pdo->prepare("SELECT secciones_deshabilitadas FROM escuelas WHERE id = ?");
+    $stmt->execute([$escuela_id]);
+    $row = $stmt->fetch();
+    $deshabilitadas = $row ? json_decode($row['secciones_deshabilitadas'] ?? '', true) : null;
+    if (!is_array($deshabilitadas)) $deshabilitadas = [];
+    foreach ((array) $secciones as $s) {
+        if (!in_array($s, $deshabilitadas, true)) return; // al menos una sección dueña sigue habilitada
+    }
+    http_response_code(403);
+    respond(['success' => false, 'error' => $mensaje]);
+}
 // Requiere que $familia_id_fila coincida con la familia del usuario actual.
 // El llamador resuelve aparte si este check aplica (ej. dentro de un
 // if ($rol === 'familia')) y qué pasar como $familia_id_fila cuando la fila

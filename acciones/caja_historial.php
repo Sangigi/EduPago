@@ -1,6 +1,7 @@
 <?php
         $sucursal_id = intval($input['sucursal_id'] ?? $_GET['sucursal_id'] ?? 0);
         $escuela_id  = intval($input['escuela_id']  ?? $_GET['escuela_id']  ?? $usuario_actual['escuela_id'] ?? 0);
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id, ['corte_caja']);
         // Un cajero solo debe ver su propio historial de cortes, no el de sus
         // compañeros (admin/superadmin sí ven el de toda la sucursal/escuela).
         $solo_propio = ($usuario_actual['rol'] ?? '') === 'cajero';

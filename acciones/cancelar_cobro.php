@@ -14,6 +14,7 @@
             $chkEscCancel->execute([$cobro_id]);
             $escCancel = $chkEscCancel->fetch();
             requerir_escuela_propia($rol_actual_cancelar, $escCancel ? $escCancel['escuela_id'] : null, $usuario_actual, 'No tienes permiso para cancelar este cobro.');
+            requerir_seccion_habilitada($pdo, $rol_actual_cancelar, $escCancel ? $escCancel['escuela_id'] : null, ['cobros']);
         }
         $stmt = $pdo->prepare("UPDATE cobros SET estado = 'cancelado' WHERE id = ?");
         $stmt->execute([$cobro_id]);

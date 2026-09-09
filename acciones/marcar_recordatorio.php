@@ -7,6 +7,7 @@
         $cobro = $chk->fetch();
         if (!$cobro) respond(['success' => false, 'error' => 'Cobro no encontrado']);
         requerir_escuela_propia($usuario_actual['rol'], $cobro['escuela_id'], $usuario_actual, 'No tienes permiso sobre este cobro.');
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $cobro['escuela_id'], ['recordatorios']);
         $hoy = date('Y-m-d');
         // Idempotente: un recordatorio por cobro por día (uq_recordatorio_dia)
         try {

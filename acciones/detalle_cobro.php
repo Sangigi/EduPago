@@ -7,6 +7,7 @@
         if (!$cobroRow) respond(['success' => false, 'error' => 'Cobro no encontrado']);
         $rolDet = $usuario_actual['rol'] ?? '';
         requerir_escuela_propia($rolDet, $cobroRow['escuela_id'], $usuario_actual, 'No tienes permiso para ver este cobro.');
+        requerir_seccion_habilitada($pdo, $rolDet, $cobroRow['escuela_id'], ['cobros']);
         // Antes solo se validaba la escuela: cualquier padre de familia podía
         // ver el detalle de un cobro de OTRA familia de la misma escuela.
         if ($rolDet === 'familia') {

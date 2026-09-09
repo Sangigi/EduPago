@@ -1,6 +1,7 @@
 <?php
         $rol_actual = $usuario_actual['rol']       ?? '';
         $esc_actual = $usuario_actual['escuela_id'] ?? null;
+        requerir_seccion_habilitada($pdo, $rol_actual, $esc_actual, ['miequipo']);
         // zona_id es columna nueva (migracion_zonas.sql); si aún no corrió en
         // esta base, se reintenta sin ella en vez de romper el listado.
         try {

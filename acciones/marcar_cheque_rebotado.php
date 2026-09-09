@@ -8,6 +8,7 @@
         $cob_row = $stmt->fetch();
         if (!$cob_row) respond(['success' => false, 'error' => 'Cobro no encontrado']);
         requerir_escuela_propia($rol_actual_cheque, $cob_row['escuela_id'], $usuario_actual, 'No tienes permiso para este cobro.');
+        requerir_seccion_habilitada($pdo, $rol_actual_cheque, $cob_row['escuela_id'], ['cobros']);
         if ($cob_row['metodo'] !== 'Cheque') respond(['success' => false, 'error' => 'Este cobro no fue pagado con cheque']);
         if ($cob_row['estatus_cheque'] === 'rebotado') respond(['success' => false, 'error' => 'Este cheque ya estaba marcado como rebotado']);
         $pdo->prepare("UPDATE cobros SET estado = 'pendiente', estatus_cheque = 'rebotado' WHERE id = ?")

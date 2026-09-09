@@ -26,6 +26,9 @@
             $autorizado = true;
         } elseif (in_array($rolCfdi, ['admin', 'cajero'])) {
             $autorizado = intval($cobroCfdi['escuela_id']) === intval($usuario_actual['escuela_id'] ?? -1);
+            if ($autorizado) {
+                requerir_seccion_habilitada($pdo, $rolCfdi, $cobroCfdi['escuela_id'], ['facturacion']);
+            }
         } elseif ($rolCfdi === 'familia') {
             $autorizado = $cobroCfdi['familia_id'] !== null && intval($cobroCfdi['familia_id']) === intval($usuario_actual['familia_id'] ?? -1);
         }

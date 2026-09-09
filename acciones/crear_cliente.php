@@ -24,6 +24,7 @@
         $parentesco          = normalizar_parentesco($input['parentesco'] ?? '');
         $foto_url            = validar_url_imagen($input['foto_url'] ?? '', 'enlace de la foto');
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+        requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['alumnos', 'familias']);
         // Límite de alumnos según el plan contratado (ver PLANES_LIMITES arriba)
         $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");
         $plan_esc->execute([$escuela_id]);

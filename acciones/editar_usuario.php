@@ -13,6 +13,11 @@
         }
         // Un admin solo puede tocar usuarios de su propia escuela (y nunca a un superadmin)
         validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id, 'No tienes permiso para editar este usuario.');
+        // Defensa en profundidad de "Mi equipo": solo aplica cuando un admin edita a
+        // un tercero, nunca en la autoedición de perfil (usada por todos los roles).
+        if ($rol_actual === 'admin' && !$es_propio_perfil) {
+            requerir_seccion_habilitada($pdo, $rol_actual, $usuario_actual['escuela_id'] ?? null, ['miequipo']);
+        }
         $nombre   = trim($input['nombre']  ?? '');
         $email    = trim($input['email']   ?? '');
         $password = trim($input['password'] ?? '');

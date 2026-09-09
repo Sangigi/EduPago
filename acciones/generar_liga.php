@@ -14,6 +14,7 @@
         // usuario autenticado podía generar la liga de pago de cualquier cobro).
         $rolLiga = $usuario_actual['rol'] ?? '';
         requerir_escuela_propia($rolLiga, $cobroRow['escuela_id'], $usuario_actual, 'No tienes permiso sobre este cobro.');
+        requerir_seccion_habilitada($pdo, $rolLiga, $cobroRow['escuela_id'], ['caja']);
         if ($rolLiga === 'familia') {
             $stmtFamChk = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
             $stmtFamChk->execute([$cobroRow['cliente_id']]);

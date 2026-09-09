@@ -16,6 +16,7 @@
             $chkFam->execute([$id]);
             $famObjetivo = $chkFam->fetch();
             requerir_escuela_propia($rol_actual_fam, $famObjetivo ? $famObjetivo['escuela_id'] : null, $usuario_actual, 'No tienes permiso para editar esta familia.');
+            requerir_seccion_habilitada($pdo, $rol_actual_fam, $famObjetivo ? $famObjetivo['escuela_id'] : null, ['familias']);
         }
         // Una familia edita sus propios datos de contacto y fiscales, pero
         // nunca su 'nombre' (identidad del expediente) — eso queda para

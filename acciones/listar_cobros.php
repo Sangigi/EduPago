@@ -5,6 +5,7 @@
         $escuela_id_lc = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
         if (!$escuela_id_lc) respond(['success' => false, 'error' => 'escuela_id requerido']);
         requerir_escuela_propia($usuario_actual['rol'], $escuela_id_lc, $usuario_actual, 'No tienes permiso para ver los cobros de esa escuela.');
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id_lc, ['cobros']);
         $pagina_lc    = max(1, intval($input['pagina'] ?? $_GET['pagina'] ?? 1));
         $por_pagina_lc = max(1, min(intval($input['por_pagina'] ?? $_GET['por_pagina'] ?? 25), 200));
         $offset_lc    = ($pagina_lc - 1) * $por_pagina_lc;

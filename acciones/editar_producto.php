@@ -3,6 +3,13 @@
         requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para editar conceptos de pago.');
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
+        $stmtEscuela = $pdo->prepare("SELECT escuela_id FROM productos WHERE id = ?");
+        $stmtEscuela->execute([$id]);
+        $filaEscuela = $stmtEscuela->fetch();
+        if (!$filaEscuela) respond(['success' => false, 'error' => 'Producto no encontrado']);
+        $escuela_id = intval($filaEscuela['escuela_id']);
+        requerir_escuela_propia($rol_actual, $escuela_id, $usuario_actual, 'No tienes permiso para editar este concepto de pago.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['productos']);
         $campos = ['nombre', 'categoria', 'precio', 'emoji', 'activo'];
         $sets = []; $vals = [];
         foreach ($campos as $c) {

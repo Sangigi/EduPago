@@ -4,10 +4,15 @@
         $descripcion = $input['descripcion'] ?? 'Pago escolar';
         if (!$folio) respond(['success' => false, 'error' => 'folio requerido']);
         if ($total < 50 || $total > 15000) respond(['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)']);
-        $stmtCob = $pdo->prepare("SELECT id, cliente_id FROM cobros WHERE folio = ? AND estado = 'pendiente'");
+        $stmtCob = $pdo->prepare("SELECT id, cliente_id, escuela_id FROM cobros WHERE folio = ? AND estado = 'pendiente'");
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
+        // Verificar pertenencia: admin/cajero solo de su propia escuela (antes
+        // no se validaba nada de esto — mismo hueco que tenía generar_liga.php).
+        $rolRefEfvo = $usuario_actual['rol'] ?? '';
+        requerir_escuela_propia($rolRefEfvo, $cobroRow['escuela_id'], $usuario_actual, 'No tienes permiso sobre este cobro.');
+        requerir_seccion_habilitada($pdo, $rolRefEfvo, $cobroRow['escuela_id'], ['caja']);
         // Reference: usa el id del cobro (autoincrement, único de por vida,
         // nunca se reutiliza), zero-padded a REFERENCIA_DIGITOS (13 en
         // Pagalaescuela, que es donde corre este servicio ahora — ver más

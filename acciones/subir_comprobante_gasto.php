@@ -11,6 +11,7 @@
         $gasto = $stmt->fetch();
         if (!$gasto) respond(['success' => false, 'error' => 'Gasto no encontrado']);
         requerir_escuela_propia($rol_actual, $gasto['escuela_id'], $usuario_actual, 'No tienes permiso para subir comprobantes de gastos de esa escuela.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $gasto['escuela_id'], ['gastos']);
         if (empty($_FILES['archivo'])) respond(['success' => false, 'error' => 'No se recibió ningún archivo.']);
 
         $resultado = guardar_archivo_subido($_FILES['archivo'], 'comprobantes_gastos', UPLOADS_EXT_COMPROBANTE, UPLOADS_MAX_BYTES_COMPROBANTE);

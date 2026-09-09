@@ -4,6 +4,7 @@
         $escuela_id = intval($input['escuela_id'] ?? 0);
         if ($rol_actual === 'admin') $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+        requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['alumnos']);
         $filas = $input['filas'] ?? [];
         if (!is_array($filas) || empty($filas)) respond(['success' => false, 'error' => 'No se recibieron filas para importar']);
         if (count($filas) > 1000) respond(['success' => false, 'error' => 'Máximo 1000 filas por importación']);

@@ -8,6 +8,7 @@
         $gastoActual = $stmtChk->fetch();
         if (!$gastoActual) respond(['success' => false, 'error' => 'Gasto no encontrado']);
         requerir_escuela_propia($rol_actual, $gastoActual['escuela_id'], $usuario_actual, 'No tienes permiso para editar gastos de esa escuela.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $gastoActual['escuela_id'], ['gastos']);
         if (array_key_exists('proveedor_id', $input) && $input['proveedor_id']) {
             $chkProv = $pdo->prepare("SELECT id FROM proveedores WHERE id = ? AND escuela_id = ?");
             $chkProv->execute([intval($input['proveedor_id']), $gastoActual['escuela_id']]);

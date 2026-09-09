@@ -29,6 +29,7 @@
             http_response_code(403);
             respond(['success' => false, 'error' => 'No tienes permiso para enviar esta factura.']);
         }
+        requerir_seccion_habilitada($pdo, $rolMail, $cobroMail['escuela_id'], ['caja']);
         $res = facturapi_request("invoices/{$cobroMail['facturapi_id']}/pdf");
         $pdfBinario   = $res['body'];
         $httpCodeMail = $res['http_code'];

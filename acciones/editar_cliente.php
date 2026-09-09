@@ -30,6 +30,7 @@
                 $chkEsc->execute([$id]);
                 $objetivoEsc = $chkEsc->fetch();
                 requerir_escuela_propia($rol_actual, $objetivoEsc ? $objetivoEsc['escuela_id'] : null, $usuario_actual, 'No tienes permiso para editar este alumno.');
+                requerir_seccion_habilitada($pdo, $rol_actual, $objetivoEsc ? $objetivoEsc['escuela_id'] : null, ['alumnos', 'familias']);
             }
             $campos = ['nombre','grado','matricula','curp','email','telefono','familia_id',
                        'direccion','contacto_emergencia','tel_emergencia',

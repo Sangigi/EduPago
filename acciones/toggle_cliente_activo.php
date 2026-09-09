@@ -11,6 +11,7 @@
             $chkEscToggle->execute([$id]);
             $objetivoToggle = $chkEscToggle->fetch();
             requerir_escuela_propia($rolToggleCli, $objetivoToggle ? $objetivoToggle['escuela_id'] : null, $usuario_actual, 'No tienes permiso sobre este alumno.');
+            requerir_seccion_habilitada($pdo, $rolToggleCli, $objetivoToggle ? $objetivoToggle['escuela_id'] : null, ['alumnos', 'familias']);
         }
         $stmt = $pdo->prepare("UPDATE clientes SET activo = ? WHERE id = ?");
         $stmt->execute([$activo, $id]);

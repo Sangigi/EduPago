@@ -8,6 +8,7 @@
         $emoji      = trim($input['emoji']        ?? '');
         $activo     = array_key_exists('activo', $input) ? (bool)$input['activo'] : true;
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+        requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['productos']);
         $rec = validar_datos_recurrente($input);
         $stmt = $pdo->prepare(
             "INSERT INTO productos (escuela_id, nombre, categoria, precio, emoji, activo, tipo, periodicidad_meses, fecha_inicio, dia_ventana_inicio, dia_ventana_fin, penalizacion_tipo, penalizacion_valor)

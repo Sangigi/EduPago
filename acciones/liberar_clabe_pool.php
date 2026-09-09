@@ -3,6 +3,10 @@
         // Recibe: { cliente_id }
         $cliente_id = intval($input['cliente_id'] ?? 0);
         if (!$cliente_id) respond(['success' => false, 'error' => 'cliente_id requerido']);
+        $chkEscLiberar = $pdo->prepare("SELECT escuela_id FROM clientes WHERE id = ?");
+        $chkEscLiberar->execute([$cliente_id]);
+        $clienteLiberar = $chkEscLiberar->fetch();
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $clienteLiberar ? $clienteLiberar['escuela_id'] : null, ['alumnos', 'familias']);
         $pdo->beginTransaction();
         try {
             $upd = $pdo->prepare(

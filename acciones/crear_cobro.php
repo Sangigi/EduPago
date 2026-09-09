@@ -9,6 +9,7 @@
         if (!$escuela_id || !$metodo || empty($carrito)) {
             respond(['success' => false, 'error' => 'Faltan datos del cobro']);
         }
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id, ['caja']);
         // Validar contra el enum real de la columna `cobros.metodo` — sin esto,
         // un typo o un cliente mal formado inserta basura silenciosa (así se
         // coló el cobro con metodo='' que encontramos en el dump).

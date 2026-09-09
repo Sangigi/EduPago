@@ -11,6 +11,7 @@
             respond(['success' => false, 'error' => 'escuela_id, concepto y un monto mayor a cero son requeridos']);
         }
         requerir_escuela_propia($rol_actual, $escuela_id, $usuario_actual, 'No tienes permiso para registrar gastos de esa escuela.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['gastos']);
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) respond(['success' => false, 'error' => 'Fecha inválida']);
         $formas_validas = ['Efectivo', 'Transferencia', 'Cheque', 'TarjetaEmpresarial', 'Otro'];
         if (!in_array($forma_pago, $formas_validas, true)) respond(['success' => false, 'error' => 'Forma de pago inválida']);

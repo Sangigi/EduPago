@@ -6,6 +6,7 @@
         if (!$escuela_id || !$cliente_id) {
             respond(['success' => false, 'error' => 'escuela_id y cliente_id son requeridos']);
         }
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id, ['alumnos', 'familias']);
         // Verificar que el alumno no tenga ya CLABE asignada del pool
         $chk = $pdo->prepare(
             "SELECT clabe FROM clabe_pool WHERE cliente_id = ? AND estado = 'asignada'"

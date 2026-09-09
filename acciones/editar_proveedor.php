@@ -8,6 +8,7 @@
         $provActual = $stmtChk->fetch();
         if (!$provActual) respond(['success' => false, 'error' => 'Proveedor no encontrado']);
         requerir_escuela_propia($rol_actual, $provActual['escuela_id'], $usuario_actual, 'No tienes permiso para editar proveedores de esa escuela.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $provActual['escuela_id'], ['proveedores']);
         $campos = ['nombre', 'categoria', 'rfc', 'contacto_nombre', 'contacto_telefono', 'contacto_email', 'activo'];
         $sets = []; $vals = [];
         foreach ($campos as $c) {

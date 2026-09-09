@@ -9,6 +9,7 @@
         $escuela_id_tc = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
         if (!$escuela_id_tc) respond(['success' => false, 'error' => 'escuela_id requerido']);
         requerir_escuela_propia($usuario_actual['rol'], $escuela_id_tc, $usuario_actual, 'No tienes permiso para ver la cobranza de esa escuela.');
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id_tc, ['dashboard', 'cobros']);
 
         $desde_tc = trim($input['desde'] ?? $_GET['desde'] ?? '');
         $hasta_tc = trim($input['hasta'] ?? $_GET['hasta'] ?? '');

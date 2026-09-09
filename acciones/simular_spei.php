@@ -1,4 +1,5 @@
 <?php
+        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $usuario_actual['escuela_id'] ?? null, ['facturacion']);
         $referencia    = strtoupper(trim($input['referencia'] ?? ''));
         $monto         = intval(floatval($input['monto'] ?? 0) * 100);
         $emisor        = $input['emisor'] ?? 'PADRE DE FAMILIA DEMO';

@@ -5,6 +5,7 @@
         // ninguna forma de revocar un token específico antes de que expirara solo.
         $rol_actual = $usuario_actual['rol'] ?? '';
         requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para esta acción.');
+        requerir_seccion_habilitada($pdo, $rol_actual, $usuario_actual['escuela_id'] ?? null, ['miequipo']);
         $id = intval($input['id'] ?? 0);
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         validar_admin_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id);

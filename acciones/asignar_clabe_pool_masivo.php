@@ -11,6 +11,7 @@
         $escuela_id = intval($input['escuela_id'] ?? 0);
         if ($rol_actual === 'admin') $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
+        requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['alumnos']);
 
         $stmtAlumnos = $pdo->prepare(
             "SELECT id FROM clientes

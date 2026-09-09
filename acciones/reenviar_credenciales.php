@@ -7,6 +7,7 @@
     // que de verdad entre a ese enlace y ponga una nueva.
     $rol_actual = $usuario_actual['rol'] ?? '';
     requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para reenviar credenciales.');
+    requerir_seccion_habilitada($pdo, $rol_actual, $usuario_actual['escuela_id'] ?? null, ['miequipo']);
 
     $id = intval($input['id'] ?? 0);
     if (!$id) respond(['success' => false, 'error' => 'id requerido']);

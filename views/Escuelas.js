@@ -739,7 +739,8 @@ function Escuelas({
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'flex',
-              gap: 8
+              gap: 8,
+              flexWrap: 'wrap'
             },
             children: [/*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-primary btn-sm",
