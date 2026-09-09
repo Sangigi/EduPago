@@ -470,6 +470,8 @@ Cobroscontarjeta.com pidió (09-sep-2026) regresar el BusinessID de Referencias 
 
 Con ese cambio, el error dejó de ser el mensaje libre de "subEmisor" y pasó a ser código **404** — documentado en IntegracionesReferencias V1.4: "No tiene permiso para generar las formas de pago, por favor comuníquese con los administradores." Sigue siendo un tema de permisos/vinculación de cuenta del lado del proveedor, no de código — reportado de vuelta, pendiente de su respuesta. Liga/CAI (PaymentTypes=41, ver 5.3az) no se ha vuelto a probar en este mensaje, seguir pendiente de confirmación.
 
+**Actualización misma sesión**: el error avanzó de 404 a código **26**, que ni siquiera está documentado en la tabla de errores de `GenerarReferenciaIndi` (IntegracionesReferencias V1.4) — solo existe en la doc de Liga/CAI, con el significado "no vinculado esta escuela/comercio a su integración". Mismo diagnóstico: BusinessID 000002 probablemente sigue sin estar bien vinculado del lado de Cobroscontarjeta.com para este servicio específico. Reportado de vuelta con este detalle, pendiente de respuesta.
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.
