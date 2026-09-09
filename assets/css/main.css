@@ -39,9 +39,13 @@
   --cyan-soft:    #e8faff;
   --magenta-soft: #fbeeff;
 
-  --grad-brand:  linear-gradient(115deg, #4fd8f0 0%, #6c5af0 55%, #d860f0 100%);
+  /* --grad-brand:  linear-gradient(115deg, #4fd8f0 0%, #6c5af0 55%, #d860f0 100%);
   --grad-cool:   linear-gradient(135deg, #4fd8f0 0%, #6c5af0 100%);
-  --grad-warm:   linear-gradient(135deg, #6c5af0 0%, #d860f0 100%);
+  --grad-warm:   linear-gradient(135deg, #6c5af0 0%, #d860f0 100%); */
+
+  --grad-brand:  linear-gradient(#6c5af0);
+  --grad-cool:   linear-gradient(#6c5af0);
+  --grad-warm:   linear-gradient(#6c5af0);
 
   /* ══ MODO CLARO (por defecto) ══ */
   --bg-main:      #f4f5f9;   /* lienzo lavanda de la página */
@@ -1456,7 +1460,8 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 /* ── Tarjeta destacada: en oscuro el degradado a full brillo deslumbra ── */
 :root[data-theme="dark"] .stat-card.is-featured {
-  background:linear-gradient(115deg, #2ea8c4 0%, #5946d8 55%, #a845c0 100%);
+  /* background:linear-gradient(115deg, #2ea8c4 0%, #5946d8 55%, #a845c0 100%); */
+  background:linear-gradient(#5946d8);
   box-shadow:0 10px 30px rgba(108,90,240,.35);
 }
 
