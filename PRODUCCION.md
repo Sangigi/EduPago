@@ -472,6 +472,13 @@ Con ese cambio, el error dejó de ser el mensaje libre de "subEmisor" y pasó a 
 
 **Actualización misma sesión**: el error avanzó de 404 a código **26**, que ni siquiera está documentado en la tabla de errores de `GenerarReferenciaIndi` (IntegracionesReferencias V1.4) — solo existe en la doc de Liga/CAI, con el significado "no vinculado esta escuela/comercio a su integración". Mismo diagnóstico: BusinessID 000002 probablemente sigue sin estar bien vinculado del lado de Cobroscontarjeta.com para este servicio específico. Reportado de vuelta con este detalle, pendiente de respuesta.
 
+### 5.3bb Corrección: BusinessID/SchoolID real de Pagalaescuela es 000002, no 000041
+El correo original de credenciales productivas (ver 5.3aw) decía `BusinessID: 000041` para Pagalaescuela — el usuario confirmó que ese dato estaba mal: el valor real es **000002** (mismo IntegrationID, 106, sin cambio). Corregido en `config.php`: `PLE_SCHOOL_ID` ahora es `'000002'`.
+
+Nota para no perder el hilo: ahora `PLE_SCHOOL_ID` (Pagalaescuela/Liga-CAI) y `PDT_BUS_ID_EFECTIVO` (Pagadetodo/Referencias en efectivo, ver 5.3ba) coinciden en el mismo valor `000002` — son constantes independientes para servicios distintos, la coincidencia es real, no un error de copiar/pegar. `PDT_BUS_ID_SPEI`/`PDT_BUS_ID_TC` (SPEI y CLABEs) siguen en `000067`, sin tocar.
+
+Pendiente: volver a probar tanto Liga/CAI (tarjeta) como Referencias en efectivo con estos valores corregidos.
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.

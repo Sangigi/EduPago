@@ -32,7 +32,7 @@ define('PDT_URL_REFERENCIA', 'https://pagadetodo.mx/Pagadetodo/Service/GenerarRe
 define('PLE_USER',     PDT_USER);
 define('PLE_PASS',     PDT_PASS);
 define('PLE_INT_ID',   '106');
-define('PLE_SCHOOL_ID','000041');
+define('PLE_SCHOOL_ID','000002'); // Corregido 09-sep-2026: el correo original decía 000041, pero Cobroscontarjeta.com confirmó que el BusinessID/SchoolID real de Pagalaescuela en producción es 000002.
 
 // ── PRODUCCIÓN (activada 2026-09-08): Cobroscontarjeta.com certificó las
 // URLs productivas y entregó credenciales reales para ambas plataformas.
