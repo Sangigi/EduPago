@@ -8,8 +8,30 @@
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
-        // Reference: numérico(15), única e irrepetible.
-        $ref = str_pad(strval($cobroRow['id']) . substr(strval(time()), -8), 15, '0', STR_PAD_LEFT);
+        // Reference: usa el id del cobro (autoincrement, único de por vida,
+        // nunca se reutiliza), zero-padded a REFERENCIA_DIGITOS (13 en
+        // Pagalaescuela, que es donde corre este servicio ahora — ver más
+        // abajo). A propósito NO se reusa construir_referencia_pago(): esa
+        // función checa unicidad contra el valor actual de `cobros.referencia`,
+        // pero AQUÍ esa columna se sobreescribe más abajo con la Reference
+        // ENVUELTA que regresa el proveedor (necesaria para que
+        // consulta_referencia.php/pago_referencia.php encuentren el cobro) —
+        // así que un cobro exitoso "olvida" su $ref original en cuanto se
+        // sobreescribe, y construir_referencia_pago() podría reasignar ese
+        // mismo valor a un cobro futuro sin darse cuenta. Usar el id del
+        // cobro evita el problema de raíz: nunca se repite, sin necesitar
+        // checar nada en BD. Además, la doc del proveedor
+        // (IntegracionesReferencias_V1_4) confirma que repetir la MISMA
+        // referencia en un reintento del MISMO cobro es intencional y
+        // soportado ("retornaremos los mismos datos vinculados a dicha
+        // referencia"), así que tampoco hace falta variar el valor entre
+        // reintentos de un mismo folio.
+        $ref = str_pad(strval($cobroRow['id']), REFERENCIA_DIGITOS, '0', STR_PAD_LEFT);
+        // Se guarda YA, antes de llamar al proveedor, para que quede algo
+        // registrado contra este cobro aunque la llamada falle o truene a
+        // medias (se sobreescribe con la Reference envuelta real si la
+        // llamada tiene éxito, ver abajo).
+        $pdo->prepare("UPDATE cobros SET referencia = ? WHERE id = ?")->execute([$ref, $cobroRow['id']]);
         // Cobroscontarjeta.com movió este servicio de Pagadetodo (125) a
         // Pagalaescuela (09-sep-2026) — usa las credenciales de Pagalaescuela
         // (PLE_INT_ID/PLE_SCHOOL_ID) Y la URL de Pagalaescuela
@@ -49,6 +71,16 @@
         if (empty($raw['PayFormat'])) {
             log_api("generar_referencia_efectivo OK sin PayFormat -> " . json_encode($raw, JSON_UNESCAPED_UNICODE));
         }
+        // IMPORTANTE: aquí SÍ hay que sobreescribir "referencia" otra vez,
+        // ahora con $referencia_cct (la Reference ENVUELTA que regresa el
+        // proveedor), no dejar el $ref interno de arriba. webhooks/
+        // consulta_referencia.php y pago_referencia.php buscan el cobro
+        // por `referencia = ?` usando el valor que el CLIENTE presenta en
+        // la tienda (el que trae el ticket/código de barras), que es
+        // $referencia_cct — no nuestro $ref de 13/15 dígitos. El $ref de
+        // arriba solo sirve para "quemar" el intento localmente antes de
+        // llamar al proveedor; una vez que la llamada tuvo éxito, la
+        // referencia real para conciliar el pago es esta.
         $pdo->prepare(
             "UPDATE cobros SET metodo = 'EfectivoRef', referencia = ?, ref_barcode_url = ?, ref_payformat_url = ?, ref_vencimiento = ? WHERE id = ?"
         )->execute([
