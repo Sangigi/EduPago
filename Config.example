@@ -63,10 +63,8 @@ define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadet
 // configuración de webhook (?token=...), si no, sus notificaciones dejarán de pasar.
 define('WEBHOOK_SPEI_TOKEN', 'CAMBIA_ESTO_openssl_rand_-hex_32');
 
-// ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
-// El correo no especifica un BusinessID distinto para efectivo; se usa el
-// mismo que SPEI salvo que Cobroscontarjeta.com indique uno específico.
-define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
+// Referencias en efectivo usa PLE_INT_ID/PLE_SCHOOL_ID directamente (ver
+// más abajo) — no tiene una constante de BusinessID propia.
 
 // Token compartido para los 3 endpoints EMISOR de Referencias
 // (ConsultaReferencia / PagoReferencia / CancelaPago). Cobroscontarjeta.com

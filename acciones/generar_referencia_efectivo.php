@@ -10,11 +10,15 @@
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
         // Reference: numérico(15), única e irrepetible.
         $ref = str_pad(strval($cobroRow['id']) . substr(strval(time()), -8), 15, '0', STR_PAD_LEFT);
+        // IntegrationID/BusinessID: Cobroscontarjeta.com movió este servicio de
+        // Pagadetodo (125) a Pagalaescuela (09-sep-2026) — ahora usa las
+        // credenciales de Pagalaescuela (PLE_INT_ID/PLE_SCHOOL_ID), aunque la
+        // URL del endpoint (PDT_URL_REFERENCIA) siga siendo la misma.
         $payload = [
             'User'           => PDT_USER,
             'Password'       => PDT_PASS,
-            'IntegrationID'  => PDT_INT_ID,
-            'BusinessID'     => PDT_BUS_ID_EFECTIVO,
+            'IntegrationID'  => PLE_INT_ID,
+            'BusinessID'     => PLE_SCHOOL_ID,
             'Description'    => substr($descripcion, 0, 50),
             'Amount'         => intval(round($total * 100)),
             'Reference'      => $ref,
