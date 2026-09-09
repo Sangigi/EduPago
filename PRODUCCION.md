@@ -465,6 +465,11 @@ Respuesta del proveedor (08-sep-2026) al reporte de 5.3ay: el `PaymentTypes` cor
 
 **Pendiente**: confirmar con un cobro real que Liga/CAI ya funciona en producción con `PaymentTypes=41`. El caso de "Referencias en efectivo" (subEmisor) sigue bloqueado del lado del proveedor.
 
+### 5.3ba Efectivo sigue bloqueado en producción: BusinessID cambiado a 000002 por indicación del proveedor, ahora código 404 (permisos)
+Cobroscontarjeta.com pidió (09-sep-2026) regresar el BusinessID de Referencias en efectivo a `000002` (distinto del de SPEI/TC, que sigue en `000067`) mientras investigaban el error de "subEmisor" de 5.3ay/5.3az. Aplicado en `config.php`: `PDT_BUS_ID_EFECTIVO` ahora es `'000002'` fijo, ya no se calcula igual a `PDT_BUS_ID_SPEI`.
+
+Con ese cambio, el error dejó de ser el mensaje libre de "subEmisor" y pasó a ser código **404** — documentado en IntegracionesReferencias V1.4: "No tiene permiso para generar las formas de pago, por favor comuníquese con los administradores." Sigue siendo un tema de permisos/vinculación de cuenta del lado del proveedor, no de código — reportado de vuelta, pendiente de su respuesta. Liga/CAI (PaymentTypes=41, ver 5.3az) no se ha vuelto a probar en este mensaje, seguir pendiente de confirmación.
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.
