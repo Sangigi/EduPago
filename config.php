@@ -78,6 +78,12 @@ define('PLE_URL_LIGA_TOKEN',        PLE_HOST_BASE . '/Service/GenerarLigaDomicil
 define('PLE_URL_LIGA_SIMPLE',       PLE_HOST_BASE . '/Service/GenerarLigaIndi');
 define('PLE_URL_DOMICILIACION_PAGAR',    PLE_HOST_BASE . '/Service/PagarDomiciliacionIndi');
 define('PLE_URL_DOMICILIACION_CANCELAR', PLE_HOST_BASE . '/Service/CancelarDomiciliacionIndi');
+// Corregido 09-sep-2026: Cobroscontarjeta.com (Osbel) confirmó que el
+// servicio de Referencias en efectivo YA NO se llama en pagadetodo.mx —
+// hay que llamarlo en la plataforma de Pagalaescuela también (no solo
+// mandar sus credenciales IntegrationID/BusinessID a la URL vieja de
+// Pagadetodo, que fue justo lo que causaba el error 26 "no vinculado").
+define('PLE_URL_REFERENCIA', PLE_HOST_BASE . '/Service/GenerarReferenciaIndi');
 
 // ─── DocuSign (firma electrónica de la autorización de Cargos Automáticos) ──
 // Cobroscontarjeta.com/el banco emisor rechaza domiciliaciones autorizadas

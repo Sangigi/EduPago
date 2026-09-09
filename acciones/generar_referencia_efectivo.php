@@ -10,10 +10,15 @@
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
         // Reference: numérico(15), única e irrepetible.
         $ref = str_pad(strval($cobroRow['id']) . substr(strval(time()), -8), 15, '0', STR_PAD_LEFT);
-        // IntegrationID/BusinessID: Cobroscontarjeta.com movió este servicio de
-        // Pagadetodo (125) a Pagalaescuela (09-sep-2026) — ahora usa las
-        // credenciales de Pagalaescuela (PLE_INT_ID/PLE_SCHOOL_ID), aunque la
-        // URL del endpoint (PDT_URL_REFERENCIA) siga siendo la misma.
+        // Cobroscontarjeta.com movió este servicio de Pagadetodo (125) a
+        // Pagalaescuela (09-sep-2026) — usa las credenciales de Pagalaescuela
+        // (PLE_INT_ID/PLE_SCHOOL_ID) Y la URL de Pagalaescuela
+        // (PLE_URL_REFERENCIA). Antes solo se habían cambiado las
+        // credenciales dejando la URL vieja de Pagadetodo, lo que causaba el
+        // error 26 "no está vinculado este comercio a su integración" —
+        // Osbel confirmó que el error era justo por eso: hay que llamar a la
+        // plataforma de Pagalaescuela, no solo mandarle sus credenciales a
+        // Pagadetodo.
         $payload = [
             'User'           => PDT_USER,
             'Password'       => PDT_PASS,
@@ -27,7 +32,7 @@
             'ExpirationDate' => date('Y-m-d', strtotime('+3 days')),
         ];
         log_api("generar_referencia_efectivo -> folio={$folio} total={$total} ref={$ref}");
-        $res = curl_post(PDT_URL_REFERENCIA, $payload);
+        $res = curl_post(PLE_URL_REFERENCIA, $payload);
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
         $referencia_cct = $raw['Reference'] ?? null;
