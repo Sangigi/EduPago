@@ -709,7 +709,7 @@ function Familias({
 
           },
 
-          children: "+ Nueva familia"
+          children: "+ Alta familia"
 
         }, void 0, false)]
 
