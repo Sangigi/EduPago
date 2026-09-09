@@ -24,6 +24,27 @@ const PLAN_FALLBACK = 'basico';
 function limitesDelPlan($nombrePlan) {
     return PLANES_LIMITES[$nombrePlan] ?? PLANES_LIMITES[PLAN_FALLBACK];
 }
+// ── Secciones del menú que el super admin puede habilitar/deshabilitar por
+// colegio — fuente única de verdad (debe reflejar el mismo listado de ids
+// que NAV_ITEMS en assets/js/app.js para las secciones de admin/cajero).
+// No incluye las secciones exclusivas de superadmin (escuelas, suscripciones,
+// usuarios, logs, comisiones, superreportes, busqueda_global): esas son
+// herramientas del operador de la plataforma, no del colegio.
+const SECCIONES_DISPONIBLES = [
+    'dashboard'     => 'Dashboard',
+    'caja'          => 'Ingresos',
+    'corte_caja'    => 'Corte de caja',
+    'cobros'        => 'Historial de cobros',
+    'gastos'        => 'Gastos',
+    'alumnos'       => 'Alumnos',
+    'familias'      => 'Familias',
+    'productos'     => 'Conceptos de pago',
+    'proveedores'   => 'Proveedores',
+    'facturacion'   => 'Facturación',
+    'recordatorios' => 'Recordatorios',
+    'reportes'      => 'Reportes',
+    'miequipo'      => 'Mi equipo',
+];
 // ── Vencimiento de suscripción: ciclo de calendario mensual ────────────────
 // El primer periodo de un colegio nuevo se prorratea (vence a fin del mes en
 // curso); de ahí en adelante cada renovación cubre un mes calendario completo

@@ -350,6 +350,22 @@ function Escuelas({
     avanzado: 'badge-blue',
     pro: 'badge-purple'
   };
+  // Debe reflejar SECCIONES_DISPONIBLES en api.php (fuente única de verdad).
+  const SECCIONES_CATALOGO = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'caja', label: 'Ingresos' },
+    { id: 'corte_caja', label: 'Corte de caja' },
+    { id: 'cobros', label: 'Historial de cobros' },
+    { id: 'gastos', label: 'Gastos' },
+    { id: 'alumnos', label: 'Alumnos' },
+    { id: 'familias', label: 'Familias' },
+    { id: 'productos', label: 'Conceptos de pago' },
+    { id: 'proveedores', label: 'Proveedores' },
+    { id: 'facturacion', label: 'Facturación' },
+    { id: 'recordatorios', label: 'Recordatorios' },
+    { id: 'reportes', label: 'Reportes' },
+    { id: 'miequipo', label: 'Mi equipo' },
+  ];
   // ── Pool CLABEs ─────────────────────────────────────────────────────────────
   const [poolEscId,   setPoolEscId]   = useState(null);  // escuela cuyo pool se gestiona
   const [modalPool,   setModalPool]   = useState(false);
@@ -357,6 +373,44 @@ function Escuelas({
   const [poolLoading, setPoolLoading] = useState(false);
   const [poolImportTxt, setPoolImportTxt] = useState('');
   const [poolImportMsg, setPoolImportMsg] = useState('');
+
+  // ── Secciones habilitadas por escuela ──────────────────────────────────────
+  const [seccionesEscId, setSeccionesEscId] = useState(null); // escuela cuyo panel de secciones está abierto
+  const [modalSecciones, setModalSecciones] = useState(false);
+  const [guardandoSeccion, setGuardandoSeccion] = useState(null); // id de la sección que se está guardando
+
+  const abrirSecciones = escId => {
+    setSeccionesEscId(escId);
+    setModalSecciones(true);
+  };
+
+  const toggleSeccion = async seccionId => {
+    const escId = seccionesEscId;
+    const esc = data.escuelas.find(e => e.id === escId);
+    if (!esc) return;
+    const actuales = Array.isArray(esc.secciones_deshabilitadas) ? esc.secciones_deshabilitadas : [];
+    const nuevas = actuales.includes(seccionId)
+      ? actuales.filter(s => s !== seccionId)
+      : [...actuales, seccionId];
+    // Optimista: refleja el cambio de inmediato en la UI
+    const newData = {
+      ...data,
+      escuelas: data.escuelas.map(e => e.id === escId ? { ...e, secciones_deshabilitadas: nuevas } : e)
+    };
+    setData(newData);
+    setGuardandoSeccion(seccionId);
+    try {
+      const res = await apiPost('superadmin_toggle_seccion_escuela', { id: escId, seccion: seccionId });
+      if (!res.success) throw new Error(res.error || 'No se pudo actualizar la sección');
+      AppModel.save(newData);
+    } catch (e) {
+      // Falló en el servidor: revertir el cambio local y avisar
+      setData(data);
+      alert('No se pudo actualizar la sección: ' + e.message);
+    } finally {
+      setGuardandoSeccion(null);
+    }
+  };
 
   const tkn = () => AuthController.getToken();
   const apiPost = async (action, body) => {
@@ -713,6 +767,12 @@ function Escuelas({
                 size: 14,
                 color: "currentColor"
               }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              className: "btn btn-secondary btn-sm",
+              title: "Secciones habilitadas",
+              onClick: () => abrirSecciones(esc.id),
+              style: { display:'flex', alignItems:'center', justifyContent:'center' },
+              children: /*#__PURE__*/_jsxDEV(Icon, { name: "settings", size: 14, color: "currentColor" }, void 0, false)
             }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-secondary btn-sm",
               onClick: () => {
@@ -1422,6 +1482,62 @@ function Escuelas({
           }, void 0, true),
           /*#__PURE__*/_jsxDEV("div", { className: "modal-footer",
             children: /*#__PURE__*/_jsxDEV("button", { className:"btn btn-secondary", onClick:()=>setModalPool(false), children:"Cerrar"}, void 0, false)
+          }, void 0, false)
+        ]
+      }, void 0, true)
+    }, void 0, false), modalSecciones && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && setModalSecciones(false),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        style: { maxWidth: 460 },
+        children: [
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-header",
+            children: [
+              /*#__PURE__*/_jsxDEV("span", { className: "modal-title", children: "Secciones habilitadas — " + (data.escuelas.find(e => e.id === seccionesEscId)?.nombre || '') }, void 0, false),
+              /*#__PURE__*/_jsxDEV("button", { className: "modal-close", onClick: () => setModalSecciones(false), children: "✕" }, void 0, false)
+            ]
+          }, void 0, true),
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-body",
+            children: [
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 14 },
+                children: "Todas las secciones están habilitadas por defecto. Desactívalas aquí para ocultarlas del menú de este colegio (los cajeros y administradores dejan de verlas la próxima vez que carguen la app)."
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'flex', flexDirection: 'column', gap: 4 },
+                children: SECCIONES_CATALOGO.map(sec => {
+                  const esc = data.escuelas.find(e => e.id === seccionesEscId);
+                  const deshabilitadas = Array.isArray(esc?.secciones_deshabilitadas) ? esc.secciones_deshabilitadas : [];
+                  const habilitada = !deshabilitadas.includes(sec.id);
+                  return /*#__PURE__*/_jsxDEV("label", {
+                    style: {
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '9px 4px', borderBottom: '1px solid var(--border-glow)',
+                      opacity: guardandoSeccion === sec.id ? .6 : 1, cursor: 'pointer'
+                    },
+                    children: [
+                      /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 13.5, color: 'var(--ink-1)' }, children: sec.label }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("span", {
+                        className: "switch",
+                        children: [
+                          /*#__PURE__*/_jsxDEV("input", {
+                            type: "checkbox",
+                            checked: habilitada,
+                            disabled: guardandoSeccion === sec.id,
+                            onChange: () => toggleSeccion(sec.id)
+                          }, void 0, false),
+                          /*#__PURE__*/_jsxDEV("span", { className: "switch-track" }, void 0, false)
+                        ]
+                      }, void 0, true)
+                    ]
+                  }, sec.id, true);
+                })
+              }, void 0, true)
+            ]
+          }, void 0, true),
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-footer",
+            children: /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary", onClick: () => setModalSecciones(false), children: "Cerrar" }, void 0, false)
           }, void 0, false)
         ]
       }, void 0, true)

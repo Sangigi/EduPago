@@ -29,4 +29,5 @@
         $esc = $stmt->fetch();
         $esc['activa'] = (bool) $esc['activa'];
         $esc['es_plantel'] = (bool) $esc['es_plantel'];
+        $esc['secciones_deshabilitadas'] = json_decode($esc['secciones_deshabilitadas'] ?? '', true) ?: [];
         respond(['success' => true, 'escuela' => $esc]);

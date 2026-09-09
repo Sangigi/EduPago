@@ -35,7 +35,10 @@
             $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ? OR escuela_padre_id = ?");
             $stmt->execute([$escuela_id_usuario, $escuela_id_usuario]);
         }
-        $escuelas = $stmt->fetchAll();
+        $escuelas = array_map(function($e) {
+            $e['secciones_deshabilitadas'] = json_decode($e['secciones_deshabilitadas'] ?? '', true) ?: [];
+            return $e;
+        }, $stmt->fetchAll());
         // ── Resumen liviano por escuela (siempre se manda, sirve para el dashboard
         //    de superadmin y para el desglose por plantel sin cargar el detalle
         //    completo de cada escuela) ──

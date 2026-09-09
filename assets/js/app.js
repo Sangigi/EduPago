@@ -1527,6 +1527,14 @@ function App() {
 
   // * Navegación.
 
+  // Secciones que el super admin deshabilitó para esta escuela (ver
+  // superadmin_toggle_seccion_escuela.php). Para superadmin sin escuela
+  // seleccionada `escuela` es null, así que esto no le afecta a él.
+  const seccionesDeshabilitadas =
+    Array.isArray(escuela?.secciones_deshabilitadas)
+      ? escuela.secciones_deshabilitadas
+      : [];
+
   const secciones = [
 
     ...new Set(
@@ -1535,7 +1543,7 @@ function App() {
 
         .filter(
 
-          n => n.roles.includes(user.rol)
+          n => n.roles.includes(user.rol) && !seccionesDeshabilitadas.includes(n.id)
 
         )
 
@@ -1557,7 +1565,7 @@ function App() {
 
     NAV_ITEMS.filter(
 
-      n => n.roles.includes(user.rol)
+      n => n.roles.includes(user.rol) && !seccionesDeshabilitadas.includes(n.id)
 
     );
 
@@ -1569,7 +1577,13 @@ function App() {
 
   const renderView = () => {
 
-
+    if (seccionesDeshabilitadas.includes(view)) {
+      return _jsxDEV('div', {
+        className: 'card',
+        style: { textAlign: 'center', padding: 40, color: 'var(--ink-3)' },
+        children: 'Esta sección no está disponible para tu cuenta.'
+      }, void 0, false);
+    }
 
     switch (view) {
 

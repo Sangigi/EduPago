@@ -1006,6 +1006,24 @@ box-shadow:0 0 0 3px var(--accent-glow);
 /* Antes esta regla era `display:none`, así que el usuario no podía cambiar de tema. */
 .theme-toggle:hover { background:var(--violet-soft); color:var(--violet); border-color:var(--violet); }
 
+/* ── SWITCH (toggle deslizante) ── */
+/* Uso: <label className="switch"><input type="checkbox" checked={...} onChange={...} /><span className="switch-track"></span></label> */
+.switch { position:relative; display:inline-block; width:40px; height:22px; flex-shrink:0; cursor:pointer; }
+.switch input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.switch-track {
+  position:absolute; inset:0; background:var(--border-glow); border-radius:var(--radius-pill);
+  transition:background .15s;
+}
+.switch-track::before {
+  content:''; position:absolute; top:2px; left:2px; width:18px; height:18px;
+  background:#fff; border-radius:50%; box-shadow:0 1px 3px rgba(16,24,40,.25);
+  transition:transform .15s;
+}
+.switch input:checked + .switch-track { background:var(--violet); }
+.switch input:checked + .switch-track::before { transform:translateX(18px); }
+.switch input:disabled + .switch-track { opacity:.5; cursor:not-allowed; }
+.switch input:focus-visible + .switch-track { outline:2px solid var(--violet); outline-offset:2px; }
+
 /* ── MOBILE MENU BUTTON + DRAWER BACKDROP (ocultos en escritorio) ── */
 
 .mobile-menu-btn {

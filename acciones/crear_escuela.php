@@ -34,4 +34,5 @@
             'logo_emoji' => $logo_emoji, 'activa' => true, 'es_plantel' => false,
             'escuela_padre_id' => null, 'plan' => $plan, 'fecha_alta' => date('Y-m-d'),
             'fecha_vencimiento_plan' => $fecha_vencimiento_plan,
+            'secciones_deshabilitadas' => [],
         ]]);
