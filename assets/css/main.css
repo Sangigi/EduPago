@@ -224,7 +224,9 @@ html, body {
 
   border-radius:50%; display:flex; align-items:center; justify-content:center;
 
-  font-size:17px; box-shadow:var(--shadow-violet); color:#fff; flex-shrink:0; font-weight:800;
+  font-size:17px; 
+  /* box-shadow:var(--shadow-violet);  */
+  color:#fff; flex-shrink:0; font-weight:800;
 
 }
 
@@ -389,7 +391,7 @@ html, body {
 
   background:var(--btn-gradient); color:var(--on-accent);
 
-  box-shadow:var(--shadow-violet);
+  /* box-shadow:var(--shadow-violet); */
 
 }
 
@@ -956,7 +958,8 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   border-radius:var(--radius-lg); padding:22px; margin:12px 0;
 
-  border:none; box-shadow:var(--shadow-violet);
+  border:none; 
+  /* box-shadow:var(--shadow-violet); */
 
 }
 
@@ -1394,7 +1397,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 .pill:hover { color:var(--ink); border-color:#dcdcea; }
 .pill.active {
   background:var(--violet); border-color:var(--violet); color:#fff;
-  box-shadow:var(--shadow-violet);
+  /* box-shadow:var(--shadow-violet); */
 }
 
 /* ── Tarjeta destacada con degradado (la tarjeta "Bounce Rate") ── */
