@@ -378,12 +378,21 @@ function metodo_pago_deshabilitado(PDO $pdo, $escuelaId, $metodo) {
     }
 
     if ($escuelaId) {
-        $stmt2 = $pdo->prepare("SELECT metodos_pago_deshabilitados FROM escuelas WHERE id = ?");
-        $stmt2->execute([intval($escuelaId)]);
-        $row2 = $stmt2->fetch();
-        if ($row2 && $row2['metodos_pago_deshabilitados']) {
-            $lista = json_decode($row2['metodos_pago_deshabilitados'], true);
-            if (is_array($lista) && in_array($metodo, $lista, true)) return true;
+        // Igual que arriba: si la migracion todavia no corrio, la columna
+        // metodos_pago_deshabilitados NO EXISTE en escuelas -- sin este
+        // try/catch, CUALQUIER pago (Tarjeta, Efectivo, Cheque, CAI) fallaba
+        // con un error fatal de SQL antes de poder cobrar nada, porque esta
+        // consulta corre en cada intento de pago sin excepcion.
+        try {
+            $stmt2 = $pdo->prepare("SELECT metodos_pago_deshabilitados FROM escuelas WHERE id = ?");
+            $stmt2->execute([intval($escuelaId)]);
+            $row2 = $stmt2->fetch();
+            if ($row2 && $row2['metodos_pago_deshabilitados']) {
+                $lista = json_decode($row2['metodos_pago_deshabilitados'], true);
+                if (is_array($lista) && in_array($metodo, $lista, true)) return true;
+            }
+        } catch (\PDOException $e) {
+            // Columna no migrada: se ignora el chequeo por escuela, no se bloquea nada.
         }
     }
     return false;
