@@ -19,6 +19,12 @@
         // `cobros.metodo`, asi que se traduce a 'TC' antes de validar.
         // Sin esto, cobrar con tarjeta guardada fallaba con "Metodo de pago
         // invalido" antes de siquiera crear el cobro.
+        // El chequeo de metodo deshabilitado va ANTES de traducir CAI->TC:
+        // si se bloquea Domiciliacion, no debe bloquear Tarjeta normal (son
+        // el mismo valor final 'TC' pero distinto metodo desde la perspectiva
+        // del usuario). Se usa el valor tal como llego del frontend.
+        requerir_metodo_pago_habilitado($pdo, $escuela_id, $metodo === 'CAI' ? 'CAI' : $metodo,
+            $metodo === 'CAI' ? 'Domiciliación' : $metodo);
         if ($metodo === 'CAI') $metodo = 'TC';
 
         $metodos_validos = ['Efectivo', 'EfectivoRef', 'TC', 'SPEI', 'CoDi', 'Cheque'];
