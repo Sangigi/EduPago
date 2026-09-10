@@ -38,7 +38,13 @@ const NAV_ITEMS = [{
 
   section: 'principal',
 
-  roles: ['cajero', 'admin']
+  // Dashboard.js YA tenía una rama completa para superadmin sin escuela
+
+  // activa (vista global agregando todas las escuelas) — solo estaba sin
+
+  // usar porque este filtro de roles nunca dejaba pasar a superadmin.
+
+  roles: ['cajero', 'admin', 'superadmin']
 
 }, {
 
