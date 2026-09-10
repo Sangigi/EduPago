@@ -315,6 +315,11 @@ function requerir_escuela_propia($rol_actual, $escuela_id_fila, $usuario_actual,
 // apagar una de las dos.
 function requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, $secciones, $mensaje = 'Esta sección no está disponible para tu cuenta.') {
     if ($rol_actual !== 'admin' && $rol_actual !== 'cajero') return;
+    // Mantenimiento GLOBAL primero: afecta a todas las escuelas sin importar
+    // su propio secciones_deshabilitadas. Vive en lib/helpers_pagos.php
+    // porque cron_recordatorios.php y webhooks/webhook_liga.php tambien lo
+    // necesitan y no incluyen este archivo.
+    requerir_seccion_sin_mantenimiento($pdo, $rol_actual, $secciones);
     if (!$escuela_id) return;
     $stmt = $pdo->prepare("SELECT secciones_deshabilitadas FROM escuelas WHERE id = ?");
     $stmt->execute([$escuela_id]);
