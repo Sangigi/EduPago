@@ -42,45 +42,67 @@
         $chkUsr->execute([$email]);
         $usuario_ya_existe = (bool) $chkUsr->fetch();
 
-        $usuario_creado  = false;
-        $correo_enviado  = false;
-        $activacion_liga = null;
-        if (!$usuario_ya_existe) {
-            $admin_nombre     = trim($input['admin_nombre'] ?? '') ?: 'Administrador';
-            $activacion_token = bin2hex(random_bytes(32));
-            $activacion_hash  = hash('sha256', $activacion_token);
-            $pdo->prepare(
-                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, activacion_token_hash, activacion_expira)
-                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?, DATE_ADD(NOW(), INTERVAL 72 HOUR))"
-            )->execute([
-                $nuevo_id, $admin_nombre, $email,
-                // Nadie conoce esta contraseña -- se reemplaza en cuanto activan
-                // su cuenta con el enlace. Existe solo porque password_hash es NOT NULL.
-                password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
-                $activacion_hash
-            ]);
-            $usuario_creado = true;
+        // Contraseña definida a mano (10-sep-2026): opcional -- si el
+        // superadmin la captura aquí mismo, se usa directo (la va a
+        // compartir él mismo por el canal que sea) y no hace falta enlace
+        // de activación ni correo. Si la deja vacía, sigue el flujo de
+        // siempre (enlace de un solo uso por correo).
+        $password = (string) ($input['password'] ?? '');
+        if ($password !== '' && strlen($password) < 8) {
+            respond(['success' => false, 'error' => 'La contraseña debe tener al menos 8 caracteres']);
+        }
 
-            $activacion_liga = (defined('APP_URL') && APP_URL
-                                    ? rtrim(APP_URL, '/')
-                                    : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
-                                       . '://' . ($_SERVER['HTTP_HOST'] ?? '')
-                                       . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
-                                 . '/activar_cuenta.html?t=' . $activacion_token;
-            $htmlBienvenida = "
-                <p>Hola,</p>
-                <p><strong>" . htmlspecialchars($nombre) . "</strong> ya está activo en Paga la Escuela.</p>
-                <p>Entra a este enlace para crear tu contraseña y empezar a usar tu cuenta ({$email}):</p>
-                <p><a href=\"" . htmlspecialchars($activacion_liga) . "\">" . htmlspecialchars($activacion_liga) . "</a></p>
-                <p>El enlace expira en 72 horas.</p>
-                <p>— Pagalaescuela</p>
-            ";
-            $resCorreo = enviar_correo($email, 'Activa tu cuenta — tu colegio ya está en Paga la Escuela', $htmlBienvenida);
-            $correo_enviado = (bool) ($resCorreo['success'] ?? false);
-            if (!$correo_enviado) {
-                log_api("crear_escuela #$nuevo_id -> cuenta admin creada pero falló el correo de bienvenida: " . ($resCorreo['error'] ?? 'desconocido'));
+        $usuario_creado     = false;
+        $correo_enviado     = false;
+        $password_definida  = false;
+        $activacion_liga    = null;
+        if (!$usuario_ya_existe) {
+            $admin_nombre = trim($input['admin_nombre'] ?? '') ?: 'Administrador';
+
+            if ($password !== '') {
+                $pdo->prepare(
+                    "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta)
+                     VALUES (?, ?, ?, ?, 'admin', 1, CURDATE())"
+                )->execute([$nuevo_id, $admin_nombre, $email, password_hash($password, PASSWORD_BCRYPT)]);
+                $usuario_creado    = true;
+                $password_definida = true;
+                registrar_log($pdo, $usuario_actual, 'escuela_admin_creado', "Cuenta admin creada para '$nombre' ($email), contraseña definida por el superadmin", $nuevo_id);
+            } else {
+                $activacion_token = bin2hex(random_bytes(32));
+                $activacion_hash  = hash('sha256', $activacion_token);
+                $pdo->prepare(
+                    "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, activacion_token_hash, activacion_expira)
+                     VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?, DATE_ADD(NOW(), INTERVAL 72 HOUR))"
+                )->execute([
+                    $nuevo_id, $admin_nombre, $email,
+                    // Nadie conoce esta contraseña -- se reemplaza en cuanto activan
+                    // su cuenta con el enlace. Existe solo porque password_hash es NOT NULL.
+                    password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                    $activacion_hash
+                ]);
+                $usuario_creado = true;
+
+                $activacion_liga = (defined('APP_URL') && APP_URL
+                                        ? rtrim(APP_URL, '/')
+                                        : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                                           . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                                           . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
+                                     . '/activar_cuenta.html?t=' . $activacion_token;
+                $htmlBienvenida = "
+                    <p>Hola,</p>
+                    <p><strong>" . htmlspecialchars($nombre) . "</strong> ya está activo en Paga la Escuela.</p>
+                    <p>Entra a este enlace para crear tu contraseña y empezar a usar tu cuenta ({$email}):</p>
+                    <p><a href=\"" . htmlspecialchars($activacion_liga) . "\">" . htmlspecialchars($activacion_liga) . "</a></p>
+                    <p>El enlace expira en 72 horas.</p>
+                    <p>— Pagalaescuela</p>
+                ";
+                $resCorreo = enviar_correo($email, 'Activa tu cuenta — tu colegio ya está en Paga la Escuela', $htmlBienvenida);
+                $correo_enviado = (bool) ($resCorreo['success'] ?? false);
+                if (!$correo_enviado) {
+                    log_api("crear_escuela #$nuevo_id -> cuenta admin creada pero falló el correo de bienvenida: " . ($resCorreo['error'] ?? 'desconocido'));
+                }
+                registrar_log($pdo, $usuario_actual, 'escuela_admin_creado', "Cuenta admin creada para '$nombre' ($email)", $nuevo_id);
             }
-            registrar_log($pdo, $usuario_actual, 'escuela_admin_creado', "Cuenta admin creada para '$nombre' ($email)", $nuevo_id);
         }
 
         respond(['success' => true, 'escuela' => [
