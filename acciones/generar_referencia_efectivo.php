@@ -8,6 +8,7 @@
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
+        requerir_metodo_pago_habilitado($pdo, $cobroRow['escuela_id'], 'EfectivoRef', 'Efectivo (tienda)');
         // Verificar pertenencia: admin/cajero solo de su propia escuela (antes
         // no se validaba nada de esto — mismo hueco que tenía generar_liga.php).
         $rolRefEfvo = $usuario_actual['rol'] ?? '';
