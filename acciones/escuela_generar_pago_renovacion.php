@@ -92,16 +92,22 @@ $pdo->prepare(
       WHERE id = ?"
 )->execute([$ref, $folio, $total, $esc['id']]);
 
+// Efectivo — mismo payload probado en generar_referencia_efectivo.php:
+// GenerarReferenciaIndi no lleva 'Id' (eso es del servicio de Tarjeta,
+// GenerarLigaDomiciliacionIndi) y sí espera CustomerEmail/CustomerName.
+// Mandar el payload con la forma de Tarjeta es lo que el proveedor
+// rechazaba con {"Message":"Error."}.
 $payload = [
     'User'           => PLE_USER,
     'Password'       => PLE_PASS,
     'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
     'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
     'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
-    'Id'             => str_pad(strval($esc['id']), 9, '0', STR_PAD_LEFT),
     'Description'    => substr('Renovación ' . $esc['nombre'], 0, 50),
     'Amount'         => intval(round($total * 100)),
     'Reference'      => $ref,
+    'CustomerEmail'  => '',
+    'CustomerName'   => '',
     'ExpirationDate' => date('Y-m-d', strtotime('+3 day')),
 ];
 log_api("escuela_generar_pago_renovacion(Efectivo) -> escuela={$esc['id']} total={$total} ref={$ref}");
@@ -115,10 +121,23 @@ if (empty($raw['Reference']) && empty($raw['BarCode']) && empty($raw['PayFormat'
     respond(['success' => false, 'error' => $raw['Message'] ?? 'No se pudo generar la referencia de pago']);
 }
 
+// IMPORTANTE (mismo bug que ya se corrigió en generar_referencia_efectivo.php):
+// $ref es solo la referencia interna que "quema" el intento antes de llamar
+// al proveedor. La que el cliente va a presentar en tienda — y la que
+// consulta_referencia.php/pago_referencia.php usan para encontrar este pago
+// cuando llegue el webhook — es la Reference ENVUELTA que regresa el
+// proveedor ($raw['Reference']). Antes se guardaba y regresaba $ref interno,
+// así que el webhook nunca podía conciliar un pago de renovación aunque el
+// padre/colegio sí lo hiciera en tienda.
+$referencia_cct = $raw['Reference'];
+$pdo->prepare(
+    "UPDATE escuelas SET pago_renovacion_referencia = ? WHERE id = ?"
+)->execute([$referencia_cct, $esc['id']]);
+
 respond([
     'success'     => true,
     'folio'       => $folio,
-    'referencia'  => $ref,
+    'referencia'  => $referencia_cct,
     'barcode_url' => $raw['BarCode'] ?? $raw['PayFormat'] ?? null,
     'vencimiento' => date('Y-m-d', strtotime('+3 day')),
     'monto'       => $total,
