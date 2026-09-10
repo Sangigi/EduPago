@@ -178,47 +178,10 @@ function Cobros({
     pendiente: data.cobros.filter(c => c.estado === 'pendiente').length,
     cancelado: data.cobros.filter(c => c.estado === 'cancelado').length
   };
-  const cancelar = async id => {
-    if (loadingId) return;
-    setLoadingId(id);
-    try {
-      const res = await CobroController.cancelarCobro(id);
-      if (res && res.success === false) throw new Error(res.error || 'Error al cancelar');
-      const clientesUpd = (res && res.cliente_id != null)
-        ? data.clientes.map(c => c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c)
-        : data.clientes;
-      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c), clientes: clientesUpd };
-      AppModel.save(upd);
-      setData(upd);
-      setDetalle(null);
-      if (paginaBackend) buscarEnServidor(pagina);
-    } catch(e) {
-      alert('Error al cancelar: ' + (e.message || 'Intenta de nuevo'));
-    } finally {
-      setLoadingId(null);
-    }
-  };
-  const confirmarManual = async id => {
-    if (loadingId) return;
-    setLoadingId(id);
-    const auth_code = 'MANUAL-' + Date.now();
-    try {
-      const res = await CobroController.confirmarPago(id, { auth_code });
-      if (res && res.success === false) throw new Error(res.error || 'Error al confirmar');
-      const clientesUpd = (res && res.cliente_id != null)
-        ? data.clientes.map(c => c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c)
-        : data.clientes;
-      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'pagado', auth_code } : c), clientes: clientesUpd };
-      AppModel.save(upd);
-      setData(upd);
-      setDetalle(prev => prev ? { ...prev, estado: 'pagado', auth_code } : null);
-      if (paginaBackend) buscarEnServidor(pagina);
-    } catch(e) {
-      alert('Error al confirmar: ' + (e.message || 'Intenta de nuevo'));
-    } finally {
-      setLoadingId(null);
-    }
-  };
+  // cancelar() y confirmarManual() se quitaron junto con sus botones: ya
+  // no tienen ningún punto de llamada en esta vista. El estado de un cobro
+  // ahora solo cambia por el flujo de pago real (webhook del proveedor),
+  // no por una acción administrativa manual desde Historial.
   const rebotar = async id => {
     if (loadingId) return;
     if (!confirm('¿Marcar este cheque como rebotado? El cobro regresará a pendiente.')) return;
@@ -303,38 +266,52 @@ function Cobros({
       // se calculaba de `lista` (la página actual de la tabla, o el caché
       // local de 90 días), así que un rango largo casi nunca tenía
       // suficientes filas ya cargadas para mostrar más de un par de días.
-      if (!desdeChart || !hastaChart) return null;
-      const desde = new Date(desdeChart + 'T00:00:00');
-      const hasta = new Date(hastaChart + 'T00:00:00');
-      const dias = Math.max(1, Math.round((hasta - desde) / 86400000) + 1);
+      //
+      // OJO: antes, si faltaba desdeChart/hastaChart, la tarjeta ENTERA
+      // retornaba null — incluidos los botones de rango y los inputs de
+      // fecha. Eso pasaba justo al elegir "Rango personalizado": con un
+      // solo campo lleno, desdeChart/hastaChart quedaban vacíos y la
+      // tarjeta desaparecía de la pantalla, dejando sin forma de volver a
+      // interactuar con el filtro. Ahora la falta de rango solo oculta la
+      // GRÁFICA; el encabezado y los controles siempre se muestran.
+      const hayRangoValido = !!(desdeChart && hastaChart);
+      let cubos = [];
+      let suma = 0;
+      let etiquetaRango = '';
+      if (hayRangoValido) {
+        const desde = new Date(desdeChart + 'T00:00:00');
+        const hasta = new Date(hastaChart + 'T00:00:00');
+        const dias = Math.max(1, Math.round((hasta - desde) / 86400000) + 1);
 
-      // Con muchos días se agrupa por semana para que la línea siga siendo legible
-      const porSemana = dias > 70;
-      const cubos = [];
-      const idx = {};
-      for (let k = 0; k < dias; k++) {
-        const d = new Date(desde);
-        d.setDate(d.getDate() + k);
-        const iso = d.toISOString().slice(0, 10);
-        const valorDia = (tendenciaPorDia && tendenciaPorDia[iso]) || 0;
-        if (porSemana) {
-          const lunes = new Date(d);
-          lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
-          const clave = lunes.toISOString().slice(0, 10);
-          if (idx[clave] === undefined) {
-            idx[clave] = cubos.length;
-            cubos.push({ label: lunes.getDate() + '/' + (lunes.getMonth() + 1), valor: 0 });
+        // Con muchos días se agrupa por semana para que la línea siga siendo legible
+        const porSemana = dias > 70;
+        const idx = {};
+        for (let k = 0; k < dias; k++) {
+          const d = new Date(desde);
+          d.setDate(d.getDate() + k);
+          const iso = d.toISOString().slice(0, 10);
+          const valorDia = (tendenciaPorDia && tendenciaPorDia[iso]) || 0;
+          if (porSemana) {
+            const lunes = new Date(d);
+            lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+            const clave = lunes.toISOString().slice(0, 10);
+            if (idx[clave] === undefined) {
+              idx[clave] = cubos.length;
+              cubos.push({ label: lunes.getDate() + '/' + (lunes.getMonth() + 1), valor: 0 });
+            }
+            cubos[idx[clave]].valor += valorDia;
+          } else {
+            cubos.push({ label: d.getDate() + '/' + (d.getMonth() + 1), valor: valorDia });
           }
-          cubos[idx[clave]].valor += valorDia;
-        } else {
-          cubos.push({ label: d.getDate() + '/' + (d.getMonth() + 1), valor: valorDia });
         }
+        suma = cubos.reduce((a, c) => a + c.valor, 0);
+        const rangoActivo = RANGOS_TENDENCIA.find(r => r.id === rangoTendencia);
+        etiquetaRango = rangoTendencia === 'custom'
+          ? `${desdeChart} a ${hastaChart}`
+          : (rangoActivo ? rangoActivo.label.toLowerCase() : dias + ' días');
+      } else if (rangoTendencia === 'custom') {
+        etiquetaRango = 'elige las dos fechas para ver la tendencia';
       }
-      const suma = cubos.reduce((a, c) => a + c.valor, 0);
-      const rangoActivo = RANGOS_TENDENCIA.find(r => r.id === rangoTendencia);
-      const etiquetaRango = rangoTendencia === 'custom'
-        ? `${desdeChart} a ${hastaChart}`
-        : (rangoActivo ? rangoActivo.label.toLowerCase() : dias + ' días');
 
       return _jsxDEV("div", {
         className: "card",
@@ -349,14 +326,14 @@ function Cobros({
                   _jsxDEV("div", { className: "card-title", children: "Tendencia del periodo" }, void 0, false),
                   _jsxDEV("div", {
                     className: "card-sub",
-                    children: etiquetaRango + (filtroMetodo !== 'todos' ? ' · ' + filtroMetodo : '')
+                    children: etiquetaRango + (hayRangoValido && filtroMetodo !== 'todos' ? ' · ' + filtroMetodo : '')
                   }, void 0, false)
                 ]
               }, void 0, true),
-              _jsxDEV("div", {
+              hayRangoValido ? _jsxDEV("div", {
                 style: { fontSize: 19, fontWeight: 700, color: 'var(--violet)', letterSpacing: '-.6px' },
                 children: fmt(suma)
-              }, void 0, false)
+              }, void 0, false) : null
             ]
           }, 'h', true),
           _jsxDEV("div", {
@@ -393,9 +370,14 @@ function Cobros({
               }, 'hasta', false) : null
             ]
           }, 'rango', true),
-          (typeof AreaChart !== 'undefined')
-            ? _jsxDEV(AreaChart, { datos: cubos, alto: 200, color: 'var(--violet)', formato: fmt }, 'c', false)
-            : null
+          !hayRangoValido
+            ? (rangoTendencia === 'custom' ? _jsxDEV("div", {
+                style: { padding: '30px 10px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 },
+                children: "Selecciona la fecha \"desde\" y \"hasta\" para ver la tendencia de este rango."
+              }, 'aviso', false) : null)
+            : (typeof AreaChart !== 'undefined'
+                ? _jsxDEV(AreaChart, { datos: cubos, alto: 200, color: 'var(--violet)', formato: fmt }, 'c', false)
+                : null)
         ]
       }, void 0, true);
     })(), _jsxDEV("div", {
@@ -587,29 +569,13 @@ function Cobros({
                     display: 'flex',
                     gap: 4
                   },
-                  children: [c.estado === 'pendiente' && _jsxDEV(_Fragment, {
-                    children: [_jsxDEV("button", {
-                      className: "btn btn-primary btn-sm",
-                      onClick: () => confirmarManual(c.id),
-                      disabled: loadingId === c.id,
-                      title: "Confirmar",
-                      children: loadingId === c.id ? '…' : _jsxDEV(Icon, {
-                        name: "check",
-                        size: 14,
-                        color: "currentColor"
-                      }, void 0, false)
-                    }, void 0, false), _jsxDEV("button", {
-                      className: "btn btn-ghost btn-sm",
-                      onClick: () => cancelar(c.id),
-                      disabled: loadingId === c.id,
-                      title: "Cancelar",
-                      children: _jsxDEV(Icon, {
-                        name: "close",
-                        size: 16,
-                        color: "currentColor"
-                      }, void 0, false)
-                    }, void 0, false)]
-                  }, void 0, true), c.estado === 'pagado' && c.metodo === 'Cheque' && c.estatus_cheque !== 'rebotado' && _jsxDEV("button", {
+                  // Los botones de Confirmar/Cancelar sobre un cobro pendiente
+                  // se quitaron: acá se decidía por el padre sin que quede
+                  // registro claro de quién lo hizo, y confirmar manualmente
+                  // un pago simula uno real que nunca llegó. Esa decisión
+                  // debe tomarse desde el flujo de pago correspondiente
+                  // (SPEI/Efectivo/Tarjeta), no aquí.
+                  children: [c.estado === 'pagado' && c.metodo === 'Cheque' && c.estatus_cheque !== 'rebotado' && _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     onClick: () => rebotar(c.id),
                     disabled: loadingId === c.id,
@@ -948,28 +914,10 @@ function Cobros({
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
           className: "modal-footer",
-          children: [detalle.estado === 'pendiente' && _jsxDEV(_Fragment, {
-            children: [_jsxDEV("button", {
-              className: "btn btn-secondary",
-              onClick: () => cancelar(detalle.id),
-              disabled: !!loadingId,
-              children: loadingId ? 'Procesando…' : "Cancelar cobro"
-            }, void 0, false), _jsxDEV("button", {
-              className: "btn btn-primary",
-              onClick: () => confirmarManual(detalle.id),
-              disabled: !!loadingId,
-              style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 6
-              },
-              children: loadingId ? 'Procesando…' : [_jsxDEV(Icon, {
-                name: "check",
-                size: 15,
-                color: "currentColor"
-              }, void 0, false), " Confirmar pago"]
-            }, void 0, true)]
-          }, void 0, true), detalle.estado === 'pagado' && detalle.metodo === 'Cheque' && detalle.estatus_cheque !== 'rebotado' && _jsxDEV("button", {
+          // Mismo criterio que en la fila: sin botones de confirmar/cancelar
+          // manuales — el estado del cobro lo cambia el flujo de pago real
+          // (webhook del proveedor), no una acción administrativa aquí.
+          children: [detalle.estado === 'pagado' && detalle.metodo === 'Cheque' && detalle.estatus_cheque !== 'rebotado' && _jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: () => rebotar(detalle.id),
             disabled: !!loadingId,
