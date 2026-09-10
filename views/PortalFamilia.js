@@ -1311,7 +1311,7 @@ function PortalFamilia({
                 style: {
                   borderBottom: `2px solid ${PLC.border}`
                 },
-                children: ['Folio', 'Alumno', 'Concepto', 'Método', 'Total', 'Estado', 'Fecha'].map(h => _jsxDEV("th", {
+                children: ['Folio', 'Alumno', 'Concepto', 'Método', 'Total', 'Estado', 'Fecha', 'Comprobante'].map(h => _jsxDEV("th", {
                   style: {
                     padding: '10px 16px',
                     textAlign: 'left',
@@ -1413,6 +1413,41 @@ function PortalFamilia({
                     whiteSpace: 'nowrap'
                   },
                   children: cob.fecha
+                }, void 0, false), _jsxDEV("td", {
+                  style: { padding: '11px 16px' },
+                  // El comprobante solo existe para pagos ya confirmados por
+                  // Efectivo o SPEI — la instancia de tarjeta usa la liga del
+                  // proveedor, que no se genera aquí. Reutiliza el mismo
+                  // módulo que usa Caja para no duplicar las plantillas.
+                  children: (cob.estado === 'pagado' && (cob.metodo === 'Efectivo' || cob.metodo === 'EfectivoRef' || cob.metodo === 'SPEI') && typeof abrirComprobanteEfectivoModulo !== 'undefined')
+                    ? _jsxDEV("button", {
+                        className: "btn-ghost",
+                        title: "Ver / descargar comprobante",
+                        style: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '5px 10px' },
+                        onClick: () => {
+                          const cliente = (data.clientes || []).find(c => c.id === cob.cliente_id) || { nombre: cob.cliente };
+                          if ((cob.metodo === 'Efectivo' || cob.metodo === 'EfectivoRef')) {
+                            abrirComprobanteEfectivoModulo({
+                              cobro: {
+                                folio: cob.folio, total: cob.total, descripcion: cob.items?.map(i => i.nombre).join(', '),
+                                referencia: cob.referencia, barcode_url: cob.ref_barcode_url, vencimiento: cob.ref_vencimiento
+                              },
+                              cliente, familia: miFamilia, escuela
+                            });
+                          } else {
+                            abrirComprobanteSPEIModulo({
+                              cobro: {
+                                folio: cob.folio, total: cob.total, descripcion: cob.items?.map(i => i.nombre).join(', '),
+                                referencia_spei: cob.referencia_spei, referencia: cob.referencia, clabe: cob.clabe,
+                                clabe_es_individual: cob.clabe_es_individual, banco: cob.banco, beneficiario: cob.beneficiario
+                              },
+                              cliente, familia: miFamilia, escuela
+                            });
+                          }
+                        },
+                        children: [_jsxDEV(Icon, { name: 'download', size: 12, color: 'currentColor' }, void 0, false), 'Ver']
+                      }, void 0, true)
+                    : _jsxDEV("span", { style: { color: PLC.muted, fontSize: 12 }, children: '—' }, void 0, false)
                 }, void 0, false)]
               }, cob.id, true))]
             }, void 0, true)]
