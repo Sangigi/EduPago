@@ -120,16 +120,21 @@ $pdo->prepare(
       WHERE id = ?"
 )->execute([$ref, $folio, $inv['id']]);
 
+// Efectivo — mismo payload probado en generar_referencia_efectivo.php:
+// GenerarReferenciaIndi no lleva 'Id' (eso es del servicio de Tarjeta) y sí
+// espera CustomerEmail/CustomerName. El payload con la forma de Tarjeta es
+// lo que el proveedor rechazaba con {"Message":"Error."}.
 $payload = [
     'User'           => PLE_USER,
     'Password'       => PLE_PASS,
     'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
     'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
     'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
-    'Id'             => str_pad(strval($inv['id']), 9, '0', STR_PAD_LEFT),
     'Description'    => substr('Suscripción ' . ucfirst($inv['plan_elegido']), 0, 50),
     'Amount'         => intval(round($total * 100)),
     'Reference'      => $ref,
+    'CustomerEmail'  => '',
+    'CustomerName'   => '',
     'ExpirationDate' => date('Y-m-d', strtotime('+3 day')),
 ];
 log_api("invitacion_generar_pago(Efectivo) -> invitacion={$inv['id']} plan={$inv['plan_elegido']} total={$total} ref={$ref}");
@@ -143,17 +148,22 @@ if (empty($raw['Reference']) && empty($raw['BarCode']) && empty($raw['PayFormat'
     respond(['success' => false, 'error' => $raw['Message'] ?? 'No se pudo generar la referencia de pago']);
 }
 
+// Igual que en generar_referencia_efectivo.php y escuela_generar_pago_renovacion.php:
+// hay que guardar la Reference ENVUELTA que regresa el proveedor, no el $ref
+// interno — es la única que el webhook de pago_referencia.php puede
+// encontrar cuando confirme el pago.
+$referencia_cct = $raw['Reference'];
 $vencimiento = date('Y-m-d', strtotime('+3 day'));
 $pdo->prepare(
     "UPDATE invitaciones_colegio
-        SET pago_barcode_url = ?, pago_vencimiento = ?
+        SET pago_referencia = ?, pago_barcode_url = ?, pago_vencimiento = ?
       WHERE id = ?"
-)->execute([$raw['BarCode'] ?? $raw['PayFormat'] ?? null, $vencimiento, $inv['id']]);
+)->execute([$referencia_cct, $raw['BarCode'] ?? $raw['PayFormat'] ?? null, $vencimiento, $inv['id']]);
 
 respond([
     'success'      => true,
     'folio'        => $folio,
-    'referencia'   => $ref,
+    'referencia'   => $referencia_cct,
     'barcode_url'  => $raw['BarCode'] ?? $raw['PayFormat'] ?? null,
     'vencimiento'  => $vencimiento,
 ]);
