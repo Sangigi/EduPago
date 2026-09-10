@@ -251,6 +251,79 @@ try {
         }
     }
 
+    // Cuarta posibilidad: pago AGRUPADO desde Portal Familia (varios cobros
+    // pendientes del mismo alumno pagados juntos, ver
+    // acciones/iniciar_pago_agrupado.php). Al confirmarse, TODOS los cobros
+    // originales del grupo pasan a pagado, no solo un cobro suelto.
+    if (!$cobro) {
+        $refBuscarGrp = $referencia_reconstruida ?? $reference;
+        $stmtGrp = $pdo->prepare(
+            "SELECT id, cliente_id, escuela_id, total, estado, auth_code
+               FROM cobros_agrupados WHERE referencia = ? LIMIT 1"
+        );
+        $stmtGrp->execute([$refBuscarGrp]);
+        $grp = $stmtGrp->fetch();
+
+        if ($grp) {
+            if ($grp['estado'] === 'pagado') {
+                if ($grp['auth_code'] === $auth) {
+                    responder_liga(true, 'Ya estaba confirmado (reintento idempotente)');
+                }
+                responder_liga(true, 'Pago agrupado ya confirmado previamente');
+            }
+            if ($response !== 'approved') {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA AGRUPADA rechazada | ref:{$refBuscarGrp} response:{$response} nb_error:{$nb_error}");
+                responder_liga(true, 'Pago agrupado no aprobado, registrado');
+            }
+            if ($amount === null || floatval($amount) <= 0) {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA AGRUPADA sin monto válido | ref:{$refBuscarGrp}");
+                responder_liga(false, 'Falta el monto pagado (amount)');
+            }
+            $montoRecibidoGrp = floatval($amount);
+            if (abs($montoRecibidoGrp - floatval($grp['total'])) > 0.01) {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA AGRUPADA monto no coincide | agrupado:{$grp['id']} esperado:{$grp['total']} recibido:{$montoRecibidoGrp}");
+                responder_liga(false, 'El monto pagado no coincide con el grupo');
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare("UPDATE cobros_agrupados SET estado = 'pagado', auth_code = ?, pagado_en = NOW() WHERE id = ?")
+                    ->execute([$auth ?: $foliocpagos, $grp['id']]);
+
+                // Cada cobro individual del grupo pasa a pagado, con el mismo
+                // auth_code y metodo -- se ven en Historial igual que
+                // cualquier otro cobro pagado, solo que comparten referencia.
+                $stmtDetalle = $pdo->prepare(
+                    "SELECT cobro_id FROM cobros_agrupados_detalle WHERE cobro_agrupado_id = ?"
+                );
+                $stmtDetalle->execute([$grp['id']]);
+                $idsDetalle = array_column($stmtDetalle->fetchAll(), 'cobro_id');
+
+                if ($idsDetalle) {
+                    $inPlaceholders = implode(',', array_fill(0, count($idsDetalle), '?'));
+                    $pdo->prepare(
+                        "UPDATE cobros SET estado = 'pagado', auth_code = ?, referencia = ?
+                          WHERE id IN ($inPlaceholders)"
+                    )->execute(array_merge([$auth ?: $foliocpagos, $refBuscarGrp], $idsDetalle));
+                }
+
+                if (!empty($grp['cliente_id'])) {
+                    recalcular_saldo_pendiente($pdo, intval($grp['cliente_id']));
+                }
+
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                $pdo->rollBack();
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ ERROR confirmando LIGA AGRUPADA: " . $e->getMessage());
+                responder_liga(false, 'Error de sistema');
+            }
+
+            log_api_liga("LIGA AGRUPADA confirmada -> agrupado_id:{$grp['id']} ref:{$refBuscarGrp} auth:{$auth} cobros:" . implode(',', $idsDetalle));
+            responder_liga(true, 'Pago agrupado confirmado, ' . count($idsDetalle) . ' conceptos pagados');
+        }
+    }
+
+
 
     if (!$cobro) {
         $log_msg = "⚠ LIGA HUÉRFANA | ref:{$reference} folio_cct:{$foliocpagos} response:{$response}";
