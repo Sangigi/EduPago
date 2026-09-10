@@ -7,54 +7,159 @@
 <title>Registro de colegio · Paga la Escuela</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&display=swap" rel="stylesheet">
 <style>
-  /* Página pública independiente: antes cargaba assets/css/main.css completo
-     (~53 KB, pensado para toda la SPA — sidebar, modales, tablas, tema oscuro)
-     solo para tomar prestadas 4 variables. Se quitó esa carga y se dejaron
-     los valores literales — un request y ~53 KB menos en una página que
-     el usuario reportó como lenta. */
+  /* Página pública independiente: no carga assets/css/main.css completo
+     (~53 KB, pensado para toda la SPA con sidebar, modales, tema oscuro).
+     En su lugar se replican aquí, como literales, los mismos tokens de
+     color/tipografía/radio que usa el resto del sistema — mismo aspecto,
+     sin el peso de la hoja completa. Si la paleta de main.css cambia algún
+     día, esta copia habría que actualizarla a mano también. */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { overflow: auto; font-family: 'DM Sans', system-ui, -apple-system, sans-serif; }
-  .reg-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center;
-              padding:28px 18px; background:#272c64; }
-  .reg-card { width:100%; max-width:560px; background:#272c52; color:#eef1f8;
-              border:1px solid rgba(255,255,255,.07); border-radius:18px;
-              box-shadow:0 16px 40px rgba(0,0,0,.5); overflow:hidden; }
-  .reg-top  { padding:28px 30px 22px; text-align:center; }
-  .reg-marca{ font-size:24px; font-weight:800; letter-spacing:-.8px; }
-  .reg-sub  { font-size:12px; color:#bdcf00; font-weight:600; margin-top:4px; }
-  .reg-body { padding:0 30px 28px; }
-  .reg-h    { font-size:17px; font-weight:700; margin:0 0 4px; }
-  .reg-p    { font-size:13px; color:#8b93a7; margin:0 0 20px; line-height:1.55; }
-  .reg-campo{ margin-bottom:14px; }
-  .reg-campo label { display:block; font-size:12px; font-weight:600;
-                     color:rgba(255,255,255,.8); margin-bottom:5px; }
+
+  :root {
+    --violet:       #6c5af0;
+    --violet-dark:  #5846dd;
+    --violet-soft:  #f1effd;
+    --lime:         #bdcf00;
+    --green:        #49af54;
+    --green-glow:   rgba(73,175,84,.12);
+    --amber:        #d97706;
+    --amber-glow:   rgba(217,119,6,.10);
+    --red:          #e5484d;
+    --red-glow:     rgba(229,72,77,.09);
+    --bg-main:      #f4f5f9;
+    --bg-surface:   #ffffff;
+    --border-glow:  #ebecf3;
+    --glass-light:  #f5f6fa;
+    --ink:          #1e2430;
+    --ink-2:        #414958;
+    --ink-3:        #697182;
+    --shadow-md:    0 4px 14px rgba(23,26,44,.07), 0 2px 5px rgba(23,26,44,.04);
+    --shadow-lg:    0 18px 44px rgba(23,26,44,.13);
+    --radius:       12px;
+    --radius-lg:    18px;
+    --radius-panel: 26px;
+    --font: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    overflow: auto; font-family: var(--font); background: var(--bg-main); color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .reg-wrap {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 48px 18px;
+  }
+
+  .reg-card {
+    width: 100%; max-width: 480px; background: var(--bg-surface);
+    border: 1px solid var(--border-glow); border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-lg); overflow: hidden;
+  }
+
+  .reg-top { padding: 34px 34px 8px; text-align: center; }
+
+  .reg-brand-icon {
+    width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--violet) 0%, var(--violet-dark) 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px; font-weight: 800; color: #fff;
+  }
+
+  .reg-marca { font-size: 19px; font-weight: 700; letter-spacing: -.3px; color: var(--ink); }
+  .reg-sub   { font-size: 11.5px; color: var(--ink-3); font-weight: 600; margin-top: 3px; }
+
+  .reg-body { padding: 22px 34px 32px; }
+  .reg-h    { font-size: 18px; font-weight: 700; margin: 0 0 4px; color: var(--ink); letter-spacing: -.2px; }
+  .reg-p    { font-size: 13.5px; color: var(--ink-3); margin: 0 0 22px; line-height: 1.6; }
+
+  .reg-campo { margin-bottom: 14px; }
+  .reg-campo label {
+    display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px;
+  }
   .reg-campo input, .reg-campo textarea {
-    width:100%; padding:11px 13px; border-radius:12px; box-sizing:border-box;
-    border:1px solid rgba(255,255,255,.14); background:#fff; color:#1e2430;
-    font-size:14px; font-family:inherit; outline:none;
+    width: 100%; padding: 11px 14px; border-radius: var(--radius); box-sizing: border-box;
+    border: 1px solid var(--border-glow); background: var(--glass-light); color: var(--ink);
+    font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s, background .15s;
   }
   .reg-campo input:focus, .reg-campo textarea:focus {
-    border-color:#bdcf00; box-shadow:0 0 0 3px rgba(189,207,0,.18);
+    border-color: var(--violet); background: #fff; box-shadow: 0 0 0 3px var(--violet-soft);
   }
-  .reg-op   { font-weight:400; color:#69798f; }
-  .reg-btn  { width:100%; margin-top:8px; padding:13px; border:none;
-              border-radius:12px; cursor:pointer; color:#fff;
-              font-size:14px; font-weight:700; font-family:inherit;
-              background:linear-gradient(135deg,#bdcf00 0%,#2f9e44 100%);
-              box-shadow:0 4px 14px rgba(47,158,68,.28); }
-  .reg-btn:disabled { opacity:.55; cursor:not-allowed; }
-  .reg-msg  { margin-top:14px; padding:11px 14px; border-radius:9px;
-              font-size:13px; line-height:1.5; }
-  .reg-err  { background:rgba(239,68,68,.12); color:#f87171; }
-  .reg-ok   { background:rgba(73,175,84,.14); color:#6fd07a; }
-  .reg-pie  { text-align:center; font-size:11px; color:#69798f; margin-top:18px; }
-  .reg-estado { text-align:center; padding:34px 30px 40px; }
-  .reg-estado-ic { font-size:38px; line-height:1; margin-bottom:14px; }
+  .reg-op { font-weight: 400; color: var(--ink-3); }
+
+  .reg-btn {
+    width: 100%; margin-top: 6px; padding: 13px; border: none;
+    border-radius: var(--radius); cursor: pointer; color: #fff;
+    font-size: 14px; font-weight: 700; font-family: inherit;
+    background: var(--violet); transition: filter .15s, box-shadow .15s;
+  }
+  .reg-btn:hover:not(:disabled) { filter: brightness(1.06); box-shadow: var(--shadow-md); }
+  .reg-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .reg-btn-ghost {
+    background: transparent; box-shadow: none; color: var(--ink-3);
+    margin-top: 8px; font-weight: 600;
+  }
+  .reg-btn-ghost:hover { background: var(--glass-light); filter: none; box-shadow: none; }
+
+  .reg-msg { margin-top: 14px; padding: 11px 14px; border-radius: var(--radius); font-size: 13px; line-height: 1.5; }
+  .reg-err { background: var(--red-glow); color: #b3352f; }
+  .reg-ok  { background: var(--green-glow); color: #2f7d3b; }
+
+  .reg-pie { text-align: center; font-size: 11.5px; color: var(--ink-3); margin-top: 20px; line-height: 1.5; }
+
+  .reg-estado { text-align: center; padding: 12px 4px 20px; }
+  .reg-estado-ic {
+    width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 24px;
+    background: var(--amber-glow); color: var(--amber);
+  }
+  .reg-estado-ic.ok { background: var(--green-glow); color: var(--green); }
+
+  /* Selección de plan */
+  .reg-plan {
+    display: flex; align-items: center; gap: 12px; padding: 15px 16px;
+    border: 1.5px solid var(--border-glow); border-radius: var(--radius-lg);
+    margin-bottom: 10px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .reg-plan:hover { border-color: var(--violet-light, #8e80f4); }
+  .reg-plan-activo { border-color: var(--violet); background: var(--violet-soft); }
+  .reg-plan-radio {
+    width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-glow);
+    flex-shrink: 0; transition: border-color .15s, background .15s;
+  }
+  .reg-plan-activo .reg-plan-radio { border-color: var(--violet); background: var(--violet); box-shadow: inset 0 0 0 3px #fff; }
+  .reg-plan-info { flex: 1; }
+  .reg-plan-nombre { font-weight: 700; font-size: 14px; color: var(--ink); }
+  .reg-plan-detalle { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+  .reg-plan-precio { font-weight: 800; font-size: 15px; color: var(--violet); white-space: nowrap; }
+  .reg-plan-precio span { font-size: 10px; font-weight: 400; color: var(--ink-3); }
+
+  /* Selección de método de pago */
+  .reg-metodo {
+    padding: 15px 16px; border: 1.5px solid var(--border-glow); border-radius: var(--radius-lg);
+    margin-bottom: 10px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .reg-metodo:hover { border-color: var(--violet-light, #8e80f4); }
+  .reg-metodo-activo { border-color: var(--violet); background: var(--violet-soft); }
+  .reg-metodo-nombre { font-weight: 700; font-size: 14px; color: var(--ink); }
+  .reg-metodo-detalle { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+
+  .reg-ref {
+    font-family: 'SF Mono', 'Courier New', monospace; font-size: 17px; font-weight: 700;
+    letter-spacing: .5px; text-align: center; background: var(--glass-light);
+    border-radius: var(--radius); padding: 14px; margin: 16px 0; color: var(--ink);
+  }
+
+  @media (max-width: 480px) {
+    .reg-top, .reg-body { padding-left: 22px; padding-right: 22px; }
+  }
 </style>
 </head>
 <body>
 <div class="reg-wrap"><div class="reg-card" id="app">
   <div class="reg-top">
+    <div class="reg-brand-icon">P</div>
     <div class="reg-marca">Paga la Escuela</div>
     <div class="reg-sub">REGISTRO DE COLEGIO</div>
   </div>
@@ -63,6 +168,6 @@
   </div>
 </div></div>
 
-<script src="assets/js/registro.js?v=1787360000"></script>
+<script src="assets/js/registro.js?v=1789200000"></script>
 </body>
 </html>
