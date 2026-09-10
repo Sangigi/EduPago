@@ -2206,7 +2206,7 @@ function PortalFamilia({
               children: _jsxDEV(Icon, {
                 name: "bank",
                 size: 20,
-                color: PLC.lime
+                color: PLC.white
               }, void 0, false)
             }, void 0, false), _jsxDEV("div", {
               children: [_jsxDEV("div", {
@@ -2429,9 +2429,9 @@ function PortalFamilia({
                     gap: 5,
                     padding: '6px 12px',
                     borderRadius: 7,
-                    border: `2px solid ${copied === 'ref' ? PLC.green : PLC.lime}`,
-                    background: copied === 'ref' ? `rgba(73,175,84,.12)` : PLC.lime,
-                    color: copied === 'ref' ? PLC.green : PLC.navy,
+                    border: `2px solid ${copied === 'ref' ? PLC.green : PLC.border}`,
+                    background: copied === 'ref' ? `rgba(73,175,84,.12)` : PLC.white,
+                    color: copied === 'ref' ? PLC.green : '#000000',
                     fontWeight: 700,
                     fontSize: 12,
                     cursor: 'pointer',

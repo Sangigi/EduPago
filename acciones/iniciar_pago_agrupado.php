@@ -17,6 +17,16 @@ $cliente_id = intval($input['cliente_id'] ?? 0);
 $cobro_ids  = $input['cobro_ids'] ?? [];
 $metodo     = trim($input['metodo'] ?? '');
 
+// Log de entrada (10-sep-2026): todos los log_api() de este archivo estaban
+// DESPUÉS de las validaciones/guards (requerir_escuela_propia, requerir_
+// familia_propia, requerir_metodo_pago_habilitado, el INSERT a
+// cobros_agrupados). Si CUALQUIERA de esos puntos rechazaba la petición o
+// tronaba, el usuario veía un error en pantalla pero el log se quedaba
+// completamente vacío -- imposible saber dónde se cortó. Esta línea es lo
+// primero que corre, antes de cualquier validación, para garantizar que
+// SIEMPRE quede un rastro aunque todo lo demás falle.
+log_api("iniciar_pago_agrupado LLAMADA -> cliente_id={$cliente_id} cobro_ids=" . implode(',', array_map('intval', (array) $cobro_ids)) . " metodo={$metodo} rol=" . ($usuario_actual['rol'] ?? '?'));
+
 if (!$cliente_id || !is_array($cobro_ids) || count($cobro_ids) < 1) {
     respond(['success' => false, 'error' => 'cliente_id y al menos un cobro_id son requeridos']);
 }
@@ -36,12 +46,14 @@ $stmt->execute($cobro_ids);
 $cobros = $stmt->fetchAll();
 
 if (count($cobros) !== count($cobro_ids)) {
+    log_api("iniciar_pago_agrupado RECHAZADO -> cobros ya no pendientes. pedidos=" . implode(',', $cobro_ids) . " encontrados=" . implode(',', array_column($cobros, 'id')));
     respond(['success' => false, 'error' => 'Uno o más cobros ya no están pendientes. Recarga e intenta de nuevo.']);
 }
 // Todos deben ser del mismo alumno y la misma escuela -- agrupar cobros de
 // dos alumnos distintos en un solo cargo mezclaría a quién se le cobra qué.
 foreach ($cobros as $c) {
     if (intval($c['cliente_id']) !== $cliente_id) {
+        log_api("iniciar_pago_agrupado RECHAZADO -> cobro {$c['id']} es del cliente {$c['cliente_id']}, no de {$cliente_id}");
         respond(['success' => false, 'error' => 'Todos los cobros del grupo deben ser del mismo alumno.']);
     }
 }
@@ -118,6 +130,7 @@ try {
     $pdo->commit();
 } catch (\Throwable $e) {
     $pdo->rollBack();
+    log_api("iniciar_pago_agrupado FALLÓ AL INSERTAR -> " . $e->getMessage());
     respond(['success' => false, 'error' => 'No se pudo preparar el pago agrupado.']);
 }
 
