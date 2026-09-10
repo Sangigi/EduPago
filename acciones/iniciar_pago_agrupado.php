@@ -130,17 +130,23 @@ if ($metodo === 'TC') {
     ]);
 }
 
-// EfectivoRef
+// EfectivoRef — el payload de este servicio (GenerarReferenciaIndi) NO es
+// igual al de Tarjeta (GenerarLigaDomiciliacionIndi): no lleva 'Id', y sí
+// espera 'CustomerEmail'/'CustomerName' (vacíos si no se capturan). Antes
+// este payload copiaba la forma del de Tarjeta de arriba, lo que el
+// proveedor rechazaba con un genérico {"Message":"Error."} — mismo payload
+// ya usado (y probado) en generar_referencia_efectivo.php.
 $payload = [
     'User'           => PLE_USER,
     'Password'       => PLE_PASS,
     'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
     'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
     'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
-    'Id'             => str_pad(strval($cliente_id), 9, '0', STR_PAD_LEFT),
     'Description'    => substr($descripcion, 0, 50),
     'Amount'         => intval(round($total * 100)),
     'Reference'      => $ref,
+    'CustomerEmail'  => '',
+    'CustomerName'   => '',
     'ExpirationDate' => date('Y-m-d', strtotime('+3 day')),
 ];
 log_api("iniciar_pago_agrupado(Efectivo) -> agrupado_id={$agrupado_id} cliente={$cliente_id} cobros=" . implode(',', $cobro_ids) . " total={$total} ref={$ref}");
