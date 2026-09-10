@@ -117,10 +117,9 @@ function construir_referencia_pago(PDO $pdo, $clienteId): string
     return str_pad($alumno . $pago, $largoTotal, '0', STR_PAD_LEFT);
 }
 // Igual que construir_referencia_pago(), pero para cobros que NO viven en la
-// tabla `cobros` -- hoy solo el pago de suscripcion durante el registro de un
-// colegio (invitaciones_colegio), antes de que exista un escuela_id real.
-// Revisa unicidad en AMBAS tablas: una referencia de suscripcion nunca debe
-// coincidir con una de cobros normales, ni con otra de suscripcion.
+// tabla `cobros`: pago de suscripcion nuevo (invitaciones_colegio) o pago
+// de RENOVACION de una escuela ya activa (escuelas.pago_renovacion_*).
+// Revisa unicidad en las TRES tablas para que nunca coincidan entre si.
 function construir_referencia_pago_generico(PDO $pdo, $idEntidad): string
 {
     $largoTotal = defined('REFERENCIA_DIGITOS') ? intval(REFERENCIA_DIGITOS) : 15;
@@ -131,6 +130,11 @@ function construir_referencia_pago_generico(PDO $pdo, $idEntidad): string
 
     $chkCobros = $pdo->prepare("SELECT 1 FROM cobros WHERE referencia = ? LIMIT 1");
     $chkInv    = $pdo->prepare("SELECT 1 FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1");
+    // Tercera tabla: pagos de RENOVACION de escuelas ya activas (distinto
+    // de invitaciones_colegio, que es solo la primera mensualidad). Sin
+    // este chequeo, una referencia de renovacion podria coincidir con otra
+    // ya en curso para OTRA escuela y el webhook confirmaria la que no era.
+    $chkEsc    = $pdo->prepare("SELECT 1 FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1");
     for ($i = 0; $i < 500; $i++) {
         $pago = str_pad(strval(($desde + $i) % 10000), 4, '0', STR_PAD_LEFT);
         $ref  = str_pad($bloque . $pago, $largoTotal, '0', STR_PAD_LEFT);
@@ -138,6 +142,8 @@ function construir_referencia_pago_generico(PDO $pdo, $idEntidad): string
         if ($chkCobros->fetch()) continue;
         $chkInv->execute([$ref]);
         if ($chkInv->fetch()) continue;
+        $chkEsc->execute([$ref]);
+        if ($chkEsc->fetch()) continue;
         return $ref;
     }
     $pago = str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
@@ -262,4 +268,47 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     }
 
     return ['success' => true, 'auth' => $tx['auth'] ?? null, 'raw' => $raw];
+}
+
+// Movidas aqui desde api.php: cron_recordatorios.php y webhooks/webhook_liga.php
+// tambien las necesitan (renovacion automatica de suscripcion) y ninguno de
+// los dos incluye api.php -- este archivo si esta incluido en los tres.
+function siguiente_vencimiento_mensual($fechaBase) {
+    // Dos bugs distintos en la version anterior, los dos por el mismo
+    // motivo: usar strtotime('+1 month') sobre un dia que no existe en el
+    // mes siguiente. PHP no lo recorta -- lo DESBORDA al mes de despues:
+    // strtotime('2026-01-31 +1 month') da marzo, no febrero, porque de
+    // enero 31 + 1 mes 'deberia' caer en 31 de febrero, que no existe, y
+    // PHP en su lugar suma los dias que faltan sobre el mes siguiente.
+    // Por eso ahora el mes/anio destino se calculan con aritmetica de
+    // enteros (nunca con strtotime), y el dia se recorta aparte si hace
+    // falta -- asi 31-ene siempre cae en febrero, nunca en marzo.
+    $partes = explode('-', substr($fechaBase, 0, 10));
+    $anio  = intval($partes[0]);
+    $mes   = intval($partes[1]);
+    $dia   = intval($partes[2]);
+    $mes++;
+    if ($mes > 12) { $mes = 1; $anio++; }
+    $ultimoDiaDelMes = intval(date('t', mktime(0, 0, 0, $mes, 1, $anio)));
+    $diaFinal = min($dia, $ultimoDiaDelMes);
+    return sprintf('%04d-%02d-%02d', $anio, $mes, $diaFinal);
+}
+
+function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela_id = null) {
+    try {
+        $stmt = $pdo->prepare(
+            "INSERT INTO logs_sistema (usuario_id, usuario_nombre, escuela_id, accion, detalle, ip)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $usuario_actual['user_id'] ?? null,
+            $usuario_actual['nombre'] ?? ($usuario_actual['email'] ?? null),
+            $escuela_id ?? ($usuario_actual['escuela_id'] ?? null),
+            $accion,
+            $detalle,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+    } catch (\PDOException $e) {
+        file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | registrar_log falló (¿falta migrar logs_sistema?): " . $e->getMessage() . "\n", FILE_APPEND);
+    }
 }
