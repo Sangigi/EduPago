@@ -20,9 +20,77 @@ const PLANES_INFO = {
 const PLAN_INFO_FALLBACK = 'basico';
 
 function Suscripciones({ data, setData }) {
-  const { useState } = React;
+  const { useState, useEffect } = React;
   const [cambiandoPlanId, setCambiandoPlanId] = useState(null);
   const [renovandoId, setRenovandoId] = useState(null);
+
+  // ── Invitaciones de colegios en proceso de registro ──────────────────────
+  // Antes no existía ninguna pantalla para esto: invitacion_resolver.php
+  // (aprobar/rechazar) y invitaciones_listar.php ya existían en el backend,
+  // pero nada en el frontend los consumía — un colegio podía pagar su
+  // suscripción y quedarse esperando indefinidamente sin que nadie tuviera
+  // dónde aprobarlo.
+  const [invitaciones, setInvitaciones] = useState([]);
+  const [cargandoInv, setCargandoInv] = useState(true);
+  const [resolviendoId, setResolviendoId] = useState(null);
+  const [motivoRechazo, setMotivoRechazo] = useState({}); // { [id]: texto }
+
+  const cargarInvitaciones = async () => {
+    setCargandoInv(true);
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=invitaciones_listar', {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      const json = await res.json();
+      if (json.success) setInvitaciones(json.invitaciones || []);
+    } catch (e) {
+      // sin red: la lista se queda como estaba, no se rompe la pantalla
+    } finally {
+      setCargandoInv(false);
+    }
+  };
+
+  useEffect(() => { cargarInvitaciones(); }, []);
+
+  // motivoOverride: se recibe directo como parámetro en vez de leerse del
+  // estado — setMotivoRechazo() es asíncrono y llamar a esta función justo
+  // después (mismo evento de clic) mandaba el motivo VACÍO, un evento
+  // atrás, porque React aún no había aplicado el setState.
+  const resolverInvitacion = async (id, accionResolver, motivoOverride) => {
+    setResolviendoId(id);
+    try {
+      const token = AuthController.getToken();
+      const body = { id, accion: accionResolver };
+      if (accionResolver === 'rechazar') body.motivo = motivoOverride ?? (motivoRechazo[id] || '');
+      const res = await fetch('api.php?action=invitacion_resolver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'No se pudo procesar la invitación');
+
+      if (accionResolver === 'aprobar' && json.escuela_id) {
+        // La escuela nueva aún no vive en `data.escuelas` (se creó en el
+        // backend apenas ahora) — se recarga la página para traerla, en
+        // vez de intentar reconstruir a mano el objeto completo aquí.
+        alert(
+          'Colegio aprobado y activado.' +
+          (json.usuario_creado
+            ? (json.correo_enviado
+                ? ' Se envió un correo de activación a ' + json.email_login + '.'
+                : ' No se pudo enviar el correo de activación — copia esta liga y envíasela al colegio: ' + json.activacion_liga)
+            : ' El correo ya tenía una cuenta existente; no se creó una nueva.')
+        );
+      }
+      await cargarInvitaciones();
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      setResolviendoId(null);
+    }
+  };
 
   const renovarSuscripcion = async (escuelaId) => {
     setRenovandoId(escuelaId);
@@ -107,8 +175,89 @@ function Suscripciones({ data, setData }) {
   })();
   const maxAltas = Math.max(1, ...altasPorMes.map(m => m.count));
 
+  const invPendientes = invitaciones.filter(i => i.estado === 'enviado' || i.estado === 'pagado');
+  const PLAN_LABEL = { basico: 'Básico', avanzado: 'Avanzado', pro: 'Pro' };
+
+  const panelInvitaciones = (invPendientes.length > 0 || cargandoInv) && _jsxDEV("div", {
+    className: "card",
+    style: { marginBottom: 20, padding: 0, overflow: 'hidden' },
+    children: [
+      _jsxDEV("div", {
+        style: { padding: '16px 20px', borderBottom: '1px solid var(--border-glow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+        children: [
+          _jsxDEV("div", {
+            children: [
+              _jsxDEV("div", { style: { fontWeight: 700, fontSize: 15 }, children: "Colegios en proceso de registro" }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
+                children: "Solicitudes que ya pagaron su suscripción y esperan tu revisión antes de activarse." }, void 0, false)
+            ]
+          }, void 0, true),
+          cargandoInv ? _jsxDEV("span", { className: "spinner", style: { width: 16, height: 16 } }, void 0, false) : null
+        ]
+      }, 'h', true),
+      invPendientes.length === 0 ? _jsxDEV("div", {
+        style: { padding: '20px', color: 'var(--ink-3)', fontSize: 13 },
+        children: "Sin solicitudes pendientes por ahora."
+      }, void 0, false) : _jsxDEV("div", {
+        children: invPendientes.map(inv => {
+          const datos = (() => { try { return JSON.parse(inv.datos_enviados || '{}'); } catch (e) { return {}; } })();
+          const yaPagado = inv.estado === 'pagado';
+          return _jsxDEV("div", {
+            style: { padding: '14px 20px', borderBottom: '1px solid var(--border-glow)' },
+            children: [
+              _jsxDEV("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' },
+                children: [
+                  _jsxDEV("div", {
+                    children: [
+                      _jsxDEV("div", { style: { fontWeight: 600, fontSize: 14 }, children: datos.nombre || '(sin nombre)' }, void 0, false),
+                      _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
+                        children: [datos.email || inv.contacto_email, ' · ', inv.contacto_nombre] }, void 0, true),
+                      _jsxDEV("div", { style: { fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+                        children: [
+                          _jsxDEV("span", {
+                            style: { padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                     background: yaPagado ? 'rgba(73,175,84,.12)' : 'rgba(217,119,6,.12)',
+                                     color: yaPagado ? 'var(--green)' : 'var(--amber, #d97706)' },
+                            children: yaPagado ? 'Pago confirmado' : 'Esperando pago'
+                          }, void 0, false),
+                          inv.plan_elegido ? _jsxDEV("span", { style: { color: 'var(--ink-2)' },
+                            children: (PLAN_LABEL[inv.plan_elegido] || inv.plan_elegido) + ' · $' + Number(inv.monto_suscripcion || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
+                          }, void 0, false) : null
+                        ]
+                      }, void 0, true)
+                    ]
+                  }, void 0, true),
+                  yaPagado ? _jsxDEV("div", { style: { display: 'flex', gap: 8, flexShrink: 0 },
+                    children: [
+                      _jsxDEV("button", {
+                        className: "btn btn-primary btn-sm",
+                        disabled: resolviendoId === inv.id,
+                        onClick: () => resolverInvitacion(inv.id, 'aprobar'),
+                        children: resolviendoId === inv.id ? 'Procesando…' : 'Aprobar y activar'
+                      }, void 0, false),
+                      _jsxDEV("button", {
+                        className: "btn btn-secondary btn-sm",
+                        disabled: resolviendoId === inv.id,
+                        onClick: () => {
+                          const motivo = prompt('¿Por qué se rechaza esta solicitud? (se le puede compartir al colegio)');
+                          if (motivo === null) return;
+                          resolverInvitacion(inv.id, 'rechazar', motivo);
+                        },
+                        children: 'Rechazar'
+                      }, void 0, false)
+                    ]
+                  }, void 0, true) : null
+                ]
+              }, void 0, true)
+            ]
+          }, inv.id, true);
+        })
+      }, void 0, false)
+    ]
+  }, void 0, true);
+
   return /*#__PURE__*/_jsxDEV("div", {
-    children: [excedidos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+    children: [panelInvitaciones, excedidos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
       style: {
         marginBottom: 16,
         padding: '12px 16px',
@@ -280,4 +429,4 @@ function Suscripciones({ data, setData }) {
       }, void 0, false)]
     }, void 0, true)]
   }, void 0, true);
-}
+}
