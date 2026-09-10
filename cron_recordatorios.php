@@ -386,6 +386,68 @@ try {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// 1.1) DESACTIVAR/REACTIVAR SECCIONES POR FALTA DE PAGO
+//
+// Antes esto se hacia a mano: el superadmin tenia que acordarse de entrar a
+// Escuelas > Editar secciones cada vez que una suscripcion vencia, y volver
+// a habilitarlas cuando el colegio pagaba. En la practica eso significaba
+// que un colegio podia seguir cobrando indefinidamente despues de vencer,
+// sin que nadie lo notara hasta que alguien revisara Suscripciones a mano.
+//
+// Estas son las secciones que se consideran "de pago": todo lo que implica
+// operar y cobrar. Se dejan visibles Dashboard, Alumnos y Familias para que
+// la escuela pueda seguir viendo su informacion (no se le "secuestran" los
+// datos), pero no puede seguir generando ni cobrando adeudos nuevos.
+// ══════════════════════════════════════════════════════════════════════════
+$SECCIONES_DE_PAGO = ['caja', 'corte_caja', 'cobros', 'recordatorios'];
+
+try {
+    $stmtVenc = $pdo->query(
+        "SELECT id, nombre, secciones_deshabilitadas, fecha_vencimiento_plan
+           FROM escuelas WHERE es_plantel = 0 AND activa = 1 AND fecha_vencimiento_plan IS NOT NULL"
+    );
+    foreach ($stmtVenc->fetchAll() as $esc) {
+        $vencida = strtotime($esc['fecha_vencimiento_plan']) < $hoyTs;
+        $actuales = json_decode($esc['secciones_deshabilitadas'] ?? '', true);
+        if (!is_array($actuales)) $actuales = [];
+
+        if ($vencida) {
+            // Se agregan las secciones de pago SIN quitar ninguna que el
+            // superadmin ya hubiera deshabilitado manualmente por otro motivo
+            // -- evita que este proceso automatico reactive algo que alguien
+            // apago a proposito por una razon distinta al pago.
+            $nuevas = array_values(array_unique(array_merge($actuales, $SECCIONES_DE_PAGO)));
+            $yaEstaban = !array_diff($SECCIONES_DE_PAGO, $actuales);
+            if (!$yaEstaban) {
+                $pdo->prepare("UPDATE escuelas SET secciones_deshabilitadas = ? WHERE id = ?")
+                    ->execute([json_encode($nuevas), $esc['id']]);
+                registrar_log($pdo, ['user_id' => null, 'rol' => 'sistema'],
+                    'secciones_desactivadas_por_pago',
+                    "Escuela '{$esc['nombre']}' #{$esc['id']}: suscripción vencida el {$esc['fecha_vencimiento_plan']}, se desactivaron: " . implode(',', $SECCIONES_DE_PAGO),
+                    $esc['id']);
+                $resumen[] = "OK secciones desactivadas por falta de pago -> escuela #{$esc['id']} ({$esc['nombre']})";
+            }
+        } else {
+            // El plan está vigente (se renovó o se pagó la suscripción):
+            // se retiran SOLO las secciones de pago que este mismo proceso
+            // habría agregado, dejando intacto cualquier otro bloqueo manual.
+            $nuevas = array_values(array_diff($actuales, $SECCIONES_DE_PAGO));
+            if ($nuevas !== $actuales) {
+                $pdo->prepare("UPDATE escuelas SET secciones_deshabilitadas = ? WHERE id = ?")
+                    ->execute([json_encode($nuevas), $esc['id']]);
+                registrar_log($pdo, ['user_id' => null, 'rol' => 'sistema'],
+                    'secciones_reactivadas_por_pago',
+                    "Escuela '{$esc['nombre']}' #{$esc['id']}: suscripción vigente, se reactivaron: " . implode(',', $SECCIONES_DE_PAGO),
+                    $esc['id']);
+                $resumen[] = "OK secciones reactivadas -> escuela #{$esc['id']} ({$esc['nombre']})";
+            }
+        }
+    }
+} catch (\PDOException $e) {
+    $resumen[] = "ERROR desactivando/reactivando secciones por pago: " . $e->getMessage();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // 2) RECORDATORIOS DE COBROS PENDIENTES
 // ══════════════════════════════════════════════════════════════════════════
 try {
