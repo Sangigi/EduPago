@@ -151,6 +151,53 @@ try {
             log_api_liga("LIGA reference envuelta reconocida -> recibido:{$reference} reconstruida:{$referencia_reconstruida} cobro_id:{$cobro['id']}");
         }
     }
+    // Si no coincide con ningun cobro de alumno, puede ser un pago de
+    // SUSCRIPCION de un colegio en registro (invitaciones_colegio), que usa
+    // el mismo mecanismo de liga/referencia pero no vive en `cobros`. Se
+    // revisa aqui, antes de darla por huerfana, con la misma reconstruccion
+    // de referencia envuelta que ya se aplica arriba para cobros normales.
+    if (!$cobro) {
+        $refBuscar = $referencia_reconstruida ?? $reference;
+        $stmtInv = $pdo->prepare(
+            "SELECT id, monto_suscripcion, estado, pago_auth_code
+               FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1"
+        );
+        $stmtInv->execute([$refBuscar]);
+        $inv = $stmtInv->fetch();
+
+        if ($inv) {
+            // Idempotencia: mismo criterio que el bloque de cobros de abajo.
+            if ($inv['estado'] === 'pagado' || $inv['estado'] === 'aprobada') {
+                if ($inv['pago_auth_code'] === $auth) {
+                    responder_liga(true, 'Ya estaba confirmado (reintento idempotente)');
+                }
+                responder_liga(true, 'Suscripción ya confirmada previamente');
+            }
+            if ($response !== 'approved') {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA SUSCRIPCIÓN rechazada | ref:{$refBuscar} response:{$response} nb_error:{$nb_error}");
+                responder_liga(true, 'Pago de suscripción no aprobado, registrado');
+            }
+            if ($amount === null || floatval($amount) <= 0) {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA SUSCRIPCIÓN sin monto válido | ref:{$refBuscar}");
+                responder_liga(false, 'Falta el monto pagado (amount)');
+            }
+            $monto_recibido_susc = floatval($amount);
+            if (abs($monto_recibido_susc - floatval($inv['monto_suscripcion'])) > 0.01) {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA SUSCRIPCIÓN monto no coincide | invitacion:{$inv['id']} esperado:{$inv['monto_suscripcion']} recibido:{$monto_recibido_susc}");
+                responder_liga(false, 'El monto pagado no coincide con el plan elegido');
+            }
+
+            $pdo->prepare(
+                "UPDATE invitaciones_colegio
+                    SET estado = 'pagado', pago_auth_code = ?, pagado_en = NOW()
+                  WHERE id = ?"
+            )->execute([$auth ?: $foliocpagos, $inv['id']]);
+
+            log_api_liga("LIGA SUSCRIPCIÓN confirmada -> invitacion_id:{$inv['id']} ref:{$refBuscar} auth:{$auth}");
+            responder_liga(true, 'Pago de suscripción confirmado');
+        }
+    }
+
     if (!$cobro) {
         $log_msg = "⚠ LIGA HUÉRFANA | ref:{$reference} folio_cct:{$foliocpagos} response:{$response}";
         if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
