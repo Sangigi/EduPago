@@ -145,29 +145,13 @@
   .reg-metodo-nombre { font-weight: 700; font-size: 14px; color: var(--ink); }
   .reg-metodo-detalle { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
 
-  /* Pasarela de tarjeta incrustada (10-sep-2026): la página de cobro la
-     genera el proveedor en su propio dominio, no se le puede inyectar
-     nuestra marca — esto es lo más cerca que se puede llegar sin su
-     cooperación: la envolvemos en un iframe dentro de nuestra propia
-     tarjeta, así el logo/encabezado de arriba (fuera de #cuerpo) se queda
-     visible todo el tiempo. Si el proveedor bloquea que lo enmarquen
-     (X-Frame-Options/CSP, común en páginas de pago por seguridad), el
-     iframe se queda en blanco -- por eso el enlace "Abrir en esta misma
-     pantalla" de abajo SIEMPRE está visible, no depende de detectar el
-     bloqueo (eso no se puede detectar de forma confiable desde JS).
-  */
-  .reg-pago-iframe-wrap {
-    border: 1px solid var(--border-glow); border-radius: var(--radius);
-    overflow: hidden; background: var(--glass-light); margin: 10px 0 14px;
-  }
-  .reg-pago-iframe-wrap iframe {
-    display: block; width: 100%; height: 560px; border: none; background: #fff;
-  }
-  .reg-pago-fallback {
-    text-align: center; font-size: 12.5px; color: var(--ink-3);
-  }
-  .reg-pago-fallback a { color: var(--violet); font-weight: 600; text-decoration: none; }
-  .reg-pago-fallback a:hover { text-decoration: underline; }
+  /* Se probó envolver la pasarela de tarjeta del proveedor en un iframe
+     aquí mismo (mismo logo/encabezado visible todo el tiempo), pero
+     Cobroscontarjeta.com/MITEC bloquea que su página se muestre enmarcada
+     (X-Frame-Options/CSP, común en páginas de pago por seguridad) —
+     confirmado en producción ("contenido bloqueado"). Sin un panel de
+     personalización de su lado, no hay forma de darle su marca a esa
+     pantalla; se sigue redirigiendo directo, como antes. */
 
   .reg-ref {
     font-family: 'SF Mono', 'Courier New', monospace; font-size: 17px; font-weight: 700;

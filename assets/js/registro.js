@@ -256,7 +256,16 @@
           return;
         }
         if (metodoElegido === 'TC') {
-          pantallaPagoIframe(res.url);
+          // Se probó envolver esta liga en un iframe dentro de nuestra
+          // propia tarjeta (mismo logo/encabezado visible todo el tiempo),
+          // pero el proveedor bloquea que su página se muestre enmarcada
+          // (X-Frame-Options/CSP — común en páginas de pago por seguridad,
+          // se confirmó en producción: "contenido bloqueado"). Sin
+          // cooperación del proveedor no hay forma de branding aquí; se
+          // redirige directo, como siempre. El colegio no vuelve a este
+          // formulario solo — se le indica que revise su correo para el
+          // siguiente paso.
+          window.location.href = res.url;
         } else {
           pantallaEfectivoGenerado(res, monto, nombreColegio);
         }
@@ -266,21 +275,6 @@
         msg.innerHTML = '<div class="reg-msg reg-err">Error de conexión. Intenta de nuevo.</div>';
       });
     });
-  }
-
-  // Envuelve la pasarela del proveedor en un iframe dentro de nuestra propia
-  // tarjeta (10-9-2026), en vez de mandar al colegio de golpe a otro sitio:
-  // el logo y encabezado de arriba (fuera de #cuerpo) se quedan visibles
-  // todo el tiempo. No se puede saber con certeza desde JS si el proveedor
-  // bloqueó que lo enmarquen (común en páginas de pago por seguridad), así
-  // que el enlace de abajo para abrirlo directo SIEMPRE se muestra, no solo
-  // como reacción a un error.
-  function pantallaPagoIframe(url) {
-    cuerpo.innerHTML =
-      '<div class="reg-h">Completa tu pago con tarjeta</div>' +
-      '<p class="reg-p">Este formulario lo procesa nuestra pasarela de pago segura. Al terminar, revisa tu correo para el siguiente paso.</p>' +
-      '<div class="reg-pago-iframe-wrap"><iframe src="' + esc(url) + '" title="Pago con tarjeta"></iframe></div>' +
-      '<p class="reg-pago-fallback">¿No ves el formulario de pago arriba? <a href="' + esc(url) + '">Ábrelo aquí</a></p>';
   }
 
   // El botón abre EL MISMO comprobante que genera Caja para cualquier otro
@@ -297,6 +291,7 @@
           '<strong>' + fmt(monto) + '</strong> con esta referencia:</p>' +
         '<div class="reg-ref">' + esc(res.referencia) + '</div>' +
         '<p class="reg-p" style="margin-top:8px">Vence el ' + esc(res.vencimiento) + '. ' +
+          'También te lo enviamos por correo para que no lo pierdas de camino a la tienda. ' +
           'En cuanto la tienda confirme tu pago, revisaremos tu solicitud.</p>' +
         '<button class="reg-btn" id="verFormato" style="margin-top:14px">Ver / imprimir formato de pago</button>' +
       '</div>';

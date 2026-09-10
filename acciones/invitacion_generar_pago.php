@@ -25,7 +25,7 @@ if (!in_array($metodo, ['TC', 'Efectivo'], true)) {
 }
 
 $stmt = $pdo->prepare(
-    "SELECT id, estado, expira, intentos, plan_elegido, monto_suscripcion
+    "SELECT id, estado, expira, intentos, plan_elegido, monto_suscripcion, contacto_nombre, contacto_email
        FROM invitaciones_colegio WHERE token_hash = ? LIMIT 1"
 );
 $stmt->execute([hash('sha256', $token)]);
@@ -153,17 +153,41 @@ if (empty($raw['Reference']) && empty($raw['BarCode']) && empty($raw['PayFormat'
 // interno — es la única que el webhook de pago_referencia.php puede
 // encontrar cuando confirme el pago.
 $referencia_cct = $raw['Reference'];
+$barcode_url = $raw['BarCode'] ?? $raw['PayFormat'] ?? null;
 $vencimiento = date('Y-m-d', strtotime('+3 day'));
 $pdo->prepare(
     "UPDATE invitaciones_colegio
         SET pago_referencia = ?, pago_barcode_url = ?, pago_vencimiento = ?
       WHERE id = ?"
-)->execute([$referencia_cct, $raw['BarCode'] ?? $raw['PayFormat'] ?? null, $vencimiento, $inv['id']]);
+)->execute([$referencia_cct, $barcode_url, $vencimiento, $inv['id']]);
+
+// Correo con el formato de pago (10-sep-2026): antes esta referencia SOLO
+// se mostraba en pantalla -- si el colegio cerraba la pestaña antes de
+// imprimirla/guardarla para ir a la tienda, no había forma de recuperarla
+// (registro.html no tiene ninguna pantalla que la vuelva a mostrar al
+// reabrir la liga). Se manda por correo para que no se pierda.
+if (!empty($inv['contacto_email'])) {
+    $vencimientoFmt = date('d/m/Y', strtotime($vencimiento));
+    $htmlEfectivo = "
+        <p>Hola " . htmlspecialchars($inv['contacto_nombre'] ?? '') . ",</p>
+        <p>Este es tu formato de pago para la primera mensualidad de tu colegio en Paga la Escuela.</p>
+        <p>Acude a cualquier tienda participante (OXXO y otras) y paga con esta referencia:</p>
+        <p style=\"font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:1px;\">" . htmlspecialchars($referencia_cct) . "</p>
+        <p>Vence el {$vencimientoFmt}.</p>" .
+        ($barcode_url ? "<p><a href=\"" . htmlspecialchars($barcode_url) . "\">Ver / imprimir el formato con código de barras</a></p>" : "") . "
+        <p>En cuanto la tienda confirme tu pago, revisaremos tu solicitud.</p>
+        <p>— Pagalaescuela</p>
+    ";
+    $resCorreoRef = enviar_correo($inv['contacto_email'], 'Tu formato de pago — Paga la Escuela', $htmlEfectivo);
+    if (!($resCorreoRef['success'] ?? false)) {
+        log_api("invitacion_generar_pago(Efectivo) -> falló el correo con el formato de pago a {$inv['contacto_email']}: " . ($resCorreoRef['error'] ?? 'desconocido'));
+    }
+}
 
 respond([
     'success'      => true,
     'folio'        => $folio,
     'referencia'   => $referencia_cct,
-    'barcode_url'  => $raw['BarCode'] ?? $raw['PayFormat'] ?? null,
+    'barcode_url'  => $barcode_url,
     'vencimiento'  => $vencimiento,
 ]);
