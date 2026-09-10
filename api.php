@@ -52,12 +52,9 @@ const SECCIONES_DISPONIBLES = [
 function fin_de_mes_actual() {
     return date('Y-m-t');
 }
-function siguiente_vencimiento_mensual($fechaBase) {
-    // Normaliza al día 1 antes de sumar un mes: evita que "31 de enero + 1 mes"
-    // salte a marzo en vez de febrero.
-    $primerDiaSiguiente = date('Y-m-01', strtotime($fechaBase . ' +1 month'));
-    return date('Y-m-t', strtotime($primerDiaSiguiente));
-}
+// siguiente_vencimiento_mensual() se movio a lib/helpers_pagos.php: la
+// necesitan tambien cron_recordatorios.php y webhooks/webhook_liga.php
+// para la renovacion automatica, y esos archivos no incluyen api.php.
 // ── Conceptos de pago recurrentes (colegiatura mensual/semestral/anual) ────
 // Valida y normaliza los campos de recurrencia de un producto; usado tanto
 // por crear_producto como editar_producto para no duplicar las reglas.
@@ -142,24 +139,10 @@ function validar_url_imagen($valor, $etiqueta = 'enlace') {
     respond(['success' => false, 'error' => 'El ' . $etiqueta . ' debe empezar con http:// o https://']);
 }
 
-function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela_id = null) {
-    try {
-        $stmt = $pdo->prepare(
-            "INSERT INTO logs_sistema (usuario_id, usuario_nombre, escuela_id, accion, detalle, ip)
-             VALUES (?, ?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([
-            $usuario_actual['user_id'] ?? null,
-            $usuario_actual['nombre'] ?? ($usuario_actual['email'] ?? null),
-            $escuela_id ?? ($usuario_actual['escuela_id'] ?? null),
-            $accion,
-            $detalle,
-            $_SERVER['REMOTE_ADDR'] ?? null,
-        ]);
-    } catch (\PDOException $e) {
-        file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | registrar_log falló (¿falta migrar logs_sistema?): " . $e->getMessage() . "\n", FILE_APPEND);
-    }
-}
+// registrar_log() se movio a lib/helpers_pagos.php por el mismo motivo:
+// cron_recordatorios.php y webhooks/webhook_liga.php tambien la usan y
+// no incluyen este archivo. Sigue disponible aqui via el require de
+// arriba.
 header('Content-Type: application/json; charset=UTF-8');
 // Todas las respuestas son dinámicas (dependen del usuario/rol/momento): sin
 // esto, algunos navegadores/proxies pueden servir una respuesta GET vieja de
