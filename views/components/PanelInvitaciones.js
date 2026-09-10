@@ -90,8 +90,11 @@ function ModalGenerarInvitacion({ onCerrar, onCreada }) {
       ),
       _hPI('div', { key: 'b', className: 'modal-body' },
         resultado ? [
-          _hPI('div', { key: 'ok', style: { fontSize: 13, color: 'var(--ink-2)', marginBottom: 10 } },
-            'Enlace generado. Compártelo con el colegio — expira en ' + resultado.expira_horas + ' horas. ' +
+          _hPI('div', { key: 'ok', style: { fontSize: 13, color: resultado.correo_enviado ? 'var(--ink-2)' : 'var(--red)', marginBottom: 10 } },
+            (resultado.correo_enviado
+              ? 'Enlace generado y enviado por correo al contacto. '
+              : 'Enlace generado, pero el correo automático no se pudo enviar — compártelo tú con el colegio. ') +
+            'Expira en ' + resultado.expira_horas + ' horas. ' +
             'Solo se muestra esta vez: si lo pierdes, usa "Regenerar enlace" en la lista de abajo.'),
           _hPI('div', { key: 'liga', className: 'form-group' },
             _hPI('input', {
@@ -407,7 +410,10 @@ function PanelInvitaciones({ esSuperAdmin }) {
     ligaRegenerada ? _hPI(ModalLigaCopiar, {
       key: 'regenerada', liga: ligaRegenerada.liga, expiraHoras: ligaRegenerada.expira_horas,
       titulo: 'Enlace nuevo generado',
-      mensaje: 'El enlace anterior ya no funciona. Comparte este — expira en ' + ligaRegenerada.expira_horas + ' horas.',
+      mensaje: (ligaRegenerada.correo_enviado
+        ? 'El enlace anterior ya no funciona. Se envió este por correo al contacto — '
+        : 'El enlace anterior ya no funciona, y el correo automático no se pudo enviar — compártelo tú. ') +
+        'Expira en ' + ligaRegenerada.expira_horas + ' horas.',
       onCerrar: function () { setLigaRegenerada(null); }
     }) : null,
     ligaActivacion ? _hPI(ModalLigaCopiar, {

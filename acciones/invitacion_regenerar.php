@@ -13,7 +13,7 @@
     $id = intval($input['id'] ?? 0);
     if (!$id) respond(['success' => false, 'error' => 'id requerido']);
 
-    $stmt = $pdo->prepare("SELECT id, creado_por, estado FROM invitaciones_colegio WHERE id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, creado_por, estado, contacto_nombre, contacto_email FROM invitaciones_colegio WHERE id = ? LIMIT 1");
     $stmt->execute([$id]);
     $inv = $stmt->fetch();
     if (!$inv) respond(['success' => false, 'error' => 'Invitación no encontrada']);
@@ -42,15 +42,34 @@
 
     registrar_log($pdo, $usuario_actual, 'invitacion_regenerada', "Invitación #$id: se generó un enlace nuevo (el anterior quedó inválido)");
 
+    $liga = (defined('APP_URL') && APP_URL
+                ? rtrim(APP_URL, '/')
+                : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                   . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                   . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
+             . '/registro.html?t=' . $token;
+
+    // Envío automático (10-sep-2026), mismo criterio que invitacion_crear.php:
+    // el enlace viejo queda inválido en cuanto se regenera, así que si no se
+    // reenvía, el contacto se queda sin forma de continuar su registro.
+    $htmlInvitacion = "
+        <p>Hola " . htmlspecialchars($inv['contacto_nombre'] ?? '') . ",</p>
+        <p>Aquí tienes tu enlace actualizado para registrar tu colegio en Paga la Escuela (el anterior ya no funciona):</p>
+        <p><a href=\"" . htmlspecialchars($liga) . "\">" . htmlspecialchars($liga) . "</a></p>
+        <p>El enlace expira en {$horas} horas.</p>
+        <p>— Pagalaescuela</p>
+    ";
+    $resCorreo = enviar_correo($inv['contacto_email'], 'Tu enlace actualizado para registrar tu colegio en Paga la Escuela', $htmlInvitacion);
+    $correo_enviado = (bool) ($resCorreo['success'] ?? false);
+    if (!$correo_enviado) {
+        log_api("invitacion_regenerar #$id -> falló el correo a {$inv['contacto_email']}: " . ($resCorreo['error'] ?? 'desconocido'));
+    }
+
     respond([
         'success' => true,
         'id'      => $id,
         'token'   => $token,
-        'liga'    => (defined('APP_URL') && APP_URL
-                        ? rtrim(APP_URL, '/')
-                        : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
-                           . '://' . ($_SERVER['HTTP_HOST'] ?? '')
-                           . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
-                     . '/registro.html?t=' . $token,
-        'expira_horas' => $horas
+        'liga'    => $liga,
+        'expira_horas'   => $horas,
+        'correo_enviado' => $correo_enviado,
     ]);

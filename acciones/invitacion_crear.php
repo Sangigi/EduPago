@@ -37,18 +37,41 @@
         $c_nombre, $c_email, $c_tel, $notas, $horas
     ]);
 
+    $id = intval($pdo->lastInsertId());
+    // Si no defines APP_URL en config.php, la liga se arma con el host
+    // de la propia peticion, para que funcione sin configuracion extra.
+    $liga = (defined('APP_URL') && APP_URL
+                ? rtrim(APP_URL, '/')
+                : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                   . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                   . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
+             . '/registro.html?t=' . $token;
+
+    // Envío automático (10-sep-2026): antes esta acción solo devolvía la liga
+    // en la respuesta y quien la creaba tenía que copiarla y mandarla a mano
+    // por otro medio -- fácil de olvidar. Se manda por correo al contacto en
+    // cuanto se crea, sin dejar de regresar la liga en la respuesta (por si
+    // el correo falla, o quien la creó también quiere compartirla a mano).
+    $htmlInvitacion = "
+        <p>Hola " . htmlspecialchars($c_nombre) . ",</p>
+        <p>Te invitamos a registrar tu colegio en Paga la Escuela.</p>
+        <p>Entra a este enlace para completar tu registro:</p>
+        <p><a href=\"" . htmlspecialchars($liga) . "\">" . htmlspecialchars($liga) . "</a></p>
+        <p>El enlace expira en {$horas} horas.</p>
+        <p>— Pagalaescuela</p>
+    ";
+    $resCorreo = enviar_correo($c_email, 'Tu invitación para registrar tu colegio en Paga la Escuela', $htmlInvitacion);
+    $correo_enviado = (bool) ($resCorreo['success'] ?? false);
+    if (!$correo_enviado) {
+        log_api("invitacion_crear #$id -> falló el correo de invitación a {$c_email}: " . ($resCorreo['error'] ?? 'desconocido'));
+    }
+
     // El token en claro se devuelve UNA sola vez. No vuelve a existir.
     respond([
         'success' => true,
-        'id'      => intval($pdo->lastInsertId()),
+        'id'      => $id,
         'token'   => $token,
-        // Si no defines APP_URL en config.php, la liga se arma con el host
-        // de la propia peticion, para que funcione sin configuracion extra.
-        'liga'    => (defined('APP_URL') && APP_URL
-                        ? rtrim(APP_URL, '/')
-                        : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
-                           . '://' . ($_SERVER['HTTP_HOST'] ?? '')
-                           . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
-                     . '/registro.html?t=' . $token,
-        'expira_horas' => $horas
+        'liga'    => $liga,
+        'expira_horas'   => $horas,
+        'correo_enviado' => $correo_enviado,
     ]);
