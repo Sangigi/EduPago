@@ -86,6 +86,37 @@ if ($metodo === 'TC') {
 }
 
 // Efectivo
+//
+// Idempotencia (10-sep-2026): antes, cada vez que se abría esta pantalla se
+// llamaba de nuevo a GenerarReferenciaIndi y se le pedía al proveedor una
+// referencia/código de barras NUEVO, aunque ya hubiera uno vigente sin
+// pagar. El ticket viejo seguía siendo válido en tienda, así que el padre o
+// el colegio podían terminar con dos referencias distintas para el mismo
+// cobro y pagar la que ya no piensan usar. Si ya existe una referencia de
+// este MISMO folio (mismo mes) que todavía no venció y no fue liquidada
+// (el webhook la pone en NULL al confirmar el pago, ver pago_referencia.php),
+// se regresa esa misma sin volver a llamar al proveedor.
+$stmtVig = $pdo->prepare(
+    "SELECT pago_renovacion_referencia, pago_renovacion_barcode_url, pago_renovacion_payformat_url, pago_renovacion_vencimiento
+       FROM escuelas
+      WHERE id = ? AND pago_renovacion_folio = ? AND pago_renovacion_referencia IS NOT NULL
+        AND pago_renovacion_vencimiento >= CURDATE()"
+);
+$stmtVig->execute([$esc['id'], $folio]);
+$vigente = $stmtVig->fetch();
+if ($vigente) {
+    log_api("escuela_generar_pago_renovacion(Efectivo) -> escuela={$esc['id']} folio={$folio} reutilizando referencia vigente {$vigente['pago_renovacion_referencia']}");
+    respond([
+        'success'     => true,
+        'folio'       => $folio,
+        'referencia'  => $vigente['pago_renovacion_referencia'],
+        'barcode_url' => $vigente['pago_renovacion_barcode_url'] ?? $vigente['pago_renovacion_payformat_url'] ?? null,
+        'vencimiento' => $vigente['pago_renovacion_vencimiento'],
+        'monto'       => $total,
+        'reutilizada' => true,
+    ]);
+}
+
 $ref = construir_referencia_pago_generico($pdo, $refBase);
 $pdo->prepare(
     "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_folio = ?, pago_renovacion_monto = ?
@@ -97,10 +128,18 @@ $pdo->prepare(
 // GenerarLigaDomiciliacionIndi) y sí espera CustomerEmail/CustomerName.
 // Mandar el payload con la forma de Tarjeta es lo que el proveedor
 // rechazaba con {"Message":"Error."}.
+//
+// IntegrationID SIN intval (10-sep-2026): a diferencia del servicio de Liga
+// (GenerarLigaDomiciliacionIndi, arriba), que sí acepta IntegrationID como
+// número, el servicio de Referencias (GenerarReferenciaIndi) lo rechaza con
+// el genérico {"Message":"Error."} cuando se manda como entero — la única
+// llamada de este endpoint que sí funciona (generar_referencia_efectivo.php)
+// lo manda como texto ('106', no 106). Mismo bug que en
+// iniciar_pago_agrupado.php.
 $payload = [
     'User'           => PLE_USER,
     'Password'       => PLE_PASS,
-    'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
+    'IntegrationID'  => PLE_INT_ID_ACTIVO,
     'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
     'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
     'Description'    => substr('Renovación ' . $esc['nombre'], 0, 50),
@@ -130,15 +169,17 @@ if (empty($raw['Reference']) && empty($raw['BarCode']) && empty($raw['PayFormat'
 // así que el webhook nunca podía conciliar un pago de renovación aunque el
 // padre/colegio sí lo hiciera en tienda.
 $referencia_cct = $raw['Reference'];
+$vencimiento     = date('Y-m-d', strtotime('+3 day'));
 $pdo->prepare(
-    "UPDATE escuelas SET pago_renovacion_referencia = ? WHERE id = ?"
-)->execute([$referencia_cct, $esc['id']]);
+    "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_barcode_url = ?, pago_renovacion_payformat_url = ?, pago_renovacion_vencimiento = ?
+      WHERE id = ?"
+)->execute([$referencia_cct, $raw['BarCode'] ?? null, $raw['PayFormat'] ?? null, $vencimiento, $esc['id']]);
 
 respond([
     'success'     => true,
     'folio'       => $folio,
     'referencia'  => $referencia_cct,
     'barcode_url' => $raw['BarCode'] ?? $raw['PayFormat'] ?? null,
-    'vencimiento' => date('Y-m-d', strtotime('+3 day')),
+    'vencimiento' => $vencimiento,
     'monto'       => $total,
 ]);
