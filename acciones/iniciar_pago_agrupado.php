@@ -148,7 +148,10 @@ if ($metodo === 'TC') {
     log_api("iniciar_pago_agrupado(TC) -> agrupado_id={$agrupado_id} cliente={$cliente_id} cobros=" . implode(',', $cobro_ids) . " total={$total} ref={$ref}");
 
     $res = curl_post(PLE_URL_LIGA_TOKEN, $payload);
-    if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
+    if ($res['error']) {
+        log_api("iniciar_pago_agrupado(TC) ERROR DE RED -> " . $res['error']);
+        respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
+    }
     $raw = json_decode($res['body'], true) ?? [];
     $data_resp = [];
     foreach ($raw as $k => $v) { $data_resp[trim($k)] = $v; }
@@ -192,9 +195,11 @@ $payload = [
     'CustomerName'   => '',
     'ExpirationDate' => date('Y-m-d', strtotime('+3 day')),
 ];
-log_api("iniciar_pago_agrupado(Efectivo) -> agrupado_id={$agrupado_id} cliente={$cliente_id} cobros=" . implode(',', $cobro_ids) . " total={$total} ref={$ref}");
+$payload_log = $payload; $payload_log['Password'] = '***';
+log_api("iniciar_pago_agrupado(Efectivo) -> agrupado_id={$agrupado_id} cliente={$cliente_id} cobros=" . implode(',', $cobro_ids) . " total={$total} ref={$ref} | payload: " . json_encode($payload_log, JSON_UNESCAPED_UNICODE));
 
 $res = curl_post(PLE_URL_REFERENCIA, $payload);
+if ($res['error']) log_api("iniciar_pago_agrupado(Efectivo) ERROR DE RED -> " . $res['error']);
 if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
 $raw = json_decode($res['body'], true) ?? [];
 

@@ -149,10 +149,14 @@ $payload = [
     'CustomerName'   => '',
     'ExpirationDate' => date('Y-m-d', strtotime('+3 day')),
 ];
-log_api("escuela_generar_pago_renovacion(Efectivo) -> escuela={$esc['id']} total={$total} ref={$ref}");
+$payload_log = $payload; $payload_log['Password'] = '***';
+log_api("escuela_generar_pago_renovacion(Efectivo) -> escuela={$esc['id']} total={$total} ref={$ref} | payload: " . json_encode($payload_log, JSON_UNESCAPED_UNICODE));
 
 $res = curl_post(PLE_URL_REFERENCIA, $payload);
-if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
+if ($res['error']) {
+    log_api("escuela_generar_pago_renovacion(Efectivo) ERROR DE RED -> " . $res['error']);
+    respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
+}
 $raw = json_decode($res['body'], true) ?? [];
 
 if (empty($raw['Reference']) && empty($raw['BarCode']) && empty($raw['PayFormat'])) {
