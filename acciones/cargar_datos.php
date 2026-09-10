@@ -35,8 +35,24 @@
             $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ? OR escuela_padre_id = ?");
             $stmt->execute([$escuela_id_usuario, $escuela_id_usuario]);
         }
-        $escuelas = array_map(function($e) {
+        // Metodos de pago apagados: se fusiona el apagado GLOBAL (todas las
+        // escuelas) con el de esta escuela en particular, para que el
+        // frontend (Caja.js, PortalFamilia.js) solo tenga que leer un campo
+        // sin saber nada de la existencia del interruptor global.
+        $metodosGlobal = [];
+        try {
+            $metodosGlobalRow = $pdo->query("SELECT valor FROM config_sistema WHERE clave = 'metodos_pago_global' LIMIT 1")->fetch();
+            if ($metodosGlobalRow && $metodosGlobalRow['valor']) {
+                $tmp = json_decode($metodosGlobalRow['valor'], true);
+                if (is_array($tmp) && !empty($tmp['deshabilitados'])) $metodosGlobal = $tmp['deshabilitados'];
+            }
+        } catch (\PDOException $e) {
+            // config_sistema todavia no migrada: se comporta como "nada apagado".
+        }
+        $escuelas = array_map(function($e) use ($metodosGlobal) {
             $e['secciones_deshabilitadas'] = json_decode($e['secciones_deshabilitadas'] ?? '', true) ?: [];
+            $propios = json_decode($e['metodos_pago_deshabilitados'] ?? '', true) ?: [];
+            $e['metodos_pago_deshabilitados'] = array_values(array_unique(array_merge($propios, $metodosGlobal)));
             return $e;
         }, $stmt->fetchAll());
         // ── Resumen liviano por escuela (siempre se manda, sirve para el dashboard
