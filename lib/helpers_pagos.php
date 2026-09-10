@@ -135,6 +135,7 @@ function construir_referencia_pago_generico(PDO $pdo, $idEntidad): string
     // este chequeo, una referencia de renovacion podria coincidir con otra
     // ya en curso para OTRA escuela y el webhook confirmaria la que no era.
     $chkEsc    = $pdo->prepare("SELECT 1 FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1");
+    $chkGrupo  = $pdo->prepare("SELECT 1 FROM cobros_agrupados WHERE referencia = ? LIMIT 1");
     for ($i = 0; $i < 500; $i++) {
         $pago = str_pad(strval(($desde + $i) % 10000), 4, '0', STR_PAD_LEFT);
         $ref  = str_pad($bloque . $pago, $largoTotal, '0', STR_PAD_LEFT);
@@ -144,6 +145,8 @@ function construir_referencia_pago_generico(PDO $pdo, $idEntidad): string
         if ($chkInv->fetch()) continue;
         $chkEsc->execute([$ref]);
         if ($chkEsc->fetch()) continue;
+        $chkGrupo->execute([$ref]);
+        if ($chkGrupo->fetch()) continue;
         return $ref;
     }
     $pago = str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
@@ -310,5 +313,90 @@ function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela
         ]);
     } catch (\PDOException $e) {
         file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | registrar_log falló (¿falta migrar logs_sistema?): " . $e->getMessage() . "\n", FILE_APPEND);
+    }
+}
+
+// ── Modo mantenimiento GLOBAL de secciones ─────────────────────────────────
+// Complementa el apagado por escuela (escuelas.secciones_deshabilitadas):
+// esto apaga una seccion para TODAS las escuelas a la vez, con motivo y
+// ventana de tiempo, sin tener que tocar escuela por escuela.
+function mantenimiento_secciones_activo(PDO $pdo) {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $stmt = $pdo->prepare("SELECT valor FROM config_sistema WHERE clave = 'mantenimiento_secciones' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch();
+        if (!$row || !$row['valor']) { $cache = null; return null; }
+        $datos = json_decode($row['valor'], true);
+        if (!is_array($datos) || empty($datos['secciones'])) { $cache = null; return null; }
+        $ahora = time();
+        if (!empty($datos['inicio']) && strtotime($datos['inicio']) > $ahora) { $cache = null; return null; }
+        if (!empty($datos['fin']) && strtotime($datos['fin']) < $ahora) { $cache = null; return null; }
+        $cache = $datos;
+        return $datos;
+    } catch (\PDOException $e) {
+        // Tabla no migrada todavía: se comporta como si no hubiera mantenimiento.
+        $cache = null;
+        return null;
+    }
+}
+
+// Igual que requerir_seccion_habilitada() pero para el apagado GLOBAL. Se
+// llama junto a esa función, nunca en su lugar: una escuela puede tener la
+// seccion apagada por su cuenta Y por mantenimiento global al mismo tiempo.
+function requerir_seccion_sin_mantenimiento($pdo, $rol_actual, $secciones, $mensaje = null) {
+    if ($rol_actual !== 'admin' && $rol_actual !== 'cajero') return;
+    $mant = mantenimiento_secciones_activo($pdo);
+    if (!$mant) return;
+    foreach ((array) $secciones as $s) {
+        if (!in_array($s, $mant['secciones'], true)) return; // al menos una sigue disponible
+    }
+    http_response_code(503);
+    respond([
+        'success' => false,
+        'error'   => $mensaje ?? ('Esta sección está en mantenimiento' . (!empty($mant['motivo']) ? ": {$mant['motivo']}" : '') . '.'),
+        'mantenimiento' => true,
+    ]);
+}
+
+// ── Métodos de pago deshabilitados ──────────────────────────────────────────
+// $metodo es uno de: 'Efectivo','TC','SPEI','EfectivoRef','Cheque','CAI'.
+// Revisa PRIMERO el apagado global (afecta a todas las escuelas) y LUEGO el
+// de esta escuela en particular — cualquiera de los dos basta para bloquear.
+function metodo_pago_deshabilitado(PDO $pdo, $escuelaId, $metodo) {
+    try {
+        $stmt = $pdo->prepare("SELECT valor FROM config_sistema WHERE clave = 'metodos_pago_global' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch();
+        if ($row && $row['valor']) {
+            $datos = json_decode($row['valor'], true);
+            if (is_array($datos) && in_array($metodo, $datos['deshabilitados'] ?? [], true)) return true;
+        }
+    } catch (\PDOException $e) {
+        // Tabla no migrada: se ignora el chequeo global, no se bloquea nada.
+    }
+
+    if ($escuelaId) {
+        $stmt2 = $pdo->prepare("SELECT metodos_pago_deshabilitados FROM escuelas WHERE id = ?");
+        $stmt2->execute([intval($escuelaId)]);
+        $row2 = $stmt2->fetch();
+        if ($row2 && $row2['metodos_pago_deshabilitados']) {
+            $lista = json_decode($row2['metodos_pago_deshabilitados'], true);
+            if (is_array($lista) && in_array($metodo, $lista, true)) return true;
+        }
+    }
+    return false;
+}
+
+// Corta la petición si el método está deshabilitado. $etiqueta es el nombre
+// legible para el mensaje de error (ej. "Tarjeta", "Domiciliación").
+function requerir_metodo_pago_habilitado(PDO $pdo, $escuelaId, $metodo, $etiqueta = null) {
+    if (metodo_pago_deshabilitado($pdo, $escuelaId, $metodo)) {
+        http_response_code(403);
+        respond([
+            'success' => false,
+            'error'   => 'El método de pago' . ($etiqueta ? " \"{$etiqueta}\"" : '') . ' no está disponible en este momento.',
+        ]);
     }
 }
