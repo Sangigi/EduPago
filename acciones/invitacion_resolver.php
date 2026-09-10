@@ -13,7 +13,11 @@
     $stmt->execute([$id]);
     $inv = $stmt->fetch();
     if (!$inv)                        respond(['success' => false, 'error' => 'Invitación no encontrada']);
-    if ($inv['estado'] !== 'enviado') respond(['success' => false, 'error' => 'Esta invitación no está lista para resolverse']);
+    // Antes se podia aprobar con solo 'enviado' -- un formulario lleno,
+    // sin ningun pago de por medio. Ahora la aprobacion exige que el
+    // colegio ya haya pagado su primera mensualidad (estado 'pagado',
+    // que pone el webhook al confirmar el cobro de suscripcion).
+    if ($inv['estado'] !== 'pagado') respond(['success' => false, 'error' => 'Esta invitación aún no tiene el pago de suscripción confirmado.']);
 
     if ($accion === 'rechazar') {
         $pdo->prepare(
@@ -64,11 +68,18 @@
     try {
         $pdo->prepare(
             "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion,
-                                   activa, plan, fecha_alta, origen_invitacion_id)
-             VALUES (?,?,?,?,?,?,?, 1, 'basico', NOW(), ?)"
+                                   activa, plan, fecha_alta, fecha_vencimiento_plan, origen_invitacion_id)
+             VALUES (?,?,?,?,?,?,?, 1, ?, NOW(), ?, ?)"
         )->execute([
             $d['nombre'] ?? '', $clave_nueva, $d['rfc'] ?? '', $d['rvoe'] ?? '',
-            $d['telefono'] ?? '', $d['email'] ?? '', $d['direccion'] ?? '', $id
+            $d['telefono'] ?? '', $d['email'] ?? '', $d['direccion'] ?? '',
+            // El plan viene de lo que el colegio eligió y pagó durante el
+            // registro (invitaciones_colegio.plan_elegido) -- antes siempre
+            // quedaba fijo en 'basico' sin importar cuál se hubiera pagado.
+            $inv['plan_elegido'] ?: 'basico',
+            // Primer mes ya cubierto por el pago que confirmó el webhook.
+            siguiente_vencimiento_mensual(date('Y-m-d')),
+            $id
         ]);
         $escuela_nueva = intval($pdo->lastInsertId());
 
