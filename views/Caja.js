@@ -772,9 +772,16 @@ function Caja({
   // Cargo automático (CAI): solo aparece si el alumno seleccionado ya tiene
   // una tarjeta domiciliada activa de un pago anterior — no pide tarjeta de
   // nuevo, cobra directo con el token guardado.
-  const metodosDisponibles = clienteSel?.token_tarjeta_estado === 'activo'
+  // Antes cualquier metodo aparecia siempre, sin importar si el superadmin
+  // lo habia apagado (globalmente o para esta escuela en particular). El
+  // apagado real de TC/EfectivoRef/CAI ya se valida tambien en el backend
+  // (generar_liga.php, generar_referencia_efectivo.php, cobrar_cai.php); este
+  // filtro es lo que evita que el cajero ni siquiera vea la opcion.
+  const metodosApagados = escuela?.metodos_pago_deshabilitados || [];
+  const metodosConCai = clienteSel?.token_tarjeta_estado === 'activo'
     ? [...METODOS, { id: 'CAI', label: 'Tarjeta guardada', icon: 'card' }]
     : METODOS;
+  const metodosDisponibles = metodosConCai.filter(m => !metodosApagados.includes(m.id));
   if (requiereCajaAbierta && cajaEstadoCargando) {
     return /*#__PURE__*/_jsxDEV("div", {
       className: "empty-state",
