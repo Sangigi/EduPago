@@ -412,6 +412,45 @@ function Escuelas({
     }
   };
 
+  // Catálogo de métodos de pago que se pueden apagar por escuela. Debe
+  // reflejar los mismos valores que ya usa Caja.js (METODOS) y
+  // PortalFamilia.js — si un método nuevo se agrega ahí, hay que agregarlo
+  // aquí también para poder apagarlo.
+  const METODOS_PAGO_CATALOGO = [
+    { id: 'TC', label: 'Tarjeta' },
+    { id: 'SPEI', label: 'SPEI' },
+    { id: 'Efectivo', label: 'Efectivo (caja)' },
+    { id: 'EfectivoRef', label: 'Efectivo (tienda)' },
+    { id: 'Cheque', label: 'Cheque' },
+    { id: 'CAI', label: 'Domiciliación (tarjeta guardada)' },
+  ];
+
+  const toggleMetodoPago = async metodoId => {
+    const escId = seccionesEscId;
+    const esc = data.escuelas.find(e => e.id === escId);
+    if (!esc) return;
+    const actuales = Array.isArray(esc.metodos_pago_deshabilitados) ? esc.metodos_pago_deshabilitados : [];
+    const nuevas = actuales.includes(metodoId)
+      ? actuales.filter(m => m !== metodoId)
+      : [...actuales, metodoId];
+    const newData = {
+      ...data,
+      escuelas: data.escuelas.map(e => e.id === escId ? { ...e, metodos_pago_deshabilitados: nuevas } : e)
+    };
+    setData(newData);
+    setGuardandoSeccion('metodo-' + metodoId);
+    try {
+      const res = await apiPost('superadmin_toggle_metodo_escuela', { id: escId, metodo: metodoId });
+      if (!res.success) throw new Error(res.error || 'No se pudo actualizar el método de pago');
+      AppModel.save(newData);
+    } catch (e) {
+      setData(data);
+      alert('No se pudo actualizar el método de pago: ' + e.message);
+    } finally {
+      setGuardandoSeccion(null);
+    }
+  };
+
   const tkn = () => AuthController.getToken();
   const apiPost = async (action, body) => {
     const r = await fetch('api.php?action=' + action, {
@@ -1533,6 +1572,45 @@ function Escuelas({
                       }, void 0, true)
                     ]
                   }, sec.id, true);
+                })
+              }, void 0, true),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
+                children: "Métodos de pago"
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 10 },
+                children: "Apaga aquí un método de pago solo para este colegio. Para apagarlo en todos los colegios a la vez, usa el panel de Suscripciones."
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'flex', flexDirection: 'column', gap: 4 },
+                children: METODOS_PAGO_CATALOGO.map(met => {
+                  const esc = data.escuelas.find(e => e.id === seccionesEscId);
+                  const deshabilitados = Array.isArray(esc?.metodos_pago_deshabilitados) ? esc.metodos_pago_deshabilitados : [];
+                  const habilitado = !deshabilitados.includes(met.id);
+                  const guardando = guardandoSeccion === ('metodo-' + met.id);
+                  return /*#__PURE__*/_jsxDEV("label", {
+                    style: {
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '9px 4px', borderBottom: '1px solid var(--border-glow)',
+                      opacity: guardando ? .6 : 1, cursor: 'pointer'
+                    },
+                    children: [
+                      /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 13.5, color: 'var(--ink-1)' }, children: met.label }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("span", {
+                        className: "switch",
+                        children: [
+                          /*#__PURE__*/_jsxDEV("input", {
+                            type: "checkbox",
+                            checked: habilitado,
+                            disabled: guardando,
+                            onChange: () => toggleMetodoPago(met.id)
+                          }, void 0, false),
+                          /*#__PURE__*/_jsxDEV("span", { className: "switch-track" }, void 0, false)
+                        ]
+                      }, void 0, true)
+                    ]
+                  }, met.id, true);
                 })
               }, void 0, true)
             ]
