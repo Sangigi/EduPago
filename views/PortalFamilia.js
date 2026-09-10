@@ -562,7 +562,9 @@ function PortalFamilia({
     // pendiente, se sigue usando el camino de un solo cobro de siempre
     // (mas simple, y es el caso mas comun).
     if (metodo === 'Efectivo' || metodo === 'TC') {
-      if (metodo === 'TC' && !autorizoCargoAutomatico) {
+      // El checkbox (y su exigencia) solo aplica si CAI sigue disponible
+      // para esta escuela — si está apagado, no hay nada que autorizar.
+      if (metodo === 'TC' && !metodosApagadosFamilia.includes('CAI') && !autorizoCargoAutomatico) {
         setSpeiBloqueoFamilia('Debes autorizar el Cargo Automático para pagar con tarjeta.');
         return;
       }
@@ -2045,7 +2047,14 @@ function PortalFamilia({
                   }, void 0, false)]
                 }, void 0, true)]
               }, void 0, true),
-              metodo === 'TC' && _jsxDEV("label", {
+              // El checkbox de consentimiento solo tiene sentido si la
+              // domiciliación (CAI) sigue disponible para esta escuela —
+              // si el superadmin la bloqueó (o la escuela la desactivó),
+              // no hay ningún Cargo Automático futuro que autorizar, y
+              // mostrar el checkbox de todas formas es una promesa falsa
+              // (y obliga a marcar algo que no aplica solo para poder
+              // pagar con tarjeta una sola vez).
+              metodo === 'TC' && !metodosApagadosFamilia.includes('CAI') && _jsxDEV("label", {
                 style: {
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -2075,7 +2084,7 @@ function PortalFamilia({
                 children: speiBloqueoFamilia
               }, void 0, false), _jsxDEV("button", {
                 onClick: metodo === 'CAI' ? cobrarConTarjetaGuardada : pagarSaldo,
-                disabled: loading || !hijoSeleccionado || (metodo === 'TC' && !autorizoCargoAutomatico),
+                disabled: loading || !hijoSeleccionado || (metodo === 'TC' && !metodosApagadosFamilia.includes('CAI') && !autorizoCargoAutomatico),
                 style: {
                   width: '100%',
                   padding: '14px 0',
