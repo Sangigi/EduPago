@@ -12,10 +12,14 @@ require_once __DIR__ . '/lib/uploads.php';
 // ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
 // Solo existen 3 planes reales: básico, avanzado, pro.
 // max_alumnos / max_planteles = null significa "sin límite"
+// PRECIOS DE PRUEBA (10-sep-2026) -- bajados al mínimo que acepta
+// Cobroscontarjeta.com ($50.00) para poder probar el cobro de suscripciones
+// (registro, renovación) con dinero real sin gastar de más. ¡Revertir a los
+// precios reales (999 / 1500 / 3000) antes de dar de alta colegios de verdad!
 const PLANES_LIMITES = [
-    'basico'   => ['precio' => 999.00,  'max_alumnos' => 400, 'max_planteles' => 1,    'label' => 'Básico'],
-    'avanzado' => ['precio' => 1500.00, 'max_alumnos' => 800, 'max_planteles' => 1,    'label' => 'Avanzado'],
-    'pro'      => ['precio' => 3000.00, 'max_alumnos' => null, 'max_planteles' => null, 'label' => 'Pro'],
+    'basico'   => ['precio' => 50.00,  'max_alumnos' => 400, 'max_planteles' => 1,    'label' => 'Básico'],
+    'avanzado' => ['precio' => 50.00, 'max_alumnos' => 800, 'max_planteles' => 1,    'label' => 'Avanzado'],
+    'pro'      => ['precio' => 50.00, 'max_alumnos' => null, 'max_planteles' => null, 'label' => 'Pro'],
 ];
 // Plan de respaldo si `escuelas.plan` trae un valor no reconocido (typo,
 // dato viejo tipo 'free' que ya no existe como plan real, etc.) — se usa el

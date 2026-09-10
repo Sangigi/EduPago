@@ -92,7 +92,7 @@ function ModalGenerarInvitacion({ onCerrar, onCreada }) {
         resultado ? [
           _hPI('div', { key: 'ok', style: { fontSize: 13, color: resultado.correo_enviado ? 'var(--ink-2)' : 'var(--red)', marginBottom: 10 } },
             (resultado.correo_enviado
-              ? 'Enlace generado y enviado por correo al contacto. '
+              ? 'Enlace generado y enviado por correo a ' + email + '. '
               : 'Enlace generado, pero el correo automático no se pudo enviar — compártelo tú con el colegio. ') +
             'Expira en ' + resultado.expira_horas + ' horas. ' +
             'Solo se muestra esta vez: si lo pierdes, usa "Regenerar enlace" en la lista de abajo.'),
@@ -313,13 +313,13 @@ function PanelInvitaciones({ esSuperAdmin }) {
   // se cierra el modal sin copiarlo, de verdad no hay forma de recuperarlo.
   // Esto no lo "recupera": invalida el enlace viejo y emite uno nuevo para
   // la misma invitación, sin tener que volver a capturar el contacto.
-  const regenerar = async (id) => {
+  const regenerar = async (inv) => {
     if (!confirm('¿Generar un enlace nuevo para esta invitación? El enlace anterior dejará de funcionar.')) return;
-    setRegenerando(id);
+    setRegenerando(inv.id);
     try {
-      const res = await _apiPostInv('invitacion_regenerar', { id: id });
+      const res = await _apiPostInv('invitacion_regenerar', { id: inv.id });
       if (res.success === false) alert(res.error || 'No se pudo regenerar el enlace.');
-      else { setLigaRegenerada(res); await cargar(); }
+      else { setLigaRegenerada({ ...res, contacto_email: inv.contacto_email }); await cargar(); }
     } catch (e) {
       alert('Error de conexión: ' + e.message);
     }
@@ -390,7 +390,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
                           key: 'regen', className: 'btn btn-secondary btn-sm',
                           disabled: regenerando === inv.id,
                           title: '¿Se perdió el enlace? El servidor solo guarda su hash, no el enlace en sí — no se puede recuperar, pero sí generar uno nuevo.',
-                          onClick: function () { regenerar(inv.id); }
+                          onClick: function () { regenerar(inv); }
                         }, regenerando === inv.id ? 'Generando…' : 'Regenerar enlace') : null
                       )
                     )
@@ -411,7 +411,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
       key: 'regenerada', liga: ligaRegenerada.liga, expiraHoras: ligaRegenerada.expira_horas,
       titulo: 'Enlace nuevo generado',
       mensaje: (ligaRegenerada.correo_enviado
-        ? 'El enlace anterior ya no funciona. Se envió este por correo al contacto — '
+        ? 'El enlace anterior ya no funciona. Se envió este por correo a ' + ligaRegenerada.contacto_email + ' — '
         : 'El enlace anterior ya no funciona, y el correo automático no se pudo enviar — compártelo tú. ') +
         'Expira en ' + ligaRegenerada.expira_horas + ' horas.',
       onCerrar: function () { setLigaRegenerada(null); }

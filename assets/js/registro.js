@@ -20,10 +20,12 @@
   // día el precio real cambia y esto queda desactualizado, lo peor que pasa
   // es que aquí se muestre un número viejo por un momento — nunca se cobra
   // de más ni de menos, porque el monto real siempre sale del servidor.
+  // PRECIOS DE PRUEBA (10-sep-2026) -- ver el mismo aviso en PLANES_LIMITES
+  // (api.php). ¡Revertir a 999/1500/3000 antes de dar de alta colegios reales!
   var PLANES = {
-    basico:   { label: 'Básico',   precio: 999,  detalle: 'Hasta 400 alumnos, 1 plantel' },
-    avanzado: { label: 'Avanzado', precio: 1500, detalle: 'Hasta 800 alumnos, 1 plantel' },
-    pro:      { label: 'Pro',      precio: 3000, detalle: 'Alumnos y planteles ilimitados' },
+    basico:   { label: 'Básico',   precio: 50,  detalle: 'Hasta 400 alumnos, 1 plantel' },
+    avanzado: { label: 'Avanzado', precio: 50, detalle: 'Hasta 800 alumnos, 1 plantel' },
+    pro:      { label: 'Pro',      precio: 50, detalle: 'Alumnos y planteles ilimitados' },
   };
 
   function esc(t) {

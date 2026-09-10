@@ -37,10 +37,12 @@ if (!defined('CAI_DIAS_AVISO')) define('CAI_DIAS_AVISO', 3);
 
 // Debe reflejar PLANES_LIMITES en api.php — la única fuente de verdad real
 // (límites/permisos) es el backend; aquí solo se usa para el texto del correo.
+// PRECIOS DE PRUEBA (10-sep-2026) -- ver el mismo aviso en PLANES_LIMITES
+// (api.php). ¡Revertir a 999/1500/3000 antes de dar de alta colegios reales!
 $PLAN_INFO = [
-    'basico'   => ['precio' => 999.00,  'label' => 'Básico'],
-    'avanzado' => ['precio' => 1500.00, 'label' => 'Avanzado'],
-    'pro'      => ['precio' => 3000.00, 'label' => 'Pro'],
+    'basico'   => ['precio' => 50.00,  'label' => 'Básico'],
+    'avanzado' => ['precio' => 50.00, 'label' => 'Avanzado'],
+    'pro'      => ['precio' => 50.00, 'label' => 'Pro'],
 ];
 
 $hoyStr = date('Y-m-d');

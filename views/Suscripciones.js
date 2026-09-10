@@ -9,10 +9,12 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
 
 // Debe reflejar PLANES_LIMITES en api.php — única fuente de verdad real es el
 // backend (ahí se valida de verdad); esto es solo para mostrarlo en pantalla.
+// PRECIOS DE PRUEBA (10-sep-2026) -- ver el mismo aviso en PLANES_LIMITES
+// (api.php). ¡Revertir a 999/1500/3000 antes de dar de alta colegios reales!
 const PLANES_INFO = {
-  basico:   { label: 'Básico',   precio: 999,  max_alumnos: 400, max_planteles: 1,    color: 'var(--ink-3)' },
-  avanzado: { label: 'Avanzado', precio: 1500, max_alumnos: 800, max_planteles: 1,    color: 'var(--accent, #bdcf00)' },
-  pro:      { label: 'Pro',      precio: 3000, max_alumnos: null, max_planteles: null, color: 'var(--lime)' },
+  basico:   { label: 'Básico',   precio: 50,  max_alumnos: 400, max_planteles: 1,    color: 'var(--ink-3)' },
+  avanzado: { label: 'Avanzado', precio: 50, max_alumnos: 800, max_planteles: 1,    color: 'var(--accent, #bdcf00)' },
+  pro:      { label: 'Pro',      precio: 50, max_alumnos: null, max_planteles: null, color: 'var(--lime)' },
 };
 // Fallback seguro: un plan no reconocido en escuelas.plan (typo, dato viejo)
 // se trata como el MÁS restrictivo, nunca como "sin límite" (antes cualquier
@@ -570,15 +572,15 @@ function Suscripciones({ data, setData }) {
       }, {
         label: 'Plan Básico',
         val: filas.filter(f => f.planKey === 'basico').length,
-        meta: '$999 + IVA c/u'
+        meta: '$50 + IVA c/u (precio de prueba)'
       }, {
         label: 'Plan Avanzado',
         val: filas.filter(f => f.planKey === 'avanzado').length,
-        meta: '$1,500 + IVA c/u'
+        meta: '$50 + IVA c/u (precio de prueba)'
       }, {
         label: 'Plan Pro',
         val: filas.filter(f => f.planKey === 'pro').length,
-        meta: '$3,000 + IVA c/u'
+        meta: '$50 + IVA c/u (precio de prueba)'
       }].map((s, i) => /*#__PURE__*/_jsxDEV("div", {
         className: "stat-card",
         children: [/*#__PURE__*/_jsxDEV("div", { className: "stat-label", children: s.label }, void 0, false),

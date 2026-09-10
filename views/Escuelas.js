@@ -131,6 +131,8 @@ function Escuelas({
             'Colegio creado y cuenta admin creada, pero el correo de activación no se pudo enviar.\n\n' +
             'Comparte este enlace de un solo uso con el colegio (expira en 72 horas):\n' + (res.activacion_liga || '(sin enlace)')
           );
+        } else if (res.usuario_creado && res.correo_enviado) {
+          alert('Colegio creado. Se mandó un correo a ' + form.email + ' para que el colegio active su cuenta y ponga su propia contraseña.');
         }
       }
     } catch (e) {
