@@ -264,6 +264,24 @@ const NAV_ITEMS = [{
 
 }, {
 
+  id: 'mi_suscripcion',
+
+  label: 'Mi suscripción',
+
+  icon: 'facturacion2',
+
+  section: 'configuración',
+
+  // Antes solo el superadmin podia generar una liga de renovacion; el
+
+  // backend ya aceptaba el rol admin restringido a su propia escuela,
+
+  // pero no existia ninguna vista para usarlo desde este lado.
+
+  roles: ['admin']
+
+}, {
+
   id: 'superreportes',
 
   label: 'Métricas Globales',
@@ -1618,6 +1636,29 @@ function App() {
 
 
             allData: data
+
+          },
+
+          void 0,
+
+          false
+
+        );
+
+
+
+
+      case 'mi_suscripcion':
+
+        return _jsxDEV(
+
+          MiSuscripcion,
+
+          {
+
+            escuela: escuela,
+
+            user: user
 
           },
 
