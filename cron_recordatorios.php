@@ -321,6 +321,15 @@ try {
     }
 
     foreach ($stmtCaiPend->fetchAll() as $row) {
+        // Antes esto cobraba SIEMPRE, sin importar si el superadmin habia
+        // apagado Domiciliacion (globalmente o para esta escuela). El
+        // bloqueo en cobrar_cai.php solo cubre el cobro MANUAL que hace un
+        // cajero desde Caja -- este es el cargo AUTOMATICO recurrente, que
+        // llama a cobrar_via_token() directo y nunca pasaba por ahi.
+        if (metodo_pago_deshabilitado($pdo, intval($row['escuela_id']), 'CAI')) {
+            $resumen[] = "OMITIDO cargo automático (CAI) cobro #{$row['cobro_id']}: Domiciliación está deshabilitada.";
+            continue;
+        }
         $resCai = cobrar_via_token(
             $pdo, intval($row['cobro_id']), intval($row['cliente_id']), floatval($row['total']),
             $row['token_tarjeta'], $row['token_tarjeta_expmes'], $row['token_tarjeta_expanio']
