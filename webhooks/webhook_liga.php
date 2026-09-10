@@ -198,6 +198,60 @@ try {
         }
     }
 
+    // Tercera posibilidad: pago de RENOVACION de una escuela ya activa
+    // (distinto del pago de suscripcion NUEVA de arriba, que es solo para
+    // colegios en registro). Antes renovar era 100% manual -- el superadmin
+    // movia la fecha de vencimiento sin que hubiera ningun cobro real de por
+    // medio. Ahora, si el pago coincide con una referencia de renovacion en
+    // curso, la fecha de vencimiento se extiende SOLA.
+    if (!$cobro) {
+        $refBuscarEsc = $referencia_reconstruida ?? $reference;
+        $stmtEsc = $pdo->prepare(
+            "SELECT id, nombre, plan, fecha_vencimiento_plan, pago_renovacion_monto
+               FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1"
+        );
+        $stmtEsc->execute([$refBuscarEsc]);
+        $escRenov = $stmtEsc->fetch();
+
+        if ($escRenov) {
+            if ($response !== 'approved') {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA RENOVACIÓN rechazada | ref:{$refBuscarEsc} response:{$response} nb_error:{$nb_error}");
+                responder_liga(true, 'Pago de renovación no aprobado, registrado');
+            }
+            if ($amount === null || floatval($amount) <= 0) {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA RENOVACIÓN sin monto válido | ref:{$refBuscarEsc}");
+                responder_liga(false, 'Falta el monto pagado (amount)');
+            }
+            $montoRecibidoRenov = floatval($amount);
+            if (abs($montoRecibidoRenov - floatval($escRenov['pago_renovacion_monto'])) > 0.01) {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA RENOVACIÓN monto no coincide | escuela:{$escRenov['id']} esperado:{$escRenov['pago_renovacion_monto']} recibido:{$montoRecibidoRenov}");
+                responder_liga(false, 'El monto pagado no coincide con el plan');
+            }
+
+            // Un mes calendario desde el vencimiento actual si sigue vigente,
+            // o desde hoy si ya venció -- mismo criterio que renovar_suscripcion.php,
+            // para no premiar ni penalizar por pagar antes o después de tiempo.
+            $baseRenov = $escRenov['fecha_vencimiento_plan'];
+            if (!$baseRenov || strtotime($baseRenov) < strtotime(date('Y-m-d'))) $baseRenov = date('Y-m-d');
+            $nuevoVencimiento = siguiente_vencimiento_mensual($baseRenov);
+
+            $pdo->prepare(
+                "UPDATE escuelas
+                    SET fecha_vencimiento_plan = ?, ultimo_recordatorio_plan = NULL,
+                        pago_renovacion_referencia = NULL, pago_renovacion_folio = NULL, pago_renovacion_monto = NULL
+                  WHERE id = ?"
+            )->execute([$nuevoVencimiento, $escRenov['id']]);
+
+            registrar_log($pdo, ['user_id' => null, 'rol' => 'sistema'], 'suscripcion_renovada_automatico',
+                "Escuela '{$escRenov['nombre']}' #{$escRenov['id']}: pago detectado, vencimiento -> {$nuevoVencimiento}",
+                $escRenov['id']);
+
+            log_api_liga("LIGA RENOVACIÓN confirmada -> escuela_id:{$escRenov['id']} ref:{$refBuscarEsc} auth:{$auth} nuevo_vencimiento:{$nuevoVencimiento}");
+            responder_liga(true, 'Renovación confirmada, suscripción extendida');
+        }
+    }
+
+
     if (!$cobro) {
         $log_msg = "⚠ LIGA HUÉRFANA | ref:{$reference} folio_cct:{$foliocpagos} response:{$response}";
         if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
