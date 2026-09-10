@@ -22,7 +22,7 @@ const PLANES_INFO_MS = {
 };
 
 function MiSuscripcion({ escuela, user }) {
-  const { useState } = React;
+  const { useState, useEffect } = React;
   const [generando, setGenerando] = useState(null); // 'TC' | 'Efectivo' | null
   const [resultado, setResultado] = useState(null);  // { metodo, ...datos }
   const [error, setError] = useState(null);
@@ -36,6 +36,28 @@ function MiSuscripcion({ escuela, user }) {
   const diasVencimiento = vencimiento ? Math.round((vencimiento - hoy) / 86400000) : null;
   const vencida = diasVencimiento !== null && diasVencimiento < 0;
   const porVencer = diasVencimiento !== null && diasVencimiento >= 0 && diasVencimiento <= 7;
+
+  // Antes esta vista solo mostraba la referencia de efectivo justo después
+  // de generarla (setResultado dentro de generarPago) — si el admin
+  // recargaba la página o volvía después, la referencia seguía vigente en
+  // `escuelas.pago_renovacion_*` (el backend ya la reutiliza en vez de
+  // pedirle una nueva al proveedor, ver escuela_generar_pago_renovacion.php)
+  // pero aquí no se leía de ahí, así que parecía que "no existía". TC no
+  // aplica: esa liga no se guarda vencimiento porque es de un solo uso.
+  useEffect(() => {
+    if (!escuela?.pago_renovacion_referencia || !escuela?.pago_renovacion_vencimiento) return;
+    const vencRef = new Date(escuela.pago_renovacion_vencimiento + 'T00:00:00');
+    if (vencRef < hoy) return;
+    setResultado({
+      metodo: 'Efectivo',
+      referencia: escuela.pago_renovacion_referencia,
+      folio: escuela.pago_renovacion_folio,
+      monto: escuela.pago_renovacion_monto,
+      barcode_url: escuela.pago_renovacion_barcode_url || escuela.pago_renovacion_payformat_url || null,
+      vencimiento: escuela.pago_renovacion_vencimiento,
+    });
+  }, [escuela?.id, escuela?.pago_renovacion_referencia, escuela?.pago_renovacion_vencimiento]);
+
 
   const generarPago = async (metodo) => {
     setGenerando(metodo);
