@@ -6,7 +6,7 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : React.createElement(type,p,ch);
 };
 var _Fragment = React.Fragment;
-/* views/Facturacion.jsx v3 — Facturación + Simulador SPEI */
+/* views/Facturacion.jsx v3 — Facturación */
 function Facturacion({
   data,
   setData,
@@ -36,16 +36,9 @@ function Facturacion({
     nivel_educativo: '',
     rvoe: ''
   });
-  const [simRef, setSimRef] = useState('');
-  const [simMonto, setSimMonto] = useState('');
-  const [simEmisor, setSimEmisor] = useState('PADRE DE FAMILIA PRUEBA');
-  const [simStatus, setSimStatus] = useState(null);
-  const [simMsg, setSimMsg] = useState('');
-  const [simLoading, setSimLoading] = useState(false);
   const cobrosEscuela = data.cobros.filter(c => c.estado === 'pagado');
   const pendientesFact = cobrosEscuela.filter(c => !c.factura_cfdi);
   const emitidas = cobrosEscuela.filter(c => c.factura_cfdi);
-  const speiPendientes = data.cobros.filter(c => c.metodo === 'SPEI' && c.estado === 'pendiente');
   const USO_CFDI = {
     'D10': 'D10 — Pagos por servicios educativos (recomendado)',
     'G01': 'G01 — Adquisición de mercancias',
@@ -186,40 +179,6 @@ function Facturacion({
       setErrMsg(e.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Simulador SPEI — llama a api.php?action=simular_spei
-  const simularSPEI = async () => {
-    if (!simRef || !simMonto) {
-      setSimStatus('error');
-      setSimMsg('Referencia y monto requeridos');
-      return;
-    }
-    setSimLoading(true);
-    setSimStatus(null);
-    try {
-      const res = await fetch('api.php?action=simular_spei', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          referencia: simRef.toUpperCase(),
-          monto: parseFloat(simMonto),
-          emisor: simEmisor
-        })
-      });
-      const r = await res.json();
-      if (r.success) {
-        setSimStatus('ok');
-        setSimMsg('Pago simulado. Auth: ' + r.autorizacion + '. El polling de la Caja lo detectará en ~10s.');
-      } else throw new Error(r.error);
-    } catch (e) {
-      setSimStatus('error');
-      setSimMsg(e.message || 'Error de conexión con el servidor PHP');
-    } finally {
-      setSimLoading(false);
     }
   };
 
@@ -382,11 +341,7 @@ function Facturacion({
         style: tabStyle(tab === 'emitidas'),
         onClick: () => setTab('emitidas'),
         children: ["Emitidas (", emitidas.length, ")"]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-        style: tabStyle(tab === 'spei_sim'),
-        onClick: () => setTab('spei_sim'),
-        children: "Simulador SPEI"
-      }, void 0, false)]
+      }, void 0, true)]
     }, void 0, true), tab === 'pendientes' && /*#__PURE__*/_jsxDEV("div", {
       className: "card",
       children: [/*#__PURE__*/_jsxDEV("div", {
@@ -619,294 +574,6 @@ function Facturacion({
           }, void 0, true)]
         }, void 0, true)
       }, void 0, false)]
-    }, void 0, true), tab === 'spei_sim' && /*#__PURE__*/_jsxDEV("div", {
-      children: [/*#__PURE__*/_jsxDEV("div", {
-        className: "card",
-        style: {
-          marginBottom: 16,
-          borderLeft: '4px solid var(--amber)'
-        },
-        children: /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            display: 'flex',
-            gap: 12,
-            alignItems: 'flex-start'
-          },
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              flexShrink: 0
-            },
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "settings",
-              size: 28,
-              color: "var(--amber)"
-            }, void 0, false)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontWeight: 600,
-                fontSize: 14,
-                color: 'var(--ink)',
-                marginBottom: 4
-              },
-              children: "Simulador de pago SPEI"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 13,
-                color: 'var(--ink-2)',
-                lineHeight: 1.6
-              },
-              children: "Simula una transferencia SPEI entrante sin webhook real. Escribe la matrícula del cobro y el monto. El sistema guarda el pago y el polling de la Caja lo detecta automáticamente en ~10 segundos."
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                marginTop: 8,
-                fontSize: 12,
-                color: 'var(--amber)',
-                background: 'var(--amber-glow)',
-                padding: '6px 10px',
-                borderRadius: 'var(--radius-sm)',
-                display: 'inline-block'
-              },
-              children: "Solo para ambiente de pruebas"
-            }, void 0, false)]
-          }, void 0, true)]
-        }, void 0, true)
-      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-        className: "card",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          className: "card-header",
-          children: /*#__PURE__*/_jsxDEV("div", {
-            className: "card-title",
-            children: "Simular transferencia entrante"
-          }, void 0, false)
-        }, void 0, false), speiPendientes.length > 0 && /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            marginBottom: 18
-          },
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 11,
-              color: 'var(--ink-4)',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '.4px',
-              marginBottom: 8
-            },
-            children: "Cobros SPEI pendientes — clic para seleccionar"
-          }, void 0, false), speiPendientes.map(c => /*#__PURE__*/_jsxDEV("div", {
-            onClick: () => {
-              setSimRef(c.referencia || c.folio);
-              setSimMonto(String(c.total));
-              setSimStatus(null);
-            },
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 14px',
-              background: 'var(--glass-light)',
-              borderRadius: 'var(--radius-sm)',
-              marginBottom: 6,
-              cursor: 'pointer',
-              border: '1px solid var(--border-glow)',
-              transition: 'all .15s'
-            },
-            onMouseEnter: e => e.currentTarget.style.borderColor = 'var(--border-active)',
-            onMouseLeave: e => e.currentTarget.style.borderColor = 'var(--border-glow)',
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                flex: 1,
-                minWidth: 0
-              },
-              children: [/*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 13,
-                  fontWeight: 500
-                },
-                children: c.cliente
-              }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-                style: {
-                  fontSize: 11,
-                  color: 'var(--ink-3)',
-                  fontFamily: 'var(--mono)',
-                  marginTop: 2
-                },
-                children: ["Ref: ", c.referencia || c.folio]
-              }, void 0, true)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontFamily: 'var(--mono)',
-                fontWeight: 700,
-                color: 'var(--amber)',
-                flexShrink: 0
-              },
-              children: fmt(c.total)
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 11,
-                color: 'var(--accent)',
-                flexShrink: 0
-              },
-              children: "→ Seleccionar"
-            }, void 0, false)]
-          }, c.id, true))]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-            marginBottom: 16
-          },
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            className: "form-group",
-            style: {
-              gridColumn: '1/-1'
-            },
-            children: [/*#__PURE__*/_jsxDEV("label", {
-              className: "form-label",
-              children: "Referencia / Matrícula (concepto SPEI) *"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-              className: "form-input",
-              placeholder: "Ej: ITM-2024-001",
-              value: simRef,
-              onChange: e => {
-                setSimRef(e.target.value.toUpperCase());
-                setSimStatus(null);
-              },
-              style: {
-                fontFamily: 'var(--mono)',
-                letterSpacing: 1
-              }
-            }, void 0, false)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            className: "form-group",
-            children: [/*#__PURE__*/_jsxDEV("label", {
-              className: "form-label",
-              children: "Monto en pesos *"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-              className: "form-input",
-              type: "number",
-              placeholder: "2800.00",
-              value: simMonto,
-              onChange: e => {
-                setSimMonto(e.target.value);
-                setSimStatus(null);
-              },
-              style: {
-                fontFamily: 'var(--mono)'
-              }
-            }, void 0, false)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-            className: "form-group",
-            children: [/*#__PURE__*/_jsxDEV("label", {
-              className: "form-label",
-              children: "Nombre del emisor"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-              className: "form-input",
-              placeholder: "NOMBRE PADRE DE FAMILIA",
-              value: simEmisor,
-              onChange: e => setSimEmisor(e.target.value.toUpperCase())
-            }, void 0, false)]
-          }, void 0, true)]
-        }, void 0, true), simStatus === 'ok' && /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            marginBottom: 14,
-            padding: '12px 16px',
-            background: 'var(--green-glow)',
-            border: '1px solid var(--green)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 13,
-            color: 'var(--green)'
-          },
-          children: simMsg
-        }, void 0, false), simStatus === 'error' && /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            marginBottom: 14,
-            padding: '12px 16px',
-            background: 'var(--red-glow)',
-            border: '1px solid var(--red)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 13,
-            color: 'var(--red)'
-          },
-          children: simMsg
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            display: 'flex',
-            gap: 10,
-            flexWrap: 'wrap'
-          },
-          children: [/*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: simularSPEI,
-            disabled: simLoading || !simRef || !simMonto,
-            children: simLoading ? /*#__PURE__*/_jsxDEV(_Fragment, {
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner",
-                style: {
-                  borderTopColor: '#fff',
-                  marginRight: 8
-                }
-              }, void 0, false), "Enviando…"]
-            }, void 0, true) : 'Simular transferencia SPEI'
-          }, void 0, false), simStatus === 'ok' && /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-secondary",
-            onClick: () => {
-              SpeiPoller.verificarAhora();
-              setSimMsg(prev => prev + ' (verificando ahora…)');
-            },
-            children: "Verificar ahora"
-          }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            marginTop: 20,
-            padding: '14px 16px',
-            background: 'var(--glass-light)',
-            borderRadius: 'var(--radius-sm)'
-          },
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 11,
-              color: 'var(--ink-4)',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '.4px',
-              marginBottom: 10
-            },
-            children: "¿Cómo funciona la detección con CLABE individual?"
-          }, void 0, false), ['Cada alumno tiene su propia CLABE SPEI asignada desde el pool de la escuela.', 'El padre transfiere a la CLABE individual — sin necesidad de escribir concepto.', 'STP/Pagadetodo recibe el dinero y llama al webhook (webhook_spei.php).', 'El webhook identifica al alumno por su CLABE y confirma el cobro automáticamente.', 'El sistema actualiza el saldo del alumno y registra el pago.'].map((txt, n) => /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              display: 'flex',
-              gap: 10,
-              marginBottom: 8,
-              alignItems: 'flex-start'
-            },
-            children: [/*#__PURE__*/_jsxDEV("div", {
-              style: {
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                background: 'var(--accent)',
-                color: 'var(--on-accent)',
-                fontSize: 11,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              },
-              children: n + 1
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-              style: {
-                fontSize: 12.5,
-                color: 'var(--ink-2)',
-                lineHeight: 1.5
-              },
-              children: txt
-            }, void 0, false)]
-          }, n, true))]
-        }, void 0, true)]
-      }, void 0, true)]
     }, void 0, true), modal === 'solicitar' && cobroSel && /*#__PURE__*/_jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setModal(null),

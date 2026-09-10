@@ -1426,13 +1426,14 @@ function Dashboard({
 
               { label: 'SPEI',      valor: stats.cobradosPorMetodo.SPEI     || 0, color: 'var(--cyan)' },
 
-              { label: 'CoDi / QR', valor: stats.cobradosPorMetodo.CoDi     || 0, color: 'var(--magenta)' },
-
               { label: 'Efectivo',  valor: stats.cobradosPorMetodo.Efectivo || 0, color: 'var(--green)' },
 
               { label: 'Cheque',    valor: stats.cobradosPorMetodo.Cheque   || 0, color: 'var(--amber)' },
 
-              { label: 'Otro',      valor: stats.cobradosPorMetodo.Otro     || 0, color: 'var(--red)' }
+              // CoDi se suma a "Otro" en vez de tener su propia categoría
+              // (10-sep-2026, a pedido) -- se sigue contando en el total, solo
+              // no se muestra como rebanada aparte.
+              { label: 'Otro',      valor: (stats.cobradosPorMetodo.Otro || 0) + (stats.cobradosPorMetodo.CoDi || 0), color: 'var(--red)' }
 
             ].filter(d => d.valor > 0);
 

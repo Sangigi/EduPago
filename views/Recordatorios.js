@@ -313,7 +313,7 @@ function Recordatorios({ data, setData, escuela }) {
 
       _jsxDEV("div", {
         style: { marginBottom: 16, color: 'var(--ink-3)', fontSize: 12.5, lineHeight: 1.6 },
-        children: "El sistema ya envía un correo automático 3 días antes de vencer, el día que vence y 1 día después (cron_recordatorios.php). Usa este panel para el seguimiento manual: contactar por WhatsApp o correo y llevar registro de a quién ya le diste seguimiento."
+        children: "El sistema ya envía un correo automático 3 días antes de vencer, el día que vence y 1 día después. Usa este panel para el seguimiento manual: contactar por WhatsApp o correo y llevar registro de a quién ya le diste seguimiento."
       }, 'desc', false),
 
       // ── Buscador, filtros y orden ──

@@ -309,8 +309,13 @@ try {
 
                 if ($idsDetalle) {
                     $inPlaceholders = implode(',', array_fill(0, count($idsDetalle), '?'));
+                    // metodo = 'TC' (10-sep-2026): el comentario de arriba ya decía
+                    // "con el mismo auth_code y metodo" pero el UPDATE nunca lo ponía
+                    // -- cobros.metodo se quedaba vacío para todo pago agrupado con
+                    // tarjeta, así que la gráfica de "por método" (Dashboard/Reportes)
+                    // los perdía en "Otro / sin método" en vez de "Tarjeta".
                     $pdo->prepare(
-                        "UPDATE cobros SET estado = 'pagado', auth_code = ?, referencia = ?
+                        "UPDATE cobros SET estado = 'pagado', metodo = 'TC', auth_code = ?, referencia = ?
                           WHERE id IN ($inPlaceholders)"
                     )->execute(array_merge([$auth ?: $foliocpagos, $refBuscarGrp], $idsDetalle));
                 }

@@ -271,7 +271,11 @@ try {
             $idsDetalle = array_column($stmtDetalle->fetchAll(), 'cobro_id');
             if ($idsDetalle) {
                 $inPlaceholders = implode(',', array_fill(0, count($idsDetalle), '?'));
-                $pdo->prepare("UPDATE cobros SET estado = 'pagado', auth_code = ?, referencia = ? WHERE id IN ($inPlaceholders)")
+                // metodo = 'EfectivoRef' (10-sep-2026, mismo arreglo que en
+                // webhook_liga.php): sin esto cobros.metodo se quedaba vacío
+                // para todo pago agrupado en efectivo y la gráfica de "por
+                // método" lo perdía en "Otro / sin método".
+                $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'EfectivoRef', auth_code = ?, referencia = ? WHERE id IN ($inPlaceholders)")
                     ->execute(array_merge([$autorizacionGrp, $referencia], $idsDetalle));
             }
             if (!empty($grp['cliente_id'])) recalcular_saldo_pendiente($pdo, intval($grp['cliente_id']));

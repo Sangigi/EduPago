@@ -263,7 +263,13 @@ const AppModel = (() => {
         const acc = { TC: 0, SPEI: 0, CoDi: 0, Efectivo: 0, Cheque: 0, Otro: 0 };
         cobros.filter(c => c.estado === 'pagado').forEach(c => {
           const m = String(c.metodo || '').trim();
+          // 'EfectivoRef' es el valor real que queda en `cobros.metodo` para
+          // cualquier pago en efectivo con referencia/código de barras (ver
+          // generar_referencia_efectivo.php) -- 'Efectivo' a secas nunca se
+          // guarda así, así que sin este caso TODOS esos pagos caían en
+          // "Otro" en vez de "Efectivo" (10-sep-2026).
           if (m === 'Tarjeta') acc.TC += c.total;            // mismo medio que TC
+          else if (m === 'EfectivoRef') acc.Efectivo += c.total;
           else if (acc[m] !== undefined) acc[m] += c.total;
           else acc.Otro += c.total;                          // incluye vacío/desconocido
         });

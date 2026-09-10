@@ -52,6 +52,10 @@ function Reportes({
   const claseMetodo = c => {
     const m = String(c.metodo || '').trim();
     if (m === 'Tarjeta') return 'TC';
+    // 'EfectivoRef' es el valor real que queda en `cobros.metodo` para pagos
+    // en efectivo con referencia/código de barras -- sin este caso caían en
+    // 'Otro' en vez de 'Efectivo' (10-sep-2026).
+    if (m === 'EfectivoRef') return 'Efectivo';
     return metodos.indexOf(m) >= 0 ? m : 'Otro';
   };
   const porMetodo = metodos.map(m => ({
@@ -247,9 +251,14 @@ function Reportes({
           style: { display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' },
           children: (() => {
             /* Dona con la misma información que antes mostraban las barras */
-            const paleta = { TC: 'var(--violet)', SPEI: 'var(--cyan)', CoDi: 'var(--magenta)', Efectivo: 'var(--green)' };
-            const etiquetas = { TC: 'Tarjeta', SPEI: 'SPEI', CoDi: 'CoDi / QR', Efectivo: 'Efectivo', Cheque: 'Cheque', Otro: 'Otro / sin método' };
-            const serie = porMetodo
+            const paleta = { TC: 'var(--violet)', SPEI: 'var(--cyan)', Efectivo: 'var(--green)', Cheque: 'var(--amber)', Otro: 'var(--red)' };
+            const etiquetas = { TC: 'Tarjeta', SPEI: 'SPEI', Efectivo: 'Efectivo', Cheque: 'Cheque', Otro: 'Otro / sin método' };
+            // CoDi se suma a "Otro" en vez de tener su propia rebanada
+            // (10-sep-2026, a pedido) -- se sigue contando en la suma total.
+            const porMetodoMostrado = porMetodo
+              .filter(m => m.metodo !== 'CoDi' && m.metodo !== 'Otro')
+              .concat([{ metodo: 'Otro', total: (porMetodo.find(m => m.metodo === 'Otro')?.total || 0) + (porMetodo.find(m => m.metodo === 'CoDi')?.total || 0) }]);
+            const serie = porMetodoMostrado
               .filter(m => m.total > 0)
               .map(m => ({ label: etiquetas[m.metodo] || m.metodo, valor: m.total, color: paleta[m.metodo] }));
             const suma = serie.reduce((a, d) => a + d.valor, 0);
