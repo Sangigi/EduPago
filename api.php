@@ -166,6 +166,16 @@ function generar_token($user_id) {
 }
 function verificar_token_auth() {
     global $pdo;
+    // Blindaje (10-sep-2026): CADA salida 401 de esta función usaba
+    // echo+exit directo, nunca log_api() — así que cualquier problema de
+    // login/sesión (header ausente, token vencido, sesión revocada, escuela
+    // desactivada) fallaba en completo silencio, sin dejar rastro en
+    // api_log.txt. Esta función corre ANTES del despacho a acciones/, así
+    // que ni siquiera el try/catch de más abajo la cubre. Se agrega
+    // log_api() en cada salida para poder ver la causa real la próxima vez
+    // que alguien no pueda entrar/operar en el portal familia (o cualquier
+    // otro rol).
+    $accionLog = $_GET['action'] ?? '(sin action)';
     // apache_request_headers() no funciona en PHP-FPM/CGI (Hostinger).
     // Usamos múltiples fuentes para obtener el Authorization header.
     $authHeader = '';
@@ -180,6 +190,7 @@ function verificar_token_auth() {
                    ?? '';
     }
     if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        log_api("AUTH FALLÓ ({$accionLog}) -> sin header Authorization. apache_request_headers()=" . (function_exists('apache_request_headers') ? 'sí' : 'no') . " HTTP_AUTHORIZATION=" . (isset($_SERVER['HTTP_AUTHORIZATION']) ? 'sí' : 'no') . " REDIRECT_HTTP_AUTHORIZATION=" . (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? 'sí' : 'no'));
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'No autorizado. Token requerido.']);
         exit;
@@ -187,6 +198,7 @@ function verificar_token_auth() {
     $decoded = base64_decode($matches[1], true);
     $partes  = $decoded !== false ? explode('.', $decoded) : [];
     if (count($partes) !== 3) {
+        log_api("AUTH FALLÓ ({$accionLog}) -> token con formato inválido (no son 3 partes tras decodificar)");
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'Token inválido.']);
         exit;
@@ -194,6 +206,7 @@ function verificar_token_auth() {
     [$user_id, $exp, $firma] = $partes;
     $firma_esperada = hash_hmac('sha256', $user_id . '.' . $exp, APP_TOKEN_SECRET);
     if (!hash_equals($firma_esperada, $firma) || intval($exp) < time()) {
+        log_api("AUTH FALLÓ ({$accionLog}) -> user_id={$user_id} firma_valida=" . (hash_equals($firma_esperada, $firma) ? 'sí' : 'no') . " expirado=" . (intval($exp) < time() ? 'sí' : 'no') . " exp={$exp} now=" . time());
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'Token inválido o expirado.']);
         exit;
@@ -204,6 +217,7 @@ function verificar_token_auth() {
     $stmt->execute([intval($user_id)]);
     $usuario = $stmt->fetch();
     if (!$usuario || !$usuario['activo']) {
+        log_api("AUTH FALLÓ ({$accionLog}) -> user_id={$user_id} " . (!$usuario ? 'no existe en usuarios' : 'activo=0'));
         http_response_code(401);
         echo json_encode(['success' => false, 'error' => 'Usuario no encontrado o inactivo.']);
         exit;
@@ -215,6 +229,7 @@ function verificar_token_auth() {
     if (!empty($usuario['sesion_valida_desde'])) {
         $emitido_en = intval($exp) - APP_TOKEN_TTL;
         if ($emitido_en < strtotime($usuario['sesion_valida_desde'])) {
+            log_api("AUTH FALLÓ ({$accionLog}) -> user_id={$user_id} sesión revocada: emitido_en=" . date('Y-m-d H:i:s', $emitido_en) . " sesion_valida_desde={$usuario['sesion_valida_desde']}");
             http_response_code(401);
             echo json_encode(['success' => false, 'error' => 'Tu sesión fue cerrada. Inicia sesión de nuevo.']);
             exit;
@@ -226,6 +241,7 @@ function verificar_token_auth() {
         $esc->execute([$usuario['escuela_id']]);
         $escuela = $esc->fetch();
         if ($escuela && !$escuela['activa']) {
+            log_api("AUTH FALLÓ ({$accionLog}) -> user_id={$user_id} escuela_id={$usuario['escuela_id']} inactiva");
             http_response_code(401);
             echo json_encode(['success' => false, 'error' => 'Esta escuela está inactiva.']);
             exit;
@@ -233,6 +249,7 @@ function verificar_token_auth() {
     }
     return ['user_id' => intval($usuario['id']), 'rol' => $usuario['rol'], 'escuela_id' => $usuario['escuela_id'], 'familia_id' => $usuario['familia_id'] ? intval($usuario['familia_id']) : null];
 }
+
 $action = $_GET['action'] ?? '';
 // 'verificar_spei' ya NO es pública: sin esto, cualquiera sin sesión podía
 // enumerar cobro_id secuenciales y leer estado/monto/autorización de
