@@ -9,6 +9,9 @@
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
+        // Tarjeta puede estar apagada globalmente (todas las escuelas) o solo
+        // para esta escuela en particular — cualquiera de los dos bloquea.
+        requerir_metodo_pago_habilitado($pdo, $cobroRow['escuela_id'], 'TC', 'Tarjeta');
         // Verificar pertenencia: admin/cajero solo de su propia escuela, familia
         // solo de sus propios hijos (antes no se validaba nada de esto — cualquier
         // usuario autenticado podía generar la liga de pago de cualquier cobro).
