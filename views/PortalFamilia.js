@@ -543,6 +543,50 @@ function PortalFamilia({
       return;
     }
 
+    // Efectivo (OXXO / tiendas participantes) — a diferencia de SPEI, el
+    // servicio de referencia NO opera sobre el saldo agregado del alumno:
+    // exige un cobro real con folio ya existente (generar_referencia_efectivo
+    // busca "WHERE folio = ? AND estado = 'pendiente'"). Por eso, si hay más
+    // de un concepto pendiente por separado, no se pueden pagar juntos en
+    // una sola referencia — mismo límite que ya tiene Tarjeta más abajo.
+    if (metodo === 'Efectivo') {
+      const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
+      if (cobrosPendientesHijo.length !== 1) {
+        setSpeiBloqueoFamilia(cobrosPendientesHijo.length === 0
+          ? 'No se encontró el cobro pendiente de este alumno. Recarga la página e intenta de nuevo.'
+          : `${hijoSeleccionado.nombre} tiene ${cobrosPendientesHijo.length} conceptos pendientes por separado. Efectivo solo puede pagar uno a la vez — usa SPEI para pagarlos juntos, o paga cada concepto por separado desde "Historial".`);
+        return;
+      }
+      setLoading(true);
+      try {
+        const cobroPendiente = cobrosPendientesHijo[0];
+        const ref = await CobroController.iniciarEfectivoRef({
+          folio: cobroPendiente.folio,
+          total: cobroPendiente.total,
+          descripcion: cobroPendiente.items?.map(i => i.nombre).join(', ') || 'Pago escolar'
+        });
+        setData(prev => ({
+          ...prev,
+          cobros: prev.cobros.map(c => c.id === cobroPendiente.id
+            ? { ...c, referencia: ref.referencia, ref_barcode_url: ref.barcode_url, ref_vencimiento: ref.vencimiento }
+            : c)
+        }));
+        const cliente = (data.clientes || []).find(c => c.id === hijoSeleccionado.id) || { nombre: hijoSeleccionado.nombre };
+        abrirComprobanteEfectivoModulo({
+          cobro: {
+            folio: cobroPendiente.folio, total: cobroPendiente.total,
+            descripcion: cobroPendiente.items?.map(i => i.nombre).join(', '),
+            referencia: ref.referencia, barcode_url: ref.barcode_url, vencimiento: ref.vencimiento
+          },
+          cliente, familia: miFamilia, escuela
+        });
+      } catch (err) {
+        setSpeiBloqueoFamilia('No se pudo generar el formato de pago: ' + err.message);
+      }
+      setLoading(false);
+      return;
+    }
+
     // TC (tarjeta) — Cobroscontarjeta.com tiene un tope de $15,000.00 por
     // transacción; sin este aviso previo, el pago fallaba en el servidor con
     // un error genérico que no explicaba el motivo real.
@@ -1767,6 +1811,65 @@ function PortalFamilia({
                     color: PLC.green
                   }, void 0, false)]
                 }, void 0, true), _jsxDEV("div", {
+                  // Antes no existia esta opcion: el padre solo podia pagar
+                  // en efectivo yendo al Historial de un cobro ya generado
+                  // por la escuela, o llamando para pedirlo. Ahora aparece
+                  // aqui junto a los demas metodos, igual que SPEI y tarjeta.
+                  onClick: () => { setMetodo('Efectivo'); setSpeiBloqueoFamilia(null); },
+                  style: {
+                    flex: 1,
+                    minWidth: 140,
+                    padding: '14px 16px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    border: `2px solid ${metodo === 'Efectivo' ? PLC.navy : PLC.border}`,
+                    background: metodo === 'Efectivo' ? 'rgba(40,45,101,.05)' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    transition: 'all .15s'
+                  },
+                  children: [_jsxDEV("div", {
+                    style: {
+                      width: 40,
+                      height: 40,
+                      borderRadius: 9,
+                      background: metodo === 'Efectivo' ? PLC.navy : 'var(--glass-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all .15s',
+                      flexShrink: 0
+                    },
+                    children: _jsxDEV(Icon, {
+                      name: "card",
+                      size: 20,
+                      color: metodo === 'Efectivo' ? PLC.white : PLC.muted
+                    }, void 0, false)
+                  }, void 0, false), _jsxDEV("div", {
+                    style: {
+                      flex: 1
+                    },
+                    children: [_jsxDEV("div", {
+                      style: {
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: PLC.text
+                      },
+                      children: "Efectivo en tienda"
+                    }, void 0, false), _jsxDEV("div", {
+                      style: {
+                        fontSize: 11,
+                        color: PLC.muted
+                      },
+                      children: "OXXO y tiendas participantes"
+                    }, void 0, false)]
+                  }, void 0, true), metodo === 'Efectivo' && _jsxDEV(Icon, {
+                    name: "check",
+                    size: 18,
+                    color: PLC.green
+                  }, void 0, false)]
+                }, void 0, true), _jsxDEV("div", {
                   onClick: () => { setMetodo('TC'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
@@ -1934,11 +2037,20 @@ function PortalFamilia({
                     }
                   }, void 0, false), "Procesando…"]
                 }, void 0, true) : _jsxDEV(_Fragment, {
+                  // Con Efectivo, el monto a mostrar es el del ÚNICO cobro
+                  // pendiente que se va a pagar, no el saldo total del alumno
+                  // — Efectivo no puede pagar varios conceptos juntos (ver
+                  // pagarSaldo). Mostrar el saldo total ahí habria sido
+                  // enganoso: el formato que se genera solo cubre uno.
                   children: [_jsxDEV(Icon, {
                     name: "pay",
                     size: 18,
                     color: PLC.navy
-                  }, void 0, false), "Pagar ", fmt(hijoSeleccionado?.saldo_pendiente || 0), " con ", metodo === 'SPEI' ? 'SPEI' : metodo === 'CAI' ? 'tarjeta guardada' : 'Tarjeta']
+                  }, void 0, false), "Pagar ", fmt(
+                    metodo === 'Efectivo'
+                      ? (misCobros.find(c => c.cliente_id === hijoSeleccionado?.id && c.estado === 'pendiente')?.total || 0)
+                      : (hijoSeleccionado?.saldo_pendiente || 0)
+                  ), " con ", metodo === 'SPEI' ? 'SPEI' : metodo === 'CAI' ? 'tarjeta guardada' : metodo === 'Efectivo' ? 'Efectivo' : 'Tarjeta']
                 }, void 0, true)
               }, void 0, false), _jsxDEV("div", {
                 style: {
