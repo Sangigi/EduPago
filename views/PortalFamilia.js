@@ -40,6 +40,11 @@ function PortalFamilia({
   const [modal, setModal] = useState(null);
   const [cobroActivo, setCobroActivo] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Id del cobro para el que se está generando la referencia de efectivo
+  // desde el Historial (pago pendiente). Antes solo existía el flujo de
+  // Efectivo desde Caja — el padre no tenía forma de pagar en efectivo un
+  // cobro pendiente sin llamar a la escuela.
+  const [generandoEfvId, setGenerandoEfvId] = useState(null);
   const [tab, setTab] = useState('inicio');
   // Ficha técnica que se está viendo: { registro, tipo }
   const [ficha, setFicha] = useState(null);
@@ -1415,18 +1420,24 @@ function PortalFamilia({
                   children: cob.fecha
                 }, void 0, false), _jsxDEV("td", {
                   style: { padding: '11px 16px' },
-                  // El comprobante solo existe para pagos ya confirmados por
-                  // Efectivo o SPEI — la instancia de tarjeta usa la liga del
-                  // proveedor, que no se genera aquí. Reutiliza el mismo
-                  // módulo que usa Caja para no duplicar las plantillas.
-                  children: (cob.estado === 'pagado' && (cob.metodo === 'Efectivo' || cob.metodo === 'EfectivoRef' || cob.metodo === 'SPEI') && typeof abrirComprobanteEfectivoModulo !== 'undefined')
-                    ? _jsxDEV("button", {
+                  // Pagado por Efectivo/SPEI -> comprobante ya emitido (ver
+                  // botón). Pendiente por Efectivo -> antes no había forma de
+                  // generar/ver el formato de pago desde aquí: había que
+                  // llamar a la escuela para que lo generara en Caja. Ahora
+                  // se genera bajo demanda y se abre igual que un
+                  // comprobante ya pagado. SPEI pendiente no necesita esto:
+                  // su CLABE es fija y ya vive en "Pagar en línea".
+                  children: (() => {
+                    const cliente = (data.clientes || []).find(c => c.id === cob.cliente_id) || { nombre: cob.cliente };
+                    const esEfectivo = cob.metodo === 'Efectivo' || cob.metodo === 'EfectivoRef';
+
+                    if (cob.estado === 'pagado' && (esEfectivo || cob.metodo === 'SPEI') && typeof abrirComprobanteEfectivoModulo !== 'undefined') {
+                      return _jsxDEV("button", {
                         className: "btn-ghost",
                         title: "Ver / descargar comprobante",
                         style: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '5px 10px' },
                         onClick: () => {
-                          const cliente = (data.clientes || []).find(c => c.id === cob.cliente_id) || { nombre: cob.cliente };
-                          if ((cob.metodo === 'Efectivo' || cob.metodo === 'EfectivoRef')) {
+                          if (esEfectivo) {
                             abrirComprobanteEfectivoModulo({
                               cobro: {
                                 folio: cob.folio, total: cob.total, descripcion: cob.items?.map(i => i.nombre).join(', '),
@@ -1446,8 +1457,55 @@ function PortalFamilia({
                           }
                         },
                         children: [_jsxDEV(Icon, { name: 'download', size: 12, color: 'currentColor' }, void 0, false), 'Ver']
-                      }, void 0, true)
-                    : _jsxDEV("span", { style: { color: PLC.muted, fontSize: 12 }, children: '—' }, void 0, false)
+                      }, void 0, true);
+                    }
+
+                    if (cob.estado === 'pendiente' && cob.metodo === 'Efectivo' && typeof abrirComprobanteEfectivoModulo !== 'undefined') {
+                      const generando = generandoEfvId === cob.id;
+                      return _jsxDEV("button", {
+                        className: "btn-ghost",
+                        title: "Generar formato de pago en efectivo",
+                        disabled: generando,
+                        style: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '5px 10px', color: PLC.navy, fontWeight: 600 },
+                        onClick: async () => {
+                          setGenerandoEfvId(cob.id);
+                          try {
+                            const ref = await CobroController.iniciarEfectivoRef({
+                              folio: cob.folio, total: cob.total,
+                              descripcion: cob.items?.map(i => i.nombre).join(', ') || 'Pago escolar'
+                            });
+                            // Se refleja en memoria para no tener que volver a
+                            // generarla si el padre abre el comprobante otra vez.
+                            setData(prev => ({
+                              ...prev,
+                              cobros: prev.cobros.map(c => c.id === cob.id
+                                ? { ...c, referencia: ref.referencia, ref_barcode_url: ref.barcode_url, ref_vencimiento: ref.vencimiento }
+                                : c)
+                            }));
+                            abrirComprobanteEfectivoModulo({
+                              cobro: {
+                                folio: cob.folio, total: cob.total, descripcion: cob.items?.map(i => i.nombre).join(', '),
+                                referencia: ref.referencia, barcode_url: ref.barcode_url, vencimiento: ref.vencimiento
+                              },
+                              cliente, familia: miFamilia, escuela
+                            });
+                          } catch (err) {
+                            alert('No se pudo generar el formato de pago: ' + err.message);
+                          }
+                          setGenerandoEfvId(null);
+                        },
+                        children: generando
+                          ? [_jsxDEV("span", { className: "spinner", style: { width: 12, height: 12 } }, void 0, false), ' Generando…']
+                          : [_jsxDEV(Icon, { name: 'download', size: 12, color: 'currentColor' }, void 0, false), 'Pagar']
+                      }, void 0, true);
+                    }
+
+                    if (cob.estado === 'pendiente' && cob.metodo === 'SPEI') {
+                      return _jsxDEV("span", { style: { color: PLC.muted, fontSize: 11.5 }, children: 'Ver en "Pagar en línea"' }, void 0, false);
+                    }
+
+                    return _jsxDEV("span", { style: { color: PLC.muted, fontSize: 12 }, children: '—' }, void 0, false);
+                  })()
                 }, void 0, false)]
               }, cob.id, true))]
             }, void 0, true)]
