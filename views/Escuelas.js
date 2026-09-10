@@ -118,13 +118,20 @@ function Escuelas({
       AppModel.save(newData);
       setModal(null);
       setForm(EMPTY);
-      if (!form.id && res.admin_email) {
-        alert(
-          'Colegio creado. Cuenta de acceso:\n\n' +
-          'Correo: ' + res.admin_email + '\n' +
-          'Contraseña temporal: ' + res.admin_password_temporal +
-          '\n\nCompártela con el admin del colegio; puede cambiarla después.'
-        );
+      // No se manda contraseña temporal por acá -- mismo motivo que
+      // invitacion_resolver.php: Outlook lo marca como phishing. El backend
+      // ya mandó un correo con un enlace de un solo uso para que el propio
+      // colegio fije su contraseña; solo avisamos si algo no salió como se
+      // esperaba (correo falló, o ya existía una cuenta con ese email).
+      if (!form.id) {
+        if (res.usuario_ya_existia) {
+          alert('Colegio creado. Ya existía una cuenta con ese correo, así que no se creó una nueva -- ese usuario ya puede entrar a este colegio si se le da acceso desde "Mi equipo".');
+        } else if (res.usuario_creado && !res.correo_enviado) {
+          alert(
+            'Colegio creado y cuenta admin creada, pero el correo de activación no se pudo enviar.\n\n' +
+            'Comparte este enlace de un solo uso con el colegio (expira en 72 horas):\n' + (res.activacion_liga || '(sin enlace)')
+          );
+        }
       }
     } catch (e) {
       setErrorEsc('Error de conexión al guardar el colegio: ' + e.message);

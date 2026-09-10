@@ -28,6 +28,61 @@
         $stmt->execute([$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji, $plan, $fecha_vencimiento_plan]);
         $nuevo_id = intval($pdo->lastInsertId());
         registrar_log($pdo, $usuario_actual, 'escuela_creada', "Colegio '$nombre' ($clave)", $nuevo_id);
+
+        // Cuenta admin (10-sep-2026): el comentario de arriba ya decía "el
+        // email es obligatorio: es con lo que se crea la cuenta admin" pero
+        // el INSERT nunca existía -- un colegio creado desde aquí se quedaba
+        // sin nadie que pudiera iniciar sesión, sin ningún aviso de que
+        // faltaba ese paso manual. Mismo mecanismo que invitacion_resolver.php:
+        // no se manda contraseña por correo (Outlook la marcaba como
+        // phishing), se manda un enlace de un solo uso para que el propio
+        // colegio fije su contraseña.
+        $usuario_ya_existe = false;
+        $chkUsr = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chkUsr->execute([$email]);
+        $usuario_ya_existe = (bool) $chkUsr->fetch();
+
+        $usuario_creado  = false;
+        $correo_enviado  = false;
+        $activacion_liga = null;
+        if (!$usuario_ya_existe) {
+            $admin_nombre     = trim($input['admin_nombre'] ?? '') ?: 'Administrador';
+            $activacion_token = bin2hex(random_bytes(32));
+            $activacion_hash  = hash('sha256', $activacion_token);
+            $pdo->prepare(
+                "INSERT INTO usuarios (escuela_id, nombre, email, password_hash, rol, activo, fecha_alta, activacion_token_hash, activacion_expira)
+                 VALUES (?, ?, ?, ?, 'admin', 1, CURDATE(), ?, DATE_ADD(NOW(), INTERVAL 72 HOUR))"
+            )->execute([
+                $nuevo_id, $admin_nombre, $email,
+                // Nadie conoce esta contraseña -- se reemplaza en cuanto activan
+                // su cuenta con el enlace. Existe solo porque password_hash es NOT NULL.
+                password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                $activacion_hash
+            ]);
+            $usuario_creado = true;
+
+            $activacion_liga = (defined('APP_URL') && APP_URL
+                                    ? rtrim(APP_URL, '/')
+                                    : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                                       . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+                                       . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/')))
+                                 . '/activar_cuenta.html?t=' . $activacion_token;
+            $htmlBienvenida = "
+                <p>Hola,</p>
+                <p><strong>" . htmlspecialchars($nombre) . "</strong> ya está activo en Paga la Escuela.</p>
+                <p>Entra a este enlace para crear tu contraseña y empezar a usar tu cuenta ({$email}):</p>
+                <p><a href=\"" . htmlspecialchars($activacion_liga) . "\">" . htmlspecialchars($activacion_liga) . "</a></p>
+                <p>El enlace expira en 72 horas.</p>
+                <p>— Pagalaescuela</p>
+            ";
+            $resCorreo = enviar_correo($email, 'Activa tu cuenta — tu colegio ya está en Paga la Escuela', $htmlBienvenida);
+            $correo_enviado = (bool) ($resCorreo['success'] ?? false);
+            if (!$correo_enviado) {
+                log_api("crear_escuela #$nuevo_id -> cuenta admin creada pero falló el correo de bienvenida: " . ($resCorreo['error'] ?? 'desconocido'));
+            }
+            registrar_log($pdo, $usuario_actual, 'escuela_admin_creado', "Cuenta admin creada para '$nombre' ($email)", $nuevo_id);
+        }
+
         respond(['success' => true, 'escuela' => [
             'id' => $nuevo_id, 'nombre' => $nombre, 'clave' => $clave, 'rfc' => $rfc, 'rvoe' => $rvoe,
             'telefono' => $telefono, 'email' => $email, 'direccion' => $direccion,
@@ -35,4 +90,11 @@
             'escuela_padre_id' => null, 'plan' => $plan, 'fecha_alta' => date('Y-m-d'),
             'fecha_vencimiento_plan' => $fecha_vencimiento_plan,
             'secciones_deshabilitadas' => [],
-        ]]);
+        ],
+        'usuario_creado'  => $usuario_creado,
+        'usuario_ya_existia' => $usuario_ya_existe,
+        'correo_enviado'  => $correo_enviado,
+        // Solo va en la respuesta si de verdad hace falta que el superadmin
+        // lo transmita a mano (no había cuenta que crear, o el correo falló).
+        'activacion_liga' => ($usuario_creado && !$correo_enviado) ? $activacion_liga : null,
+        ]);
