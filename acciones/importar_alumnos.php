@@ -33,12 +33,38 @@
         $normalizarDup = function ($nombre, $grado) {
             return mb_strtolower(trim($nombre ?? ''), 'UTF-8') . '|' . mb_strtolower(trim($grado ?? ''), 'UTF-8');
         };
-        $existentesStmt = $pdo->prepare("SELECT nombre, grado FROM clientes WHERE escuela_id = ? AND activo = 1");
+        // Normaliza CURP/matrícula para comparar (vacío -> null, para no tratar
+        // "sin dato" como si fuera un valor real que coincide entre dos filas).
+        $normDato = function ($v) {
+            $v = trim((string) ($v ?? ''));
+            return $v === '' ? null : mb_strtoupper($v, 'UTF-8');
+        };
+        // $vistosEnEscuela[claveNombreGrado] = [ ['curp'=>.., 'matricula'=>..], ... ]
+        // -- una entrada por cada alumno (ya en la BD, o ya importado en ESTE
+        // mismo archivo) que comparte nombre+grado.
+        $existentesStmt = $pdo->prepare("SELECT nombre, grado, curp, matricula FROM clientes WHERE escuela_id = ? AND activo = 1");
         $existentesStmt->execute([$escuela_id]);
         $vistosEnEscuela = [];
         foreach ($existentesStmt->fetchAll() as $ex) {
-            $vistosEnEscuela[$normalizarDup($ex['nombre'], $ex['grado'])] = true;
+            $vistosEnEscuela[$normalizarDup($ex['nombre'], $ex['grado'])][] = [
+                'curp' => $normDato($ex['curp']), 'matricula' => $normDato($ex['matricula']),
+            ];
         }
+        // Duplicado = mismo nombre+grado que un alumno ya visto Y ninguna CURP o
+        // matrícula propia que lo distinga de ese alumno (si ambas están vacías
+        // en los dos lados, no hay forma de diferenciarlos -> se asume el mismo).
+        $esDuplicado = function ($claveDup, $curp, $matricula) use (&$vistosEnEscuela, $normDato) {
+            if (empty($vistosEnEscuela[$claveDup])) return false;
+            $curpN = $normDato($curp);
+            $matriculaN = $normDato($matricula);
+            foreach ($vistosEnEscuela[$claveDup] as $existente) {
+                $mismoCurp = $curpN !== null && $existente['curp'] !== null && $curpN === $existente['curp'];
+                $mismaMatricula = $matriculaN !== null && $existente['matricula'] !== null && $matriculaN === $existente['matricula'];
+                $sinDatos = $curpN === null && $matriculaN === null && $existente['curp'] === null && $existente['matricula'] === null;
+                if ($mismoCurp || $mismaMatricula || $sinDatos) return true;
+            }
+            return false;
+        };
 
         foreach ($filas as $idx => $fila) {
             $numFila = $idx + 2; // +2: fila 1 es encabezado, arrays son 0-based
@@ -127,7 +153,6 @@
                     'curp' => $curp, 'email' => $alumno_email, 'telefono' => $alumno_tel, 'tel' => $alumno_tel,
                     'nivel_educativo_sat' => $nivel_sat, 'activo' => true, 'saldo_pendiente' => 0,
                 ];
-                $vistosEnEscuela[$claveDup] = true;
                 $alumnosCreados++;
                 $alumnosActuales++;
             } catch (\Throwable $e) {
