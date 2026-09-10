@@ -13,7 +13,12 @@
     $inv = $stmt->fetch();
 
     if (!$inv)                                    respond($generico);
-    if ($inv['estado'] !== 'pendiente')           respond($generico);
+    // Antes solo se permitia 'pendiente': en cuanto el colegio enviaba el
+    // formulario una vez, reabrir el MISMO link (recargar la pagina, volver
+    // a intentar) lo mostraba como "liga no valida" sin explicacion. El pago
+    // es la barrera real ahora, asi que se permite seguir viendo/editando
+    // mientras no se haya pagado, aprobado o cancelado.
+    if (!in_array($inv['estado'], ['pendiente', 'enviado'], true)) respond($generico);
     if (strtotime($inv['expira']) < time()) {
         $pdo->prepare("UPDATE invitaciones_colegio SET estado='expirada' WHERE id=?")
             ->execute([$inv['id']]);
