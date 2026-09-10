@@ -49,8 +49,22 @@
         } catch (\PDOException $e) {
             // config_sistema todavia no migrada: se comporta como "nada apagado".
         }
-        $escuelas = array_map(function($e) use ($metodosGlobal) {
-            $e['secciones_deshabilitadas'] = json_decode($e['secciones_deshabilitadas'] ?? '', true) ?: [];
+        // Mismo criterio para secciones apagadas GLOBALMENTE (no-mantenimiento,
+        // ver superadmin_toggle_seccion_global.php) -- se fusiona con la lista
+        // por escuela para que app.js siga leyendo un solo campo.
+        $seccionesGlobal = [];
+        try {
+            $seccionesGlobalRow = $pdo->query("SELECT valor FROM config_sistema WHERE clave = 'secciones_deshabilitadas_global' LIMIT 1")->fetch();
+            if ($seccionesGlobalRow && $seccionesGlobalRow['valor']) {
+                $tmpSec = json_decode($seccionesGlobalRow['valor'], true);
+                if (is_array($tmpSec) && !empty($tmpSec['deshabilitadas'])) $seccionesGlobal = $tmpSec['deshabilitadas'];
+            }
+        } catch (\PDOException $e) {
+            // config_sistema todavia no migrada: se comporta como "nada apagado".
+        }
+        $escuelas = array_map(function($e) use ($metodosGlobal, $seccionesGlobal) {
+            $propiasSecciones = json_decode($e['secciones_deshabilitadas'] ?? '', true) ?: [];
+            $e['secciones_deshabilitadas'] = array_values(array_unique(array_merge($propiasSecciones, $seccionesGlobal)));
             $propios = json_decode($e['metodos_pago_deshabilitados'] ?? '', true) ?: [];
             $e['metodos_pago_deshabilitados'] = array_values(array_unique(array_merge($propios, $metodosGlobal)));
             return $e;

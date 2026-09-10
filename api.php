@@ -337,12 +337,31 @@ function requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, $secciones,
     // porque cron_recordatorios.php y webhooks/webhook_liga.php tambien lo
     // necesitan y no incluyen este archivo.
     requerir_seccion_sin_mantenimiento($pdo, $rol_actual, $secciones);
-    if (!$escuela_id) return;
-    $stmt = $pdo->prepare("SELECT secciones_deshabilitadas FROM escuelas WHERE id = ?");
-    $stmt->execute([$escuela_id]);
-    $row = $stmt->fetch();
-    $deshabilitadas = $row ? json_decode($row['secciones_deshabilitadas'] ?? '', true) : null;
-    if (!is_array($deshabilitadas)) $deshabilitadas = [];
+    // Apagado GLOBAL simple (10-sep-2026), sin ser "mantenimiento": el de
+    // arriba (requerir_seccion_sin_mantenimiento) exige motivo + se muestra
+    // como aviso de mantenimiento temporal. Esto es solo un interruptor
+    // permanente para todas las escuelas a la vez, igual de simple que el
+    // apagado por escuela -- ver superadmin_toggle_seccion_global.php.
+    $deshabilitadasGlobal = [];
+    try {
+        $stmtGlobal = $pdo->prepare("SELECT valor FROM config_sistema WHERE clave = 'secciones_deshabilitadas_global' LIMIT 1");
+        $stmtGlobal->execute();
+        $rowGlobal = $stmtGlobal->fetch();
+        if ($rowGlobal && $rowGlobal['valor']) {
+            $tmpGlobal = json_decode($rowGlobal['valor'], true);
+            if (is_array($tmpGlobal) && !empty($tmpGlobal['deshabilitadas'])) $deshabilitadasGlobal = $tmpGlobal['deshabilitadas'];
+        }
+    } catch (\PDOException $e) {
+        // config_sistema todavía no migrada: se comporta como "nada apagado".
+    }
+    $deshabilitadas = $deshabilitadasGlobal;
+    if ($escuela_id) {
+        $stmt = $pdo->prepare("SELECT secciones_deshabilitadas FROM escuelas WHERE id = ?");
+        $stmt->execute([$escuela_id]);
+        $row = $stmt->fetch();
+        $propias = $row ? json_decode($row['secciones_deshabilitadas'] ?? '', true) : null;
+        if (is_array($propias)) $deshabilitadas = array_merge($deshabilitadas, $propias);
+    }
     foreach ((array) $secciones as $s) {
         if (!in_array($s, $deshabilitadas, true)) return; // al menos una sección dueña sigue habilitada
     }

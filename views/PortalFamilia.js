@@ -739,19 +739,15 @@ function PortalFamilia({
           _jsxDEV("div", {
             style: { display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 },
             children: [
-              _jsxDEV("div", {
+              _jsxDEV("img", {
+                src: "assets/logo.jpeg",
+                alt: "Paga la Escuela",
                 style: {
-                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                  background: 'var(--grad-brand)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontWeight: 800, fontSize: 15, overflow: 'hidden'
+                  height: 36, width: 'auto', maxWidth: 120, flexShrink: 0,
+                  borderRadius: 8, objectFit: 'contain', objectPosition: 'left center',
+                  display: 'block'
                 },
-                children: _jsxDEV("img", {
-                  src: "assets/logo.jpeg",
-                  alt: "Paga la Escuela",
-                  style: { width: '100%', height: '100%', objectFit: 'cover' },
-                  onError: e => { e.target.style.display = 'none'; e.target.parentNode.textContent = 'P'; }
-                }, void 0, false)
+                onError: e => { e.target.style.display = 'none'; }
               }, void 0, false),
               _jsxDEV("div", {
                 style: { minWidth: 0 },

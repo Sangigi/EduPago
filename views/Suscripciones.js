@@ -73,9 +73,29 @@ function Suscripciones({ data, setData }) {
     { id: 'Efectivo', label: 'Efectivo (caja)' }, { id: 'EfectivoRef', label: 'Efectivo (tienda)' },
     { id: 'Cheque', label: 'Cheque' }, { id: 'CAI', label: 'Domiciliación' },
   ];
+  // Mismo catálogo que Escuelas.js (apagado por escuela) -- esto es el
+  // apagado GLOBAL simple, sin motivo/ventana de tiempo (eso es "mantenimiento",
+  // arriba). Para que un admin/cajero pierda acceso hace falta CUALQUIERA de
+  // los dos: mantenimiento activo O este interruptor encendido.
+  const SECCIONES_GLOBAL_CATALOGO = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'caja', label: 'Ingresos' },
+    { id: 'corte_caja', label: 'Corte de caja' },
+    { id: 'cobros', label: 'Historial de cobros' },
+    { id: 'gastos', label: 'Gastos' },
+    { id: 'alumnos', label: 'Alumnos' },
+    { id: 'familias', label: 'Familias' },
+    { id: 'productos', label: 'Conceptos de pago' },
+    { id: 'proveedores', label: 'Proveedores' },
+    { id: 'facturacion', label: 'Facturación' },
+    { id: 'recordatorios', label: 'Recordatorios' },
+    { id: 'reportes', label: 'Reportes' },
+    { id: 'miequipo', label: 'Mi equipo' },
+  ];
 
   const [mantEstado, setMantEstado] = useState(null); // { secciones, motivo, inicio, fin } | null
   const [metodosGlobalDeshab, setMetodosGlobalDeshab] = useState([]);
+  const [seccionesGlobalDeshab, setSeccionesGlobalDeshab] = useState([]);
   const [cargandoMant, setCargandoMant] = useState(true);
   const [modalMant, setModalMant] = useState(false);
   const [formSecciones, setFormSecciones] = useState([]);
@@ -83,6 +103,7 @@ function Suscripciones({ data, setData }) {
   const [formFin, setFormFin] = useState(''); // datetime-local string, vacío = indefinido
   const [guardandoMant, setGuardandoMant] = useState(false);
   const [guardandoMetodoGlobal, setGuardandoMetodoGlobal] = useState(null);
+  const [guardandoSeccionGlobal, setGuardandoSeccionGlobal] = useState(null);
 
   const cargarMantenimiento = async () => {
     setCargandoMant(true);
@@ -95,6 +116,7 @@ function Suscripciones({ data, setData }) {
       if (json.success) {
         setMantEstado(json.mantenimiento);
         setMetodosGlobalDeshab(json.metodos_pago_global || []);
+        setSeccionesGlobalDeshab(json.secciones_deshabilitadas_global || []);
       }
     } catch (e) {
       // sin red: se queda como estaba
@@ -170,6 +192,28 @@ function Suscripciones({ data, setData }) {
       alert('No se pudo actualizar el método de pago global: ' + e.message);
     } finally {
       setGuardandoMetodoGlobal(null);
+    }
+  };
+
+  const toggleSeccionGlobal = async seccionId => {
+    setGuardandoSeccionGlobal(seccionId);
+    const anterior = seccionesGlobalDeshab;
+    const nuevas = anterior.includes(seccionId) ? anterior.filter(s => s !== seccionId) : [...anterior, seccionId];
+    setSeccionesGlobalDeshab(nuevas); // optimista
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=superadmin_toggle_seccion_global', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ seccion: seccionId }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'No se pudo actualizar');
+    } catch (e) {
+      setSeccionesGlobalDeshab(anterior); // revertir
+      alert('No se pudo actualizar la sección global: ' + e.message);
+    } finally {
+      setGuardandoSeccionGlobal(null);
     }
   };
 
@@ -395,6 +439,27 @@ function Suscripciones({ data, setData }) {
           }, met.id, false);
         })
       }, 'metodos'),
+
+      // Secciones apagadas globalmente (permanente, no-mantenimiento)
+      _jsxDEV("div", { style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: .3 },
+        children: "Secciones (todas las escuelas)"
+      }, 'lblSec'),
+      _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 8 },
+        children: "Apaga una sección para todo el sistema de forma permanente, sin el aviso de mantenimiento ni ventana de tiempo."
+      }, 'subSec'),
+      _jsxDEV("div", { style: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+        children: SECCIONES_GLOBAL_CATALOGO.map(sec => {
+          const apagada = seccionesGlobalDeshab.includes(sec.id);
+          return _jsxDEV("button", {
+            key: sec.id,
+            className: 'btn btn-sm ' + (apagada ? 'btn-secondary' : 'btn-ghost'),
+            disabled: guardandoSeccionGlobal === sec.id,
+            style: apagada ? { color: 'var(--red)', borderColor: 'var(--red)' } : {},
+            onClick: () => toggleSeccionGlobal(sec.id),
+            children: (apagada ? '🚫 ' : '') + sec.label
+          }, sec.id, false);
+        })
+      }, 'secciones'),
     ]
   }, 'panelMant');
 

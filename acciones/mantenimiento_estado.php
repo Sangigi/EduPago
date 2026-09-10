@@ -32,8 +32,24 @@ try {
     // config_sistema todavía no migrada.
 }
 
+// Apagado global simple de secciones (no-mantenimiento) -- ver
+// superadmin_toggle_seccion_global.php.
+$seccionesGlobal = [];
+try {
+    $stmt3 = $pdo->prepare("SELECT valor FROM config_sistema WHERE clave = 'secciones_deshabilitadas_global' LIMIT 1");
+    $stmt3->execute();
+    $row3 = $stmt3->fetch();
+    if ($row3 && $row3['valor']) {
+        $tmp3 = json_decode($row3['valor'], true);
+        if (is_array($tmp3) && !empty($tmp3['deshabilitadas'])) $seccionesGlobal = $tmp3['deshabilitadas'];
+    }
+} catch (\PDOException $e) {
+    // config_sistema todavía no migrada.
+}
+
 respond([
     'success' => true,
     'mantenimiento' => $mantenimiento,
     'metodos_pago_global' => $metodosGlobal,
+    'secciones_deshabilitadas_global' => $seccionesGlobal,
 ]);
