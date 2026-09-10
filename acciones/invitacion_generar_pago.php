@@ -152,6 +152,7 @@ $pdo->prepare(
 
 respond([
     'success'      => true,
+    'folio'        => $folio,
     'referencia'   => $ref,
     'barcode_url'  => $raw['BarCode'] ?? $raw['PayFormat'] ?? null,
     'vencimiento'  => $vencimiento,
