@@ -78,8 +78,7 @@
   function formulario(d) {
     cuerpo.innerHTML =
       '<div class="reg-h">Hola, ' + esc((d.contacto_nombre || '').split(' ')[0]) + '</div>' +
-      '<p class="reg-p">Llena los datos de tu colegio. En el siguiente paso eliges tu plan y ' +
-        'lo pagas para completar tu registro.</p>' +
+      '<p class="reg-p">Llena los datos de tu colegio para continuar con tu registro.</p>' +
       campo('nombre',      'Nombre del colegio',        false, 'text',   'Colegio San Marcos') +
       campo('email',       'Correo institucional',      false, 'email',  'contacto@colegio.mx') +
       campo('telefono',    'Teléfono',                  true,  'tel',    '55 1234 5678') +
@@ -186,7 +185,7 @@
           (res && res.error) || 'Intenta de nuevo en un momento.');
         return;
       }
-      pantallaPago(res.plan || plan, res.monto != null ? res.monto : PLANES[plan].precio);
+      pantallaPago(res.plan || plan, res.monto != null ? res.monto : PLANES[plan].precio, datosColegio.nombre);
     })
     .catch(function () {
       pantalla('!', 'Sin conexión', 'No pudimos guardar tus datos. Intenta de nuevo.');
@@ -194,7 +193,7 @@
   }
 
   // ── Paso 3: pagar ─────────────────────────────────────────────────────
-  function pantallaPago(plan, monto) {
+  function pantallaPago(plan, monto, nombreColegio) {
     var info = PLANES[plan] || { label: plan, precio: monto };
     cuerpo.innerHTML =
       '<div class="reg-h">Un último paso: paga tu primera mensualidad</div>' +
@@ -212,7 +211,7 @@
       '</div>' +
       '<button class="reg-btn" id="pagar">Pagar ' + fmt(monto) + ' con tarjeta</button>' +
       '<div id="msg"></div>' +
-      '<div class="reg-pie">Se cobra a través de la misma pasarela de pagos del sistema.</div>';
+      '<div class="reg-pie">Pago seguro. Podrás ver tu recibo al finalizar.</div>';
 
     var metodoElegido = 'TC';
     var nodosMetodo = cuerpo.querySelectorAll('.reg-metodo');
@@ -255,7 +254,7 @@
           // se le indica que revise su correo para el siguiente paso.
           window.location.href = res.url;
         } else {
-          pantallaEfectivoGenerado(res, monto);
+          pantallaEfectivoGenerado(res, monto, nombreColegio);
         }
       })
       .catch(function () {
@@ -265,7 +264,12 @@
     });
   }
 
-  function pantallaEfectivoGenerado(res, monto) {
+  // El botón abre EL MISMO comprobante que genera Caja para cualquier otro
+  // cobro en efectivo (folio, código de barras real, tiendas participantes,
+  // botón de imprimir/guardar como PDF) — antes esta pantalla mostraba solo
+  // la referencia en texto y una imagen suelta, sin ese formato ni el botón
+  // de PDF, aunque el resto del sistema ya lo tenía resuelto.
+  function pantallaEfectivoGenerado(res, monto, nombreColegio) {
     cuerpo.innerHTML =
       '<div class="reg-estado">' +
         '<div class="reg-estado-ic ok">&#10003;</div>' +
@@ -273,9 +277,22 @@
         '<p class="reg-p" style="margin-top:8px">Acude a cualquier tienda participante y paga ' +
           '<strong>' + fmt(monto) + '</strong> con esta referencia:</p>' +
         '<div class="reg-ref">' + esc(res.referencia) + '</div>' +
-        (res.barcode_url ? '<img src="' + esc(res.barcode_url) + '" alt="Código de barras" style="max-width:100%;background:#fff;border-radius:12px;padding:10px;border:1px solid var(--border-glow);">' : '') +
-        '<p class="reg-p" style="margin-top:16px">Vence el ' + esc(res.vencimiento) + '. ' +
+        '<p class="reg-p" style="margin-top:8px">Vence el ' + esc(res.vencimiento) + '. ' +
           'En cuanto la tienda confirme tu pago, revisaremos tu solicitud.</p>' +
+        '<button class="reg-btn" id="verFormato" style="margin-top:14px">Ver / imprimir formato de pago</button>' +
       '</div>';
+
+    document.getElementById('verFormato').addEventListener('click', function () {
+      if (typeof abrirComprobanteEfectivoModulo !== 'function') return;
+      abrirComprobanteEfectivoModulo({
+        cobro: {
+          folio: res.folio || '', total: monto, descripcion: 'Suscripción — primera mensualidad',
+          referencia: res.referencia, barcode_url: res.barcode_url, vencimiento: res.vencimiento
+        },
+        cliente: null,
+        familia: null,
+        escuela: { nombre: nombreColegio }
+      });
+    });
   }
 })();
