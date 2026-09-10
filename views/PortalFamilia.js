@@ -165,6 +165,11 @@ function PortalFamilia({
   const [userOverride, setUserOverride] = useState(null);
   const userEfectivo = userOverride ? { ...user, ...userOverride } : user;
   const miFamilia = data.familias?.find(f => f.id === user.familia_id) || null;
+  // Antes estas cuatro opciones de pago siempre aparecian, sin importar si
+  // el superadmin las habia apagado (globalmente o para esta escuela). El
+  // apagado real ya se valida tambien en el backend; esto es lo que evita
+  // que la familia ni siquiera vea la opcion.
+  const metodosApagadosFamilia = escuela?.metodos_pago_deshabilitados || [];
 
   const REGIMENES_SAT = [
     { value: '', label: 'Sin especificar' },
@@ -543,84 +548,100 @@ function PortalFamilia({
       return;
     }
 
-    // Efectivo (OXXO / tiendas participantes) — a diferencia de SPEI, el
-    // servicio de referencia NO opera sobre el saldo agregado del alumno:
-    // exige un cobro real con folio ya existente (generar_referencia_efectivo
-    // busca "WHERE folio = ? AND estado = 'pendiente'"). Por eso, si hay más
-    // de un concepto pendiente por separado, no se pueden pagar juntos en
-    // una sola referencia — mismo límite que ya tiene Tarjeta más abajo.
-    if (metodo === 'Efectivo') {
-      const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
-      if (cobrosPendientesHijo.length !== 1) {
-        setSpeiBloqueoFamilia(cobrosPendientesHijo.length === 0
-          ? 'No se encontró el cobro pendiente de este alumno. Recarga la página e intenta de nuevo.'
-          : `${hijoSeleccionado.nombre} tiene ${cobrosPendientesHijo.length} conceptos pendientes por separado. Efectivo solo puede pagar uno a la vez — usa SPEI para pagarlos juntos, o paga cada concepto por separado desde "Historial".`);
+    // Efectivo (OXXO / tiendas participantes) y Tarjeta comparten la misma
+    // limitacion real: generar_referencia_efectivo.php y generar_liga.php
+    // exigen un folio de UN cobro pendiente ya existente. Antes, si el
+    // alumno tenia mas de un concepto pendiente por separado, estos dos
+    // metodos simplemente se negaban a pagar y mandaban al padre a "usa
+    // SPEI" o a pagar uno por uno desde Historial.
+    //
+    // Ahora, con mas de un concepto, se agrupan en un solo pago (mismo
+    // monto sumado, un solo cargo/referencia) usando
+    // iniciar_pago_agrupado.php -- al confirmarse, TODOS los cobros del
+    // grupo se marcan pagados a la vez. Con exactamente un concepto
+    // pendiente, se sigue usando el camino de un solo cobro de siempre
+    // (mas simple, y es el caso mas comun).
+    if (metodo === 'Efectivo' || metodo === 'TC') {
+      if (metodo === 'TC' && !autorizoCargoAutomatico) {
+        setSpeiBloqueoFamilia('Debes autorizar el Cargo Automático para pagar con tarjeta.');
         return;
       }
+      if (metodo === 'TC' && hijoSeleccionado.saldo_pendiente > 15000) {
+        setSpeiBloqueoFamilia(`El pago con tarjeta tiene un máximo de $15,000.00 por transacción. El adeudo de ${hijoSeleccionado.nombre} es mayor — paga por SPEI, o pide al colegio que lo divida en pagos parciales.`);
+        return;
+      }
+
+      const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
+      if (cobrosPendientesHijo.length === 0) {
+        setSpeiBloqueoFamilia('No se encontró el cobro pendiente de este alumno. Recarga la página e intenta de nuevo.');
+        return;
+      }
+
       setLoading(true);
       try {
-        const cobroPendiente = cobrosPendientesHijo[0];
-        const ref = await CobroController.iniciarEfectivoRef({
-          folio: cobroPendiente.folio,
-          total: cobroPendiente.total,
-          descripcion: cobroPendiente.items?.map(i => i.nombre).join(', ') || 'Pago escolar'
-        });
-        setData(prev => ({
-          ...prev,
-          cobros: prev.cobros.map(c => c.id === cobroPendiente.id
-            ? { ...c, referencia: ref.referencia, ref_barcode_url: ref.barcode_url, ref_vencimiento: ref.vencimiento }
-            : c)
-        }));
-        const cliente = (data.clientes || []).find(c => c.id === hijoSeleccionado.id) || { nombre: hijoSeleccionado.nombre };
-        abrirComprobanteEfectivoModulo({
-          cobro: {
-            folio: cobroPendiente.folio, total: cobroPendiente.total,
-            descripcion: cobroPendiente.items?.map(i => i.nombre).join(', '),
-            referencia: ref.referencia, barcode_url: ref.barcode_url, vencimiento: ref.vencimiento
-          },
-          cliente, familia: miFamilia, escuela
-        });
+        if (cobrosPendientesHijo.length === 1) {
+          if (metodo === 'Efectivo') {
+            const cobroPendiente = cobrosPendientesHijo[0];
+            const ref = await CobroController.iniciarEfectivoRef({
+              folio: cobroPendiente.folio, total: cobroPendiente.total,
+              descripcion: cobroPendiente.items?.map(i => i.nombre).join(', ') || 'Pago escolar'
+            });
+            setData(prev => ({
+              ...prev,
+              cobros: prev.cobros.map(c => c.id === cobroPendiente.id
+                ? { ...c, referencia: ref.referencia, ref_barcode_url: ref.barcode_url, ref_vencimiento: ref.vencimiento }
+                : c)
+            }));
+            const cliente = (data.clientes || []).find(c => c.id === hijoSeleccionado.id) || { nombre: hijoSeleccionado.nombre };
+            abrirComprobanteEfectivoModulo({
+              cobro: {
+                folio: cobroPendiente.folio, total: cobroPendiente.total,
+                descripcion: cobroPendiente.items?.map(i => i.nombre).join(', '),
+                referencia: ref.referencia, barcode_url: ref.barcode_url, vencimiento: ref.vencimiento
+              },
+              cliente, familia: miFamilia, escuela
+            });
+          } else {
+            const liga = await CobroController.iniciarTC(cobrosPendientesHijo[0]);
+            window.location.href = liga.url;
+          }
+        } else {
+          const token = AuthController.getToken ? AuthController.getToken() : '';
+          const res = await fetch('api.php?action=iniciar_pago_agrupado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+            body: JSON.stringify({
+              cliente_id: hijoSeleccionado.id,
+              cobro_ids: cobrosPendientesHijo.map(c => c.id),
+              metodo: metodo === 'Efectivo' ? 'EfectivoRef' : 'TC',
+            }),
+          });
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || 'No se pudo generar el pago agrupado');
+
+          if (metodo === 'TC') {
+            window.location.href = json.url;
+          } else {
+            const cliente = (data.clientes || []).find(c => c.id === hijoSeleccionado.id) || { nombre: hijoSeleccionado.nombre };
+            const desglose = cobrosPendientesHijo.map(c => (c.items?.map(i => i.nombre).join(', ') || c.folio) + ' — ' + fmt(c.total)).join('; ');
+            abrirComprobanteEfectivoModulo({
+              cobro: {
+                folio: json.folio, total: json.total,
+                descripcion: `Pago agrupado (${json.conceptos} conceptos): ${desglose}`,
+                referencia: json.referencia, barcode_url: json.barcode_url, vencimiento: json.vencimiento
+              },
+              cliente, familia: miFamilia, escuela
+            });
+          }
+        }
       } catch (err) {
-        setSpeiBloqueoFamilia('No se pudo generar el formato de pago: ' + err.message);
+        if (metodo === 'TC') alert('No se pudo iniciar el pago con tarjeta: ' + err.message);
+        else setSpeiBloqueoFamilia('No se pudo generar el formato de pago: ' + err.message);
       }
       setLoading(false);
       return;
     }
 
-    // TC (tarjeta) — Cobroscontarjeta.com tiene un tope de $15,000.00 por
-    // transacción; sin este aviso previo, el pago fallaba en el servidor con
-    // un error genérico que no explicaba el motivo real.
-    if (hijoSeleccionado.saldo_pendiente > 15000) {
-      setSpeiBloqueoFamilia(`El pago con tarjeta tiene un máximo de $15,000.00 por transacción. El adeudo de ${hijoSeleccionado.nombre} es mayor — paga por SPEI, o pide al colegio que lo divida en pagos parciales.`);
-      return;
-    }
-    // Tarjeta necesita un cobro real con folio para generar la liga de pago
-    // — se usa el adeudo TAL CUAL ya existe en el sistema, nunca se crea uno
-    // nuevo aquí (mismo motivo que arriba: evitar duplicar la deuda). Si hay
-    // más de un concepto pendiente por separado, tarjeta no puede pagarlos
-    // juntos en una sola liga (para eso está SPEI, que sí suma todo).
-    if (!autorizoCargoAutomatico) {
-      setSpeiBloqueoFamilia('Debes autorizar el Cargo Automático para pagar con tarjeta.');
-      return;
-    }
-    const cobrosPendientesHijo = misCobros.filter(c => c.cliente_id === hijoSeleccionado.id && c.estado === 'pendiente');
-    if (cobrosPendientesHijo.length !== 1) {
-      setSpeiBloqueoFamilia(cobrosPendientesHijo.length === 0
-        ? 'No se encontró el cobro pendiente de este alumno. Recarga la página e intenta de nuevo.'
-        : `${hijoSeleccionado.nombre} tiene ${cobrosPendientesHijo.length} conceptos pendientes por separado. Tarjeta solo puede pagar uno a la vez — usa SPEI para pagarlos juntos.`);
-      return;
-    }
-    setLoading(true);
-    try {
-      const liga = await CobroController.iniciarTC(cobrosPendientesHijo[0]);
-      window.location.href = liga.url;
-    } catch (err) {
-      // Antes se mostraba un mensaje genérico que ocultaba la razón real
-      // (ej. "Monto máximo $15,000.00" de Cobroscontarjeta.com) — con
-      // saldos altos el pago con tarjeta parecía "no funcionar" sin dar
-      // ninguna pista de por qué.
-      alert('No se pudo iniciar el pago con tarjeta: ' + err.message);
-    }
     setLoading(false);
   };
 
@@ -1803,7 +1824,7 @@ function PortalFamilia({
                   marginBottom: 22,
                   flexWrap: 'wrap'
                 },
-                children: [_jsxDEV("div", {
+                children: [!metodosApagadosFamilia.includes('SPEI') && _jsxDEV("div", {
                   onClick: () => { setMetodo('SPEI'); setSpeiBloqueoFamilia(null); setAutorizoCargoAutomatico(false); },
                   style: {
                     flex: 1,
@@ -1858,7 +1879,7 @@ function PortalFamilia({
                     size: 18,
                     color: PLC.green
                   }, void 0, false)]
-                }, void 0, true), _jsxDEV("div", {
+                }, void 0, true), !metodosApagadosFamilia.includes('EfectivoRef') && _jsxDEV("div", {
                   // Antes no existia esta opcion: el padre solo podia pagar
                   // en efectivo yendo al Historial de un cobro ya generado
                   // por la escuela, o llamando para pedirlo. Ahora aparece
@@ -1917,7 +1938,7 @@ function PortalFamilia({
                     size: 18,
                     color: PLC.green
                   }, void 0, false)]
-                }, void 0, true), _jsxDEV("div", {
+                }, void 0, true), !metodosApagadosFamilia.includes('TC') && _jsxDEV("div", {
                   onClick: () => { setMetodo('TC'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
@@ -1976,7 +1997,7 @@ function PortalFamilia({
                 // Solo aparece si este alumno ya tiene una tarjeta domiciliada
                 // de un pago anterior — evita volver a pedirla y a pedir el
                 // consentimiento de nuevo, ya se dio la primera vez.
-                hijoSeleccionado?.token_tarjeta_estado === 'activo' && _jsxDEV("div", {
+                !metodosApagadosFamilia.includes('CAI') && hijoSeleccionado?.token_tarjeta_estado === 'activo' && _jsxDEV("div", {
                   onClick: () => { setMetodo('CAI'); setSpeiBloqueoFamilia(null); },
                   style: {
                     flex: 1,
@@ -2095,8 +2116,13 @@ function PortalFamilia({
                     size: 18,
                     color: PLC.navy
                   }, void 0, false), "Pagar ", fmt(
-                    metodo === 'Efectivo'
-                      ? (misCobros.find(c => c.cliente_id === hijoSeleccionado?.id && c.estado === 'pendiente')?.total || 0)
+                    // Efectivo y Tarjeta ahora agrupan TODOS los pendientes del
+                    // alumno en un solo pago (ver pagarSaldo), no solo el
+                    // primero que se encuentre -- antes de esto, con varios
+                    // conceptos pendientes el boton mostraba solo el monto del
+                    // primero, aunque el cobro real terminara sumando todos.
+                    (metodo === 'Efectivo' || metodo === 'TC')
+                      ? misCobros.filter(c => c.cliente_id === hijoSeleccionado?.id && c.estado === 'pendiente').reduce((a, c) => a + (c.total || 0), 0)
                       : (hijoSeleccionado?.saldo_pendiente || 0)
                   ), " con ", metodo === 'SPEI' ? 'SPEI' : metodo === 'CAI' ? 'tarjeta guardada' : metodo === 'Efectivo' ? 'Efectivo' : 'Tarjeta']
                 }, void 0, true)
