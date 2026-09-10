@@ -1300,7 +1300,9 @@ function PortalFamilia({
                     fontSize: 13,
                     fontWeight: 500,
                     color: row.color || PLC.text,
-                    fontFamily: row.mono ? 'monospace' : 'inherit'
+                    fontFamily: row.mono ? 'monospace' : 'inherit',
+                    overflowWrap: 'break-word',
+                    wordBreak: 'break-word'
                   },
                   children: row.v
                 }, void 0, false)]
@@ -2179,7 +2181,7 @@ function PortalFamilia({
         },
         children: [_jsxDEV("div", {
           style: {
-            background: `linear-gradient(135deg,${PLC.navyDk},${PLC.navy})`,
+            // background: `linear-gradient(135deg,${PLC.navyDk},${PLC.navy})`,
             padding: '20px 24px',
             display: 'flex',
             alignItems: 'center',

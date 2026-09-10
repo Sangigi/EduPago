@@ -144,7 +144,15 @@ try {
     // del string recibido) y volvemos a buscar.
     if (!$cobro && preg_match('/\d{10}$/', $reference)) {
         $core9 = substr($reference, -10, 9);
-        $referencia_reconstruida = str_pad($core9, 15, '0', STR_PAD_LEFT);
+        // REFERENCIA_DIGITOS, NO 15 fijo: desde que se migró a producción en
+        // pagalaescuela.mx (08-sep-2026) las referencias que generamos son de
+        // 13 dígitos, no 15 (ese 15 era del Sandbox de pagadetodo.mx). Dejar
+        // esto en 15 hacía que TODO pago con tarjeta llegara aquí como
+        // "huérfano" aunque el banco sí lo hubiera aprobado, porque el
+        // padding ya no coincidía con lo que de verdad se guardó en
+        // `referencia` — el pago quedaba aprobado por el banco pero nunca
+        // se marcaba como pagado en el sistema.
+        $referencia_reconstruida = str_pad($core9, REFERENCIA_DIGITOS, '0', STR_PAD_LEFT);
         $stmt->execute([$referencia_reconstruida]);
         $cobro = $stmt->fetch();
         if ($cobro) {
