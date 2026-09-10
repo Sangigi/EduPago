@@ -51,13 +51,16 @@
                 if (!$alumno_nombre) { $errores[] = ['fila' => $numFila, 'error' => 'alumno_nombre es obligatorio']; continue; }
                 $matricula   = trim($fila['matricula']    ?? '') ?: null;
                 $grado       = trim($fila['grado']        ?? '') ?: null;
+                $curp        = trim($fila['curp']         ?? '') ?: null;
 
                 $claveDup = $normalizarDup($alumno_nombre, $grado);
-                if (isset($vistosEnEscuela[$claveDup])) {
-                    $errores[] = ['fila' => $numFila, 'error' => "Ya existe un alumno llamado \"$alumno_nombre\"" . ($grado ? " en \"$grado\"" : '') . " en esta escuela — no se importó (posible duplicado)."];
+                if ($esDuplicado($claveDup, $curp, $matricula)) {
+                    $errores[] = ['fila' => $numFila, 'error' => "Ya existe un alumno llamado \"$alumno_nombre\"" . ($grado ? " en \"$grado\"" : '') . ", sin CURP o matrícula distinta que lo diferencie — no se importó (posible duplicado)."];
                     continue;
                 }
-                $curp        = trim($fila['curp']         ?? '') ?: null;
+                // Esta fila queda "vista" para las filas siguientes DEL MISMO
+                // archivo, con los mismos datos que se usan para distinguir.
+                $vistosEnEscuela[$claveDup][] = ['curp' => $normDato($curp), 'matricula' => $normDato($matricula)];
                 $alumno_email = trim($fila['alumno_email'] ?? '') ?: null;
                 $alumno_tel  = trim($fila['alumno_telefono'] ?? '') ?: null;
                 $nivel_sat   = trim($fila['nivel_educativo_sat'] ?? '') ?: null;
