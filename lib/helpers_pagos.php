@@ -116,6 +116,33 @@ function construir_referencia_pago(PDO $pdo, $clienteId): string
     $pago = str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
     return str_pad($alumno . $pago, $largoTotal, '0', STR_PAD_LEFT);
 }
+// Igual que construir_referencia_pago(), pero para cobros que NO viven en la
+// tabla `cobros` -- hoy solo el pago de suscripcion durante el registro de un
+// colegio (invitaciones_colegio), antes de que exista un escuela_id real.
+// Revisa unicidad en AMBAS tablas: una referencia de suscripcion nunca debe
+// coincidir con una de cobros normales, ni con otra de suscripcion.
+function construir_referencia_pago_generico(PDO $pdo, $idEntidad): string
+{
+    $largoTotal = defined('REFERENCIA_DIGITOS') ? intval(REFERENCIA_DIGITOS) : 15;
+    if ($largoTotal < 13) $largoTotal = 13;
+
+    $bloque = str_pad(strval(max(0, intval($idEntidad)) % 100000), 5, '0', STR_PAD_LEFT);
+    $desde  = (intval(time()) % 10000) + 1;
+
+    $chkCobros = $pdo->prepare("SELECT 1 FROM cobros WHERE referencia = ? LIMIT 1");
+    $chkInv    = $pdo->prepare("SELECT 1 FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1");
+    for ($i = 0; $i < 500; $i++) {
+        $pago = str_pad(strval(($desde + $i) % 10000), 4, '0', STR_PAD_LEFT);
+        $ref  = str_pad($bloque . $pago, $largoTotal, '0', STR_PAD_LEFT);
+        $chkCobros->execute([$ref]);
+        if ($chkCobros->fetch()) continue;
+        $chkInv->execute([$ref]);
+        if ($chkInv->fetch()) continue;
+        return $ref;
+    }
+    $pago = str_pad(strval(mt_rand(0, 9999)), 4, '0', STR_PAD_LEFT);
+    return str_pad($bloque . $pago, $largoTotal, '0', STR_PAD_LEFT);
+}
 
 function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, string $token, $expMes, $expAnio): array
 {
