@@ -58,6 +58,42 @@ if ($rolAgrup === 'familia') {
 }
 requerir_metodo_pago_habilitado($pdo, $escuela_id, $metodo, $metodo === 'TC' ? 'Tarjeta' : 'Efectivo (tienda)');
 
+// Idempotencia para Efectivo (10-sep-2026): si ya existe un cobro agrupado
+// 'pendiente' con exactamente el mismo conjunto de cobro_ids (mismo alumno),
+// se reutiliza su referencia/código de barras en vez de crear otro registro
+// y pedirle uno nuevo al proveedor cada vez que se abre la pantalla de pago.
+// Para Tarjeta no aplica: la liga de pago es de un solo uso y el propio
+// proveedor la vence rápido, así que no hay "documento" que reutilizar.
+if ($metodo === 'EfectivoRef') {
+    sort($cobro_ids);
+    $stmtVig = $pdo->prepare(
+        "SELECT ca.id, ca.folio, ca.referencia, ca.barcode_url, ca.payformat_url, ca.vencimiento, ca.total
+           FROM cobros_agrupados ca
+          WHERE ca.cliente_id = ? AND ca.metodo = 'EfectivoRef' AND ca.estado = 'pendiente'
+            AND ca.referencia IS NOT NULL AND ca.vencimiento >= CURDATE()"
+    );
+    $stmtVig->execute([$cliente_id]);
+    foreach ($stmtVig->fetchAll() as $cand) {
+        $stmtDet = $pdo->prepare("SELECT cobro_id FROM cobros_agrupados_detalle WHERE cobro_agrupado_id = ?");
+        $stmtDet->execute([$cand['id']]);
+        $detIds = array_map('intval', array_column($stmtDet->fetchAll(), 'cobro_id'));
+        sort($detIds);
+        if ($detIds === $cobro_ids) {
+            log_api("iniciar_pago_agrupado(Efectivo) -> cliente={$cliente_id} reutilizando agrupado #{$cand['id']} referencia {$cand['referencia']}");
+            respond([
+                'success'     => true,
+                'referencia'  => $cand['referencia'],
+                'folio'       => $cand['folio'],
+                'barcode_url' => $cand['barcode_url'] ?? $cand['payformat_url'] ?? null,
+                'vencimiento' => $cand['vencimiento'],
+                'total'       => floatval($cand['total']),
+                'conceptos'   => count($cobro_ids),
+                'reutilizada' => true,
+            ]);
+        }
+    }
+}
+
 $total = array_sum(array_map(fn($c) => floatval($c['total']), $cobros));
 if ($total < 50) respond(['success' => false, 'error' => 'Monto mínimo $50.00 (mínimo de Cobroscontarjeta.com)']);
 if ($total > 15000) {
@@ -136,10 +172,17 @@ if ($metodo === 'TC') {
 // este payload copiaba la forma del de Tarjeta de arriba, lo que el
 // proveedor rechazaba con un genérico {"Message":"Error."} — mismo payload
 // ya usado (y probado) en generar_referencia_efectivo.php.
+//
+// IntegrationID SIN intval (10-sep-2026): a diferencia de Liga, que sí
+// acepta IntegrationID como número, GenerarReferenciaIndi lo rechaza con el
+// mismo {"Message":"Error."} genérico cuando se manda como entero — la
+// llamada que sí funciona (generar_referencia_efectivo.php) lo manda como
+// texto ('106', no 106). Esto era la causa real de que el pago agrupado en
+// efectivo nunca funcionara.
 $payload = [
     'User'           => PLE_USER,
     'Password'       => PLE_PASS,
-    'IntegrationID'  => intval(PLE_INT_ID_ACTIVO),
+    'IntegrationID'  => PLE_INT_ID_ACTIVO,
     'SchoolID'       => PLE_SCHOOL_ID_ACTIVO,
     'BusinessID'     => PLE_SCHOOL_ID_ACTIVO,
     'Description'    => substr($descripcion, 0, 50),
@@ -161,8 +204,8 @@ if (empty($raw['Reference']) && empty($raw['BarCode']) && empty($raw['PayFormat'
 }
 
 $vencimiento = date('Y-m-d', strtotime('+3 day'));
-$pdo->prepare("UPDATE cobros_agrupados SET barcode_url = ?, vencimiento = ? WHERE id = ?")
-    ->execute([$raw['BarCode'] ?? $raw['PayFormat'] ?? null, $vencimiento, $agrupado_id]);
+$pdo->prepare("UPDATE cobros_agrupados SET barcode_url = ?, payformat_url = ?, vencimiento = ? WHERE id = ?")
+    ->execute([$raw['BarCode'] ?? null, $raw['PayFormat'] ?? null, $vencimiento, $agrupado_id]);
 
 respond([
     'success'     => true,
