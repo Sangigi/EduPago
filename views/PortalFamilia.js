@@ -2092,8 +2092,8 @@ function PortalFamilia({
                   padding: '14px 0',
                   borderRadius: 10,
                   border: 'none',
-                  background: `linear-gradient(135deg,${PLC.lime},${PLC.green})`,
-                  color: PLC.navy,
+                  background: `linear-gradient(135deg,${PLC.navy},${PLC.navyDk})`,
+                  color: PLC.white,
                   fontWeight: 800,
                   fontSize: 15,
                   cursor: loading ? 'not-allowed' : 'pointer',
@@ -2110,8 +2110,8 @@ function PortalFamilia({
                   children: [_jsxDEV("span", {
                     className: "spinner",
                     style: {
-                      borderColor: 'rgba(40,45,101,.25)',
-                      borderTopColor: PLC.navy,
+                      borderColor: 'rgba(255,255,255,.3)',
+                      borderTopColor: PLC.white,
                       width: 18,
                       height: 18
                     }
@@ -2125,7 +2125,7 @@ function PortalFamilia({
                   children: [_jsxDEV(Icon, {
                     name: "pay",
                     size: 18,
-                    color: PLC.navy
+                    color: PLC.white
                   }, void 0, false), "Pagar ", fmt(
                     // Efectivo y Tarjeta ahora agrupan TODOS los pendientes del
                     // alumno en un solo pago (ver pagarSaldo), no solo el
@@ -2181,7 +2181,7 @@ function PortalFamilia({
         },
         children: [_jsxDEV("div", {
           style: {
-            // background: `linear-gradient(135deg,${PLC.navyDk},${PLC.navy})`,
+            background: `linear-gradient(135deg,${PLC.navyDk},${PLC.navy})`,
             padding: '20px 24px',
             display: 'flex',
             alignItems: 'center',
