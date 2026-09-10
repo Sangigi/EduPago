@@ -1504,7 +1504,35 @@ function PortalFamilia({
                       }, void 0, true);
                     }
 
-                    if (cob.estado === 'pendiente' && cob.metodo === 'Efectivo' && typeof abrirComprobanteEfectivoModulo !== 'undefined') {
+                    // Antes esta rama solo reconocía metodo === 'Efectivo'. En la
+                    // práctica, en cuanto Caja genera una referencia el cobro
+                    // queda con metodo = 'EfectivoRef' (ver
+                    // generar_referencia_efectivo.php) — así que un cobro con
+                    // referencia YA generada en Caja siempre mostraba "—" aquí,
+                    // y el padre no tenía forma de volver a verla sin llamar
+                    // a la escuela.
+                    const esEfectivoPendiente = cob.estado === 'pendiente' && (cob.metodo === 'Efectivo' || cob.metodo === 'EfectivoRef');
+                    if (esEfectivoPendiente && cob.referencia && typeof abrirComprobanteEfectivoModulo !== 'undefined') {
+                      // Ya existe una referencia (la generó Caja, o el propio
+                      // padre antes) — se muestra la misma, sin generar otra.
+                      return _jsxDEV("button", {
+                        className: "btn-ghost",
+                        title: "Ver formato de pago en efectivo",
+                        style: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '5px 10px' },
+                        onClick: () => {
+                          abrirComprobanteEfectivoModulo({
+                            cobro: {
+                              folio: cob.folio, total: cob.total, descripcion: cob.items?.map(i => i.nombre).join(', '),
+                              referencia: cob.referencia, barcode_url: cob.ref_barcode_url, vencimiento: cob.ref_vencimiento
+                            },
+                            cliente, familia: miFamilia, escuela
+                          });
+                        },
+                        children: [_jsxDEV(Icon, { name: 'download', size: 12, color: 'currentColor' }, void 0, false), 'Ver']
+                      }, void 0, true);
+                    }
+                    if (esEfectivoPendiente && !cob.referencia && typeof abrirComprobanteEfectivoModulo !== 'undefined') {
+                      // Aún no existe ninguna referencia: se genera aquí mismo.
                       const generando = generandoEfvId === cob.id;
                       return _jsxDEV("button", {
                         className: "btn-ghost",
@@ -1518,12 +1546,10 @@ function PortalFamilia({
                               folio: cob.folio, total: cob.total,
                               descripcion: cob.items?.map(i => i.nombre).join(', ') || 'Pago escolar'
                             });
-                            // Se refleja en memoria para no tener que volver a
-                            // generarla si el padre abre el comprobante otra vez.
                             setData(prev => ({
                               ...prev,
                               cobros: prev.cobros.map(c => c.id === cob.id
-                                ? { ...c, referencia: ref.referencia, ref_barcode_url: ref.barcode_url, ref_vencimiento: ref.vencimiento }
+                                ? { ...c, metodo: 'EfectivoRef', referencia: ref.referencia, ref_barcode_url: ref.barcode_url, ref_vencimiento: ref.vencimiento }
                                 : c)
                             }));
                             abrirComprobanteEfectivoModulo({
@@ -1544,6 +1570,28 @@ function PortalFamilia({
                       }, void 0, true);
                     }
 
+                    // SPEI pendiente: si Caja ya asignó una CLABE/referencia
+                    // propia de ESTE cobro (distinta de la CLABE agregada del
+                    // alumno que usa "Pagar en línea"), se muestra tal cual —
+                    // antes esto se descartaba y solo quedaba el aviso genérico.
+                    if (cob.estado === 'pendiente' && cob.metodo === 'SPEI' && cob.clabe && typeof abrirComprobanteSPEIModulo !== 'undefined') {
+                      return _jsxDEV("button", {
+                        className: "btn-ghost",
+                        title: "Ver instrucciones de pago SPEI",
+                        style: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '5px 10px' },
+                        onClick: () => {
+                          abrirComprobanteSPEIModulo({
+                            cobro: {
+                              folio: cob.folio, total: cob.total, descripcion: cob.items?.map(i => i.nombre).join(', '),
+                              referencia_spei: cob.referencia_spei, referencia: cob.referencia, clabe: cob.clabe,
+                              clabe_es_individual: cob.clabe_es_individual, banco: cob.banco, beneficiario: cob.beneficiario
+                            },
+                            cliente, familia: miFamilia, escuela
+                          });
+                        },
+                        children: [_jsxDEV(Icon, { name: 'download', size: 12, color: 'currentColor' }, void 0, false), 'Ver']
+                      }, void 0, true);
+                    }
                     if (cob.estado === 'pendiente' && cob.metodo === 'SPEI') {
                       return _jsxDEV("span", { style: { color: PLC.muted, fontSize: 11.5 }, children: 'Ver en "Pagar en línea"' }, void 0, false);
                     }
