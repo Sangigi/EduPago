@@ -710,7 +710,7 @@ function Usuarios({ user, data }) {
               rolesCreables.length > 0 && _jsxDEV("button", {
                 className: "btn btn-primary",
                 onClick: abrirCrear,
-                children: "+ Nuevo usuario"
+                children: "+ Alta usuario"
               }, void 0, false)
             ]
           }, void 0, true),

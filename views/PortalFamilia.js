@@ -659,7 +659,7 @@ function PortalFamilia({
   });
   const fieldBox = (highlight = false) => ({
     background: highlight ? `rgba(189,207,0,.09)` : `rgba(40,45,101,.04)`,
-    border: `1px solid ${highlight ? PLC.lime : PLC.border}`,
+    border: `1px solid ${PLC.border}`,
     borderRadius: 9,
     padding: '10px 14px',
     marginBottom: 10
@@ -744,9 +744,14 @@ function PortalFamilia({
                   width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
                   background: 'var(--grad-brand)', display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontWeight: 800, fontSize: 15
+                  color: '#fff', fontWeight: 800, fontSize: 15, overflow: 'hidden'
                 },
-                children: "P"
+                children: _jsxDEV("img", {
+                  src: "assets/logo.jpeg",
+                  alt: "Paga la Escuela",
+                  style: { width: '100%', height: '100%', objectFit: 'cover' },
+                  onError: e => { e.target.style.display = 'none'; e.target.parentNode.textContent = 'P'; }
+                }, void 0, false)
               }, void 0, false),
               _jsxDEV("div", {
                 style: { minWidth: 0 },

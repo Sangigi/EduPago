@@ -1,0 +1,28 @@
+-- migracion_2026_09_10_fix_idx_cobro_detalle.sql
+--
+-- Corre esto UNA VEZ en phpMyAdmin.
+--
+-- Diagnóstico: cobros_agrupados_detalle.cobro_id tiene en producción un
+-- índice ÚNICO llamado `idx_cobro` (no viene de ningún migracion_*.sql de
+-- este repo -- se creó por fuera). Eso significa que un cobro solo puede
+-- aparecer UNA VEZ en toda la tabla, para siempre, aunque el grupo al que
+-- pertenecía nunca se haya llegado a pagar: una referencia de Efectivo que
+-- venció sin pagarse, o una liga de Tarjeta que el padre nunca completó,
+-- dejan el cobro "quemado" -- cualquier intento nuevo de pago agrupado que
+-- lo incluya truena con "Duplicate entry 'N' for key 'idx_cobro'" (ver
+-- api_log.txt, 10-sep-2026 ~09:27) aunque el cobro siga pendiente de cobrar
+-- en la tabla `cobros`. Esto bloqueaba CUALQUIER pago agrupado que
+-- incluyera un cobro ya usado en un intento viejo.
+--
+-- No existe ninguna razón de negocio para que sea único: un mismo cobro
+-- puede legítimamente aparecer en varios intentos de agrupado a lo largo
+-- del tiempo (el usuario cancela, cambia de método, el ticket vence, etc.)
+-- -- lo que evita que se pague dos veces es que `cobros.estado` pasa a
+-- 'pagado' en cuanto el webhook confirma UNO de esos intentos (ver
+-- webhook_liga.php), y las consultas de este archivo ya filtran
+-- `estado = 'pendiente'` antes de dejar agrupar un cobro.
+--
+-- Se reemplaza por un índice normal (no único) -- se sigue necesitando
+-- para que las consultas por cobro_id no hagan table scan.
+ALTER TABLE cobros_agrupados_detalle DROP INDEX idx_cobro;
+ALTER TABLE cobros_agrupados_detalle ADD INDEX idx_cobro (cobro_id);

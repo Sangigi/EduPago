@@ -131,6 +131,20 @@ try {
 } catch (\Throwable $e) {
     $pdo->rollBack();
     log_api("iniciar_pago_agrupado FALLÓ AL INSERTAR -> " . $e->getMessage());
+    // Duplicate entry por cobro_id (10-sep-2026): en producción,
+    // cobros_agrupados_detalle tiene un índice ÚNICO sobre cobro_id
+    // (idx_cobro, ver migracion_2026_09_10_fix_idx_cobro_detalle.sql) que NO
+    // debería existir -- un cobro puede quedar "quemado" para siempre por un
+    // intento de grupo viejo que nunca se pagó (referencia vencida, liga de
+    // tarjeta nunca completada), bloqueando cualquier intento nuevo aunque
+    // el cobro siga pendiente. No se intenta arreglar solo (borrar/cancelar
+    // el grupo viejo aquí podría romper la conciliación si ese grupo viejo
+    // sí llega a pagarse después -- webhook_liga.php lo busca por
+    // `referencia`, no por estado). El arreglo real es correr la migración
+    // que vuelve ese índice NO único.
+    if ($e instanceof \PDOException && $e->getCode() === '23000') {
+        respond(['success' => false, 'error' => 'Uno de estos conceptos ya fue parte de otro intento de pago agrupado. Contacta a soporte para liberarlo (falta correr una migración de base de datos).']);
+    }
     respond(['success' => false, 'error' => 'No se pudo preparar el pago agrupado.']);
 }
 

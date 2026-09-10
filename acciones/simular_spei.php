@@ -1,5 +1,11 @@
 <?php
-        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $usuario_actual['escuela_id'] ?? null, ['facturacion']);
+        // Solo superadmin (10-sep-2026): esto marca un cobro como pagado sin
+        // que el banco haya confirmado nada real. Antes solo exigía la
+        // sección "facturación" habilitada, así que CUALQUIER admin o
+        // cajero de CUALQUIER escuela podía llamarlo directo (sin pasar por
+        // el botón) y "pagarse" sus propios cobros gratis -- un hueco de
+        // fraude real, no solo una herramienta de prueba visible de más.
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Esta herramienta es solo para el equipo de soporte.');
         $referencia    = strtoupper(trim($input['referencia'] ?? ''));
         $monto         = intval(floatval($input['monto'] ?? 0) * 100);
         $emisor        = $input['emisor'] ?? 'PADRE DE FAMILIA DEMO';

@@ -583,7 +583,7 @@ function Escuelas({
           setErrorEsc('');
           setModal('form');
         },
-        children: "+ Nueva escuela"
+        children: "+ Alta escuela"
       }, void 0, false)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
       style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },

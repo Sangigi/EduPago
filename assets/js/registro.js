@@ -185,7 +185,7 @@
           (res && res.error) || 'Intenta de nuevo en un momento.');
         return;
       }
-      pantallaPago(res.plan || plan, res.monto != null ? res.monto : PLANES[plan].precio, datosColegio.nombre);
+      pantallaPago(res.plan || plan, res.monto != null ? res.monto : PLANES[plan].precio, datosColegio);
     })
     .catch(function () {
       pantalla('!', 'Sin conexión', 'No pudimos guardar tus datos. Intenta de nuevo.');
@@ -193,7 +193,8 @@
   }
 
   // ── Paso 3: pagar ─────────────────────────────────────────────────────
-  function pantallaPago(plan, monto, nombreColegio) {
+  function pantallaPago(plan, monto, datosColegio) {
+    var nombreColegio = datosColegio.nombre;
     var info = PLANES[plan] || { label: plan, precio: monto };
     cuerpo.innerHTML =
       '<div class="reg-h">Un último paso: paga tu primera mensualidad</div>' +
@@ -210,6 +211,7 @@
         '</div>' +
       '</div>' +
       '<button class="reg-btn" id="pagar">Pagar ' + fmt(monto) + ' con tarjeta</button>' +
+      '<button class="reg-btn reg-btn-ghost" id="volverPlan">Cambiar de plan</button>' +
       '<div id="msg"></div>' +
       '<div class="reg-pie">Pago seguro. Podrás ver tu recibo al finalizar.</div>';
 
@@ -217,6 +219,10 @@
     var nodosMetodo = cuerpo.querySelectorAll('.reg-metodo');
     var btnPagar = document.getElementById('pagar');
     var msg = document.getElementById('msg');
+
+    document.getElementById('volverPlan').addEventListener('click', function () {
+      pantallaPlan(datosColegio);
+    });
 
     nodosMetodo.forEach(function (nodo) {
       nodo.addEventListener('click', function () {

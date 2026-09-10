@@ -62,9 +62,10 @@
   .reg-brand-icon {
     width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 50%;
     background: linear-gradient(135deg, var(--violet) 0%, var(--violet-dark) 100%);
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
     font-size: 19px; font-weight: 800; color: #fff;
   }
+  .reg-brand-icon img { width: 100%; height: 100%; object-fit: cover; }
 
   .reg-marca { font-size: 19px; font-weight: 700; letter-spacing: -.3px; color: var(--ink); }
   .reg-sub   { font-size: 11.5px; color: var(--ink-3); font-weight: 600; margin-top: 3px; }
@@ -159,7 +160,7 @@
 <body>
 <div class="reg-wrap"><div class="reg-card" id="app">
   <div class="reg-top">
-    <div class="reg-brand-icon">P</div>
+    <div class="reg-brand-icon"><img src="assets/logo.jpeg" alt="Paga la Escuela" onerror="this.style.display='none';this.parentNode.textContent='P';"></div>
     <div class="reg-marca">Paga la Escuela</div>
     <div class="reg-sub">REGISTRO DE COLEGIO</div>
   </div>
