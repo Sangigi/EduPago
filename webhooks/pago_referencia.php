@@ -236,28 +236,124 @@ try {
 
     $cobro = $stmt->fetch();
 
+    // Igual que en webhook_liga.php: si no es un cobro suelto de alumno,
+    // puede ser un pago AGRUPADO (Portal Familia), de RENOVACIÓN (colegio
+    // ya activo) o de SUSCRIPCIÓN NUEVA (colegio en registro) pagado en
+    // efectivo — antes este webhook solo sabía confirmar cobros sueltos, así
+    // que cualquiera de estos tres casos pagados en tienda se quedaba sin
+    // conciliar para siempre (código 40 "Adquiriente inválido").
+    if (!$cobro) {
+        $stmtGrp = $pdo->prepare(
+            "SELECT id, cliente_id, total, estado, auth_code
+               FROM cobros_agrupados WHERE referencia = ? LIMIT 1"
+        );
+        $stmtGrp->execute([$referencia]);
+        $grp = $stmtGrp->fetch();
 
+        if ($grp) {
+            if ($grp['estado'] === 'pagado') {
+                $pdo->rollBack();
+                log_ref_pago("agrupado ya pagado (idempotente): {$referencia} agrupado_id:{$grp['id']}");
+                responder_pago(0, 'Operación exitosa', $grp['auth_code'] ?: '00000000', $transaccion);
+            }
+            $monto_esperado_grp = intval(round(floatval($grp['total']) * 100));
+            if ($monto_cent !== $monto_esperado_grp) {
+                $pdo->rollBack();
+                log_ref_pago("agrupado monto no coincide: {$referencia} esperado:{$monto_esperado_grp} recibido:{$monto_cent}");
+                responder_pago(30, 'Monto inválido', '', $transaccion);
+            }
+            $autorizacionGrp = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
 
+            $pdo->prepare("UPDATE cobros_agrupados SET estado = 'pagado', auth_code = ?, pagado_en = NOW() WHERE id = ?")
+                ->execute([$autorizacionGrp, $grp['id']]);
+            $stmtDetalle = $pdo->prepare("SELECT cobro_id FROM cobros_agrupados_detalle WHERE cobro_agrupado_id = ?");
+            $stmtDetalle->execute([$grp['id']]);
+            $idsDetalle = array_column($stmtDetalle->fetchAll(), 'cobro_id');
+            if ($idsDetalle) {
+                $inPlaceholders = implode(',', array_fill(0, count($idsDetalle), '?'));
+                $pdo->prepare("UPDATE cobros SET estado = 'pagado', auth_code = ?, referencia = ? WHERE id IN ($inPlaceholders)")
+                    ->execute(array_merge([$autorizacionGrp, $referencia], $idsDetalle));
+            }
+            if (!empty($grp['cliente_id'])) recalcular_saldo_pendiente($pdo, intval($grp['cliente_id']));
 
-
-
+            $pdo->commit();
+            log_ref_pago("OK agrupado: {$referencia} agrupado_id:{$grp['id']} auth:{$autorizacionGrp} cobros:" . implode(',', $idsDetalle));
+            responder_pago(0, 'Operación exitosa', $autorizacionGrp, $transaccion);
+        }
+    }
 
     if (!$cobro) {
+        $stmtEsc = $pdo->prepare(
+            "SELECT id, nombre, fecha_vencimiento_plan, pago_renovacion_monto
+               FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1"
+        );
+        $stmtEsc->execute([$referencia]);
+        $escRenov = $stmtEsc->fetch();
 
+        if ($escRenov) {
+            $monto_esperado_esc = intval(round(floatval($escRenov['pago_renovacion_monto']) * 100));
+            if ($monto_cent !== $monto_esperado_esc) {
+                $pdo->rollBack();
+                log_ref_pago("renovación monto no coincide: {$referencia} esperado:{$monto_esperado_esc} recibido:{$monto_cent}");
+                responder_pago(30, 'Monto inválido', '', $transaccion);
+            }
+            $baseRenov = $escRenov['fecha_vencimiento_plan'];
+            if (!$baseRenov || strtotime($baseRenov) < strtotime(date('Y-m-d'))) $baseRenov = date('Y-m-d');
+            $nuevoVencimiento = siguiente_vencimiento_mensual($baseRenov);
+            $autorizacionEsc = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
 
+            $pdo->prepare(
+                "UPDATE escuelas
+                    SET fecha_vencimiento_plan = ?, ultimo_recordatorio_plan = NULL,
+                        pago_renovacion_referencia = NULL, pago_renovacion_folio = NULL, pago_renovacion_monto = NULL
+                  WHERE id = ?"
+            )->execute([$nuevoVencimiento, $escRenov['id']]);
+            registrar_log($pdo, ['user_id' => null, 'rol' => 'sistema'], 'suscripcion_renovada_automatico',
+                "Escuela '{$escRenov['nombre']}' #{$escRenov['id']}: pago en efectivo detectado, vencimiento -> {$nuevoVencimiento}",
+                $escRenov['id']);
 
+            $pdo->commit();
+            log_ref_pago("OK renovación: {$referencia} escuela_id:{$escRenov['id']} auth:{$autorizacionEsc} nuevo_vencimiento:{$nuevoVencimiento}");
+            responder_pago(0, 'Operación exitosa', $autorizacionEsc, $transaccion);
+        }
+    }
+
+    if (!$cobro) {
+        $stmtInv = $pdo->prepare(
+            "SELECT id, monto_suscripcion, estado, pago_auth_code
+               FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1"
+        );
+        $stmtInv->execute([$referencia]);
+        $inv = $stmtInv->fetch();
+
+        if ($inv) {
+            if ($inv['estado'] === 'pagado' || $inv['estado'] === 'aprobada') {
+                $pdo->rollBack();
+                log_ref_pago("suscripción ya pagada (idempotente): {$referencia} invitacion_id:{$inv['id']}");
+                responder_pago(0, 'Operación exitosa', $inv['pago_auth_code'] ?: '00000000', $transaccion);
+            }
+            $monto_esperado_inv = intval(round(floatval($inv['monto_suscripcion']) * 100));
+            if ($monto_cent !== $monto_esperado_inv) {
+                $pdo->rollBack();
+                log_ref_pago("suscripción monto no coincide: {$referencia} esperado:{$monto_esperado_inv} recibido:{$monto_cent}");
+                responder_pago(30, 'Monto inválido', '', $transaccion);
+            }
+            $autorizacionInv = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
+
+            $pdo->prepare(
+                "UPDATE invitaciones_colegio SET estado = 'pagado', pago_auth_code = ?, pagado_en = NOW() WHERE id = ?"
+            )->execute([$autorizacionInv, $inv['id']]);
+
+            $pdo->commit();
+            log_ref_pago("OK suscripción nueva: {$referencia} invitacion_id:{$inv['id']} auth:{$autorizacionInv}");
+            responder_pago(0, 'Operación exitosa', $autorizacionInv, $transaccion);
+        }
+    }
+
+    if (!$cobro) {
         $pdo->rollBack();
-
-
-
         log_ref_pago("no encontrada: {$referencia}");
-
-
-
         responder_pago(40, 'Adquiriente inválido', '', $transaccion);
-
-
-
     }
 
 
