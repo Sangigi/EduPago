@@ -354,7 +354,21 @@ if (!preg_match('/^[a-z_]+$/', $action)) {
 }
 $accion_file = __DIR__ . '/acciones/' . $action . '.php';
 if (is_file($accion_file)) {
-    require $accion_file;
+    // Blindaje (10-sep-2026): un error fatal (excepción de PDO sin capturar,
+    // llamada a método/función inexistente, etc.) dentro de una acción moría
+    // en silencio -- 500 en blanco, SIN pasar por log_api() (que vive más
+    // abajo dentro de cada acción) y sin devolver JSON, así que el frontend
+    // solo veía "falló" sin ningún rastro en api_log.txt para diagnosticar.
+    // Se envuelve el require en try/catch para que CUALQUIER fatal futuro
+    // quede registrado con su mensaje/archivo/línea reales antes de
+    // responder, en vez de desaparecer.
+    try {
+        require $accion_file;
+    } catch (\Throwable $e) {
+        log_api("FATAL en acción '{$action}' -> " . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+        http_response_code(500);
+        respond(['success' => false, 'error' => 'Error interno del servidor (ya quedó registrado en el log).']);
+    }
 } else {
     respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
 }
