@@ -23,6 +23,10 @@ function Suscripciones({ data, setData }) {
   const { useState, useEffect } = React;
   const [cambiandoPlanId, setCambiandoPlanId] = useState(null);
   const [renovandoId, setRenovandoId] = useState(null);
+  // Id de la escuela para la que se está generando una liga de renovación
+  // (con cobro real, a diferencia del botón "Marcar como renovado", que
+  // solo mueve la fecha sin que exista ningún pago de por medio).
+  const [generandoRenovId, setGenerandoRenovId] = useState(null);
 
   // ── Invitaciones de colegios en proceso de registro ──────────────────────
   // Antes no existía ninguna pantalla para esto: invitacion_resolver.php
@@ -52,6 +56,124 @@ function Suscripciones({ data, setData }) {
   };
 
   useEffect(() => { cargarInvitaciones(); }, []);
+
+  // ── Mantenimiento global y métodos de pago globales ──────────────────────
+  // Antes solo existía el apagado por escuela individual. Esto complementa
+  // con un interruptor que afecta a TODAS las escuelas a la vez.
+  const SECCIONES_MANT_CATALOGO = [
+    { id: 'dashboard', label: 'Dashboard' }, { id: 'caja', label: 'Ingresos' },
+    { id: 'corte_caja', label: 'Corte de caja' }, { id: 'cobros', label: 'Historial de cobros' },
+    { id: 'gastos', label: 'Gastos' }, { id: 'alumnos', label: 'Alumnos' },
+    { id: 'familias', label: 'Familias' }, { id: 'productos', label: 'Conceptos de pago' },
+    { id: 'proveedores', label: 'Proveedores' }, { id: 'facturacion', label: 'Facturación' },
+    { id: 'recordatorios', label: 'Recordatorios' }, { id: 'reportes', label: 'Reportes' },
+  ];
+  const METODOS_PAGO_GLOBAL_CATALOGO = [
+    { id: 'TC', label: 'Tarjeta' }, { id: 'SPEI', label: 'SPEI' },
+    { id: 'Efectivo', label: 'Efectivo (caja)' }, { id: 'EfectivoRef', label: 'Efectivo (tienda)' },
+    { id: 'Cheque', label: 'Cheque' }, { id: 'CAI', label: 'Domiciliación' },
+  ];
+
+  const [mantEstado, setMantEstado] = useState(null); // { secciones, motivo, inicio, fin } | null
+  const [metodosGlobalDeshab, setMetodosGlobalDeshab] = useState([]);
+  const [cargandoMant, setCargandoMant] = useState(true);
+  const [modalMant, setModalMant] = useState(false);
+  const [formSecciones, setFormSecciones] = useState([]);
+  const [formMotivo, setFormMotivo] = useState('');
+  const [formFin, setFormFin] = useState(''); // datetime-local string, vacío = indefinido
+  const [guardandoMant, setGuardandoMant] = useState(false);
+  const [guardandoMetodoGlobal, setGuardandoMetodoGlobal] = useState(null);
+
+  const cargarMantenimiento = async () => {
+    setCargandoMant(true);
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=mantenimiento_estado', {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      const json = await res.json();
+      if (json.success) {
+        setMantEstado(json.mantenimiento);
+        setMetodosGlobalDeshab(json.metodos_pago_global || []);
+      }
+    } catch (e) {
+      // sin red: se queda como estaba
+    } finally {
+      setCargandoMant(false);
+    }
+  };
+  useEffect(() => { cargarMantenimiento(); }, []);
+
+  const abrirModalMant = () => {
+    setFormSecciones(mantEstado?.secciones || []);
+    setFormMotivo(mantEstado?.motivo || '');
+    setFormFin(mantEstado?.fin ? mantEstado.fin.slice(0, 16).replace(' ', 'T') : '');
+    setModalMant(true);
+  };
+
+  const activarMantenimiento = async () => {
+    if (formSecciones.length < 1) { alert('Elige al menos una sección.'); return; }
+    setGuardandoMant(true);
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=mantenimiento_activar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ secciones: formSecciones, motivo: formMotivo, fin: formFin || '' }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'No se pudo activar el mantenimiento');
+      setMantEstado(json.mantenimiento);
+      setModalMant(false);
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      setGuardandoMant(false);
+    }
+  };
+
+  const desactivarMantenimiento = async () => {
+    if (!confirm('¿Desactivar el modo mantenimiento global ahora mismo?')) return;
+    setGuardandoMant(true);
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=mantenimiento_desactivar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'No se pudo desactivar');
+      setMantEstado(null);
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      setGuardandoMant(false);
+    }
+  };
+
+  const toggleMetodoGlobal = async metodoId => {
+    setGuardandoMetodoGlobal(metodoId);
+    const anterior = metodosGlobalDeshab;
+    const nuevos = anterior.includes(metodoId) ? anterior.filter(m => m !== metodoId) : [...anterior, metodoId];
+    setMetodosGlobalDeshab(nuevos); // optimista
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=superadmin_toggle_metodo_global', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ metodo: metodoId }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'No se pudo actualizar');
+    } catch (e) {
+      setMetodosGlobalDeshab(anterior); // revertir
+      alert('No se pudo actualizar el método de pago global: ' + e.message);
+    } finally {
+      setGuardandoMetodoGlobal(null);
+    }
+  };
+
+
 
   // motivoOverride: se recibe directo como parámetro en vez de leerse del
   // estado — setMotivoRechazo() es asíncrono y llamar a esta función justo
@@ -108,6 +230,45 @@ function Suscripciones({ data, setData }) {
       alert('No se pudo renovar la suscripción: ' + e.message);
     } finally {
       setRenovandoId(null);
+    }
+  };
+
+  // Genera un cobro REAL de renovación (Tarjeta o Efectivo) usando la misma
+  // pasarela que ya cobra a cualquier colegio. A diferencia de
+  // renovarSuscripcion() de arriba, aquí no se mueve la fecha directamente:
+  // el webhook la extiende solo en cuanto detecta el pago confirmado.
+  const generarLigaRenovacion = async (escuelaId, metodo) => {
+    setGenerandoRenovId(escuelaId);
+    try {
+      const token = AuthController.getToken();
+      const res = await fetch('api.php?action=escuela_generar_pago_renovacion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ escuela_id: escuelaId, metodo }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'No se pudo generar la liga de renovación');
+      if (metodo === 'TC') {
+        // Se copia la liga para que el superadmin la mande al colegio (por
+        // correo/WhatsApp) — no tiene sentido abrirla aquí mismo, ya que
+        // quien debe pagar es el colegio, no el superadmin.
+        try {
+          await navigator.clipboard.writeText(json.url);
+          alert('Liga de pago copiada al portapapeles. Compártela con el colegio:\n\n' + json.url);
+        } catch (e) {
+          alert('Liga de pago generada:\n\n' + json.url);
+        }
+      } else {
+        alert(
+          'Referencia de pago en efectivo generada: ' + json.referencia +
+          '\nVence: ' + json.vencimiento +
+          '\n\nCompártela con el colegio para que pague en cualquier tienda participante.'
+        );
+      }
+    } catch (e) {
+      alert('No se pudo generar la liga de renovación: ' + e.message);
+    } finally {
+      setGenerandoRenovId(null);
     }
   };
 
@@ -177,6 +338,65 @@ function Suscripciones({ data, setData }) {
 
   const invPendientes = invitaciones.filter(i => i.estado === 'enviado' || i.estado === 'pagado');
   const PLAN_LABEL = { basico: 'Básico', avanzado: 'Avanzado', pro: 'Pro' };
+
+  const fechaCorta = iso => iso ? new Date(iso.replace(' ', 'T')).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+
+  const panelMantenimiento = _jsxDEV("div", {
+    className: "card", style: { marginBottom: 20 },
+    children: [
+      _jsxDEV("div", {
+        className: "card-header",
+        children: _jsxDEV("div", {
+          children: [
+            _jsxDEV("div", { className: "card-title", children: "Mantenimiento y métodos de pago" }, 't'),
+            _jsxDEV("div", { className: "card-sub", children: "Afecta a TODAS las escuelas a la vez. Para una sola escuela, usa el botón de secciones en su fila." }, 's')
+          ]
+        }, 'h')
+      }, 'ch'),
+
+      // Estado del mantenimiento
+      mantEstado ? _jsxDEV("div", {
+        style: { padding: '12px 14px', borderRadius: 'var(--radius)', background: 'var(--amber-glow)', marginBottom: 16 },
+        children: [
+          _jsxDEV("div", { style: { fontWeight: 700, fontSize: 13.5, color: 'var(--amber)' },
+            children: "Mantenimiento activo: " + (mantEstado.secciones || []).join(', ')
+          }, 1),
+          _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-2)', marginTop: 4 },
+            children: (mantEstado.motivo || '') + ' · desde ' + fechaCorta(mantEstado.inicio) + (mantEstado.fin ? ' · hasta ' + fechaCorta(mantEstado.fin) : ' · indefinido')
+          }, 2),
+          _jsxDEV("div", { style: { display: 'flex', gap: 8, marginTop: 10 },
+            children: [
+              _jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: abrirModalMant, children: "Editar" }, 'e'),
+              _jsxDEV("button", { className: "btn btn-ghost btn-sm", disabled: guardandoMant, onClick: desactivarMantenimiento, children: "Desactivar ahora" }, 'd'),
+            ]
+          }, 3),
+        ]
+      }, 'activo') : _jsxDEV("div", { style: { marginBottom: 16 },
+        children: [
+          _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', marginBottom: 8 }, children: "Sin mantenimiento activo." }, 1),
+          _jsxDEV("button", { className: "btn btn-secondary btn-sm", onClick: abrirModalMant, children: "Activar mantenimiento" }, 'act'),
+        ]
+      }, 'inactivo'),
+
+      // Métodos de pago globales
+      _jsxDEV("div", { style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
+        children: "Métodos de pago (todas las escuelas)"
+      }, 'lbl'),
+      _jsxDEV("div", { style: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+        children: METODOS_PAGO_GLOBAL_CATALOGO.map(met => {
+          const apagado = metodosGlobalDeshab.includes(met.id);
+          return _jsxDEV("button", {
+            key: met.id,
+            className: 'btn btn-sm ' + (apagado ? 'btn-secondary' : 'btn-ghost'),
+            disabled: guardandoMetodoGlobal === met.id,
+            style: apagado ? { color: 'var(--red)', borderColor: 'var(--red)' } : {},
+            onClick: () => toggleMetodoGlobal(met.id),
+            children: (apagado ? '🚫 ' : '') + met.label
+          }, met.id, false);
+        })
+      }, 'metodos'),
+    ]
+  }, 'panelMant');
 
   const panelInvitaciones = (invPendientes.length > 0 || cargandoInv) && _jsxDEV("div", {
     className: "card",
@@ -257,7 +477,7 @@ function Suscripciones({ data, setData }) {
   }, void 0, true);
 
   return /*#__PURE__*/_jsxDEV("div", {
-    children: [panelInvitaciones, excedidos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+    children: [panelMantenimiento, panelInvitaciones, excedidos.length > 0 && /*#__PURE__*/_jsxDEV("div", {
       style: {
         marginBottom: 16,
         padding: '12px 16px',
@@ -394,7 +614,24 @@ function Suscripciones({ data, setData }) {
                         disabled: renovandoId === esc.id,
                         style: { fontSize: 11, padding: '2px 8px' },
                         onClick: () => renovarSuscripcion(esc.id),
+                        title: "Mueve la fecha sin generar ningún cobro",
                         children: renovandoId === esc.id ? 'Renovando…' : 'Marcar como renovado'
+                      }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("button", {
+                        className: "btn btn-secondary btn-sm",
+                        disabled: generandoRenovId === esc.id,
+                        style: { fontSize: 11, padding: '2px 8px' },
+                        title: "Genera un cobro real con tarjeta; la fecha se extiende sola cuando se confirme el pago",
+                        onClick: () => generarLigaRenovacion(esc.id, 'TC'),
+                        children: generandoRenovId === esc.id ? 'Generando…' : 'Liga de pago (tarjeta)'
+                      }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("button", {
+                        className: "btn btn-secondary btn-sm",
+                        disabled: generandoRenovId === esc.id,
+                        style: { fontSize: 11, padding: '2px 8px' },
+                        title: "Genera una referencia para pagar en efectivo; la fecha se extiende sola cuando se confirme el pago",
+                        onClick: () => generarLigaRenovacion(esc.id, 'Efectivo'),
+                        children: generandoRenovId === esc.id ? 'Generando…' : 'Referencia (efectivo)'
                       }, void 0, false),
                     ]
                   }, void 0, true)
@@ -427,6 +664,60 @@ function Suscripciones({ data, setData }) {
           }, void 0, false)]
         }, void 0, true)
       }, void 0, false)]
-    }, void 0, true)]
+    }, void 0, true), modalMant && _jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && setModalMant(false),
+      children: _jsxDEV("div", {
+        className: "modal", style: { maxWidth: 480 },
+        children: [
+          _jsxDEV("div", { className: "modal-header",
+            children: [
+              _jsxDEV("span", { className: "modal-title", children: "Activar mantenimiento global" }, void 0, false),
+              _jsxDEV("button", { className: "modal-close", onClick: () => setModalMant(false), children: "✕" }, void 0, false)
+            ]
+          }, void 0, true),
+          _jsxDEV("div", { className: "modal-body",
+            children: [
+              _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 14 },
+                children: "Se apaga para TODAS las escuelas, sin importar su configuración individual. Útil para mantenimiento programado."
+              }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 12.5, fontWeight: 600, marginBottom: 6 }, children: "Secciones a apagar" }, void 0, false),
+              _jsxDEV("div", { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
+                children: SECCIONES_MANT_CATALOGO.map(sec => {
+                  const elegido = formSecciones.includes(sec.id);
+                  return _jsxDEV("button", {
+                    key: sec.id, type: "button",
+                    className: 'btn btn-sm ' + (elegido ? 'btn-primary' : 'btn-secondary'),
+                    onClick: () => setFormSecciones(prev => elegido ? prev.filter(s => s !== sec.id) : [...prev, sec.id]),
+                    children: sec.label
+                  }, sec.id, false);
+                })
+              }, void 0, true),
+              _jsxDEV("label", { style: { fontSize: 12.5, fontWeight: 600, display: 'block', marginBottom: 6 }, children: "Motivo" }, void 0, false),
+              _jsxDEV("input", {
+                type: "text", className: "form-input", style: { width: '100%', marginBottom: 14 },
+                placeholder: "Ej. Mantenimiento programado del servidor",
+                value: formMotivo, onChange: e => setFormMotivo(e.target.value)
+              }, void 0, false),
+              _jsxDEV("label", { style: { fontSize: 12.5, fontWeight: 600, display: 'block', marginBottom: 6 }, children: "Termina automáticamente el (opcional)" }, void 0, false),
+              _jsxDEV("input", {
+                type: "datetime-local", className: "form-input", style: { width: '100%' },
+                value: formFin, onChange: e => setFormFin(e.target.value)
+              }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 6 },
+                children: "Si lo dejas vacío, el mantenimiento queda activo hasta que lo desactives manualmente."
+              }, void 0, false),
+            ]
+          }, void 0, true),
+          _jsxDEV("div", { className: "modal-footer",
+            children: [
+              _jsxDEV("button", { className: "btn btn-secondary", onClick: () => setModalMant(false), children: "Cancelar" }, void 0, false),
+              _jsxDEV("button", { className: "btn btn-primary", disabled: guardandoMant, onClick: activarMantenimiento,
+                children: guardandoMant ? 'Activando…' : 'Activar mantenimiento' }, void 0, false),
+            ]
+          }, void 0, true),
+        ]
+      }, void 0, true)
+    }, void 0, false)]
   }, void 0, true);
 }
