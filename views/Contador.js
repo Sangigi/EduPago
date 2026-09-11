@@ -45,6 +45,7 @@ function Contador({ user, onLogout }) {
   const { useState, useEffect } = React;
   const [escuelas, setEscuelas] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [errLista, setErrLista] = useState(null);
   const [escSel, setEscSel] = useState(null);
   const [documentos, setDocumentos] = useState([]);
   const [datosPago, setDatosPago] = useState(null);
@@ -67,10 +68,14 @@ function Contador({ user, onLogout }) {
 
   const cargarEscuelas = async () => {
     setCargando(true);
+    setErrLista(null);
     try {
       const res = await apiPost('contador_listar_escuelas', {});
       if (res.success) setEscuelas(res.escuelas || []);
-    } catch (e) { /* silencioso */ }
+      else setErrLista(res.error || 'No se pudo cargar la lista de colegios.');
+    } catch (e) {
+      setErrLista('Error de conexión: ' + e.message);
+    }
     setCargando(false);
   };
 
@@ -168,7 +173,9 @@ function Contador({ user, onLogout }) {
               ]
             }, 'h')
           }, 'ch'),
+          errLista ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--red)', marginBottom: 12 }, children: errLista }, 'errlista') : null,
           cargando ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)' }, children: 'Cargando…' }, 'load') :
+            errLista ? null :
             _jsxDEV('table', {
               className: 'data-table',
               children: [
