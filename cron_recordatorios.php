@@ -354,8 +354,11 @@ try {
 // ══════════════════════════════════════════════════════════════════════════
 try {
     $stmt = $pdo->query(
+        // modo <> 'demo' (11-sep-2026): una escuela en modo demo no tiene una
+        // suscripción real corriendo -- avisarle "tu suscripción vence" sería
+        // confuso y falso; su propio aviso vive en el bloque 1.05 de abajo.
         "SELECT id, nombre, email, plan, fecha_vencimiento_plan, ultimo_recordatorio_plan
-         FROM escuelas WHERE es_plantel = 0 AND activa = 1 AND fecha_vencimiento_plan IS NOT NULL"
+         FROM escuelas WHERE es_plantel = 0 AND activa = 1 AND modo <> 'demo' AND fecha_vencimiento_plan IS NOT NULL"
     );
     foreach ($stmt->fetchAll() as $esc) {
         $dias = (int) round((strtotime($esc['fecha_vencimiento_plan']) - $hoyTs) / 86400);
@@ -393,7 +396,57 @@ try {
         }
     }
 } catch (\PDOException $e) {
-    $resumen[] = "ERROR consultando escuelas (¿falta correr migracion_2026_08_20_suscripciones.sql?): " . $e->getMessage();
+    $resumen[] = "ERROR consultando escuelas (¿falta correr migracion_2026_08_20_suscripciones.sql o migracion_2026_09_11_modo_demo.sql?): " . $e->getMessage();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 1.05) VENCIMIENTO DE MODO DEMO (requisito de la junta, 11-sep-2026)
+//
+// Mismo patrón que el aviso de suscripción de arriba, pero para escuelas en
+// modo 'demo': avisa 3 días antes de fecha_fin_prueba. Reutiliza
+// ultimo_recordatorio_plan para el antiduplicado -- una escuela nunca está
+// en demo Y con aviso de suscripción vigente al mismo tiempo (el bloque de
+// arriba ya excluye modo='demo'), así que no hay riesgo de que se pisen.
+// ══════════════════════════════════════════════════════════════════════════
+try {
+    $stmt = $pdo->query(
+        "SELECT id, nombre, email, fecha_fin_prueba, ultimo_recordatorio_plan
+         FROM escuelas WHERE es_plantel = 0 AND activa = 1 AND modo = 'demo' AND fecha_fin_prueba IS NOT NULL"
+    );
+    foreach ($stmt->fetchAll() as $esc) {
+        $dias = (int) round((strtotime($esc['fecha_fin_prueba']) - $hoyTs) / 86400);
+        if ($dias !== 3) continue;
+        if ($esc['ultimo_recordatorio_plan'] === $hoyStr) continue; // ya se avisó hoy
+
+        $destinatarios = [];
+        if (!empty($esc['email'])) $destinatarios[] = $esc['email'];
+        $stmtAdmins = $pdo->prepare("SELECT email FROM usuarios WHERE escuela_id = ? AND rol = 'admin' AND activo = 1");
+        $stmtAdmins->execute([$esc['id']]);
+        foreach ($stmtAdmins->fetchAll() as $a) $destinatarios[] = $a['email'];
+        $destinatarios = array_values(array_unique(array_filter($destinatarios)));
+        if (!$destinatarios) {
+            $resumen[] = "AVISO: escuela demo #{$esc['id']} ({$esc['nombre']}) sin correo de contacto ni admin activo, se omite recordatorio de fin de prueba.";
+            continue;
+        }
+
+        $fechaFmt = date('d/m/Y', strtotime($esc['fecha_fin_prueba']));
+        $asunto   = "Tu periodo de prueba en Pagalaescuela vence en 3 días";
+        $html = "
+            <p>Hola,</p>
+            <p>El periodo de prueba de <strong>" . htmlspecialchars($esc['nombre']) . "</strong> vence el <strong>$fechaFmt</strong>.</p>
+            <p>Para seguir usando Pagalaescuela sin interrupciones — incluyendo cobrar de verdad a las familias — activa tu suscripción antes de esa fecha.</p>
+            <p>— Equipo Pagalaescuela</p>
+        ";
+        $r = enviar_correo($destinatarios, $asunto, $html);
+        if ($r['success']) {
+            $pdo->prepare("UPDATE escuelas SET ultimo_recordatorio_plan = ? WHERE id = ?")->execute([$hoyStr, $esc['id']]);
+            $resumen[] = "OK fin de prueba escuela #{$esc['id']} (3d) -> " . implode(',', $destinatarios);
+        } else {
+            $resumen[] = "ERROR fin de prueba escuela #{$esc['id']}: " . $r['error'];
+        }
+    }
+} catch (\PDOException $e) {
+    $resumen[] = "ERROR consultando escuelas en demo (¿falta correr migracion_2026_09_11_modo_demo.sql?): " . $e->getMessage();
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -413,9 +466,15 @@ try {
 $SECCIONES_DE_PAGO = ['caja', 'corte_caja', 'cobros', 'recordatorios'];
 
 try {
+    // modo <> 'demo' (11-sep-2026): una escuela en demo puede tener
+    // fecha_vencimiento_plan vieja/irrelevante desde su creación (nunca se
+    // actualiza mientras está en modo demo) -- sin este filtro, este bloque
+    // le apagaría caja/cobros por "falta de pago" aunque el punto entero del
+    // demo es que pueda usar TODO el sistema. Su propio bloqueo de dinero
+    // real ya lo hacen los guards de escuela_en_modo_demo(), no este bloque.
     $stmtVenc = $pdo->query(
         "SELECT id, nombre, secciones_deshabilitadas, fecha_vencimiento_plan
-           FROM escuelas WHERE es_plantel = 0 AND activa = 1 AND fecha_vencimiento_plan IS NOT NULL"
+           FROM escuelas WHERE es_plantel = 0 AND activa = 1 AND modo <> 'demo' AND fecha_vencimiento_plan IS NOT NULL"
     );
     foreach ($stmtVenc->fetchAll() as $esc) {
         $vencida = strtotime($esc['fecha_vencimiento_plan']) < $hoyTs;

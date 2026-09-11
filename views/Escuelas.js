@@ -460,6 +460,42 @@ function Escuelas({
     }
   };
 
+  // ── Modo demo por escuela ──────────────────────────────────────────────────
+  const [demoDias, setDemoDias] = useState(15);
+  const [guardandoDemo, setGuardandoDemo] = useState(false);
+
+  const activarDemo = async () => {
+    const escId = seccionesEscId;
+    setGuardandoDemo(true);
+    try {
+      const res = await apiPost('superadmin_toggle_modo_demo', { id: escId, accion: 'activar', dias: demoDias });
+      if (!res.success) throw new Error(res.error || 'No se pudo activar el modo demo');
+      const newData = { ...data, escuelas: data.escuelas.map(e => e.id === escId ? { ...e, modo: 'demo', fecha_fin_prueba: res.fecha_fin_prueba } : e) };
+      setData(newData);
+      AppModel.save(newData);
+    } catch (e) {
+      alert('No se pudo activar el modo demo: ' + e.message);
+    } finally {
+      setGuardandoDemo(false);
+    }
+  };
+
+  const desactivarDemo = async () => {
+    const escId = seccionesEscId;
+    setGuardandoDemo(true);
+    try {
+      const res = await apiPost('superadmin_toggle_modo_demo', { id: escId, accion: 'desactivar' });
+      if (!res.success) throw new Error(res.error || 'No se pudo desactivar el modo demo');
+      const newData = { ...data, escuelas: data.escuelas.map(e => e.id === escId ? { ...e, modo: 'activa', fecha_fin_prueba: null } : e) };
+      setData(newData);
+      AppModel.save(newData);
+    } catch (e) {
+      alert('No se pudo desactivar el modo demo: ' + e.message);
+    } finally {
+      setGuardandoDemo(false);
+    }
+  };
+
   const tkn = () => AuthController.getToken();
   const apiPost = async (action, body) => {
     const r = await fetch('api.php?action=' + action, {
@@ -1583,6 +1619,51 @@ function Escuelas({
                   }, sec.id, true);
                 })
               }, void 0, true),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
+                children: "Modo demo"
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 10 },
+                children: "En demo, este colegio puede usar todo el sistema pero ningún cobro se manda de verdad a la pasarela de pagos ni se asigna una CLABE SPEI real."
+              }, void 0, false),
+              (() => {
+                const esc = data.escuelas.find(e => e.id === seccionesEscId);
+                const enDemo = esc?.modo === 'demo';
+                if (enDemo) {
+                  const dias = esc.fecha_fin_prueba
+                    ? Math.max(0, Math.ceil((new Date(esc.fecha_fin_prueba + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000))
+                    : null;
+                  return /*#__PURE__*/_jsxDEV("div", {
+                    style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 4px' },
+                    children: [
+                      /*#__PURE__*/_jsxDEV("span", {
+                        style: { fontSize: 13, color: 'var(--ink-2)' },
+                        children: dias != null ? `En demo — vence en ${dias} día(s) (${esc.fecha_fin_prueba})` : 'En demo'
+                      }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("button", {
+                        className: "btn btn-secondary btn-sm", disabled: guardandoDemo, onClick: desactivarDemo,
+                        children: guardandoDemo ? 'Guardando…' : 'Quitar demo'
+                      }, void 0, false)
+                    ]
+                  }, void 0, true);
+                }
+                return /*#__PURE__*/_jsxDEV("div", {
+                  style: { display: 'flex', alignItems: 'center', gap: 8, padding: '9px 4px' },
+                  children: [
+                    /*#__PURE__*/_jsxDEV("input", {
+                      type: 'number', min: 1, max: 365, value: demoDias,
+                      onChange: e => setDemoDias(Math.max(1, parseInt(e.target.value, 10) || 1)),
+                      className: 'form-input', style: { width: 70, fontSize: 13 }
+                    }, void 0, false),
+                    /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: "días" }, void 0, false),
+                    /*#__PURE__*/_jsxDEV("button", {
+                      className: "btn btn-primary btn-sm", disabled: guardandoDemo, onClick: activarDemo, style: { marginLeft: 'auto' },
+                      children: guardandoDemo ? 'Activando…' : 'Activar demo'
+                    }, void 0, false)
+                  ]
+                }, void 0, true);
+              })(),
               /*#__PURE__*/_jsxDEV("div", {
                 style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
                 children: "Métodos de pago"
