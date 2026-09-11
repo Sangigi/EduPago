@@ -32,15 +32,7 @@ if ($accion === 'desactivar') {
 
 // accion === 'activar'
 if ($dias < 1) {
-    // Sin días explícitos: usar el default que el superadmin configuró
-    // globalmente (config_sistema.demo_dias_default), o 15 si no se puede leer.
-    try {
-        $stmtCfg = $pdo->prepare("SELECT valor FROM config_sistema WHERE clave = 'demo_dias_default'");
-        $stmtCfg->execute();
-        $dias = intval($stmtCfg->fetchColumn()) ?: 15;
-    } catch (\Throwable $e) {
-        $dias = 15;
-    }
+    $dias = dias_demo_default($pdo);
 }
 $fecha_fin = date('Y-m-d', strtotime("+{$dias} days"));
 $pdo->prepare("UPDATE escuelas SET modo = 'demo', fecha_fin_prueba = ? WHERE id = ?")->execute([$fecha_fin, $id]);

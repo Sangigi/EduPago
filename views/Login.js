@@ -190,7 +190,7 @@ function Login({
             className: "form-group",
             children: [/*#__PURE__*/_jsxDEV("label", {
               className: "login-label",
-              children: "Correo electrónico"
+              children: "Correo o ID de colegio"
             }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
               style: {
                 position: 'relative'
@@ -208,7 +208,11 @@ function Login({
                 }
               }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
                 className: "login-input",
-                type: "email",
+                // type="text", no "email": un ID number (11-sep-2026,
+                // requisito de la junta) no pasa la validación nativa del
+                // navegador para type="email" y bloquearía el submit antes
+                // de que el backend siquiera lo intente.
+                type: "text",
                 value: u,
                 autoFocus: true,
                 required: true,

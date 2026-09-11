@@ -216,4 +216,15 @@ define('UPLOADS_MAX_BYTES_COMPROBANTE', 8 * 1024 * 1024); // 8 MB — comprobant
 
 define('UPLOADS_EXT_FOTO',        ['jpg', 'jpeg', 'png', 'webp']);
 define('UPLOADS_EXT_COMPROBANTE', ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
+
+// ─── Documentos fiscales del colegio (INE, constancia fiscal, etc.) ──────────
+// A diferencia de uploads/ (pública, solo bloquea EJECUCIÓN), esta carpeta
+// debe ser imposible de leer por URL directa -- uploads_privados/.htaccess
+// deniega TODA lectura. Los archivos solo se sirven por
+// acciones/descargar_documento_escuela.php, con autenticación y
+// verificación de pertenencia, igual que ya hace descargar_cfdi.php.
+define('UPLOADS_PRIVADOS_DIR_ABS', __DIR__ . '/uploads_privados');
+define('UPLOADS_MAX_BYTES_DOCUMENTO', 8 * 1024 * 1024); // 8 MB
+define('UPLOADS_EXT_DOCUMENTO', ['jpg', 'jpeg', 'png', 'pdf']);
+
 define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');

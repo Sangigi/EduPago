@@ -236,16 +236,16 @@ try {
                 responder_liga(false, 'El monto pagado no coincide con el plan');
             }
 
-            // Modo demo (11-sep-2026, requisito de la junta): si la escuela
-            // sigue DENTRO de su periodo de prueba, el mes pagado se SUMA a
-            // los días de prueba que quedaban, en vez de empezar a contar
-            // desde hoy y desperdiciarlos. Si el periodo de prueba ya venció,
-            // se aplica el mismo criterio de siempre (desde hoy).
-            $enDemoVigente = ($escRenov['modo'] ?? 'activa') === 'demo'
-                && !empty($escRenov['fecha_fin_prueba'])
-                && strtotime($escRenov['fecha_fin_prueba']) >= strtotime(date('Y-m-d'));
-            if ($enDemoVigente) {
-                $baseRenov = $escRenov['fecha_fin_prueba'];
+            // Modo demo: la fecha de inicio de la suscripción es SIEMPRE la
+            // fecha en que se confirma el pago -- los días de prueba
+            // restantes NO se acumulan, extienden ni suman al periodo
+            // contratado (aclaración del cliente, 11-sep-2026). La
+            // fecha_vencimiento_plan de una escuela en demo es solo un
+            // placeholder de su creación, nunca una suscripción real que
+            // haya que respetar.
+            $enDemo = ($escRenov['modo'] ?? 'activa') === 'demo';
+            if ($enDemo) {
+                $baseRenov = date('Y-m-d');
             } else {
                 // Un mes calendario desde el vencimiento actual si sigue vigente,
                 // o desde hoy si ya venció -- mismo criterio que renovar_suscripcion.php,

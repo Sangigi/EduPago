@@ -4,12 +4,11 @@
 // script-src — mismo motivo por el que la animación de bienvenida vive en
 // intro-splash.js en vez de un <script> suelto.
 //
-// Antes el registro terminaba en "enviamos tus datos, espera nuestra
-// aprobación" — sin ningún pago de por medio. Ahora, después de llenar los
-// datos, el colegio elige un plan y lo paga con la pasarela ya integrada
-// (misma cuenta de destino que ya cobra a cualquier colegio del sistema);
-// la aprobación del superadmin queda para revisar una solicitud que ya trae
-// el pago confirmado, no un formulario sin compromiso.
+// Flujo (11-sep-2026, requisito de la junta): el colegio llena sus datos y
+// elige un plan, y su cuenta se crea DE INMEDIATO en modo de prueba, sin
+// pagar nada -- puede usar todo el sistema desde que recibe el correo de
+// activación. Pagar (y con eso activar la suscripción de forma definitiva)
+// pasa a "Mi suscripción" dentro del sistema, ya con sesión iniciada.
 (function () {
   var cuerpo = document.getElementById('cuerpo');
   var token  = new URLSearchParams(location.search).get('t') || '';
@@ -85,6 +84,16 @@
       campo('email',       'Correo institucional',      false, 'email',  'contacto@colegio.mx') +
       campo('telefono',    'Teléfono',                  true,  'tel',    '55 1234 5678') +
       campo('num_alumnos', 'Número de alumnos aprox.',  true,  'number', '150') +
+      // Persona física/moral (11-sep-2026, requisito de la junta): opcional
+      // aquí -- determina qué documentos se piden después para poder
+      // facturar de verdad, pero no bloquea el alta si aún no se decide.
+      '<div class="reg-campo">' +
+        '<label>Tipo de persona <span class="reg-op">(opcional, para facturación)</span></label>' +
+        '<select id="tipo_persona"><option value="">Sin definir por ahora</option>' +
+          '<option value="fisica">Persona física</option>' +
+          '<option value="moral">Persona moral</option>' +
+        '</select>' +
+      '</div>' +
       campo('rfc',         'RFC',                       true,  'text',   'ABC010203XY1') +
       campo('rvoe',        'RVOE',                      true,  'text') +
       campo('direccion',   'Dirección',                 true,  'text') +
@@ -114,7 +123,7 @@
       var datosColegio = {
         nombre: v('nombre'), email: v('email'), telefono: v('telefono'),
         num_alumnos: v('num_alumnos'), rfc: v('rfc').toUpperCase(),
-        rvoe: v('rvoe'), direccion: v('direccion')
+        rvoe: v('rvoe'), direccion: v('direccion'), tipo_persona: v('tipo_persona')
       };
       pantallaPlan(datosColegio);
     });
@@ -187,126 +196,15 @@
           (res && res.error) || 'Intenta de nuevo en un momento.');
         return;
       }
-      pantallaPago(res.plan || plan, res.monto != null ? res.monto : PLANES[plan].precio, datosColegio);
+      // Ya no se paga durante el registro: la escuela se crea de inmediato
+      // en modo de prueba (11-sep-2026, requisito de la junta) y el pago
+      // pasa a "Mi suscripción" dentro del sistema, ya con sesión iniciada.
+      pantalla('&#10003;', 'Tu colegio ya está listo',
+        res.mensaje || 'Revisa tu correo para crear tu contraseña y empezar a usar tu cuenta.', 'ok');
     })
     .catch(function () {
       pantalla('!', 'Sin conexión', 'No pudimos guardar tus datos. Intenta de nuevo.');
     });
   }
 
-  // ── Paso 3: pagar ─────────────────────────────────────────────────────
-  function pantallaPago(plan, monto, datosColegio) {
-    var nombreColegio = datosColegio.nombre;
-    var info = PLANES[plan] || { label: plan, precio: monto };
-    cuerpo.innerHTML =
-      '<div class="reg-h">Un último paso: paga tu primera mensualidad</div>' +
-      '<p class="reg-p">Plan <strong>' + esc(info.label) + '</strong> — ' + fmt(monto) + '/mes. ' +
-        'En cuanto tu pago se confirme, revisaremos tu solicitud para activar tu cuenta.</p>' +
-      '<div id="metodos">' +
-        '<div class="reg-metodo reg-metodo-activo" data-metodo="TC">' +
-          '<div class="reg-metodo-nombre">Tarjeta de crédito o débito</div>' +
-          '<div class="reg-metodo-detalle">Pago inmediato, confirmación automática</div>' +
-        '</div>' +
-        '<div class="reg-metodo" data-metodo="Efectivo">' +
-          '<div class="reg-metodo-nombre">Efectivo en tiendas de conveniencia</div>' +
-          '<div class="reg-metodo-detalle">OXXO y tiendas participantes</div>' +
-        '</div>' +
-      '</div>' +
-      '<button class="reg-btn" id="pagar">Pagar ' + fmt(monto) + ' con tarjeta</button>' +
-      '<button class="reg-btn reg-btn-ghost" id="volverPlan">Cambiar de plan</button>' +
-      '<div id="msg"></div>' +
-      '<div class="reg-pie">Pago seguro. Podrás ver tu recibo al finalizar.</div>';
-
-    var metodoElegido = 'TC';
-    var nodosMetodo = cuerpo.querySelectorAll('.reg-metodo');
-    var btnPagar = document.getElementById('pagar');
-    var msg = document.getElementById('msg');
-
-    document.getElementById('volverPlan').addEventListener('click', function () {
-      pantallaPlan(datosColegio);
-    });
-
-    nodosMetodo.forEach(function (nodo) {
-      nodo.addEventListener('click', function () {
-        nodosMetodo.forEach(function (n) { n.classList.remove('reg-metodo-activo'); });
-        nodo.classList.add('reg-metodo-activo');
-        metodoElegido = nodo.getAttribute('data-metodo');
-        btnPagar.textContent = metodoElegido === 'TC'
-          ? 'Pagar ' + fmt(monto) + ' con tarjeta'
-          : 'Generar formato de pago en efectivo';
-      });
-    });
-
-    btnPagar.addEventListener('click', function () {
-      msg.innerHTML = '';
-      btnPagar.disabled = true;
-      btnPagar.textContent = 'Procesando…';
-
-      fetch('api.php?action=invitacion_generar_pago', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token, metodo: metodoElegido })
-      })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (!res || !res.success) {
-          btnPagar.disabled = false;
-          btnPagar.textContent = metodoElegido === 'TC' ? 'Pagar ' + fmt(monto) + ' con tarjeta' : 'Generar formato de pago en efectivo';
-          msg.innerHTML = '<div class="reg-msg reg-err">' + esc(res && res.error || 'No se pudo generar el pago.') + '</div>';
-          return;
-        }
-        if (metodoElegido === 'TC') {
-          // Se probó envolver esta liga en un iframe dentro de nuestra
-          // propia tarjeta (mismo logo/encabezado visible todo el tiempo),
-          // pero el proveedor bloquea que su página se muestre enmarcada
-          // (X-Frame-Options/CSP — común en páginas de pago por seguridad,
-          // se confirmó en producción: "contenido bloqueado"). Sin
-          // cooperación del proveedor no hay forma de branding aquí; se
-          // redirige directo, como siempre. El colegio no vuelve a este
-          // formulario solo — se le indica que revise su correo para el
-          // siguiente paso.
-          window.location.href = res.url;
-        } else {
-          pantallaEfectivoGenerado(res, monto, nombreColegio);
-        }
-      })
-      .catch(function () {
-        btnPagar.disabled = false;
-        msg.innerHTML = '<div class="reg-msg reg-err">Error de conexión. Intenta de nuevo.</div>';
-      });
-    });
-  }
-
-  // El botón abre EL MISMO comprobante que genera Caja para cualquier otro
-  // cobro en efectivo (folio, código de barras real, tiendas participantes,
-  // botón de imprimir/guardar como PDF) — antes esta pantalla mostraba solo
-  // la referencia en texto y una imagen suelta, sin ese formato ni el botón
-  // de PDF, aunque el resto del sistema ya lo tenía resuelto.
-  function pantallaEfectivoGenerado(res, monto, nombreColegio) {
-    cuerpo.innerHTML =
-      '<div class="reg-estado">' +
-        '<div class="reg-estado-ic ok">&#10003;</div>' +
-        '<div class="reg-h">Tu referencia de pago</div>' +
-        '<p class="reg-p" style="margin-top:8px">Acude a cualquier tienda participante y paga ' +
-          '<strong>' + fmt(monto) + '</strong> con esta referencia:</p>' +
-        '<div class="reg-ref">' + esc(res.referencia) + '</div>' +
-        '<p class="reg-p" style="margin-top:8px">Vence el ' + esc(res.vencimiento) + '. ' +
-          'También te lo enviamos por correo para que no lo pierdas de camino a la tienda. ' +
-          'En cuanto la tienda confirme tu pago, revisaremos tu solicitud.</p>' +
-        '<button class="reg-btn" id="verFormato" style="margin-top:14px">Ver / imprimir formato de pago</button>' +
-      '</div>';
-
-    document.getElementById('verFormato').addEventListener('click', function () {
-      if (typeof abrirComprobanteEfectivoModulo !== 'function') return;
-      abrirComprobanteEfectivoModulo({
-        cobro: {
-          folio: res.folio || '', total: monto, descripcion: 'Suscripción — primera mensualidad',
-          referencia: res.referencia, barcode_url: res.barcode_url, vencimiento: res.vencimiento
-        },
-        cliente: null,
-        familia: null,
-        escuela: { nombre: nombreColegio }
-      });
-    });
-  }
 })();

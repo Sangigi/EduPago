@@ -22,8 +22,12 @@
         } catch (\PDOException $e) {
             // Si logs_sistema no existe aún, no bloquear el login por eso.
         }
-        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id, familia_id FROM usuarios WHERE email = ? AND activo = 1");
-        $stmt->execute([$email]);
+        // Acepta correo O el id_externo que asigna Savala (11-sep-2026,
+        // requisito de la junta) -- no reemplaza el correo, se suma. El
+        // campo del formulario sigue siendo uno solo; el usuario escribe lo
+        // que tenga a la mano.
+        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id, familia_id FROM usuarios WHERE (email = ? OR id_externo = ?) AND activo = 1");
+        $stmt->execute([$email, $email]);
         $user = $stmt->fetch();
         $credenciales_ok = false;
         if ($user) {

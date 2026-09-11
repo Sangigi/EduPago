@@ -39,6 +39,16 @@ function MiSuscripcion({ escuela, user }) {
   const vencida = diasVencimiento !== null && diasVencimiento < 0;
   const porVencer = diasVencimiento !== null && diasVencimiento >= 0 && diasVencimiento <= 7;
 
+  // Modo demo (11-sep-2026, requisito de la junta): mientras la escuela está
+  // en prueba, fecha_vencimiento_plan es solo un placeholder de su creación
+  // -- no tiene caso mostrarlo como si fuera un vencimiento real. Se muestra
+  // en su lugar fecha_fin_prueba y un aviso propio, siempre visible (no solo
+  // cuando está por vencer).
+  const enDemo = escuela?.modo === 'demo';
+  const finPrueba = escuela?.fecha_fin_prueba ? new Date(escuela.fecha_fin_prueba + 'T00:00:00') : null;
+  const diasPrueba = finPrueba ? Math.round((finPrueba - hoy) / 86400000) : null;
+  const pruebaVencida = diasPrueba !== null && diasPrueba < 0;
+
   // Antes esta vista solo mostraba la referencia de efectivo justo después
   // de generarla (setResultado dentro de generarPago) — si el admin
   // recargaba la página o volvía después, la referencia seguía vigente en
@@ -126,7 +136,20 @@ function MiSuscripcion({ escuela, user }) {
                 ]
               }, 'plan'),
               _jsxDEV('div', {
-                children: [
+                children: enDemo ? [
+                  _jsxDEV('div', { style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 4 }, children: 'Prueba gratuita' }, 1),
+                  _jsxDEV('div', {
+                    style: { fontSize: 20, fontWeight: 700, color: pruebaVencida ? 'var(--red)' : 'var(--accent)' },
+                    children: escuela?.fecha_fin_prueba || 'Sin definir'
+                  }, 2),
+                  _jsxDEV('div', {
+                    style: { fontSize: 13, color: pruebaVencida ? 'var(--red)' : 'var(--ink-3)', marginTop: 2 },
+                    children: pruebaVencida
+                      ? `Tu prueba venció hace ${Math.abs(diasPrueba)} día(s)`
+                      : diasPrueba === 0 ? 'Tu prueba vence hoy'
+                      : diasPrueba != null ? `Quedan ${diasPrueba} día(s) de prueba` : ''
+                  }, 3)
+                ] : [
                   _jsxDEV('div', { style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 4 }, children: 'Vencimiento' }, 1),
                   _jsxDEV('div', {
                     style: { fontSize: 20, fontWeight: 700, color: vencida ? 'var(--red)' : (porVencer ? 'var(--amber)' : 'var(--ink)') },
@@ -143,7 +166,16 @@ function MiSuscripcion({ escuela, user }) {
               }, 'venc')
             ]
           }, 'grid'),
-          (vencida || porVencer) ? _jsxDEV('div', {
+          enDemo ? _jsxDEV('div', {
+            style: {
+              marginTop: 16, padding: '10px 14px', borderRadius: 'var(--radius)',
+              background: pruebaVencida ? 'var(--red-glow)' : 'var(--accent-glow)',
+              color: pruebaVencida ? 'var(--red)' : 'var(--accent)', fontSize: 13
+            },
+            children: pruebaVencida
+              ? 'Tu periodo de prueba venció. Activa tu suscripción para poder cobrar de verdad a las familias.'
+              : 'Estás en modo de prueba: puedes usar todo el sistema, pero ningún cobro se procesa de verdad todavía. Actívate cuando quieras — tu suscripción empieza a correr desde el día en que pagues.'
+          }, 'aviso') : (vencida || porVencer) ? _jsxDEV('div', {
             style: {
               marginTop: 16, padding: '10px 14px', borderRadius: 'var(--radius)',
               background: vencida ? 'var(--red-glow)' : 'var(--amber-glow)',

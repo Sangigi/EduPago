@@ -53,6 +53,21 @@ function escuela_en_modo_demo($pdo, $escuela_id): bool
     }
 }
 
+// Días de prueba por defecto configurados por el superadmin
+// (config_sistema.demo_dias_default) — usado tanto al activar demo a mano
+// (superadmin_toggle_modo_demo.php) como al crear una escuela nueva ya en
+// demo desde el registro público (invitacion_enviar.php).
+function dias_demo_default($pdo): int
+{
+    try {
+        $stmtCfg = $pdo->prepare("SELECT valor FROM config_sistema WHERE clave = 'demo_dias_default'");
+        $stmtCfg->execute();
+        return intval($stmtCfg->fetchColumn()) ?: 15;
+    } catch (\Throwable $e) {
+        return 15;
+    }
+}
+
 // Para endpoints en acciones/*.php que responden con respond() (definida en
 // api.php, que ya está cargado cuando esto se llama desde un endpoint real).
 // Corta la ejecución igual que un requerir_rol()/requerir_seccion_habilitada().

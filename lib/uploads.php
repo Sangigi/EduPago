@@ -76,3 +76,67 @@ function guardar_archivo_subido(array $file, string $subcarpeta, array $extensio
 
     return ['ok' => true, 'ruta_relativa' => 'uploads/' . trim($subcarpeta, '/\\') . '/' . $nombre, 'error' => null];
 }
+
+/**
+ * Igual que guardar_archivo_subido(), pero guarda en UPLOADS_PRIVADOS_DIR_ABS
+ * (carpeta con .htaccess "Require all denied" — nunca servible por URL
+ * directa). Para documentos fiscales del colegio (INE, constancia de
+ * situación fiscal, etc.): a diferencia de una foto de alumno, no hay
+ * ningún motivo para que sean públicos ni siquiera por oscuridad.
+ *
+ * @return array ['ok'=>bool, 'ruta_relativa'=>string|null, 'mime_real'=>string|null, 'tamano_bytes'=>int|null, 'error'=>string|null]
+ */
+function guardar_archivo_privado(array $file, string $subcarpeta, array $extensionesPermitidas, int $maxBytes): array {
+    $errTxt = uploads_error_texto($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($errTxt !== null) return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => $errTxt];
+
+    if (!is_uploaded_file($file['tmp_name'])) {
+        return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => 'Subida inválida.'];
+    }
+    if ($file['size'] <= 0) return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => 'El archivo está vacío.'];
+    if ($file['size'] > $maxBytes) {
+        $mb = round($maxBytes / 1024 / 1024, 1);
+        return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => "El archivo supera el límite de {$mb} MB."];
+    }
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $extensionesPermitidas, true)) {
+        return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => 'Tipo de archivo no permitido.'];
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeReal = $finfo ? finfo_file($finfo, $file['tmp_name']) : false;
+    if ($finfo) finfo_close($finfo);
+    $esperados = UPLOADS_MIME_PERMITIDOS[$ext] ?? [];
+    if (!$mimeReal || empty($esperados) || !in_array($mimeReal, $esperados, true)) {
+        return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => 'El archivo no parece ser del tipo esperado.'];
+    }
+
+    $baseDir = rtrim(UPLOADS_PRIVADOS_DIR_ABS, '/\\') . '/' . trim($subcarpeta, '/\\');
+    if (!is_dir($baseDir) && !mkdir($baseDir, 0755, true) && !is_dir($baseDir)) {
+        return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => 'No se pudo preparar el directorio de subida.'];
+    }
+    // El .htaccess raíz de uploads_privados/ ya deniega todo, pero cada
+    // subcarpeta nueva (mkdir recursivo) no lo hereda por sí sola en todas
+    // las configuraciones de Apache -- se copia explícito por si acaso.
+    $htaccessOrigen = rtrim(UPLOADS_PRIVADOS_DIR_ABS, '/\\') . '/.htaccess';
+    $htaccessDestino = $baseDir . '/.htaccess';
+    if (is_file($htaccessOrigen) && !is_file($htaccessDestino)) {
+        @copy($htaccessOrigen, $htaccessDestino);
+    }
+
+    $nombre = date('Ymd_His') . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+    $rutaAbs = $baseDir . '/' . $nombre;
+    if (!move_uploaded_file($file['tmp_name'], $rutaAbs)) {
+        return ['ok' => false, 'ruta_relativa' => null, 'mime_real' => null, 'tamano_bytes' => null, 'error' => 'No se pudo guardar el archivo.'];
+    }
+    @chmod($rutaAbs, 0644);
+
+    return [
+        'ok' => true,
+        'ruta_relativa' => trim($subcarpeta, '/\\') . '/' . $nombre,
+        'mime_real' => $mimeReal,
+        'tamano_bytes' => $file['size'],
+        'error' => null,
+    ];
+}

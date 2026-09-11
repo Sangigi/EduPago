@@ -301,15 +301,13 @@ try {
                 log_ref_pago("renovación monto no coincide: {$referencia} esperado:{$monto_esperado_esc} recibido:{$monto_cent}");
                 responder_pago(30, 'Monto inválido', '', $transaccion);
             }
-            // Modo demo (11-sep-2026, requisito de la junta): mismo criterio
-            // que webhook_liga.php -- si la escuela sigue DENTRO de su
-            // periodo de prueba, el mes pagado se SUMA a los días de prueba
-            // que quedaban, en vez de empezar a contar desde hoy.
-            $enDemoVigenteRef = ($escRenov['modo'] ?? 'activa') === 'demo'
-                && !empty($escRenov['fecha_fin_prueba'])
-                && strtotime($escRenov['fecha_fin_prueba']) >= strtotime(date('Y-m-d'));
-            if ($enDemoVigenteRef) {
-                $baseRenov = $escRenov['fecha_fin_prueba'];
+            // Modo demo: mismo criterio que webhook_liga.php -- la fecha de
+            // inicio de la suscripción es SIEMPRE la fecha en que se
+            // confirma el pago, los días de prueba restantes no se
+            // acumulan/extienden/suman al periodo contratado.
+            $enDemoRef = ($escRenov['modo'] ?? 'activa') === 'demo';
+            if ($enDemoRef) {
+                $baseRenov = date('Y-m-d');
             } else {
                 $baseRenov = $escRenov['fecha_vencimiento_plan'];
                 if (!$baseRenov || strtotime($baseRenov) < strtotime(date('Y-m-d'))) $baseRenov = date('Y-m-d');
