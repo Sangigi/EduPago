@@ -12,7 +12,8 @@ function Escuelas({
   onSeleccionar
 }) {
   const {
-    useState
+    useState,
+    useEffect
   } = React;
   const EMPTY = {
     nombre: '',
@@ -494,6 +495,55 @@ function Escuelas({
     } finally {
       setGuardandoDemo(false);
     }
+  };
+
+  // ── Documentos fiscales por escuela (bandeja de revisión del superadmin) ──
+  const [docsEscuela, setDocsEscuela] = useState([]);
+  const [cargandoDocsEsc, setCargandoDocsEsc] = useState(false);
+  const [revisandoDoc, setRevisandoDoc] = useState(null); // id del documento en proceso
+
+  useEffect(() => {
+    if (!modalSecciones || !seccionesEscId) return;
+    setCargandoDocsEsc(true);
+    apiPost('listar_documentos_escuela', { escuela_id: seccionesEscId })
+      .then(res => setDocsEscuela(res.success ? (res.documentos || []) : []))
+      .catch(() => setDocsEscuela([]))
+      .finally(() => setCargandoDocsEsc(false));
+  }, [modalSecciones, seccionesEscId]);
+
+  const revisarDocumento = async (documentoId, accion) => {
+    if (accion === 'rechazar') {
+      const motivo = prompt('Motivo del rechazo (se le muestra al colegio):');
+      if (motivo === null || motivo.trim() === '') return;
+      setRevisandoDoc(documentoId);
+      try {
+        const res = await apiPost('revisar_documento_escuela', { documento_id: documentoId, accion, motivo: motivo.trim() });
+        if (!res.success) throw new Error(res.error || 'No se pudo rechazar el documento');
+      } catch (e) {
+        alert('No se pudo rechazar el documento: ' + e.message);
+      }
+    } else {
+      setRevisandoDoc(documentoId);
+      try {
+        const res = await apiPost('revisar_documento_escuela', { documento_id: documentoId, accion: 'aprobar' });
+        if (!res.success) throw new Error(res.error || 'No se pudo aprobar el documento');
+      } catch (e) {
+        alert('No se pudo aprobar el documento: ' + e.message);
+      }
+    }
+    const res2 = await apiPost('listar_documentos_escuela', { escuela_id: seccionesEscId }).catch(() => null);
+    if (res2 && res2.success) setDocsEscuela(res2.documentos || []);
+    setRevisandoDoc(null);
+  };
+
+  const descargarDocumentoEsc = async doc => {
+    const res = await fetch('api.php?action=descargar_documento_escuela&documento_id=' + doc.id, {
+      headers: { Authorization: 'Bearer ' + tkn() },
+    });
+    if (!res.ok) { alert('No se pudo descargar el documento.'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
   };
 
   const tkn = () => AuthController.getToken();
@@ -1664,6 +1714,45 @@ function Escuelas({
                   ]
                 }, void 0, true);
               })(),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
+                children: "Documentos fiscales"
+              }, void 0, false),
+              cargandoDocsEsc
+                ? /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: "Cargando…" }, void 0, false)
+                : docsEscuela.length === 0
+                  ? /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-4)', marginBottom: 8 }, children: "Este colegio todavía no ha subido ningún documento." }, void 0, false)
+                  : /*#__PURE__*/_jsxDEV("div", {
+                      style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 },
+                      children: docsEscuela.map(doc => /*#__PURE__*/_jsxDEV("div", {
+                        style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '7px 4px', borderBottom: '1px solid var(--border-glow)' },
+                        children: [
+                          /*#__PURE__*/_jsxDEV("div", {
+                            children: [
+                              /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12.5 }, children: doc.tipo }, 1),
+                              /*#__PURE__*/_jsxDEV("span", {
+                                className: 'badge ' + (doc.estado === 'aprobado' ? 'badge-green' : doc.estado === 'rechazado' ? 'badge-red' : 'badge-amber'),
+                                children: doc.estado
+                              }, 2)
+                            ]
+                          }, void 0, true),
+                          /*#__PURE__*/_jsxDEV("div", {
+                            style: { display: 'flex', gap: 4 },
+                            children: [
+                              /*#__PURE__*/_jsxDEV("button", { className: 'btn btn-secondary btn-sm', onClick: () => descargarDocumentoEsc(doc), children: "Ver" }, 'ver'),
+                              doc.estado === 'pendiente' ? /*#__PURE__*/_jsxDEV("button", {
+                                className: 'btn btn-secondary btn-sm', disabled: revisandoDoc === doc.id,
+                                onClick: () => revisarDocumento(doc.id, 'rechazar'), children: "Rechazar"
+                              }, 'rech') : null,
+                              doc.estado === 'pendiente' ? /*#__PURE__*/_jsxDEV("button", {
+                                className: 'btn btn-primary btn-sm', disabled: revisandoDoc === doc.id,
+                                onClick: () => revisarDocumento(doc.id, 'aprobar'), children: "Aprobar"
+                              }, 'apr') : null
+                            ]
+                          }, void 0, true)
+                        ]
+                      }, doc.id, true))
+                    }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", {
                 style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
                 children: "Métodos de pago"

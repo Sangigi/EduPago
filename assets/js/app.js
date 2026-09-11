@@ -282,6 +282,22 @@ const NAV_ITEMS = [{
 
 }, {
 
+  id: 'mi_cuenta',
+
+  label: 'Mi cuenta',
+
+  icon: 'usuarios',
+
+  section: 'configuración',
+
+  // Datos fiscales (persona física/moral, razón social, régimen, CP) y
+  // documentos (INE, constancia de situación fiscal, comprobante de
+  // domicilio) para poder facturar de verdad -- antes no existía ninguna
+  // pantalla donde un admin pudiera tocar esto de su propia escuela.
+  roles: ['admin']
+
+}, {
+
   id: 'superreportes',
 
   label: 'Métricas Globales',
@@ -330,7 +346,9 @@ const TITLES = {
 
   usuarios: 'Gestión de Usuarios',
 
-  miequipo: 'Mi Equipo'
+  miequipo: 'Mi Equipo',
+
+  mi_cuenta: 'Mi cuenta'
 
 };
 
@@ -1653,6 +1671,26 @@ function App() {
         return _jsxDEV(
 
           MiSuscripcion,
+
+          {
+
+            escuela: escuela,
+
+            user: user
+
+          },
+
+          void 0,
+
+          false
+
+        );
+
+      case 'mi_cuenta':
+
+        return _jsxDEV(
+
+          MiCuenta,
 
           {
 
