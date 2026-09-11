@@ -7,6 +7,10 @@
             respond(['success' => false, 'error' => 'escuela_id y cliente_id son requeridos']);
         }
         requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id, ['alumnos', 'familias']);
+        // Modo demo: una CLABE real queda viva y puede recibir un SPEI real
+        // en cualquier momento futuro, a diferencia de una liga/referencia de
+        // un solo uso -- se bloquea por completo, no se puede simular.
+        responder_demo_si_aplica($pdo, $escuela_id, 'Esta cuenta está en modo de prueba: no se asignan CLABEs SPEI reales.');
         // Verificar que el alumno no tenga ya CLABE asignada del pool
         $chk = $pdo->prepare(
             "SELECT clabe FROM clabe_pool WHERE cliente_id = ? AND estado = 'asignada'"

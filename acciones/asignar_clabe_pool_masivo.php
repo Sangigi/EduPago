@@ -12,6 +12,10 @@
         if ($rol_actual === 'admin') $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
         requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['alumnos']);
+        // Modo demo: mismo motivo que asignar_clabe_pool.php -- una CLABE
+        // real queda viva y puede recibir un SPEI real después, no se puede
+        // simular de forma segura.
+        responder_demo_si_aplica($pdo, $escuela_id, 'Esta cuenta está en modo de prueba: no se asignan CLABEs SPEI reales.');
 
         $stmtAlumnos = $pdo->prepare(
             "SELECT id FROM clientes

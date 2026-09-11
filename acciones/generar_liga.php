@@ -24,6 +24,10 @@
             $famChk = $stmtFamChk->fetch();
             requerir_familia_propia($famChk ? $famChk['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre este cobro.');
         }
+        // Modo demo (11-sep-2026): cortar ANTES de reservar una referencia o
+        // llamar al proveedor -- así nunca se "quema" una referencia real ni
+        // se le da a un webhook nada que pueda confirmar.
+        responder_demo_si_aplica($pdo, $cobroRow['escuela_id']);
         // El monto a cobrar SIEMPRE sale del total real del cobro en BD, nunca
         // del request — antes se usaba $input['total'] directo, permitiendo
         // pagar cualquier adeudo real cobrando solo el mínimo permitido.

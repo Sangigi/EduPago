@@ -215,7 +215,7 @@ try {
     if (!$cobro) {
         $refBuscarEsc = $referencia_reconstruida ?? $reference;
         $stmtEsc = $pdo->prepare(
-            "SELECT id, nombre, plan, fecha_vencimiento_plan, pago_renovacion_monto
+            "SELECT id, nombre, plan, fecha_vencimiento_plan, pago_renovacion_monto, modo, fecha_fin_prueba
                FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1"
         );
         $stmtEsc->execute([$refBuscarEsc]);
@@ -236,17 +236,30 @@ try {
                 responder_liga(false, 'El monto pagado no coincide con el plan');
             }
 
-            // Un mes calendario desde el vencimiento actual si sigue vigente,
-            // o desde hoy si ya venció -- mismo criterio que renovar_suscripcion.php,
-            // para no premiar ni penalizar por pagar antes o después de tiempo.
-            $baseRenov = $escRenov['fecha_vencimiento_plan'];
-            if (!$baseRenov || strtotime($baseRenov) < strtotime(date('Y-m-d'))) $baseRenov = date('Y-m-d');
+            // Modo demo (11-sep-2026, requisito de la junta): si la escuela
+            // sigue DENTRO de su periodo de prueba, el mes pagado se SUMA a
+            // los días de prueba que quedaban, en vez de empezar a contar
+            // desde hoy y desperdiciarlos. Si el periodo de prueba ya venció,
+            // se aplica el mismo criterio de siempre (desde hoy).
+            $enDemoVigente = ($escRenov['modo'] ?? 'activa') === 'demo'
+                && !empty($escRenov['fecha_fin_prueba'])
+                && strtotime($escRenov['fecha_fin_prueba']) >= strtotime(date('Y-m-d'));
+            if ($enDemoVigente) {
+                $baseRenov = $escRenov['fecha_fin_prueba'];
+            } else {
+                // Un mes calendario desde el vencimiento actual si sigue vigente,
+                // o desde hoy si ya venció -- mismo criterio que renovar_suscripcion.php,
+                // para no premiar ni penalizar por pagar antes o después de tiempo.
+                $baseRenov = $escRenov['fecha_vencimiento_plan'];
+                if (!$baseRenov || strtotime($baseRenov) < strtotime(date('Y-m-d'))) $baseRenov = date('Y-m-d');
+            }
             $nuevoVencimiento = siguiente_vencimiento_mensual($baseRenov);
 
             $pdo->prepare(
                 "UPDATE escuelas
                     SET fecha_vencimiento_plan = ?, ultimo_recordatorio_plan = NULL,
-                        pago_renovacion_referencia = NULL, pago_renovacion_folio = NULL, pago_renovacion_monto = NULL
+                        pago_renovacion_referencia = NULL, pago_renovacion_folio = NULL, pago_renovacion_monto = NULL,
+                        modo = 'activa', fecha_fin_prueba = NULL
                   WHERE id = ?"
             )->execute([$nuevoVencimiento, $escRenov['id']]);
 

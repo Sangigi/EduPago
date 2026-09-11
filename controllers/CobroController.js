@@ -73,7 +73,10 @@ const CobroController = (() => {
       cliente_id:  cobro._cliente_id ?? null,
     });
     if (!resultado.success) throw new Error(resultado.error || 'Error al generar liga');
-    return { url: resultado.url, qr_url: resultado.qr_url, referencia: resultado.referencia, con_cai: resultado.con_cai !== false };
+    // demo/mensaje: si la escuela está en modo de prueba, el backend responde
+    // success:true sin liga real -- antes este reshape los descartaba en
+    // silencio y el modal quedaba con una URL/QR vacíos sin explicar por qué.
+    return { url: resultado.url, qr_url: resultado.qr_url, referencia: resultado.referencia, con_cai: resultado.con_cai !== false, demo: resultado.demo, mensaje: resultado.mensaje };
   }
 
   // CAI: cobro con tarjeta ya tokenizada de un pago previo (sin volver a

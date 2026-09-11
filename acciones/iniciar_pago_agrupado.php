@@ -70,6 +70,10 @@ if ($rolAgrup === 'familia') {
 }
 requerir_metodo_pago_habilitado($pdo, $escuela_id, $metodo, $metodo === 'TC' ? 'Tarjeta' : 'Efectivo (tienda)');
 
+// Modo demo (11-sep-2026): cortar ANTES de crear el registro de
+// cobros_agrupados o de llamar al proveedor.
+responder_demo_si_aplica($pdo, $escuela_id);
+
 // Idempotencia para Efectivo (10-sep-2026): si ya existe un cobro agrupado
 // 'pendiente' con exactamente el mismo conjunto de cobro_ids (mismo alumno),
 // se reutiliza su referencia/código de barras en vez de crear otro registro

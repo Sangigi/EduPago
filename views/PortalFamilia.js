@@ -588,6 +588,11 @@ function PortalFamilia({
               folio: cobroPendiente.folio, total: cobroPendiente.total,
               descripcion: cobroPendiente.items?.map(i => i.nombre).join(', ') || 'Pago escolar'
             });
+            if (ref.demo) {
+              alert(ref.mensaje || 'Esta cuenta está en modo de prueba: no se genera una referencia real.');
+              setLoading(false);
+              return;
+            }
             setData(prev => ({
               ...prev,
               cobros: prev.cobros.map(c => c.id === cobroPendiente.id
@@ -605,6 +610,11 @@ function PortalFamilia({
             });
           } else {
             const liga = await CobroController.iniciarTC(cobrosPendientesHijo[0]);
+            if (liga.demo) {
+              alert(liga.mensaje || 'Esta cuenta está en modo de prueba: no se genera una liga de pago real.');
+              setLoading(false);
+              return;
+            }
             window.location.href = liga.url;
           }
         } else {
@@ -620,6 +630,11 @@ function PortalFamilia({
           });
           const json = await res.json();
           if (!json.success) throw new Error(json.error || 'No se pudo generar el pago agrupado');
+          if (json.demo) {
+            alert(json.mensaje || 'Esta cuenta está en modo de prueba: no se genera un pago real.');
+            setLoading(false);
+            return;
+          }
 
           if (metodo === 'TC') {
             window.location.href = json.url;

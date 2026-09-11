@@ -28,6 +28,45 @@ function recalcular_saldo_pendiente(PDO $pdo, int $cliente_id): void
 require_once __DIR__ . '/curl_helper.php';
 require_once __DIR__ . '/mailer.php';
 
+// ── Modo demo por escuela (11-sep-2026) ────────────────────────────────────
+// Una escuela en modo 'demo' puede recorrer TODO el sistema, pero ningún
+// cobro real se manda a la pasarela de pagos ni se asigna una CLABE STP
+// real. Vive aquí (no en api.php) porque cron_recordatorios.php y los
+// webhooks también llaman cobrar_via_token() y NO incluyen api.php.
+//
+// Diseñado para fallar CERRADO: si la escuela no se encuentra, o falla la
+// consulta (columna sin migrar, etc.), se trata como demo — es decir, NO se
+// cobra — en vez de al revés. Fail-open aquí significaría cobrar dinero real
+// por accidente; fail-closed en el peor caso solo bloquea un cobro legítimo,
+// que es un error mucho más barato de corregir.
+function escuela_en_modo_demo($pdo, $escuela_id): bool
+{
+    if (!$escuela_id) return false; // sin escuela (ej. superadmin) nunca es demo
+    try {
+        $stmt = $pdo->prepare("SELECT modo FROM escuelas WHERE id = ?");
+        $stmt->execute([$escuela_id]);
+        $row = $stmt->fetch();
+        if (!$row) return true; // escuela no encontrada -> fail closed
+        return ($row['modo'] ?? 'activa') === 'demo';
+    } catch (\Throwable $e) {
+        return true; // columna/tabla no disponible -> fail closed
+    }
+}
+
+// Para endpoints en acciones/*.php que responden con respond() (definida en
+// api.php, que ya está cargado cuando esto se llama desde un endpoint real).
+// Corta la ejecución igual que un requerir_rol()/requerir_seccion_habilitada().
+function responder_demo_si_aplica($pdo, $escuela_id, $mensaje = null): void
+{
+    if (escuela_en_modo_demo($pdo, $escuela_id)) {
+        respond([
+            'success' => true,
+            'demo'    => true,
+            'mensaje' => $mensaje ?? 'Esta cuenta está en modo de prueba: aquí se generaría el cobro real, pero no se envía a la pasarela de pagos.',
+        ]);
+    }
+}
+
 /**
  * Cobra un cobro pendiente con la tarjeta ya domiciliada (token) de un
  * cliente — la misma llamada al proveedor que usaba acciones/cobrar_cai.php
@@ -157,6 +196,23 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
 {
     if ($total < 50 || $total > 15000) {
         return ['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)'];
+    }
+    // Modo demo (11-sep-2026): esta función la llaman tanto el botón manual
+    // "Tarjeta guardada" (acciones/cobrar_cai.php) como el cargo automático
+    // diario del cron -- este guard cubre los dos de un solo golpe. No se
+    // marca el cobro como pagado (sigue pendiente): es más honesto que
+    // fingir un cargo real que nunca ocurrió.
+    try {
+        $stmtDemo = $pdo->prepare("SELECT e.modo FROM clientes c JOIN escuelas e ON e.id = c.escuela_id WHERE c.id = ?");
+        $stmtDemo->execute([$clienteId]);
+        $rowDemo = $stmtDemo->fetch();
+        $enDemo = !$rowDemo || ($rowDemo['modo'] ?? 'activa') === 'demo';
+    } catch (\Throwable $e) {
+        $enDemo = true; // fail closed
+    }
+    if ($enDemo) {
+        log_api("cobrar_via_token -> DEMO, no se llama al proveedor. cobro={$cobroId} cliente={$clienteId} total={$total}");
+        return ['success' => false, 'demo' => true, 'error' => 'Esta cuenta está en modo de prueba: no se realizan cargos automáticos reales.'];
     }
     // NOTA: aquí vivía un candado que exigía clientes.autorizacion_cai_estado
     // = 'firmada' (autorización firmada por DocuSign) antes de cobrar — se

@@ -14,6 +14,9 @@
         $rolRefEfvo = $usuario_actual['rol'] ?? '';
         requerir_escuela_propia($rolRefEfvo, $cobroRow['escuela_id'], $usuario_actual, 'No tienes permiso sobre este cobro.');
         requerir_seccion_habilitada($pdo, $rolRefEfvo, $cobroRow['escuela_id'], ['caja']);
+        // Modo demo (11-sep-2026): cortar ANTES de reservar una referencia o
+        // llamar al proveedor.
+        responder_demo_si_aplica($pdo, $cobroRow['escuela_id']);
         // Reference: usa el id del cobro (autoincrement, único de por vida,
         // nunca se reutiliza), zero-padded a REFERENCIA_DIGITOS (13 en
         // Pagalaescuela, que es donde corre este servicio ahora — ver más

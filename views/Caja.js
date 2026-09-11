@@ -341,6 +341,13 @@ function Caja({
       try {
         const liga = await CobroController.iniciarTC(cobro);
         setTcInfo(liga);
+        // Modo demo: la escuela está en modo de prueba -- no hay liga real
+        // que abrir ni nada que hacer polling. Antes esto habría dejado el
+        // modal con una URL/QR vacíos para siempre.
+        if (liga.demo) {
+          setTcLoading(false);
+          return;
+        }
 
         // Polling automático: igual que SPEI, revisa cada 10s si
         // webhook_liga.php ya marcó este cobro (por su ID exacto, nunca por
@@ -393,6 +400,11 @@ function Caja({
       try {
         const ref = await CobroController.iniciarEfectivoRef(cobro);
         setEfvRefInfo(ref);
+        // Modo demo: ver nota igual en la rama TC de arriba.
+        if (ref.demo) {
+          setEfvRefLoading(false);
+          return;
+        }
 
         // Polling automático: igual que SPEI/TC, revisa cada 10s si el
         // webhook de pago_referencia.php ya marcó este cobro como pagado,
@@ -1819,7 +1831,10 @@ function Caja({
               },
               children: "Puedes confirmar el cobro manualmente si el cliente pagó por otro medio."
             }, void 0, false)]
-          }, void 0, true), tcInfo && !tcLoading && /*#__PURE__*/_jsxDEV(_Fragment, {
+          }, void 0, true), tcInfo && !tcLoading && tcInfo.demo && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 13, color: 'var(--ink-2)', textAlign: 'center', padding: '20px 10px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px dashed var(--border)' },
+            children: tcInfo.mensaje || 'Esta cuenta está en modo de prueba: aquí se generaría el cobro real, pero no se envía a la pasarela de pagos.'
+          }, void 0, false), tcInfo && !tcLoading && !tcInfo.demo && /*#__PURE__*/_jsxDEV(_Fragment, {
             children: [/*#__PURE__*/_jsxDEV("p", {
               style: {
                 fontSize: 13,
@@ -2038,7 +2053,10 @@ function Caja({
               },
               children: efvRefError
             }, void 0, false)]
-          }, void 0, true), efvRefInfo && !efvRefLoading && /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), efvRefInfo && !efvRefLoading && efvRefInfo.demo && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 13, color: 'var(--ink-2)', textAlign: 'center', padding: '20px 10px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px dashed var(--border)' },
+            children: efvRefInfo.mensaje || 'Esta cuenta está en modo de prueba: aquí se generaría el cobro real, pero no se envía a la pasarela de pagos.'
+          }, void 0, false), efvRefInfo && !efvRefLoading && !efvRefInfo.demo && /*#__PURE__*/_jsxDEV("div", {
             children: [/*#__PURE__*/_jsxDEV("div", {
               style: {
                 textAlign: 'center',
