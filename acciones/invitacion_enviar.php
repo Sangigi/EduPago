@@ -3,21 +3,21 @@
     $generico = ['success' => false, 'error' => 'Esta liga no es válida o ya venció.'];
 
     if (strlen($token) !== 64 || !ctype_xdigit($token)) respond($generico);
+    $tokenHash = hash('sha256', $token);
 
-    $stmt = $pdo->prepare(
-        "SELECT id, estado, expira, intentos, distribuidor_id, contacto_nombre
-           FROM invitaciones_colegio WHERE token_hash = ? LIMIT 1"
-    );
-    $stmt->execute([hash('sha256', $token)]);
-    $inv = $stmt->fetch();
+    // Chequeo rápido SIN lock: cubre el caso común (token inválido/vencido) y
+    // permite incrementar 'intentos' sin bloquear nada todavía.
+    $stmtRapido = $pdo->prepare("SELECT id, estado, expira FROM invitaciones_colegio WHERE token_hash = ? LIMIT 1");
+    $stmtRapido->execute([$tokenHash]);
+    $invRapido = $stmtRapido->fetch();
     // Igual que invitacion_ver.php: se permite reenviar mientras siga en
     // 'pendiente' o 'enviado' -- antes, cambiar de plan y reintentar despues
     // del primer envio actualizaba CERO filas (WHERE exigia 'pendiente'), y
     // el codigo igual respondia success sin haber guardado nada nuevo.
-    if (!$inv || !in_array($inv['estado'], ['pendiente', 'enviado'], true) || strtotime($inv['expira']) < time()) {
-        if ($inv) {
+    if (!$invRapido || !in_array($invRapido['estado'], ['pendiente', 'enviado'], true) || strtotime($invRapido['expira']) < time()) {
+        if ($invRapido) {
             $pdo->prepare("UPDATE invitaciones_colegio SET intentos = intentos + 1 WHERE id = ?")
-                ->execute([$inv['id']]);
+                ->execute([$invRapido['id']]);
         }
         respond($generico);
     }
@@ -68,48 +68,71 @@
         'tipo_persona' => $tipo_persona ?: null,
     ], JSON_UNESCAPED_UNICODE);
 
-    $pdo->prepare(
-        "UPDATE invitaciones_colegio
-            SET estado='enviado', datos_enviados=?, usada_en=NOW(), usada_ip=?,
-                plan_elegido=?, monto_suscripcion=?
-          WHERE id=? AND estado IN ('pendiente','enviado')"
-    )->execute([$datos, ($_SERVER['REMOTE_ADDR'] ?? null), $plan, $monto_plan, $inv['id']]);
-
-    // Antes de esto, "enviado" era el final del formulario: había que pagar
-    // ANTES de que existiera la escuela, y un superadmin tenía que aprobar
-    // el pago para recién ahí crearla. Ahora (11-sep-2026, requisito de la
-    // junta) la escuela se crea de inmediato en modo DEMO, sin pagar: el
-    // colegio puede usar todo el sistema al momento. Pagar (desde adentro,
-    // ya con sesión iniciada, en "Mi suscripción") es lo que lo saca del
-    // demo — ese flujo y el cómputo de "días de prueba + el mes pagado" ya
-    // existen (escuela_generar_pago_renovacion.php + los webhooks).
     $email_login = mb_substr($email, 0, 160);
-    $usuario_ya_existe = false;
-    $chkUsr = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
-    $chkUsr->execute([$email_login]);
-    $usuario_ya_existe = (bool) $chkUsr->fetch();
-    if ($usuario_ya_existe) {
-        // Mismo caso que ya manejaba invitacion_resolver.php: el correo ya
-        // tiene una cuenta en el sistema. No se puede crear un admin nuevo
-        // con el mismo correo (usuarios.email es UNIQUE), así que se avisa
-        // en vez de fallar en silencio o tronar por el índice único.
-        respond([
-            'success' => false,
-            'error'   => 'Ya existe una cuenta con este correo en el sistema. Contacta a soporte para continuar.',
-        ]);
-    }
-
     $dias_demo = dias_demo_default($pdo);
     $fecha_fin_prueba = date('Y-m-d', strtotime("+{$dias_demo} days"));
     $activacion_token = bin2hex(random_bytes(32));
     $activacion_hash  = hash('sha256', $activacion_token);
-
     $clave_base  = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $nombre), 0, 6));
     if ($clave_base === '') $clave_base = 'ESC';
-    $clave_nueva = $clave_base . '-' . $inv['id'];
 
+    // Blindaje (11-sep-2026, hallado en revisión adversarial de la Fase 2):
+    // TODO lo que crea la escuela vive dentro de UNA sola transacción con la
+    // fila de la invitación bloqueada (SELECT ... FOR UPDATE). Antes, dos
+    // peticiones concurrentes con el MISMO token (doble clic, doble POST --
+    // incluso con correos distintos en el body, ya que el token nunca está
+    // atado a un email) pasaban juntas el chequeo de estado (ambas veían
+    // 'enviado' antes de que cualquiera hiciera commit) y cada una creaba su
+    // propia escuela + admin + comisión de distribuidor: dos colegios reales
+    // activos por una sola invitación. El FOR UPDATE serializa: la segunda
+    // petición espera a que la primera termine, y al re-leer bajo el lock ve
+    // el estado YA actualizado ('aprobada') y se detiene con limpieza.
     $pdo->beginTransaction();
     try {
+        $stmt = $pdo->prepare(
+            "SELECT id, estado, expira, distribuidor_id, contacto_nombre
+               FROM invitaciones_colegio WHERE token_hash = ? LIMIT 1 FOR UPDATE"
+        );
+        $stmt->execute([$tokenHash]);
+        $inv = $stmt->fetch();
+        if (!$inv || !in_array($inv['estado'], ['pendiente', 'enviado'], true) || strtotime($inv['expira']) < time()) {
+            $pdo->rollBack();
+            respond($generico);
+        }
+
+        // Mismo caso que ya manejaba invitacion_resolver.php: el correo ya
+        // tiene una cuenta en el sistema. No se puede crear un admin nuevo
+        // con el mismo correo (usuarios.email es UNIQUE), así que se avisa
+        // en vez de fallar en silencio o tronar por el índice único. Se
+        // revisa DENTRO del lock para que dos peticiones con el mismo token
+        // no puedan colarse ambas antes de que exista el usuario todavía.
+        $chkUsr = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $chkUsr->execute([$email_login]);
+        if ($chkUsr->fetch()) {
+            $pdo->rollBack();
+            respond([
+                'success' => false,
+                'error'   => 'Ya existe una cuenta con este correo en el sistema. Contacta a soporte para continuar.',
+            ]);
+        }
+
+        $pdo->prepare(
+            "UPDATE invitaciones_colegio
+                SET estado='enviado', datos_enviados=?, usada_en=NOW(), usada_ip=?,
+                    plan_elegido=?, monto_suscripcion=?
+              WHERE id=? AND estado IN ('pendiente','enviado')"
+        )->execute([$datos, ($_SERVER['REMOTE_ADDR'] ?? null), $plan, $monto_plan, $inv['id']]);
+
+        // Antes de esto, "enviado" era el final del formulario: había que
+        // pagar ANTES de que existiera la escuela, y un superadmin tenía que
+        // aprobar el pago para recién ahí crearla. Ahora (11-sep-2026,
+        // requisito de la junta) la escuela se crea de inmediato en modo
+        // DEMO, sin pagar: el colegio puede usar todo el sistema al momento.
+        // Pagar (desde adentro, ya con sesión iniciada, en "Mi suscripción")
+        // es lo que lo saca del demo — ese flujo y el cómputo de la nueva
+        // fecha de vencimiento ya existen (escuela_generar_pago_renovacion.php
+        // + los webhooks).
+        $clave_nueva = $clave_base . '-' . $inv['id'];
         $pdo->prepare(
             "INSERT INTO escuelas (nombre, clave, rfc, rvoe, telefono, email, direccion, tipo_persona,
                                    activa, plan, fecha_alta, fecha_vencimiento_plan, modo, fecha_fin_prueba,
@@ -121,11 +144,21 @@
         ]);
         $escuela_nueva = intval($pdo->lastInsertId());
 
-        $pdo->prepare(
+        // Condicional sobre 'enviado' (no incondicional como antes): si por
+        // lo que sea la fila ya no estuviera en ese estado exacto aquí
+        // (no debería pasar nunca gracias al FOR UPDATE de arriba, pero se
+        // revisa rowCount como defensa en profundidad en vez de asumir),
+        // se aborta TODA la transacción -- nunca se deja una escuela recién
+        // creada sin que su invitación quede correctamente resuelta.
+        $updAprobar = $pdo->prepare(
             "UPDATE invitaciones_colegio
                 SET estado='aprobada', escuela_id=?, aprobada_en=NOW()
-              WHERE id=?"
-        )->execute([$escuela_nueva, $inv['id']]);
+              WHERE id=? AND estado='enviado'"
+        );
+        $updAprobar->execute([$escuela_nueva, $inv['id']]);
+        if ($updAprobar->rowCount() !== 1) {
+            throw new \RuntimeException('La invitación cambió de estado inesperadamente.');
+        }
 
         // Igual que invitacion_resolver.php: si la invitación la generó un
         // distribuidor, esta es la única forma en que puede llegar a cobrar

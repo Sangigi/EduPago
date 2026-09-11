@@ -41,7 +41,14 @@ require_once __DIR__ . '/mailer.php';
 // que es un error mucho más barato de corregir.
 function escuela_en_modo_demo($pdo, $escuela_id): bool
 {
-    if (!$escuela_id) return false; // sin escuela (ej. superadmin) nunca es demo
+    // Blindaje (11-sep-2026, hallado en revisión adversarial): esta rama
+    // fallaba ABIERTO (false = "no es demo" = sí cobrar), justo al revés del
+    // diseño documentado arriba. Hoy los 6 call-sites reales siempre validan
+    // su escuela_id antes de llegar aquí (nunca pasan 0/null), así que esto
+    // no es explotable todavía -- pero es una trampa para un futuro
+    // call-site que sí lo haga. Un escuela_id ausente es, por definición,
+    // información insuficiente: se trata como demo (no cobrar).
+    if (!$escuela_id) return true;
     try {
         $stmt = $pdo->prepare("SELECT modo FROM escuelas WHERE id = ?");
         $stmt->execute([$escuela_id]);

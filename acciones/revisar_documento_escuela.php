@@ -6,6 +6,11 @@
 // queda en superadmin). Recalcula escuelas.documentacion_estado a partir del
 // estado real de TODOS los documentos de la escuela, no solo este.
 
+// Mismos tipos base + los 2 exclusivos de persona moral que ya usan
+// subir_documento_escuela.php y views/MiCuenta.js.
+$REQUERIDOS_BASE  = ['ine_representante', 'constancia_situacion_fiscal', 'comprobante_domicilio'];
+$REQUERIDOS_MORAL = ['acta_constitutiva', 'poder_notarial'];
+
 requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede revisar documentos.');
 
 $documento_id = intval($input['documento_id'] ?? 0);
@@ -27,21 +32,32 @@ $pdo->prepare(
     "UPDATE escuela_documentos SET estado = ?, motivo_rechazo = ?, revisado_por = ?, revisado_en = NOW() WHERE id = ?"
 )->execute([$nuevoEstado, $accion === 'rechazar' ? mb_substr($motivo, 0, 300) : null, intval($usuario_actual['user_id'] ?? 0), $documento_id]);
 
-// Recalcular el estado agregado de la escuela desde CERO (no solo este
-// documento): si cualquiera quedó rechazado, la escuela está rechazada; si
-// falta alguno por revisar, sigue en revisión; solo si TODOS están
-// aprobados (y hay al menos uno) la escuela queda aprobada.
-$stmtTodos = $pdo->prepare("SELECT estado FROM escuela_documentos WHERE escuela_id = ?");
+// Blindaje (11-sep-2026, hallado en revisión adversarial): antes "todos
+// aprobados" significaba "todos los que EXISTAN en escuela_documentos" --
+// una escuela que solo subiera y aprobara UN documento (de los 3-5
+// requeridos según tipo_persona) ya quedaba en 'aprobada'. Ahora se exige
+// explícitamente que cada tipo REQUERIDO tenga una fila con estado
+// 'aprobado' (subir_documento_escuela.php ya garantiza como máximo una fila
+// por (escuela_id, tipo) gracias al upsert).
+$stmtEsc = $pdo->prepare("SELECT tipo_persona FROM escuelas WHERE id = ?");
+$stmtEsc->execute([$escuela_id]);
+$tipoPersonaEsc = $stmtEsc->fetchColumn();
+$tiposRequeridos = array_merge($REQUERIDOS_BASE, $tipoPersonaEsc === 'moral' ? $REQUERIDOS_MORAL : []);
+
+$stmtTodos = $pdo->prepare("SELECT tipo, estado FROM escuela_documentos WHERE escuela_id = ?");
 $stmtTodos->execute([$escuela_id]);
-$estados = array_column($stmtTodos->fetchAll(), 'estado');
+$filas = $stmtTodos->fetchAll();
+$estadoPorTipo = [];
+foreach ($filas as $f) { $estadoPorTipo[$f['tipo']] = $f['estado']; }
+$estados = array_column($filas, 'estado');
+
 if (in_array('rechazado', $estados, true)) {
     $agregado = 'rechazada';
 } elseif (in_array('pendiente', $estados, true)) {
     $agregado = 'en_revision';
-} elseif (count($estados) > 0) {
-    $agregado = 'aprobada';
 } else {
-    $agregado = 'sin_enviar';
+    $faltantes = array_filter($tiposRequeridos, fn($t) => ($estadoPorTipo[$t] ?? null) !== 'aprobado');
+    $agregado = empty($filas) ? 'sin_enviar' : (empty($faltantes) ? 'aprobada' : 'en_revision');
 }
 $pdo->prepare("UPDATE escuelas SET documentacion_estado = ? WHERE id = ?")->execute([$agregado, $escuela_id]);
 

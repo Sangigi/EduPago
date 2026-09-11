@@ -243,9 +243,15 @@ try {
     // que cualquiera de estos tres casos pagados en tienda se quedaba sin
     // conciliar para siempre (código 40 "Adquiriente inválido").
     if (!$cobro) {
+        // FOR UPDATE (11-sep-2026, hallado en revisión adversarial): mismo
+        // motivo exacto que ya tiene la rama de `cobros` de arriba -- sin
+        // esto, dos confirmaciones simultáneas de la misma referencia
+        // (reintento de red de CCT) pueden leer "no pagado aún" antes de que
+        // cualquiera haga commit, y la segunda sobreescribe en silencio el
+        // auth_code de la primera.
         $stmtGrp = $pdo->prepare(
             "SELECT id, cliente_id, total, estado, auth_code
-               FROM cobros_agrupados WHERE referencia = ? LIMIT 1"
+               FROM cobros_agrupados WHERE referencia = ? LIMIT 1 FOR UPDATE"
         );
         $stmtGrp->execute([$referencia]);
         $grp = $stmtGrp->fetch();
@@ -287,9 +293,10 @@ try {
     }
 
     if (!$cobro) {
+        // FOR UPDATE: mismo motivo que la rama de cobros_agrupados de arriba.
         $stmtEsc = $pdo->prepare(
             "SELECT id, nombre, fecha_vencimiento_plan, pago_renovacion_monto, modo, fecha_fin_prueba
-               FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1"
+               FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1 FOR UPDATE"
         );
         $stmtEsc->execute([$referencia]);
         $escRenov = $stmtEsc->fetch();
@@ -333,9 +340,10 @@ try {
     }
 
     if (!$cobro) {
+        // FOR UPDATE: mismo motivo que la rama de cobros_agrupados de arriba.
         $stmtInv = $pdo->prepare(
             "SELECT id, monto_suscripcion, estado, pago_auth_code
-               FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1"
+               FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1 FOR UPDATE"
         );
         $stmtInv->execute([$referencia]);
         $inv = $stmtInv->fetch();
@@ -345,6 +353,20 @@ try {
                 $pdo->rollBack();
                 log_ref_pago("suscripción ya pagada (idempotente): {$referencia} invitacion_id:{$inv['id']}");
                 responder_pago(0, 'Operación exitosa', $inv['pago_auth_code'] ?: '00000000', $transaccion);
+            }
+            // Blindaje (11-sep-2026, hallado en revisión adversarial): antes
+            // solo se excluían 'pagado'/'aprobada' aquí -- una invitación
+            // rechazada por el superadmin, cancelada o expirada caía de
+            // largo hasta el UPDATE de abajo, que la revertía a 'pagado' y
+            // permitía luego aprobarla en invitacion_resolver.php pese al
+            // rechazo. Un pago real que llegue para una de estas queda sin
+            // conciliar (se loguea como huérfano, igual que cualquier otra
+            // referencia que no calce en ninguna tabla) -- requiere
+            // intervención manual, pero nunca revive una solicitud cerrada.
+            if (in_array($inv['estado'], ['rechazada', 'cancelada', 'expirada'], true)) {
+                $pdo->rollBack();
+                log_ref_pago("suscripción {$inv['estado']}, pago rechazado: {$referencia} invitacion_id:{$inv['id']}");
+                responder_pago(40, 'Adquiriente inválido', '', $transaccion);
             }
             $monto_esperado_inv = intval(round(floatval($inv['monto_suscripcion']) * 100));
             if ($monto_cent !== $monto_esperado_inv) {

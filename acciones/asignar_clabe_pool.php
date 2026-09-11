@@ -1,12 +1,31 @@
 <?php
         // Toma la primera CLABE libre del pool de la escuela y la asigna al alumno
-        // Recibe: { escuela_id, cliente_id }
-        $escuela_id = intval($input['escuela_id'] ?? 0);
+        // Recibe: { escuela_id, cliente_id } -- escuela_id del input NUNCA se usa
+        // para autorizar (ver blindaje abajo): se deriva SIEMPRE del propio
+        // cliente en BD, la única fuente de verdad de a qué escuela pertenece.
+        //
+        // Blindaje (11-sep-2026, hallado en revisión adversarial de la Fase 2):
+        // este archivo no tenía requerir_rol() ni requerir_escuela_propia() --
+        // cualquier usuario autenticado (incluido rol 'familia', para el que
+        // requerir_seccion_habilitada es un no-op total) podía mandar el
+        // escuela_id de OTRO colegio y robar/reasignar una CLABE SPEI real de
+        // esa escuela a un cliente arbitrario. El guard de modo demo tampoco
+        // protegía nada porque evaluaba ese mismo escuela_id ajeno sin validar.
         $cliente_id = intval($input['cliente_id'] ?? 0);
-        if (!$escuela_id || !$cliente_id) {
-            respond(['success' => false, 'error' => 'escuela_id y cliente_id son requeridos']);
+        if (!$cliente_id) {
+            respond(['success' => false, 'error' => 'cliente_id es requerido']);
         }
-        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id, ['alumnos', 'familias']);
+        $rolClabePool = $usuario_actual['rol'] ?? '';
+        requerir_rol($rolClabePool, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para asignar CLABEs.');
+
+        $stmtCliEscPool = $pdo->prepare("SELECT escuela_id FROM clientes WHERE id = ?");
+        $stmtCliEscPool->execute([$cliente_id]);
+        $filaCliPool = $stmtCliEscPool->fetch();
+        if (!$filaCliPool) respond(['success' => false, 'error' => 'Alumno no encontrado']);
+        $escuela_id = intval($filaCliPool['escuela_id']);
+
+        requerir_escuela_propia($rolClabePool, $escuela_id, $usuario_actual, 'No tienes permiso sobre este alumno.');
+        requerir_seccion_habilitada($pdo, $rolClabePool, $escuela_id, ['alumnos', 'familias']);
         // Modo demo: una CLABE real queda viva y puede recibir un SPEI real
         // en cualquier momento futuro, a diferencia de una liga/referencia de
         // un solo uso -- se bloquea por completo, no se puede simular.

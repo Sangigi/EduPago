@@ -25,23 +25,53 @@ if (empty($_FILES['archivo'])) respond(['success' => false, 'error' => 'archivo 
 $res = guardar_archivo_privado($_FILES['archivo'], 'escuela_' . $escuela_id, UPLOADS_EXT_DOCUMENTO, UPLOADS_MAX_BYTES_DOCUMENTO);
 if (!$res['ok']) respond(['success' => false, 'error' => $res['error']]);
 
-$pdo->prepare(
-    "INSERT INTO escuela_documentos (escuela_id, tipo, ruta_archivo, nombre_original, mime_real, tamano_bytes, estado, subido_por, subido_en)
-     VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, NOW())"
-)->execute([
-    $escuela_id, $tipo, $res['ruta_relativa'],
-    mb_substr($_FILES['archivo']['name'] ?? '', 0, 255),
-    $res['mime_real'], $res['tamano_bytes'],
-    intval($usuario_actual['user_id'] ?? 0),
-]);
-$documento_id = intval($pdo->lastInsertId());
+// Blindaje (11-sep-2026, hallado en revisión adversarial): antes cada subida
+// insertaba una fila NUEVA aunque ya existiera una del mismo tipo -- si un
+// documento se rechazaba y el colegio subía la versión corregida, la fila
+// vieja 'rechazado' nunca desaparecía y revisar_documento_escuela.php (que
+// recalcula el estado agregado leyendo TODAS las filas de la escuela) veía
+// ese rechazo viejo para siempre, aunque la versión nueva ya estuviera
+// aprobada. Ahora se reemplaza (UPDATE) la fila existente del mismo
+// (escuela_id, tipo) en vez de acumular duplicados, y el archivo físico
+// anterior se borra (best-effort, igual que ya hace subir_foto_cliente.php
+// al reemplazar una foto).
+$stmtExistente = $pdo->prepare("SELECT id, ruta_archivo FROM escuela_documentos WHERE escuela_id = ? AND tipo = ? LIMIT 1");
+$stmtExistente->execute([$escuela_id, $tipo]);
+$existente = $stmtExistente->fetch();
 
-// El estado agregado de la escuela pasa a "en_revision" en cuanto sube algo
-// -- así el superadmin sabe, con un solo campo, que hay documentos
-// esperando revisión, sin tener que abrir cada escuela a checar.
-$pdo->prepare(
-    "UPDATE escuelas SET documentacion_estado = 'en_revision' WHERE id = ? AND documentacion_estado IN ('sin_enviar', 'rechazada')"
-)->execute([$escuela_id]);
+$nombreOriginal = mb_substr($_FILES['archivo']['name'] ?? '', 0, 255);
+
+if ($existente) {
+    $pdo->prepare(
+        "UPDATE escuela_documentos SET
+            ruta_archivo = ?, nombre_original = ?, mime_real = ?, tamano_bytes = ?,
+            estado = 'pendiente', motivo_rechazo = NULL,
+            subido_por = ?, subido_en = NOW(), revisado_por = NULL, revisado_en = NULL
+         WHERE id = ?"
+    )->execute([
+        $res['ruta_relativa'], $nombreOriginal, $res['mime_real'], $res['tamano_bytes'],
+        intval($usuario_actual['user_id'] ?? 0), $existente['id'],
+    ]);
+    $documento_id = intval($existente['id']);
+    $rutaVieja = rtrim(UPLOADS_PRIVADOS_DIR_ABS, '/\\') . '/' . $existente['ruta_archivo'];
+    if (is_file($rutaVieja)) @unlink($rutaVieja);
+} else {
+    $pdo->prepare(
+        "INSERT INTO escuela_documentos (escuela_id, tipo, ruta_archivo, nombre_original, mime_real, tamano_bytes, estado, subido_por, subido_en)
+         VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, NOW())"
+    )->execute([
+        $escuela_id, $tipo, $res['ruta_relativa'], $nombreOriginal,
+        $res['mime_real'], $res['tamano_bytes'], intval($usuario_actual['user_id'] ?? 0),
+    ]);
+    $documento_id = intval($pdo->lastInsertId());
+}
+
+// El estado agregado de la escuela vuelve a "en_revision" con CUALQUIER
+// subida nueva, incluso si ya estaba 'aprobada' -- antes solo lo hacía desde
+// 'sin_enviar'/'rechazada', así que subir una versión actualizada de un
+// documento ya aprobado dejaba el agregado en 'aprobada' sin que nadie
+// revisara el archivo nuevo.
+$pdo->prepare("UPDATE escuelas SET documentacion_estado = 'en_revision' WHERE id = ?")->execute([$escuela_id]);
 
 registrar_log($pdo, $usuario_actual, 'documento_escuela_subido', "Escuela #$escuela_id: subió documento '$tipo' (#$documento_id)", $escuela_id);
 

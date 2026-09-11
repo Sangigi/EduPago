@@ -415,8 +415,23 @@ try {
     );
     foreach ($stmt->fetchAll() as $esc) {
         $dias = (int) round((strtotime($esc['fecha_fin_prueba']) - $hoyTs) / 86400);
-        if ($dias !== 3) continue;
-        if ($esc['ultimo_recordatorio_plan'] === $hoyStr) continue; // ya se avisó hoy
+        // Ventana de 3 días, no un solo día exacto (hallado en revisión
+        // adversarial): con "=== 3" a secas, si el cron no corre justo ese
+        // día (servidor caído, cron no dado de alta), la escuela pierde el
+        // aviso para siempre -- a diferencia del bloque de suscripción de
+        // arriba, que tiene dos oportunidades (7 y 5). ultimo_recordatorio_plan
+        // sigue evitando duplicados si ya se avisó hoy o cualquier día previo
+        // dentro de esta ventana.
+        if ($dias < 0 || $dias > 3) continue;
+        // Dedup por CICLO, no por día: con una ventana de varios días, "ya se
+        // avisó HOY" no evita mandarlo de nuevo mañana dentro de la misma
+        // ventana -- a diferencia del bloque de suscripción de arriba (que sí
+        // debe mandar una vez en cada uno de sus dos días exactos, 7 y 5).
+        // ultimo_recordatorio_plan se limpia a NULL al salir de demo
+        // (webhook_liga.php/pago_referencia.php) y al reactivar demo
+        // manualmente (superadmin_toggle_modo_demo.php), así que un ciclo
+        // nuevo de prueba sí puede volver a avisar.
+        if ($esc['ultimo_recordatorio_plan'] !== null) continue; // ya se avisó en este ciclo
 
         $destinatarios = [];
         if (!empty($esc['email'])) $destinatarios[] = $esc['email'];

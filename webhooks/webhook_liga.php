@@ -181,6 +181,15 @@ try {
                 }
                 responder_liga(true, 'Suscripción ya confirmada previamente');
             }
+            // Blindaje (11-sep-2026, hallado en revisión adversarial): una
+            // invitación rechazada/cancelada/expirada no debe revivirse a
+            // 'pagado' -- antes solo se excluían 'pagado'/'aprobada' y este
+            // pago (real, ya cobrado por el proveedor) habría quedado listo
+            // para que invitacion_resolver.php la aprobara pese al rechazo.
+            if (in_array($inv['estado'], ['rechazada', 'cancelada', 'expirada'], true)) {
+                if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "⚠ LIGA SUSCRIPCIÓN para invitación {$inv['estado']} -> invitacion:{$inv['id']} ref:{$refBuscar} auth:{$auth} (pago recibido pero NO se revive la invitación, requiere revisión manual)");
+                responder_liga(true, 'Invitación ya cerrada, pago recibido para revisión manual');
+            }
             if ($response !== 'approved') {
                 if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA SUSCRIPCIÓN rechazada | ref:{$refBuscar} response:{$response} nb_error:{$nb_error}");
                 responder_liga(true, 'Pago de suscripción no aprobado, registrado');
