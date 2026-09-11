@@ -13,13 +13,16 @@
     $stmt->execute([$id]);
     $inv = $stmt->fetch();
     if (!$inv)                        respond(['success' => false, 'error' => 'Invitación no encontrada']);
-    // Antes se podia aprobar con solo 'enviado' -- un formulario lleno,
-    // sin ningun pago de por medio. Ahora la aprobacion exige que el
-    // colegio ya haya pagado su primera mensualidad (estado 'pagado',
-    // que pone el webhook al confirmar el cobro de suscripcion).
-    if ($inv['estado'] !== 'pagado') respond(['success' => false, 'error' => 'Esta invitación aún no tiene el pago de suscripción confirmado.']);
 
     if ($accion === 'rechazar') {
+        // El rechazo NO exige pago -- a diferencia de aprobar. Antes este
+        // check de 'pagado' vivía ANTES de separar aprobar/rechazar, así que
+        // una solicitud basura o abandonada en 'enviado' (formulario lleno,
+        // nunca pagado) no se podía cerrar jamás: se quedaba viva para
+        // siempre en el panel.
+        if (in_array($inv['estado'], ['aprobada', 'rechazada', 'expirada', 'cancelada'], true)) {
+            respond(['success' => false, 'error' => 'Esta invitación ya no se puede rechazar (estado: ' . $inv['estado'] . ').']);
+        }
         $pdo->prepare(
             "UPDATE invitaciones_colegio
                 SET estado='rechazada', motivo_rechazo=?, aprobada_por=?, aprobada_en=NOW()
@@ -30,6 +33,12 @@
         ]);
         respond(['success' => true]);
     }
+
+    // Antes se podia aprobar con solo 'enviado' -- un formulario lleno,
+    // sin ningun pago de por medio. Ahora la aprobacion exige que el
+    // colegio ya haya pagado su primera mensualidad (estado 'pagado',
+    // que pone el webhook al confirmar el cobro de suscripcion).
+    if ($inv['estado'] !== 'pagado') respond(['success' => false, 'error' => 'Esta invitación aún no tiene el pago de suscripción confirmado.']);
 
     $d = json_decode($inv['datos_enviados'] ?? '{}', true) ?: [];
 

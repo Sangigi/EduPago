@@ -16,6 +16,7 @@
         $stmt = $pdo->query(
             "SELECT i.id, i.token_prefijo, i.contacto_nombre, i.contacto_email, i.contacto_tel,
                     i.estado, i.expira, i.datos_enviados, i.escuela_id, i.fecha_alta,
+                    i.plan_elegido, i.monto_suscripcion, i.metodo_pago, i.pagado_en,
                     u.nombre AS creado_por_nombre, u.rol AS creado_por_rol
                FROM invitaciones_colegio i
                LEFT JOIN usuarios u ON u.id = i.creado_por
@@ -24,7 +25,8 @@
     } else {
         $stmt = $pdo->prepare(
             "SELECT id, token_prefijo, contacto_nombre, contacto_email, contacto_tel,
-                    estado, expira, datos_enviados, escuela_id, fecha_alta
+                    estado, expira, datos_enviados, escuela_id, fecha_alta,
+                    plan_elegido, monto_suscripcion, metodo_pago, pagado_en
                FROM invitaciones_colegio WHERE creado_por = ?
               ORDER BY fecha_alta DESC LIMIT 200"
         );

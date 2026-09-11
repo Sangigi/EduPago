@@ -29,6 +29,11 @@ async function _apiPostInv(action, body) {
 var _ESTADO_INV = {
   pendiente: { label: 'Pendiente de llenar', clase: 'badge-gray' },
   enviado:   { label: 'Enviado, por revisar', clase: 'badge-amber' },
+  // Faltaba este estado -- el backend (invitacion_resolver.php) exige
+  // 'pagado' para poder aprobar desde hace rato, pero este panel seguía
+  // condicionando el botón de Aprobar/Rechazar a 'enviado': una invitación
+  // ya pagada no se podía aprobar desde aquí (sí desde Suscripciones.js).
+  pagado:    { label: 'Pagado, por aprobar', clase: 'badge-blue' },
   aprobada:  { label: 'Aprobada', clase: 'badge-green' },
   rechazada: { label: 'Rechazada', clase: 'badge-red' },
   expirada:  { label: 'Expirada', clase: 'badge-gray' },
@@ -237,6 +242,17 @@ function ModalDetalleInvitacion({ inv, esSuperAdmin, onCerrar, onResolver, resol
               fila('RVOE', d.rvoe),
               fila('Dirección', d.direccion)
             ),
+        // Antes el superadmin aprobaba a ciegas: no veía qué plan se pagó,
+        // cuánto, ni cuándo (invitaciones_listar.php no traía estas columnas
+        // aunque ya existían en BD desde el 10-sep).
+        (inv.plan_elegido || inv.monto_suscripcion)
+          ? _hPI('div', { key: 'pago' },
+              fila('Plan pagado', inv.plan_elegido ? (String(inv.plan_elegido).charAt(0).toUpperCase() + String(inv.plan_elegido).slice(1)) : null),
+              fila('Monto', inv.monto_suscripcion != null ? ('$' + Number(inv.monto_suscripcion).toLocaleString('es-MX', { minimumFractionDigits: 2 })) : null),
+              fila('Método de pago', inv.metodo_pago === 'TC' ? 'Tarjeta' : inv.metodo_pago === 'Efectivo' ? 'Efectivo' : inv.metodo_pago),
+              fila('Pagado el', inv.pagado_en ? String(inv.pagado_en).slice(0, 16).replace('T', ' ') : null)
+            )
+          : null,
         _hPI('div', { key: 'sep', style: { margin: '14px 0', borderTop: '1px solid var(--border-glow)' } }),
         fila('Contacto original', inv.contacto_nombre),
         fila('Correo de contacto', inv.contacto_email),
@@ -244,16 +260,21 @@ function ModalDetalleInvitacion({ inv, esSuperAdmin, onCerrar, onResolver, resol
         esSuperAdmin ? fila('Generado por', inv.creado_por_nombre ? (inv.creado_por_nombre + (inv.creado_por_rol ? ' · ' + inv.creado_por_rol : '')) : '—') : null,
         fila('Creada', String(inv.fecha_alta || '').slice(0, 10))
       ),
-      (esSuperAdmin && inv.estado === 'enviado')
+      // Antes solo se podía aprobar/rechazar en estado 'enviado', pero
+      // invitacion_resolver.php exige 'pagado' para APROBAR desde hace rato
+      // -- una invitación ya pagada no mostraba ningún botón aquí y solo se
+      // podía resolver desde views/Suscripciones.js. Rechazar sí se permite
+      // antes de pagar (para cerrar solicitudes basura/abandonadas).
+      (esSuperAdmin && ['pendiente', 'enviado', 'pagado'].includes(inv.estado))
         ? _hPI('div', { key: 'f', className: 'modal-footer' },
             _hPI('button', {
               key: 'r', className: 'btn btn-secondary', disabled: resolviendo,
               onClick: function () { onResolver(inv.id, 'rechazar'); }
             }, 'Rechazar'),
-            _hPI('button', {
+            inv.estado === 'pagado' ? _hPI('button', {
               key: 'a', className: 'btn btn-primary', disabled: resolviendo,
               onClick: function () { onResolver(inv.id, 'aprobar'); }
-            }, resolviendo ? 'Aprobando…' : 'Aprobar y crear colegio')
+            }, resolviendo ? 'Aprobando…' : 'Aprobar y crear colegio') : null
           )
         : null
     )
@@ -385,7 +406,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
                         _hPI('button', {
                           key: 'ver', className: 'btn btn-secondary btn-sm',
                           onClick: function () { setDetalleId(inv.id); }
-                        }, inv.estado === 'enviado' && esSuperAdmin ? 'Revisar' : 'Ver'),
+                        }, (inv.estado === 'enviado' || inv.estado === 'pagado') && esSuperAdmin ? 'Revisar' : 'Ver'),
                         inv.estado === 'pendiente' ? _hPI('button', {
                           key: 'regen', className: 'btn btn-secondary btn-sm',
                           disabled: regenerando === inv.id,

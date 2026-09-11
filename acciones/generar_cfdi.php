@@ -1,4 +1,11 @@
 <?php
+        // Blindaje (11-sep-2026): este archivo no tenía requerir_rol ni
+        // verificación de pertenencia de escuela -- cualquier sesión válida
+        // (incluida una familia, o un admin de OTRO colegio) podía timbrar
+        // el cobro de cualquier colegio, consumiendo timbres reales.
+        $rol_cfdi = $usuario_actual['rol'] ?? '';
+        requerir_rol($rol_cfdi, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para facturar.');
+
         $cobro_id    = $input['cobro_id']    ?? '';
         $rfc         = strtoupper(trim($input['rfc'] ?? ''));
         $razon       = strtoupper(trim($input['razon_social'] ?? ''));
@@ -6,6 +13,13 @@
         $regimen     = $input['regimen']     ?? '616';
         $email       = $input['email']       ?? '';
         $total       = floatval($input['total']   ?? 0);
+        // Antes se podía facturar sin cobro_id (un CFDI "suelto" sin dueño
+        // verificable) -- ningún consumidor real (Caja.js, Facturacion.js) lo
+        // hace así, y esa vía era justo la que impedía validar a qué escuela
+        // pertenecía el cobro.
+        if (!$cobro_id) {
+            respond(['success' => false, 'error' => 'cobro_id requerido']);
+        }
         // OJO: usar ?? no basta, porque si el frontend manda "" (cadena vacía),
         // ?? NO la reemplaza (solo actúa cuando es null/no existe), y Facturapi
         // rechaza con "items[0].product.description is not allowed to be empty".
@@ -30,7 +44,8 @@
         if ($cobro_id) {
             $stmtAl = $pdo->prepare(
                 "SELECT c.nombre AS alumno_nombre, c.curp, c.nivel_educativo_sat,
-                        e.rvoe AS escuela_rvoe, e.id AS escuela_id, e.es_plantel
+                        e.rvoe AS escuela_rvoe, e.id AS escuela_id, e.es_plantel,
+                        cb.escuela_id AS cobro_escuela_id, cb.factura AS cobro_ya_facturado
                  FROM cobros cb
                  JOIN clientes c ON c.id = cb.cliente_id
                  JOIN escuelas e ON e.id = c.escuela_id
@@ -38,6 +53,17 @@
             );
             $stmtAl->execute([$cobro_id]);
             $al = $stmtAl->fetch();
+            if (!$al) {
+                respond(['success' => false, 'error' => 'Cobro no encontrado.']);
+            }
+            // El check de sección de abajo (requerir_seccion_habilitada) solo
+            // valida si "facturacion"/"caja" está apagada para LA ESCUELA DEL
+            // COBRO -- nunca compara contra la escuela del usuario. Este es
+            // el check de pertenencia que faltaba.
+            requerir_escuela_propia($rol_cfdi, $al['cobro_escuela_id'], $usuario_actual, 'No tienes permiso para facturar cobros de otra escuela.');
+            if ($al['cobro_ya_facturado']) {
+                respond(['success' => false, 'error' => 'Este cobro ya fue facturado.']);
+            }
             if ($al) {
                 $rvoe = $al['escuela_rvoe'];
                 // Si el alumno pertenece a un plantel (escuelas.es_plantel=1),
@@ -168,7 +194,43 @@
                 }
                 // Marcar cobro como facturado y guardar el facturapi_id — sin
                 // esto no había forma de volver a descargar la factura después.
-                $pdo->prepare("UPDATE cobros SET factura = 1, facturapi_id = ? WHERE id = ?")->execute([$response_data['id'], $cobro_id]);
+                // El resto de estas columnas (11-sep-2026) es lo que antes solo
+                // vivía en localStorage del navegador: sin persistirlas aquí,
+                // la pestaña "Emitidas" quedaba vacía en cada recarga y el
+                // mismo cobro se podía volver a timbrar por error (ya pasó).
+                $pdo->prepare(
+                    "UPDATE cobros SET
+                        factura = 1,
+                        facturapi_id           = ?,
+                        factura_uuid           = ?,
+                        factura_serie          = ?,
+                        factura_folio          = ?,
+                        factura_fecha_timbrado = ?,
+                        factura_subtotal       = ?,
+                        factura_iva            = ?,
+                        factura_rfc_receptor   = ?,
+                        factura_razon_social   = ?,
+                        factura_uso_cfdi       = ?,
+                        factura_cp_receptor    = ?,
+                        factura_email_receptor = ?,
+                        factura_qr_url         = ?
+                     WHERE id = ?"
+                )->execute([
+                    $response_data['id'],
+                    $uuid,
+                    'F',
+                    $response_data['folio_number'] ?? '',
+                    $response_data['created_at'] ?? date('Y-m-d H:i:s'),
+                    $subtotal,
+                    round($total - $subtotal, 2),
+                    $rfc,
+                    $razon,
+                    $uso,
+                    $cp_receptor,
+                    $email ?: null,
+                    'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($response_data['verification_url'] ?? ''),
+                    $cobro_id,
+                ]);
             }
             log_api("generar_cfdi -> EXITOSO cobro:{$cobro_id} uuid:{$uuid}");
             respond([
@@ -191,6 +253,8 @@
         } else {
             // Error devuelto por Facturapi (ej. CP no coincide con RFC)
             $mensaje_error = $response_data['message'] ?? 'Error desconocido al timbrar';
-            log_api("ERROR Facturapi: " . $result);
+            // Bug previo: logueaba "$result", variable que no existe en este
+            // archivo -- un fallo de timbrado no dejaba ningún rastro útil.
+            log_api("ERROR Facturapi: http={$http_code} body=" . $res['body']);
             respond(['success' => false, 'error' => $mensaje_error]);
         }

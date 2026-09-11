@@ -283,6 +283,31 @@
             $c['total']   = floatval($c['total']);
             $c['factura'] = (bool)$c['factura'];
             $c['cliente'] = $c['cliente'] ?? 'Cliente general';
+            // El CFDI timbrado antes solo vivía en localStorage del navegador
+            // (se perdía en cada recarga -- la pestaña "Emitidas" siempre
+            // aparecía vacía). Se arma aquí con el MISMO shape que
+            // views/Facturacion.js ya esperaba de su construcción local, para
+            // no tener que tocar su lado de lectura.
+            if ($c['factura'] && !empty($c['factura_uuid'])) {
+                $c['factura_cfdi'] = [
+                    'uuid'           => $c['factura_uuid'],
+                    'folio_fiscal'   => $c['factura_uuid'],
+                    'serie'          => $c['factura_serie'],
+                    'folio'          => $c['factura_folio'],
+                    'fecha_timbrado' => $c['factura_fecha_timbrado'],
+                    'subtotal'       => floatval($c['factura_subtotal']),
+                    'iva'            => floatval($c['factura_iva']),
+                    'total'          => $c['total'],
+                    'rfc_receptor'   => $c['factura_rfc_receptor'],
+                    'razon'          => $c['factura_razon_social'],
+                    'uso_cfdi'       => $c['factura_uso_cfdi'],
+                    'cp_receptor'    => $c['factura_cp_receptor'],
+                    'email'          => $c['factura_email_receptor'],
+                    'xml'            => '',
+                    'qr_url'         => $c['factura_qr_url'],
+                    'facturapi_id'   => $c['facturapi_id'],
+                ];
+            }
             return $c;
         }, $cobros_raw);
         // Adjuntar los conceptos (cobro_items) de cada cobro en UNA sola query
