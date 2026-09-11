@@ -224,7 +224,7 @@ define('UPLOADS_EXT_COMPROBANTE', ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
 // acciones/descargar_documento_escuela.php, con autenticación y
 // verificación de pertenencia, igual que ya hace descargar_cfdi.php.
 define('UPLOADS_PRIVADOS_DIR_ABS', __DIR__ . '/uploads_privados');
-define('UPLOADS_MAX_BYTES_DOCUMENTO', 8 * 1024 * 1024); // 8 MB
+define('UPLOADS_MAX_BYTES_DOCUMENTO', 10 * 1024 * 1024); // 10 MB -- mismo tope que pide el formulario de alta de comercio de Cobroscontarjeta.com
 define('UPLOADS_EXT_DOCUMENTO', ['jpg', 'jpeg', 'png', 'pdf']);
 
 define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');

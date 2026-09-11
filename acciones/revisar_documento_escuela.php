@@ -6,10 +6,10 @@
 // queda en superadmin). Recalcula escuelas.documentacion_estado a partir del
 // estado real de TODOS los documentos de la escuela, no solo este.
 
-// Mismos tipos base + los 2 exclusivos de persona moral que ya usan
-// subir_documento_escuela.php y views/MiCuenta.js.
-$REQUERIDOS_BASE  = ['ine_representante', 'constancia_situacion_fiscal', 'comprobante_domicilio'];
-$REQUERIDOS_MORAL = ['acta_constitutiva', 'poder_notarial'];
+// Los 5 documentos del formulario de alta de comercio de
+// Cobroscontarjeta.com -- los mismos para persona física o moral (el
+// formulario no distingue), ver subir_documento_escuela.php.
+$TIPOS_REQUERIDOS = ['identificacion_frente', 'identificacion_reverso', 'estado_cuenta_bancario', 'comprobante_domicilio', 'constancia_fiscal'];
 
 requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede revisar documentos.');
 
@@ -34,15 +34,11 @@ $pdo->prepare(
 
 // Blindaje (11-sep-2026, hallado en revisión adversarial): antes "todos
 // aprobados" significaba "todos los que EXISTAN en escuela_documentos" --
-// una escuela que solo subiera y aprobara UN documento (de los 3-5
-// requeridos según tipo_persona) ya quedaba en 'aprobada'. Ahora se exige
-// explícitamente que cada tipo REQUERIDO tenga una fila con estado
-// 'aprobado' (subir_documento_escuela.php ya garantiza como máximo una fila
-// por (escuela_id, tipo) gracias al upsert).
-$stmtEsc = $pdo->prepare("SELECT tipo_persona FROM escuelas WHERE id = ?");
-$stmtEsc->execute([$escuela_id]);
-$tipoPersonaEsc = $stmtEsc->fetchColumn();
-$tiposRequeridos = array_merge($REQUERIDOS_BASE, $tipoPersonaEsc === 'moral' ? $REQUERIDOS_MORAL : []);
+// una escuela que solo subiera y aprobara UN documento (de los 5 requeridos)
+// ya quedaba en 'aprobada'. Ahora se exige explícitamente que cada uno de
+// los 5 tipos tenga una fila con estado 'aprobado' (subir_documento_escuela.php
+// ya garantiza como máximo una fila por (escuela_id, tipo) gracias al upsert).
+$tiposRequeridos = $TIPOS_REQUERIDOS;
 
 $stmtTodos = $pdo->prepare("SELECT tipo, estado FROM escuela_documentos WHERE escuela_id = ?");
 $stmtTodos->execute([$escuela_id]);

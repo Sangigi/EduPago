@@ -8,7 +8,10 @@
 // ver lib/uploads.php y config.php) — se descarga solo por
 // descargar_documento_escuela.php, con autenticación.
 
-$TIPOS_DOCUMENTO = ['ine_representante', 'constancia_situacion_fiscal', 'comprobante_domicilio', 'acta_constitutiva', 'poder_notarial'];
+// Los 5 documentos exactos que pide el formulario de alta de comercio de
+// Cobroscontarjeta.com (11-sep-2026) -- reemplazan el catálogo anterior
+// (inventado antes de tener el formulario real del proveedor).
+$TIPOS_DOCUMENTO = ['identificacion_frente', 'identificacion_reverso', 'estado_cuenta_bancario', 'comprobante_domicilio', 'constancia_fiscal'];
 
 $rol = $usuario_actual['rol'] ?? '';
 requerir_rol($rol, ['superadmin', 'admin'], 'No tienes permiso para subir documentos.');

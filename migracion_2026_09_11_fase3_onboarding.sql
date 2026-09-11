@@ -31,7 +31,7 @@ ALTER TABLE escuelas
 CREATE TABLE escuela_documentos (
   id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
   escuela_id      INT UNSIGNED NOT NULL,
-  tipo            VARCHAR(40) NOT NULL COMMENT 'ine_representante | constancia_situacion_fiscal | comprobante_domicilio | acta_constitutiva | poder_notarial',
+  tipo            VARCHAR(40) NOT NULL COMMENT 'identificacion_frente | identificacion_reverso | estado_cuenta_bancario | comprobante_domicilio | constancia_fiscal (ver acciones/subir_documento_escuela.php)',
   ruta_archivo    VARCHAR(500) NOT NULL,
   nombre_original VARCHAR(255) NULL DEFAULT NULL,
   mime_real       VARCHAR(100) NULL DEFAULT NULL,
