@@ -240,6 +240,15 @@ function UsuariosFormModal({
                       children: "Informativa — un distribuidor no pertenece a ninguna escuela"
                     }, void 0, false)
                   ]
+                }, void 0, true) : form.rol === 'contador' ? _jsxDEV("div", {
+                  className: "form-group",
+                  children: [
+                    _jsxDEV("label", { className: "form-label", children: "Escuela asignada (ninguna)" }, void 0, false),
+                    _jsxDEV("div", {
+                      style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 4 },
+                      children: "Informativa — un contador revisa documentos de CUALQUIER escuela, no pertenece a una sola."
+                    }, void 0, false)
+                  ]
                 }, void 0, true) : _jsxDEV("div", {
                   className: "form-group",
                   children: [
@@ -511,7 +520,10 @@ function Usuarios({ user, data }) {
     admin:        { label: 'Admin',        icon: 'escuelas', color: 'var(--accent)', bg: 'var(--accent-glow)', badge: 'badge-blue'   },
     cajero:       { label: 'Cajero',       icon: 'cobros',  color: 'var(--green)', bg: 'var(--green-glow)',    badge: 'badge-green'  },
     familia:      { label: 'Familia',      icon: 'home',    color: '#a855f7',      bg: 'rgba(168,85,247,.15)', badge: 'badge-purple' },
-    distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   }
+    distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   },
+    // Revisa documentos fiscales y datos de alta de comercio de cualquier
+    // escuela (11-sep-2026) -- sin los demás poderes de superadmin.
+    contador:     { label: 'Contador',     icon: 'facturacion2', color: '#0891b2', bg: 'rgba(8,145,178,.15)', badge: 'badge-blue'   }
   };
 
   // Crea una familia sin salir del modal de "nuevo usuario" — antes había
@@ -719,7 +731,7 @@ function Usuarios({ user, data }) {
           _jsxDEV("div", {
             style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' },
             children: [
-              ['todos', ...(esSuper ? ['superadmin'] : []), 'admin', 'cajero', 'familia', 'distribuidor'].map(r =>
+              ['todos', ...(esSuper ? ['superadmin'] : []), 'admin', 'cajero', 'familia', 'distribuidor', 'contador'].map(r =>
                 _jsxDEV("button", {
                   className: `badge ${filtroRol === r ? ROL_INFO[r]?.badge || 'badge-blue' : 'badge-gray'}`,
                   style: {
@@ -885,7 +897,8 @@ function Usuarios({ user, data }) {
                 { rol: 'admin',      desc: 'Gestiona cajeros y familias asignados a su mismo plantel escolar.' },
                 { rol: 'cajero',     desc: 'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.' },
                 { rol: 'familia',    desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' },
-                { rol: 'distribuidor', desc: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.' }
+                { rol: 'distribuidor', desc: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.' },
+                { rol: 'contador', desc: 'Revisa documentos fiscales y datos de alta de comercio de cualquier escuela. Sin los demás poderes de superadmin.' }
               ].filter(item => item.rol !== 'superadmin' || user?.rol === 'superadmin').map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [

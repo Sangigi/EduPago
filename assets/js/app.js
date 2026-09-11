@@ -1177,6 +1177,33 @@ function App() {
 
   }
 
+  // * PANEL CONTADOR (11-sep-2026) * Mismo patron que Distribuidor: no
+  // depende de cargar_datos (contador no tiene escuela_id propia, revisa
+  // CUALQUIER escuela) -- Contador.js trae su propia data via
+  // action=contador_listar_escuelas.
+
+  if (user.rol === 'contador') {
+
+    return _jsxDEV(
+
+      Contador,
+
+      {
+
+        user: user,
+
+        onLogout: handleLogout
+
+      },
+
+      void 0,
+
+      false
+
+    );
+
+  }
+
 
 
 

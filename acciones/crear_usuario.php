@@ -7,7 +7,12 @@
         $esc_id    = intval($input['escuela_id'] ?? 0) ?: null;
         $fam_id    = intval($input['familia_id'] ?? 0) ?: null;
         $roles_validos = ['admin','cajero','familia'];
-        if ($rol_actual === 'superadmin') { $roles_validos[] = 'superadmin'; $roles_validos[] = 'distribuidor'; }
+        // 'contador' (11-sep-2026): revisa documentos fiscales y datos de
+        // pago de CUALQUIER escuela (ver revisar_documento_escuela.php y
+        // demás), pero no tiene el resto de los poderes de superadmin
+        // (no edita planes, no activa demo, no ve reportes globales). Solo
+        // superadmin puede crear esta cuenta, igual que distribuidor.
+        if ($rol_actual === 'superadmin') { $roles_validos[] = 'superadmin'; $roles_validos[] = 'distribuidor'; $roles_validos[] = 'contador'; }
         if (!$nombre || !$email || !in_array($rol, $roles_validos)) {
             respond(['success' => false, 'error' => 'Datos incompletos o rol no permitido']);
         }
@@ -27,7 +32,7 @@
             $zNom->execute([$zona_id]);
             $zona = $zNom->fetchColumn() ?: $zona;
         }
-        if ($rol === 'distribuidor') { $esc_id = null; $fam_id = null; }
+        if ($rol === 'distribuidor' || $rol === 'contador') { $esc_id = null; $fam_id = null; }
         // Verificar email único
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);

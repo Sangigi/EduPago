@@ -3,10 +3,11 @@
 //
 // Asigna el ID externo que genera Savala a la cuenta admin de un colegio
 // (usuarios.id_externo — se puede usar para iniciar sesión además del
-// correo, ver acciones/login.php). Solo superadmin. No reemplaza el correo:
-// se agrega como una llave adicional.
+// correo, ver acciones/login.php). Superadmin o contador (quien completa la
+// revisión de documentos es quien lo asigna). No reemplaza el correo: se
+// agrega como una llave adicional.
 
-requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede asignar el ID externo.');
+requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'contador'], 'No tienes permiso para asignar el ID externo.');
 
 $usuario_id = intval($input['usuario_id'] ?? 0);
 $id_externo = trim($input['id_externo'] ?? '');

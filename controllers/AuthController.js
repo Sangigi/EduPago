@@ -81,7 +81,7 @@ const AuthController = (() => {
 
   // Roles que puede crear según jerarquía
   function rolesQuePuedeCriar(user) {
-    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia','distribuidor'];
+    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia','distribuidor','contador'];
     if (user?.rol === 'admin')      return ['cajero','familia'];
     return [];
   }

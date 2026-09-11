@@ -1,17 +1,17 @@
 <?php
 // acciones/revisar_documento_escuela.php
 //
-// Aprueba o rechaza un documento fiscal ya subido. Solo superadmin (o quien
-// haga las veces de contador — hoy no existe ese rol, así que por ahora
-// queda en superadmin). Recalcula escuelas.documentacion_estado a partir del
-// estado real de TODOS los documentos de la escuela, no solo este.
+// Aprueba o rechaza un documento fiscal ya subido. Superadmin o contador
+// (rol dedicado a esta revisión, sin los demás poderes de superadmin).
+// Recalcula escuelas.documentacion_estado a partir del estado real de TODOS
+// los documentos de la escuela, no solo este.
 
 // Los 5 documentos del formulario de alta de comercio de
 // Cobroscontarjeta.com -- los mismos para persona física o moral (el
 // formulario no distingue), ver subir_documento_escuela.php.
 $TIPOS_REQUERIDOS = ['identificacion_frente', 'identificacion_reverso', 'estado_cuenta_bancario', 'comprobante_domicilio', 'constancia_fiscal'];
 
-requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede revisar documentos.');
+requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'contador'], 'No tienes permiso para revisar documentos.');
 
 $documento_id = intval($input['documento_id'] ?? 0);
 $accion       = trim($input['accion'] ?? ''); // 'aprobar' | 'rechazar'
