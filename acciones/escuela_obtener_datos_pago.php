@@ -24,6 +24,21 @@ $stmt = $pdo->prepare("SELECT * FROM escuela_datos_pago WHERE escuela_id = ?");
 $stmt->execute([$escuela_id]);
 $datos = $stmt->fetch();
 
+// Blindaje: rfc y cp_fiscal se GUARDAN en escuelas (no duplicados aquí,
+// escuela_guardar_datos_pago.php ya los enruta ahí), pero este SELECT nunca
+// los devolvía de vuelta -- el formulario los guardaba bien, pero al
+// recargar la pantalla el campo se veía vacío porque nada los traía de
+// vuelta desde escuelas. Se mezclan aquí para que MiCuenta.js los pueda
+// prellenar igual que el resto de los campos de esta misma tabla.
+$stmtRfcCp = $pdo->prepare("SELECT rfc, cp_fiscal FROM escuelas WHERE id = ?");
+$stmtRfcCp->execute([$escuela_id]);
+$rfcCp = $stmtRfcCp->fetch();
+if ($rfcCp) {
+    if (!$datos) $datos = [];
+    $datos['rfc'] = $rfcCp['rfc'];
+    $datos['cp'] = $rfcCp['cp_fiscal'];
+}
+
 // El admin de la escuela va en la misma respuesta -- para 'contador', es
 // justo a quien se le asigna el ID externo de Savala al terminar la
 // revisión (ver asignar_id_externo.php). Evita un endpoint aparte solo para

@@ -46,7 +46,12 @@ function Contador({ user, onLogout }) {
   const [escuelas, setEscuelas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [errLista, setErrLista] = useState(null);
-  const [debugCruda, setDebugCruda] = useState(null);
+  // Por defecto solo se muestra lo que de verdad requiere atención (en
+  // revisión / rechazadas) -- antes se volcaba TODA la lista de escuelas de
+  // una vez, sin filtro, mezclando las que ya están aprobadas o ni siquiera
+  // han subido nada con las que realmente necesitan que alguien las revise.
+  const [filtro, setFiltro] = useState('pendientes');
+  const [busqueda, setBusqueda] = useState('');
   const [escSel, setEscSel] = useState(null);
   const [documentos, setDocumentos] = useState([]);
   const [datosPago, setDatosPago] = useState(null);
@@ -72,11 +77,9 @@ function Contador({ user, onLogout }) {
     setErrLista(null);
     try {
       const res = await apiPost('contador_listar_escuelas', {});
-      setDebugCruda(JSON.stringify(res));
       if (res.success) setEscuelas(res.escuelas || []);
       else setErrLista(res.error || 'No se pudo cargar la lista de colegios.');
     } catch (e) {
-      setDebugCruda('(no llegó a responder JSON: ' + e.message + ')');
       setErrLista('Error de conexión: ' + e.message);
     }
     setCargando(false);
@@ -153,6 +156,20 @@ function Contador({ user, onLogout }) {
 
   const docDe = tipo => documentos.find(d => d.tipo === tipo);
 
+  const CT_FILTROS = [
+    { id: 'pendientes', label: 'Pendientes de revisar', test: e => e.documentacion_estado === 'en_revision' || e.documentacion_estado === 'rechazada' },
+    { id: 'en_revision', label: 'En revisión', test: e => e.documentacion_estado === 'en_revision' },
+    { id: 'rechazada', label: 'Rechazadas', test: e => e.documentacion_estado === 'rechazada' },
+    { id: 'sin_enviar', label: 'Sin documentos', test: e => e.documentacion_estado === 'sin_enviar' },
+    { id: 'aprobada', label: 'Aprobadas', test: e => e.documentacion_estado === 'aprobada' },
+    { id: 'todas', label: 'Todas', test: () => true },
+  ];
+  const filtroActivo = CT_FILTROS.find(f => f.id === filtro) || CT_FILTROS[0];
+  const q = busqueda.trim().toLowerCase();
+  const escuelasFiltradas = escuelas
+    .filter(filtroActivo.test)
+    .filter(e => !q || e.nombre.toLowerCase().includes(q) || (e.clave || '').toLowerCase().includes(q));
+
   return _jsxDEV('div', {
     className: 'view-contador',
     style: { maxWidth: 960, margin: '0 auto', padding: 24 },
@@ -176,18 +193,27 @@ function Contador({ user, onLogout }) {
               ]
             }, 'h')
           }, 'ch'),
+          _jsxDEV('div', {
+            style: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 },
+            children: [
+              ...CT_FILTROS.map(f => _jsxDEV('button', {
+                className: 'btn btn-sm ' + (filtro === f.id ? 'btn-primary' : 'btn-secondary'),
+                onClick: () => setFiltro(f.id),
+                children: f.label + ' (' + escuelas.filter(f.test).length + ')',
+              }, f.id)),
+              _jsxDEV('input', {
+                className: 'form-input',
+                style: { marginLeft: 'auto', maxWidth: 220 },
+                placeholder: 'Buscar colegio o clave…',
+                value: busqueda,
+                onChange: e => setBusqueda(e.target.value),
+              }, 'buscar'),
+            ]
+          }, 'filtros'),
           errLista ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--red)', marginBottom: 12 }, children: errLista }, 'errlista') : null,
-          // Diagnóstico temporal (11-sep-2026): muestra la respuesta cruda del
-          // servidor directamente en pantalla -- para no depender de guiar a
-          // alguien no técnico por las herramientas de red del navegador.
-          // Quitar una vez que el panel de contador quede confirmado
-          // funcionando en producción.
-          debugCruda ? _jsxDEV('div', {
-            style: { fontSize: 11, color: 'var(--ink-4)', background: 'var(--glass-light)', padding: '8px 10px', borderRadius: 6, marginBottom: 12, wordBreak: 'break-all', userSelect: 'all', fontFamily: 'monospace' },
-            children: 'Diagnóstico (selecciona y copia este texto): ' + debugCruda
-          }, 'debug') : null,
           cargando ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)' }, children: 'Cargando…' }, 'load') :
             errLista ? null :
+            escuelasFiltradas.length === 0 ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)', padding: '18px 4px' }, children: 'No hay colegios que coincidan con este filtro.' }, 'vacio') :
             _jsxDEV('table', {
               className: 'data-table',
               children: [
@@ -196,7 +222,7 @@ function Contador({ user, onLogout }) {
                   _jsxDEV('th', { children: 'Persona' }, 3), _jsxDEV('th', { children: 'Estado documentación' }, 4), _jsxDEV('th', { children: '' }, 5)
                 ] }, void 0, true) }, 'thead'),
                 _jsxDEV('tbody', {
-                  children: escuelas.map(esc => {
+                  children: escuelasFiltradas.map(esc => {
                     const info = CT_ESTADO_ESCUELA[esc.documentacion_estado] || CT_ESTADO_ESCUELA.sin_enviar;
                     return _jsxDEV('tr', {
                       children: [
