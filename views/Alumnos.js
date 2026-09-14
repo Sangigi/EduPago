@@ -431,7 +431,7 @@ function Alumnos({
             ]
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
-          style: { display: 'flex', gap: 8 },
+          style: { display: 'flex', gap: 8, flexWrap: 'wrap' },
           children: [_jsxDEV("button", {
             className: "btn btn-secondary",
             disabled: !escuela_id,
@@ -766,6 +766,7 @@ function Alumnos({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
+          flexWrap: 'wrap',
           gap: 10,
           marginTop: 12,
           fontSize: 13,
@@ -890,7 +891,7 @@ function Alumnos({
           }, void 0, true), _jsxDEV("div", {
             style: {
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
               gap: 12
             },
             children: [_jsxDEV("div", {
@@ -945,7 +946,7 @@ function Alumnos({
           }, void 0, true), _jsxDEV("div", {
             style: {
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
               gap: 12
             },
             children: [_jsxDEV("div", {
@@ -1031,7 +1032,7 @@ function Alumnos({
             }, void 0, false), _jsxDEV("div", {
               style: {
                 display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
                 gap: 12
               },
               children: [_jsxDEV("div", {
