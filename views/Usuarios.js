@@ -523,7 +523,7 @@ function Usuarios({ user, data }) {
     distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   },
     // Revisa documentos fiscales y datos de alta de comercio de cualquier
     // escuela (11-sep-2026) -- sin los demás poderes de superadmin.
-    contador:     { label: 'Contador',     icon: 'facturacion2', color: '#0891b2', bg: 'rgba(8,145,178,.15)', badge: 'badge-blue'   }
+    contador:     { label: 'Contador',     icon: 'shield', color: '#0891b2', bg: 'rgba(8,145,178,.15)', badge: 'badge-blue'   }
   };
 
   // Crea una familia sin salir del modal de "nuevo usuario" — antes había
