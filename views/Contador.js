@@ -46,6 +46,7 @@ function Contador({ user, onLogout }) {
   const [escuelas, setEscuelas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [errLista, setErrLista] = useState(null);
+  const [debugCruda, setDebugCruda] = useState(null);
   const [escSel, setEscSel] = useState(null);
   const [documentos, setDocumentos] = useState([]);
   const [datosPago, setDatosPago] = useState(null);
@@ -71,9 +72,11 @@ function Contador({ user, onLogout }) {
     setErrLista(null);
     try {
       const res = await apiPost('contador_listar_escuelas', {});
+      setDebugCruda(JSON.stringify(res));
       if (res.success) setEscuelas(res.escuelas || []);
       else setErrLista(res.error || 'No se pudo cargar la lista de colegios.');
     } catch (e) {
+      setDebugCruda('(no llegó a responder JSON: ' + e.message + ')');
       setErrLista('Error de conexión: ' + e.message);
     }
     setCargando(false);
@@ -174,25 +177,34 @@ function Contador({ user, onLogout }) {
             }, 'h')
           }, 'ch'),
           errLista ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--red)', marginBottom: 12 }, children: errLista }, 'errlista') : null,
+          // Diagnóstico temporal (11-sep-2026): muestra la respuesta cruda del
+          // servidor directamente en pantalla -- para no depender de guiar a
+          // alguien no técnico por las herramientas de red del navegador.
+          // Quitar una vez que el panel de contador quede confirmado
+          // funcionando en producción.
+          debugCruda ? _jsxDEV('div', {
+            style: { fontSize: 11, color: 'var(--ink-4)', background: 'var(--glass-light)', padding: '8px 10px', borderRadius: 6, marginBottom: 12, wordBreak: 'break-all', userSelect: 'all', fontFamily: 'monospace' },
+            children: 'Diagnóstico (selecciona y copia este texto): ' + debugCruda
+          }, 'debug') : null,
           cargando ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)' }, children: 'Cargando…' }, 'load') :
             errLista ? null :
             _jsxDEV('table', {
               className: 'data-table',
               children: [
                 _jsxDEV('thead', { children: _jsxDEV('tr', { children: [
-                  _jsxDEV('th', {}, 'Colegio'), _jsxDEV('th', {}, 'Clave'),
-                  _jsxDEV('th', {}, 'Persona'), _jsxDEV('th', {}, 'Estado documentación'), _jsxDEV('th', {}, '')
+                  _jsxDEV('th', { children: 'Colegio' }, 1), _jsxDEV('th', { children: 'Clave' }, 2),
+                  _jsxDEV('th', { children: 'Persona' }, 3), _jsxDEV('th', { children: 'Estado documentación' }, 4), _jsxDEV('th', { children: '' }, 5)
                 ] }, void 0, true) }, 'thead'),
                 _jsxDEV('tbody', {
                   children: escuelas.map(esc => {
                     const info = CT_ESTADO_ESCUELA[esc.documentacion_estado] || CT_ESTADO_ESCUELA.sin_enviar;
                     return _jsxDEV('tr', {
                       children: [
-                        _jsxDEV('td', {}, esc.nombre),
-                        _jsxDEV('td', {}, esc.clave),
-                        _jsxDEV('td', {}, esc.tipo_persona === 'moral' ? 'Moral' : esc.tipo_persona === 'fisica' ? 'Física' : '—'),
-                        _jsxDEV('td', {}, _jsxDEV('span', { className: 'badge ' + info.clase, children: info.label }, void 0, false)),
-                        _jsxDEV('td', {}, _jsxDEV('button', { className: 'btn btn-secondary btn-sm', onClick: () => abrirEscuela(esc), children: 'Revisar' }, void 0, false)),
+                        _jsxDEV('td', { children: esc.nombre }, 1),
+                        _jsxDEV('td', { children: esc.clave }, 2),
+                        _jsxDEV('td', { children: esc.tipo_persona === 'moral' ? 'Moral' : esc.tipo_persona === 'fisica' ? 'Física' : '—' }, 3),
+                        _jsxDEV('td', { children: _jsxDEV('span', { className: 'badge ' + info.clase, children: info.label }, void 0, false) }, 4),
+                        _jsxDEV('td', { children: _jsxDEV('button', { className: 'btn btn-secondary btn-sm', onClick: () => abrirEscuela(esc), children: 'Revisar' }, void 0, false) }, 5),
                       ]
                     }, esc.id, true);
                   })
