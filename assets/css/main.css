@@ -468,6 +468,14 @@ html, body {
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px; margin-bottom:24px; }
 
 .dash-split-grid { display:grid; grid-template-columns:1fr 320px; gap:20px; }
+/* Por default un elemento de grid no se encoge por debajo del ancho mínimo
+   de su contenido (min-width:auto) -- la tabla de "Cobros recientes" y la
+   fila dona+leyenda de "Por método de pago" podían así forzar sus columnas
+   (incluidos los 320px fijos) a crecer más de la cuenta y desbordar toda la
+   fila. min-width:0 deja que .table-wrap (que ya tiene su propio scroll
+   horizontal) y el flex-wrap de la dona hagan su trabajo dentro del ancho
+   real de la columna, en vez de ensancharla. */
+.dash-split-grid > .card { min-width:0; }
 
 .stat-card {
 
