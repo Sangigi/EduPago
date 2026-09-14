@@ -799,6 +799,8 @@ function Familias({
 
               gap: 12,
 
+              flexWrap: 'wrap',
+
               padding: '13px 16px',
 
               cursor: 'pointer',
@@ -944,6 +946,8 @@ function Familias({
                 display: 'flex',
 
                 gap: 6,
+
+                flexWrap: 'wrap',
 
                 flexShrink: 0
 
@@ -1108,6 +1112,8 @@ function Familias({
                 alignItems: 'center',
 
                 gap: 12,
+
+                flexWrap: 'wrap',
 
                 padding: '11px 0',
 
@@ -1283,6 +1289,8 @@ function Familias({
 
                       alignItems: 'center',
 
+                      flexWrap: 'wrap',
+
                       gap: 5,
 
                       color: 'var(--red)'
@@ -1314,6 +1322,8 @@ function Familias({
                       display: 'inline-flex',
 
                       alignItems: 'center',
+
+                      flexWrap: 'wrap',
 
                       gap: 5
 
@@ -1765,7 +1775,7 @@ function Familias({
 
               display: 'grid',
 
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
 
               gap: 12
 
@@ -1916,7 +1926,7 @@ function Familias({
 
                 display: 'grid',
 
-                gridTemplateColumns: '1fr 1fr',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
 
                 gap: 12
 
@@ -2482,7 +2492,7 @@ function Familias({
 
               display: 'grid',
 
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
 
               gap: 12
 
@@ -2592,7 +2602,7 @@ function Familias({
 
               display: 'grid',
 
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
 
               gap: 12
 
