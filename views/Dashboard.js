@@ -416,7 +416,7 @@ function Dashboard({
 
           display: 'grid',
 
-          gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))',
+          gridTemplateColumns: 'repeat(auto-fill,minmax(min(300px,100%),1fr))',
 
           gap: 16
 
@@ -846,7 +846,7 @@ function Dashboard({
 
           display: 'grid',
 
-          gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
+          gridTemplateColumns: 'repeat(auto-fill,minmax(min(320px,100%),1fr))',
 
           gap: 12
 
