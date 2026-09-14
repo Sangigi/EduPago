@@ -786,7 +786,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .pos-header { display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
 
-.pos-products-grid { flex:1; overflow-y:auto; padding:14px; display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; align-content:start; }
+.pos-products-grid { flex:1; min-height:0; overflow-y:auto; padding:14px; display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; align-content:start; }
 
 
 
@@ -832,7 +832,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .cart-customer:hover { background:var(--glass-hover); border-color:var(--accent); }
 
-.cart-items { flex:1; overflow-y:auto; padding:10px 12px; }
+.cart-items { flex:1; min-height:0; overflow-y:auto; padding:10px 12px; }
 
 .cart-item { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:var(--radius-sm); border-bottom:1px solid var(--border-glow); }
 
@@ -1283,7 +1283,14 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   .card-header { flex-wrap: wrap; }
 
-  .pos-cart { max-height: none; }
+  /* Antes se quitaba el tope de altura aquí (max-height: none), así que en
+     un carrito con varios conceptos el bloque de cobro (totales, métodos de
+     pago y el botón "Cobrar") quedaba muy abajo, después de desplazarse por
+     toda la lista de conceptos y de artículos del carrito. Con el bug de
+     flexbox de cart-items ya corregido (min-height:0 arriba), un tope de
+     altura vuelve a ser seguro: solo la lista de artículos hace scroll
+     interno y el botón de cobrar queda siempre visible en pantalla. */
+  .pos-cart { max-height: 56vh; }
 
 }
 
