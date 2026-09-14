@@ -259,7 +259,7 @@ function Contador({ user, onLogout }) {
                     ]
                   }, key, true))
                 }, 'pago'),
-                _jsxDEV('div', { style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8, textTransform: 'uppercase' }, children: 'ID externo (Savala)' }, 'th3'),
+                _jsxDEV('div', { style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8, textTransform: 'uppercase' }, children: 'ID Escuela' }, 'th3'),
                 adminEsc ? _jsxDEV('div', {
                   style: { display: 'flex', gap: 8, alignItems: 'center' },
                   children: [
