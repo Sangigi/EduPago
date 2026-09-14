@@ -264,7 +264,7 @@ function Contador({ user, onLogout }) {
                   style: { display: 'flex', gap: 8, alignItems: 'center' },
                   children: [
                     _jsxDEV('span', { style: { fontSize: 12, color: 'var(--ink-3)' }, children: adminEsc.nombre + ' (' + adminEsc.email + ')' }, 1),
-                    _jsxDEV('input', { className: 'form-input', style: { maxWidth: 160 }, value: idExterno, onChange: e => setIdExterno(e.target.value), placeholder: 'ID de Savala' }, 2),
+                    _jsxDEV('input', { className: 'form-input', style: { maxWidth: 160 }, value: idExterno, onChange: e => setIdExterno(e.target.value), placeholder: 'ID Escuela XXXX' }, 2),
                     _jsxDEV('button', { className: 'btn btn-primary btn-sm', disabled: guardandoId || !idExterno.trim(), onClick: guardarIdExterno, children: guardandoId ? 'Guardando…' : 'Asignar' }, 3),
                   ]
                 }, 'idext') : _jsxDEV('div', { style: { fontSize: 12, color: 'var(--ink-4)' }, children: 'Esta escuela no tiene una cuenta admin activa.' }, 'noadmin'),
