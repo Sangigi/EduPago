@@ -1560,6 +1560,18 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .pf-header .badge { display:none; }
 }
 
+/* ── Familias: fila de familia y fila de hijo ──
+   Cada fila agrupa [avatar+nombre] aparte de [saldo/badge/botones] en dos
+   bloques flex. En escritorio ambos caben en una sola línea. En móvil, sin
+   esta regla, el bloque de acciones (que no se puede encoger) seguía
+   compitiendo por la misma línea que el nombre, aplastándolo palabra por
+   palabra -- aquí se fuerza a bajar a su propia línea de ancho completo, y
+   ya con ese ancho real disponible, sus propios botones envuelven bien
+   entre ellos en vez de recortarse contra el borde de la tarjeta. */
+@media (max-width: 640px) {
+  .fam-row-actions { flex-basis: 100%; justify-content: flex-end; margin-top: 4px; }
+}
+
 /* ── Portal familiar: las pestañas Facturas y Configuración quedan como
    hermanas de .pf-body en el árbol, así que se salían del contenedor.
    Esta regla les da el mismo ancho y sangrado sin reestructurar el JSX. ── */

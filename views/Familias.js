@@ -817,6 +817,10 @@ function Familias({
 
             children: [_jsxDEV("div", {
 
+              style: { display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 170 },
+
+              children: [_jsxDEV("div", {
+
               style: {
 
                 width: 40,
@@ -901,7 +905,15 @@ function Familias({
 
               }, void 0, true)]
 
-            }, void 0, true), saldo > 0 && _jsxDEV("span", {
+            }, void 0, true)]
+
+            }, void 0, true), _jsxDEV("div", {
+
+              className: 'fam-row-actions',
+
+              style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+
+              children: [saldo > 0 && _jsxDEV("span", {
 
               style: {
 
@@ -947,9 +959,7 @@ function Familias({
 
                 gap: 6,
 
-                flexWrap: 'wrap',
-
-                flexShrink: 0
+                flexWrap: 'wrap'
 
               },
 
@@ -1079,6 +1089,8 @@ function Familias({
 
             }, void 0, false)]
 
+            }, void 0, true)]
+
           }, void 0, true), isOpen && _jsxDEV("div", {
 
             style: {
@@ -1122,6 +1134,10 @@ function Familias({
               },
 
               children: [_jsxDEV("div", {
+
+                style: { display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 140 },
+
+                children: [_jsxDEV("div", {
 
                 style: {
 
@@ -1355,7 +1371,15 @@ function Familias({
 
                 }, void 0, true)]
 
-              }, void 0, true), hijo.saldo_pendiente > 0 ? _jsxDEV("span", {
+              }, void 0, true)]
+
+              }, void 0, true), _jsxDEV("div", {
+
+                className: 'fam-row-actions',
+
+                style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+
+                children: [hijo.saldo_pendiente > 0 ? _jsxDEV("span", {
 
                 style: {
 
@@ -1500,6 +1524,8 @@ function Familias({
                 }, void 0, false)
 
               }, void 0, false)]
+
+              }, void 0, true)]
 
             }, hijo.id, true))]
 
