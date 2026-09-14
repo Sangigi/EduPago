@@ -266,7 +266,7 @@ function SuperReportes({
 
         display: 'grid',
 
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))',
 
         gap: 20,
 
@@ -504,7 +504,9 @@ function SuperReportes({
 
             display: 'flex',
 
-            gap: 8
+            gap: 8,
+
+            flexWrap: 'wrap'
 
           },
 

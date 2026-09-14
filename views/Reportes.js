@@ -232,7 +232,7 @@ function Reportes({
     }, void 0, true), _jsxDEV("div", {
       style: {
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))',
         gap: 20,
         marginBottom: 20
       },
