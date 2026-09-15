@@ -53,10 +53,20 @@ function generar_clabe_pagadetodo(PDO $pdo, $alumno_id, string $matricula, strin
         'ExpirationDate' => date('Y-m-d', strtotime('+' . SPEI_CLABE_EXPIRACION_DIAS . ' days')),
     ];
     $res = curl_post(PDT_URL_CLABE, $payload);
-    if ($res['error']) return ['success' => false, 'error' => 'Error de red: ' . $res['error']];
+    if ($res['error']) {
+        log_api("generar_clabe_pagadetodo ERROR DE RED -> alumno={$alumno_id} account={$account} -> " . $res['error']);
+        return ['success' => false, 'error' => 'Error de red: ' . $res['error']];
+    }
     $raw = json_decode($res['body'], true) ?? [];
     $clabe = $raw['Clabe'] ?? $raw['clabe'] ?? null;
-    if (!$clabe) return ['success' => false, 'error' => 'Pagadetodo no devolvió una CLABE'];
+    if (!$clabe) {
+        // Se deja constancia de la respuesta CRUDA de Pagadetodo (antes se
+        // descartaba por completo) -- sin esto no había forma de saber SI
+        // fue rechazo de credenciales, Account duplicada, IntegrationID
+        // incorrecto, etc.: solo el mensaje genérico "no devolvió una CLABE".
+        log_api("generar_clabe_pagadetodo SIN CLABE -> alumno={$alumno_id} account={$account} http={$res['http_code']} raw=" . json_encode($raw, JSON_UNESCAPED_UNICODE) . " body_original=" . $res['body']);
+        return ['success' => false, 'error' => 'Pagadetodo no devolvió una CLABE'];
+    }
     try {
         $stmt = $pdo->prepare("UPDATE clientes SET clabe_individual = ?, clabe_individual_estado = 'activa', clabe_individual_fecha = CURRENT_DATE WHERE id = ?");
         $stmt->execute([$clabe, $alumno_id]);
