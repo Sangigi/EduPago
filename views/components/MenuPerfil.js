@@ -271,7 +271,14 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
       'Vista previa. Si no aparece, revisa que el enlace sea público.')
   ) : null;
 
-  return _hMP('div', { className: 'modal-backdrop', onClick: onCerrar },
+  // Portal a document.body: este componente vive dentro de .sidebar, y en
+  // móvil .sidebar tiene un transform (para el drawer deslizable) que
+  // convierte a .sidebar -- no al viewport -- en el "containing block" de
+  // cualquier descendiente position:fixed. Sin el portal, el backdrop
+  // (position:fixed;inset:0) quedaba encajonado dentro del ancho del drawer
+  // en vez de cubrir toda la pantalla.
+  return ReactDOM.createPortal(
+    _hMP('div', { className: 'modal-backdrop', onClick: onCerrar },
     _hMP('div', {
       className: 'modal',
       style: { maxWidth: 460 },
@@ -333,6 +340,7 @@ function ModalPerfil({ tipo, user, escuela, apiPost, onCerrar, onActualizado }) 
           key: 'g', className: 'btn btn-primary', disabled: guardando, onClick: guardar
         }, guardando ? 'Guardando…' : 'Guardar')
       )
-    )
+    )),
+    document.body
   );
 }
