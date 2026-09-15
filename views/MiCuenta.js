@@ -52,8 +52,8 @@ const MC_GRUPOS_DATOS_PAGO = [
   {
     titulo: 'Datos generales del titular',
     campos: [
-      ['titular_nombre', 'Nombre del titular (como aparece en el estado de cuenta)', true],
-      ['nombre_comercio', 'Nombre de sucursal (nombre del comercio)', true],
+      ['titular_nombre', 'Nombre del titular', true],
+      ['nombre_comercio', 'Nombre de sucursal', true],
       ['titular_correo', 'Correo', true, 'email'],
       ['giro', 'Actividad o giro', false],
       ['rfc', 'R.F.C.', false],
