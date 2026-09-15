@@ -28,6 +28,44 @@ function recalcular_saldo_pendiente(PDO $pdo, int $cliente_id): void
 require_once __DIR__ . '/curl_helper.php';
 require_once __DIR__ . '/mailer.php';
 
+// ── Generación de CLABE SPEI real vía Pagadetodo (GenerarClabeIndi) ────────
+// Extraída de acciones/generar_clabe_individual.php (15-sep-2026) para que
+// el endpoint masivo (acciones/generar_clabes_individual_masivo.php) llame
+// EXACTAMENTE la misma lógica alumno por alumno, sin duplicar el
+// payload/curl/parseo de respuesta ni el guardado en `clientes`.
+//
+// NO valida permisos, pertenencia de escuela ni modo demo — eso es
+// responsabilidad de cada llamador (igual que cobrar_via_token()).
+//
+// @return array{success:bool, error?:string, clabe?:string}
+function generar_clabe_pagadetodo(PDO $pdo, $alumno_id, string $matricula, string $nombre, string $email): array
+{
+    $account = $matricula !== '' ? $matricula : ('AL-' . str_pad(strval($alumno_id), 9, '0', STR_PAD_LEFT));
+    $payload = [
+        'User'           => PDT_USER,
+        'Password'       => PDT_PASS,
+        'IntegrationID'  => PDT_INT_ID,
+        'BusinessID'     => PDT_BUS_ID_SPEI,
+        'Description'    => substr("EduPago - {$nombre}", 0, 40),
+        'Account'        => $account,
+        'CustomerEmail'  => $email ?: 'sin-correo@edupago.mx',
+        'CustomerName'   => substr($nombre, 0, 60),
+        'ExpirationDate' => date('Y-m-d', strtotime('+' . SPEI_CLABE_EXPIRACION_DIAS . ' days')),
+    ];
+    $res = curl_post(PDT_URL_CLABE, $payload);
+    if ($res['error']) return ['success' => false, 'error' => 'Error de red: ' . $res['error']];
+    $raw = json_decode($res['body'], true) ?? [];
+    $clabe = $raw['Clabe'] ?? $raw['clabe'] ?? null;
+    if (!$clabe) return ['success' => false, 'error' => 'Pagadetodo no devolvió una CLABE'];
+    try {
+        $stmt = $pdo->prepare("UPDATE clientes SET clabe_individual = ?, clabe_individual_estado = 'activa', clabe_individual_fecha = CURRENT_DATE WHERE id = ?");
+        $stmt->execute([$clabe, $alumno_id]);
+    } catch (\PDOException $e) {
+        log_api("ERROR DB generar_clabe_pagadetodo: " . $e->getMessage());
+    }
+    return ['success' => true, 'clabe' => $clabe];
+}
+
 // ── Modo demo por escuela (11-sep-2026) ────────────────────────────────────
 // Una escuela en modo 'demo' puede recorrer TODO el sistema, pero ningún
 // cobro real se manda a la pasarela de pagos ni se asigna una CLABE STP

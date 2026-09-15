@@ -262,20 +262,28 @@ function Alumnos({
     } : c)
   });
 
-  // Toma la primera CLABE libre del pool y la asigna al alumno
+  // Genera una CLABE SPEI real en vivo vía Pagadetodo (antes tomaba la
+  // primera CLABE libre de un pool subido a mano — ya no hace falta:
+  // la pasarela con la que ya está conectado el sistema genera la CLABE
+  // al momento).
   const asignarClabeDesdePool = async (alumno, dataBase) => {
     const eid = escuela_id || dataBase.escuelas?.[0]?.id;
     if (!eid || !alumno?.id) return;
     setClabeLoadingId(alumno.id);
     try {
-      const res = await _apiPost('asignar_clabe_pool', { escuela_id: eid, cliente_id: alumno.id });
+      const res = await _apiPost('generar_clabe_individual', {
+        alumno_id: alumno.id,
+        matricula: alumno.matricula || '',
+        nombre: alumno.nombre || '',
+        email: alumno.email || '',
+      });
       if (!res.success) {
-        // Sin CLABEs disponibles (u otro error) — guardamos el mensaje real del
+        // Sin poder generar (u otro error) — guardamos el mensaje real del
         // servidor para mostrarlo, en vez de un "Error" genérico sin contexto.
         const upd = {
           ...dataBase,
           clientes: dataBase.clientes.map(c => c.id === alumno.id ? {
-            ...c, clabe_individual_estado: 'error', clabe_individual_error_msg: res.error || 'No hay CLABEs SPEI disponibles'
+            ...c, clabe_individual_estado: 'error', clabe_individual_error_msg: res.error || 'No se pudo generar la CLABE SPEI'
           } : c)
         };
         setData(upd);
@@ -286,28 +294,30 @@ function Alumnos({
       setData(conClabe);
       AppModel.save(conClabe);
     } catch (e) {
-      console.error('Error al asignar CLABE del pool:', e.message);
+      console.error('Error al generar CLABE:', e.message);
     } finally {
       setClabeLoadingId(null);
     }
   };
 
-  // Asigna CLABE del pool a TODOS los alumnos activos de la escuela que
-  // todavía no tienen una — pensado para escuelas recién subidas por CSV,
-  // donde ir alumno por alumno sería impráctico. El backend regresa solo
-  // conteos (no toca cuál CLABE le tocó a cuál alumno en la respuesta), así
-  // que al terminar se refresca la página actual para ver los resultados.
+  // Genera CLABEs SPEI reales en vivo vía Pagadetodo para TODOS los alumnos
+  // activos de la escuela que todavía no tienen una — antes tomaba del pool
+  // manual, ahora llama a la pasarela alumno por alumno (más lento porque
+  // cada uno es una llamada de red real, pero ya no depende de tener CLABEs
+  // pre-cargadas a mano). El backend regresa solo conteos (no toca cuál
+  // CLABE le tocó a cuál alumno en la respuesta), así que al terminar se
+  // refresca la página actual para ver los resultados.
   const asignarClabesMasivo = async () => {
     if (!escuela_id) return;
-    if (!confirm('¿Asignar una CLABE del pool a todos los alumnos activos que aún no tienen una? Se usarán las CLABEs disponibles en orden.')) return;
+    if (!confirm('¿Generar una CLABE SPEI real para todos los alumnos activos que aún no tienen una? Esto llama a la pasarela de pagos y puede tardar según cuántos alumnos falten.')) return;
     setAsignandoClabesMasivo(true);
     try {
-      const res = await _apiPost('asignar_clabe_pool_masivo', { escuela_id });
+      const res = await _apiPost('generar_clabes_individual_masivo', { escuela_id });
       if (!res.success) {
-        alert(res.error || 'No se pudieron asignar las CLABEs.');
+        alert(res.error || 'No se pudieron generar las CLABEs.');
         return;
       }
-      alert(res.mensaje || `Se asignaron ${res.asignadas} CLABEs.`);
+      alert(res.mensaje || `Se generaron ${res.generadas} CLABEs.`);
       await buscarEnServidor(etiquetas.length ? etiquetas.join('|') : q, pagina);
     } catch (e) {
       alert('Error de conexión: ' + e.message);
@@ -350,7 +360,7 @@ function Alumnos({
       setQFamilia('');
       return;
     }
-    // Alta nueva: registrar en DB, luego asignar CLABE del pool automáticamente
+    // Alta nueva: registrar en DB, luego generar CLABE SPEI real automáticamente
     try {
       const alumnoNuevo = await ClienteController.agregar(form, eid);
       const newData = {
@@ -364,7 +374,7 @@ function Alumnos({
       setModal(null);
       setForm(EMPTY);
       setQFamilia('');
-      // Asignar CLABE del pool de inmediato
+      // Generar CLABE SPEI real de inmediato
       await asignarClabeDesdePool(alumnoNuevo, newData);
     } catch (e) { alert('Error al dar de alta alumno: ' + e.message); }
   };
@@ -380,10 +390,10 @@ function Alumnos({
     setData(newData);
     AppModel.save(newData);
     if (eraActivo) {
-      // Dar de baja: liberar CLABE al pool
+      // Dar de baja: liberar CLABE
       if (cliente.clabe_individual) await liberarClabePool(cliente, newData);
     } else {
-      // Reactivar: asignar nueva CLABE del pool
+      // Reactivar: generar nueva CLABE
       const alumnoActualizado = newData.clientes.find(c => c.id === cliente.id);
       await asignarClabeDesdePool(alumnoActualizado, newData);
     }
@@ -447,7 +457,7 @@ function Alumnos({
           }, void 0, true), _jsxDEV("button", {
             className: "btn btn-secondary",
             disabled: !escuela_id || asignandoClabesMasivo,
-            title: !escuela_id ? 'Selecciona una escuela arriba' : 'Asigna una CLABE del pool a todos los alumnos que aún no tienen una',
+            title: !escuela_id ? 'Selecciona una escuela arriba' : 'Genera una CLABE SPEI real a todos los alumnos que aún no tienen una',
             onClick: asignarClabesMasivo,
             children: asignandoClabesMasivo
               ? _jsxDEV("span", { style: { display: 'flex', alignItems: 'center', gap: 6 }, children: [_jsxDEV("span", { className: "spinner", style: { width: 12, height: 12 } }, void 0, false), " Asignando…"] }, void 0, true)
@@ -634,7 +644,7 @@ function Alumnos({
                     className: "btn btn-primary btn-sm",
                     style: { fontSize: 10.5, padding: '2px 8px' },
                     onClick: e => { e.stopPropagation(); asignarClabeDesdePool(c, data); },
-                    title: "Asignar CLABE del pool",
+                    title: "Generar CLABE SPEI",
                     children: "Asignar"
                   }, void 0, false)]
                 }, void 0, false) : c.clabe_individual_estado === 'error' ? _jsxDEV("span", {

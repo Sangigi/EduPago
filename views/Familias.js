@@ -231,6 +231,9 @@ function Familias({
 
   });
 
+  // Genera una CLABE SPEI real en vivo vía Pagadetodo (antes tomaba del
+  // pool manual — ya no hace falta, la pasarela ya conectada la genera al
+  // momento).
   const asignarClabeDesdePool = async (alumno, dataBase) => {
 
     const eid = escuela_id || dataBase.escuelas?.[0]?.id;
@@ -241,7 +244,12 @@ function Familias({
 
     try {
 
-      const res = await _apiPost('asignar_clabe_pool', { escuela_id: eid, cliente_id: alumno.id });
+      const res = await _apiPost('generar_clabe_individual', {
+        alumno_id: alumno.id,
+        matricula: alumno.matricula || '',
+        nombre: alumno.nombre || '',
+        email: alumno.email || '',
+      });
 
       if (!res.success) {
 
@@ -251,7 +259,7 @@ function Familias({
 
           clientes: dataBase.clientes.map(c => c.id === alumno.id ? {
 
-            ...c, clabe_individual_estado: 'error', clabe_individual_error_msg: res.error || 'No hay CLABEs SPEI disponibles'
+            ...c, clabe_individual_estado: 'error', clabe_individual_error_msg: res.error || 'No se pudo generar la CLABE SPEI'
 
           } : c)
 
