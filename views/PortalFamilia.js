@@ -46,6 +46,15 @@ function PortalFamilia({
   // cobro pendiente sin llamar a la escuela.
   const [generandoEfvId, setGenerandoEfvId] = useState(null);
   const [tab, setTab] = useState('inicio');
+  // La barra de pestañas hace scroll horizontal en móvil (no caben las 6 en
+  // pantalla) -- sin esto, al entrar directo a una pestaña de las últimas
+  // (p.ej. "Pagar en línea" desde el banner de saldo pendiente) la píldora
+  // activa quedaba a medio cortar en el borde derecho en vez de visible.
+  const tabsRef = useRef(null);
+  useEffect(() => {
+    const activo = tabsRef.current && tabsRef.current.querySelector('.pill.active');
+    if (activo) activo.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+  }, [tab]);
   // Ficha técnica que se está viendo: { registro, tipo }
   const [ficha, setFicha] = useState(null);
 
@@ -786,7 +795,7 @@ function PortalFamilia({
             style: { display: 'flex', alignItems: 'center', gap: 10 },
             children: [
               escuela && _jsxDEV("span", {
-                className: "badge badge-blue",
+                className: "badge badge-blue pf-header-badge",
                 style: { textTransform: 'none', fontWeight: 600 },
                 children: escuela.nombre
               }, void 0, false),
@@ -925,6 +934,7 @@ function PortalFamilia({
 
           // ── Pestañas en píldora ──
           _jsxDEV("div", {
+            ref: tabsRef,
             className: 'pf-tabs pill-group',
             style: { marginBottom: 22, flexWrap: 'nowrap' },
             children: [
