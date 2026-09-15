@@ -190,7 +190,7 @@ function Login({
             className: "form-group",
             children: [/*#__PURE__*/_jsxDEV("label", {
               className: "login-label",
-              children: "Correo o ID de colegio"
+              children: "Correo"
             }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
               style: {
                 position: 'relative'
