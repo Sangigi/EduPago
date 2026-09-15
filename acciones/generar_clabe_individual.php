@@ -34,5 +34,5 @@
             // libre (ver nota en generar_clabe_pagadetodo) -- se refleja el
             // mismo identificador numérico que de verdad se registró, no el
             // que se hubiera calculado antes con la matrícula.
-            'account'      => str_pad(strval(max(0, intval($alumno_id))), 9, '0', STR_PAD_LEFT),
+            'account'      => str_pad(strval(max(0, intval($alumno_id))), 15, '0', STR_PAD_LEFT),
         ]);

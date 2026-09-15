@@ -45,11 +45,18 @@ function generar_clabe_pagadetodo(PDO $pdo, $alumno_id, string $matricula, strin
     // de la Account incorrecto") si se manda la matrícula tal cual, porque
     // las matrículas son texto libre capturado por cada escuela (con
     // letras, guiones, o de 1 sola cifra: "A-1023", "9", etc.) y no
-    // cumplen lo que pide su validador. Mismo criterio ya usado para el
-    // campo 'Reference' de cobrar_via_token(): un identificativo puramente
-    // numérico derivado del id interno del alumno, con ceros a la
-    // izquierda a longitud fija -- nunca la matrícula libre.
-    $account = str_pad(strval(max(0, intval($alumno_id))), 9, '0', STR_PAD_LEFT);
+    // cumplen lo que pide su validador. Se probó también con 9 dígitos
+    // (mismo patrón que el 'Id' de cobrar_via_token) y Pagadetodo lo
+    // siguió rechazando igual. Se usan 15 dígitos porque es el estándar
+    // confirmado para 'pagadetodo.mx' (mismo dominio de este endpoint) en
+    // el resto del proyecto -- ver REFERENCIA_DIGITOS en config.php, que
+    // vale 15 quando el host activo es pagadetodo.mx y 13 en
+    // pagalaescuela.mx. Sigue siendo una hipótesis sin confirmar por el
+    // proveedor específicamente para 'Account' de GenerarClabeIndi (el
+    // caso confirmado con 15 dígitos es el campo 'Reference' de otro
+    // servicio) -- si Pagadetodo lo vuelve a rechazar, hay que pedirles
+    // el spec exacto de este campo en vez de seguir probando longitudes.
+    $account = str_pad(strval(max(0, intval($alumno_id))), 15, '0', STR_PAD_LEFT);
     $payload = [
         'User'           => PDT_USER,
         'Password'       => PDT_PASS,
