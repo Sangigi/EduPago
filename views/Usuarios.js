@@ -83,7 +83,7 @@ function UsuariosFormModal({
             }, void 0, true),
 
             _jsxDEV("div", {
-              style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+              style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 },
               children: [
                 /* Nombre */
                 _jsxDEV("div", {
