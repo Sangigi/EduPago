@@ -950,6 +950,7 @@ function PortalFamilia({
               padding: '18px 22px',
               display: 'flex',
               alignItems: 'center',
+              flexWrap: 'wrap',
               gap: 16
             },
             children: [_jsxDEV("div", {
@@ -970,7 +971,8 @@ function PortalFamilia({
               }, void 0, false)
             }, void 0, false), _jsxDEV("div", {
               style: {
-                flex: 1
+                flex: 1,
+                minWidth: 160
               },
               children: [_jsxDEV("div", {
                 style: {
@@ -1023,6 +1025,7 @@ function PortalFamilia({
                 borderBottom: `1px solid ${PLC.border}`,
                 display: 'flex',
                 alignItems: 'center',
+                flexWrap: 'wrap',
                 gap: 13
               },
               children: [_jsxDEV("div", {
@@ -1044,7 +1047,8 @@ function PortalFamilia({
                 }, void 0, false)
               }, void 0, false), _jsxDEV("div", {
                 style: {
-                  flex: 1
+                  flex: 1,
+                  minWidth: 140
                 },
                 children: [_jsxDEV("div", {
                   style: {
@@ -1213,6 +1217,7 @@ function PortalFamilia({
               borderBottom: `1px solid ${PLC.border}`,
               display: 'flex',
               alignItems: 'center',
+              flexWrap: 'wrap',
               gap: 13,
               background: `rgba(40,45,101,.03)`
             },
@@ -1234,7 +1239,8 @@ function PortalFamilia({
               }, void 0, false)
             }, void 0, false), _jsxDEV("div", {
               style: {
-                flex: 1
+                flex: 1,
+                minWidth: 140
               },
               children: [_jsxDEV("div", {
                 style: {
@@ -2364,6 +2370,7 @@ function PortalFamilia({
                 style: {
                   display: 'flex',
                   alignItems: 'center',
+                  flexWrap: 'wrap',
                   gap: 8
                 },
                 children: [_jsxDEV("div", {
@@ -2373,9 +2380,11 @@ function PortalFamilia({
                     fontWeight: 600,
                     color: PLC.text,
                     letterSpacing: .5,
-                    flex: 1
+                    flex: 1,
+                    minWidth: 0,
+                    overflowWrap: 'anywhere'
                   },
-                  children: cobroActivo.clabe || '—'
+                  children: cobroActivo.clabe ? cobroActivo.clabe.match(/.{1,4}/g).join(' ') : '—'
                 }, void 0, false), cobroActivo.clabe && _jsxDEV("button", {
                   onClick: () => copiar(cobroActivo.clabe, 'clabe'),
                   style: {
@@ -2425,6 +2434,7 @@ function PortalFamilia({
                 style: {
                   display: 'flex',
                   alignItems: 'center',
+                  flexWrap: 'wrap',
                   gap: 8
                 },
                 children: [_jsxDEV("div", {
@@ -2434,6 +2444,8 @@ function PortalFamilia({
                     fontWeight: 700,
                     color: PLC.navy,
                     flex: 1,
+                    minWidth: 0,
+                    overflowWrap: 'anywhere',
                     letterSpacing: .5
                   },
                   children: cobroActivo.referencia_spei || cobroActivo.referencia
