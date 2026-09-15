@@ -14,20 +14,6 @@ define('PDT_PASS',         'PENDIENTE_PASSWORD_PRODUCCION');
 define('PDT_INT_ID',       '125');
 define('PDT_BUS_ID_SPEI',  '000067');
 define('PDT_BUS_ID_TC',    '000067');
-// GenerarClabeIndi (CLABEs SPEI individuales de alumno) es un servicio
-// APARTE de SPEI/webhooks en general -- confirmado el 15-sep-2026 con el
-// probador oficial de Pagadetodo: usa su propio IntegrationID/BusinessID,
-// NO los de PDT_INT_ID/PDT_BUS_ID_SPEI de arriba (con esos daba error 11
-// "El formato de la Account es incorrecto" sin importar el formato de
-// Account probado). El probador mostró 124/000002 -- mismo patrón ya visto
-// con Referencias en efectivo (5.3ba/5.3bb en PRODUCCION.md): el valor de
-// un probador puede ser el de SANDBOX y no necesariamente el de
-// PRODUCCIÓN. PENDIENTE confirmar con Pagadetodo/Osbel si 124/000002 es
-// ya el valor real de producción para este servicio específico, o si
-// (como pasó con BusinessID 000002 -> 000067 en su momento) hay que
-// pedirles el par correcto de producción.
-define('PDT_INT_ID_CLABE',      '124');
-define('PDT_BUS_ID_CLABE',      '000002');
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'grupoide_pagalaescuela');

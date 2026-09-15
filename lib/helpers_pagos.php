@@ -60,25 +60,13 @@ function generar_clabe_pagadetodo(PDO $pdo, $alumno_id, string $matricula, strin
     $payload = [
         'User'           => PDT_USER,
         'Password'       => PDT_PASS,
-        // GenerarClabeIndi usa su PROPIO IntegrationID/BusinessID -- NO
-        // los de PDT_INT_ID/PDT_BUS_ID_SPEI (ver nota en config.php,
-        // 15-sep-2026: con esos daba error 11 pase lo que pase con el
-        // formato de Account).
-        'IntegrationID'  => PDT_INT_ID_CLABE,
-        'BusinessID'     => PDT_BUS_ID_CLABE,
+        'IntegrationID'  => PDT_INT_ID,
+        'BusinessID'     => PDT_BUS_ID_SPEI,
         'Description'    => substr("EduPago - {$nombre}", 0, 40),
         'Account'        => $account,
         'CustomerEmail'  => $email ?: 'sin-correo@edupago.mx',
         'CustomerName'   => substr($nombre, 0, 60),
-        // Vacío a propósito (15-sep-2026): el probador oficial de
-        // Pagadetodo generó una CLABE exitosa con ExpirationDate vacío
-        // ("" y casilla sin marcar) -- parece ser opcional, y sin ella la
-        // CLABE queda sin vencimiento. Justo lo que se necesita para que
-        // dure toda la trayectoria del alumno en la escuela sin tener que
-        // renovarla. Si en la práctica Pagadetodo le pone un vencimiento
-        // implícito de todos modos, definir SPEI_CLABE_EXPIRACION_DIAS de
-        // nuevo aquí sería el rollback.
-        'ExpirationDate' => '',
+        'ExpirationDate' => date('Y-m-d', strtotime('+' . SPEI_CLABE_EXPIRACION_DIAS . ' days')),
     ];
     $res = curl_post(PDT_URL_CLABE, $payload);
     if ($res['error']) {
