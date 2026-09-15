@@ -370,7 +370,7 @@ function MiCuenta({ escuela, user }) {
                 ] }, 'h'),
                 _jsxDEV('div', {
                   className: 'modal-body', style: { fontSize: 13, color: 'var(--ink-2)' },
-                  children: 'Pendiente: aquí va el texto real del clausulado del contrato de procesamiento de transacciones de Cobroscontarjeta.com (o la liga oficial a su aviso legal). Pídeselo a tu contacto en Cobroscontarjeta.com/Savala y se agrega aquí.'
+                  children: 'Pendiente: aquí va el texto real del clausulado del contrato de procesamiento de transacciones de Cobroscontarjeta.com (o la liga oficial a su aviso legal).'
                 }, 'b')
               ]
             }, void 0, true)
