@@ -50,10 +50,25 @@ function PortalFamilia({
   // pantalla) -- sin esto, al entrar directo a una pestaña de las últimas
   // (p.ej. "Pagar en línea" desde el banner de saldo pendiente) la píldora
   // activa quedaba a medio cortar en el borde derecho en vez de visible.
+  // Ajusta el scrollLeft de .pf-tabs A MANO en vez de usar scrollIntoView():
+  // ese método recorre TODOS los ancestros con scroll para asegurar
+  // visibilidad, y .pf-root (el contenedor de todo el portal) técnicamente
+  // cuenta como uno aunque tenga overflowX:'hidden' -- así se movía sin
+  // querer el scroll horizontal de la página completa, dejando todo el
+  // portal corrido hacia la izquierda sin forma de que el usuario lo
+  // regresara (overflow:hidden bloquea el scroll manual, no el programático).
   const tabsRef = useRef(null);
   useEffect(() => {
-    const activo = tabsRef.current && tabsRef.current.querySelector('.pill.active');
-    if (activo) activo.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    const cont = tabsRef.current;
+    const activo = cont && cont.querySelector('.pill.active');
+    if (!cont || !activo) return;
+    const contRect = cont.getBoundingClientRect();
+    const itemRect = activo.getBoundingClientRect();
+    if (itemRect.left < contRect.left) {
+      cont.scrollLeft -= (contRect.left - itemRect.left) + 12;
+    } else if (itemRect.right > contRect.right) {
+      cont.scrollLeft += (itemRect.right - contRect.right) + 12;
+    }
   }, [tab]);
   // Ficha técnica que se está viendo: { registro, tipo }
   const [ficha, setFicha] = useState(null);
