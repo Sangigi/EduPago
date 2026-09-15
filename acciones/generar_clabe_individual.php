@@ -30,5 +30,9 @@
             'clabe'        => $resClabe['clabe'],
             'banco'        => SPEI_BANCO,
             'beneficiario' => SPEI_BENEFICIARIO,
-            'account'      => ($matricula !== '' ? $matricula : ('AL-' . str_pad($alumno_id, 9, '0', STR_PAD_LEFT))),
+            // El 'account' real mandado a Pagadetodo ya no es la matrícula
+            // libre (ver nota en generar_clabe_pagadetodo) -- se refleja el
+            // mismo identificador numérico que de verdad se registró, no el
+            // que se hubiera calculado antes con la matrícula.
+            'account'      => str_pad(strval(max(0, intval($alumno_id))), 9, '0', STR_PAD_LEFT),
         ]);

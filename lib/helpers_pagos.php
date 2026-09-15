@@ -40,7 +40,16 @@ require_once __DIR__ . '/mailer.php';
 // @return array{success:bool, error?:string, clabe?:string}
 function generar_clabe_pagadetodo(PDO $pdo, $alumno_id, string $matricula, string $nombre, string $email): array
 {
-    $account = $matricula !== '' ? $matricula : ('AL-' . str_pad(strval($alumno_id), 9, '0', STR_PAD_LEFT));
+    // 'Account' debe ser numérico y de longitud fija -- Pagadetodo lo rechaza
+    // (código 22 "formato de la referencia incorrecto" / código 11 "formato
+    // de la Account incorrecto") si se manda la matrícula tal cual, porque
+    // las matrículas son texto libre capturado por cada escuela (con
+    // letras, guiones, o de 1 sola cifra: "A-1023", "9", etc.) y no
+    // cumplen lo que pide su validador. Mismo criterio ya usado para el
+    // campo 'Reference' de cobrar_via_token(): un identificativo puramente
+    // numérico derivado del id interno del alumno, con ceros a la
+    // izquierda a longitud fija -- nunca la matrícula libre.
+    $account = str_pad(strval(max(0, intval($alumno_id))), 9, '0', STR_PAD_LEFT);
     $payload = [
         'User'           => PDT_USER,
         'Password'       => PDT_PASS,
