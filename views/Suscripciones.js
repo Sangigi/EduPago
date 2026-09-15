@@ -486,7 +486,7 @@ function Suscripciones({ data, setData }) {
         style: { padding: '20px', color: 'var(--ink-3)', fontSize: 13 },
         children: "Sin solicitudes pendientes por ahora."
       }, void 0, false) : _jsxDEV("div", {
-        children: invPendientes.map(inv => {
+        children: invPendientes.map((inv, idxInv) => {
           const datos = (() => { try { return JSON.parse(inv.datos_enviados || '{}'); } catch (e) { return {}; } })();
           const yaPagado = inv.estado === 'pagado';
           return _jsxDEV("div", {
@@ -494,22 +494,30 @@ function Suscripciones({ data, setData }) {
             children: [
               _jsxDEV("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' },
                 children: [
-                  _jsxDEV("div", {
+                  _jsxDEV("div", { style: { display: 'flex', gap: 10, alignItems: 'flex-start' },
                     children: [
-                      _jsxDEV("div", { style: { fontWeight: 600, fontSize: 14 }, children: datos.nombre || '(sin nombre)' }, void 0, false),
-                      _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
-                        children: [datos.email || inv.contacto_email, ' · ', inv.contacto_nombre] }, void 0, true),
-                      _jsxDEV("div", { style: { fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+                      _jsxDEV("div", {
+                        style: { flexShrink: 0, minWidth: 22, height: 22, borderRadius: '50%', background: 'var(--surface-2, rgba(255,255,255,.06))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--ink-3)' },
+                        children: String(idxInv + 1)
+                      }, void 0, false),
+                      _jsxDEV("div", {
                         children: [
-                          _jsxDEV("span", {
-                            style: { padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                                     background: yaPagado ? 'rgba(73,175,84,.12)' : 'rgba(217,119,6,.12)',
-                                     color: yaPagado ? 'var(--green)' : 'var(--amber, #d97706)' },
-                            children: yaPagado ? 'Pago confirmado' : 'Esperando pago'
-                          }, void 0, false),
-                          inv.plan_elegido ? _jsxDEV("span", { style: { color: 'var(--ink-2)' },
-                            children: (PLAN_LABEL[inv.plan_elegido] || inv.plan_elegido) + ' · $' + Number(inv.monto_suscripcion || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
-                          }, void 0, false) : null
+                          _jsxDEV("div", { style: { fontWeight: 600, fontSize: 14 }, children: datos.nombre || '(sin nombre)' }, void 0, false),
+                          _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
+                            children: [datos.email || inv.contacto_email, ' · ', inv.contacto_nombre] }, void 0, true),
+                          _jsxDEV("div", { style: { fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+                            children: [
+                              _jsxDEV("span", {
+                                style: { padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                         background: yaPagado ? 'rgba(73,175,84,.12)' : 'rgba(217,119,6,.12)',
+                                         color: yaPagado ? 'var(--green)' : 'var(--amber, #d97706)' },
+                                children: yaPagado ? 'Pago confirmado' : 'Esperando pago'
+                              }, void 0, false),
+                              inv.plan_elegido ? _jsxDEV("span", { style: { color: 'var(--ink-2)' },
+                                children: (PLAN_LABEL[inv.plan_elegido] || inv.plan_elegido) + ' · $' + Number(inv.monto_suscripcion || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
+                              }, void 0, false) : null
+                            ]
+                          }, void 0, true)
                         ]
                       }, void 0, true)
                     ]
