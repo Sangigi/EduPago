@@ -763,6 +763,17 @@ function PortalFamilia({
       fontFamily: "'DM Sans',system-ui,sans-serif",
       color: 'var(--ink)'
     },
+    // Blindaje: overflowX:'hidden' solo bloquea el scroll MANUAL del
+    // usuario -- sigue siendo un contenedor de scroll programático (p.ej. el
+    // navegador puede desplazarlo al enfocar un botón que quedó fuera de la
+    // vista, como pasaba con la barra de pestañas antes de fijar su ancho
+    // en main.css). Si eso vuelve a pasar por cualquier otra causa futura,
+    // esto lo regresa a 0 de inmediato en vez de dejar todo el portal
+    // corrido para siempre (el usuario no tiene forma de scrollearlo de
+    // regreso a mano).
+    onScroll: e => {
+      if (e.currentTarget.scrollLeft !== 0) e.currentTarget.scrollLeft = 0;
+    },
     children: [
       // ── Barra superior: clara y ligera, no una banda sólida de color ──
       _jsxDEV("div", {

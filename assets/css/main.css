@@ -1552,8 +1552,23 @@ box-shadow:0 0 0 3px var(--accent-glow);
   }
 }
 
-/* ── Portal familiar: pestañas desplazables sin barra visible ── */
-.pf-tabs { overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:2px; }
+/* ── Portal familiar: pestañas desplazables sin barra visible ──
+   .pf-tabs también trae la clase .pill-group (display:inline-flex), y
+   ninguna regla de .pf-tabs fijaba su propio `display` -- así que ganaba
+   inline-flex, que se ajusta a su CONTENIDO (shrink-to-fit) en vez de al
+   ancho real disponible. Con flexWrap:'nowrap' puesto en línea y cada
+   pestaña con flexShrink:0 (ver PortalFamilia.js), la barra terminaba
+   renderizando a su ancho completo (~680px) sin importar la pantalla,
+   saliéndose de .pf-body/.pf-root -- overflow-x:auto nunca llegaba a
+   activarse porque la caja nunca quedó más angosta que su contenido. Ese
+   sobrante se volvía scroll horizontal de TODO el portal (.pf-root), y al
+   tocar una pestaña el foco del botón hacía que el navegador scrolleara ese
+   contenedor para mostrarla -- dejando toda la pantalla corrida a la
+   izquierda sin forma de regresarla (overflowX:'hidden' bloquea el scroll
+   manual, no el programático). display:flex + width:100% fuerza a la barra
+   a quedarse en el ancho real de su columna, para que el desbordamiento
+   quede DENTRO de ella (donde overflow-x:auto sí puede scrollearlo). */
+.pf-tabs { display:flex; width:100%; max-width:100%; min-width:0; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:2px; }
 .pf-tabs::-webkit-scrollbar { display:none; }
 @media (max-width: 640px) {
   .pf-header-user-name, .pf-header-user-sub { display:none; }
