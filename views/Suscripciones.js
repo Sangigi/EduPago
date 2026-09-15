@@ -383,11 +383,6 @@ function Suscripciones({ data, setData }) {
   const maxAltas = Math.max(1, ...altasPorMes.map(m => m.count));
 
   const invPendientes = invitaciones.filter(i => i.estado === 'enviado' || i.estado === 'pagado');
-  // Paginacion local: mismo patron ya usado en Familias.js/Alumnos.js — sin
-  // esto se pintaban todas las solicitudes pendientes de golpe.
-  const pagInvPend = (typeof usePaginacion === 'function')
-    ? usePaginacion(invPendientes, 10)
-    : { pagina: invPendientes, total: invPendientes.length, totalPaginas: 1, n: 1, tam: invPendientes.length, ir: () => {}, cambiarTam: () => {} };
   const PLAN_LABEL = { basico: 'Básico', avanzado: 'Avanzado', pro: 'Pro' };
 
   const fechaCorta = iso => iso ? new Date(iso.replace(' ', 'T')).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -491,7 +486,7 @@ function Suscripciones({ data, setData }) {
         style: { padding: '20px', color: 'var(--ink-3)', fontSize: 13 },
         children: "Sin solicitudes pendientes por ahora."
       }, void 0, false) : _jsxDEV("div", {
-        children: pagInvPend.pagina.map((inv) => {
+        children: invPendientes.map(inv => {
           const datos = (() => { try { return JSON.parse(inv.datos_enviados || '{}'); } catch (e) { return {}; } })();
           const yaPagado = inv.estado === 'pagado';
           return _jsxDEV("div", {
