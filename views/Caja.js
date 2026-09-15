@@ -474,60 +474,6 @@ function Caja({
     }
   };
 
-  /* ── CONFIRMAR TC MANUALMENTE (cliente ya pagó en el link) ── */
-  const confirmarTC = async () => {
-    try { const res = await CobroController.confirmarPago(cobroActivo.id, { auth_code: tcInfo?.referencia }); actualizarSaldoCliente(res); } catch(e) {}
-    setData(prev => {
-      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: tcInfo?.referencia } : c) };
-      AppModel.save(upd);
-      return upd;
-    });
-    setModal('ticket');
-    resetCarrito();
-  };
-
-  /* ── CONFIRMAR SPEI MANUAL (botón de "ya pagué") ── */
-  const confirmarSPEI = async () => {
-    if (speiStatus === 'confirmado') {
-      setModal('ticket');
-      resetCarrito();
-      return;
-    }
-    setSpeiStatus('verificando');
-    try {
-      const refSpei = cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.clabe;
-      const clabeActiva = cobroActivo?.clabe;
-      if (refSpei || clabeActiva) {
-        const ver = await CobroController.verificarSPEI(refSpei, clabeActiva, cobroActivo?.id);
-        if (ver.pagado) {
-          clearInterval(speiPollRef.current);
-          try { const res = await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); actualizarSaldoCliente(res); } catch(e) {}
-          setData(prev => {
-            const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
-            AppModel.save(upd);
-            return upd;
-          });
-          setSpeiStatus('confirmado');
-          return;
-        }
-      }
-      // Si no se verificó, confirmar manualmente de todas formas
-      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
-        AppModel.save(upd); return upd;
-      });
-      setSpeiStatus('confirmado');
-    } catch (e) {
-      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e2) {}
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
-        AppModel.save(upd); return upd;
-      });
-      setSpeiStatus('confirmado');
-    }
-  };
-
   /* ── CONFIRMAR CODI MANUAL ── */
   const confirmarCoDi = async () => {
     clearInterval(timerRef.current);
@@ -1509,19 +1455,6 @@ function Caja({
               cerrarModal();
             },
             children: speiStatus === 'confirmado' ? 'Cerrar' : 'Dejar pendiente'
-          }, void 0, false), speiStatus !== 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: confirmarSPEI,
-            disabled: speiStatus === 'verificando' || speiStatus === 'generando',
-            children: speiStatus === 'verificando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner"
-              }, void 0, false), " Verificando…"]
-            }, void 0, true) : speiStatus === 'generando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner"
-              }, void 0, false), " Generando…"]
-            }, void 0, true) : 'Confirmar pago recibido'
           }, void 0, false), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-success",
             onClick: () => {
@@ -1934,7 +1867,7 @@ function Caja({
                 color: 'var(--ink-4)',
                 marginTop: 10
               },
-              children: "ℹ Una vez que el cliente complete el pago en el enlace, confirma el cobro con el botón de abajo."
+              children: "ℹ Una vez que el cliente complete el pago en el enlace, se confirmará solo — no hace falta que esperes en pantalla."
             }, void 0, false)]
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -1942,11 +1875,7 @@ function Caja({
           children: [/*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: cerrarModal,
-            children: "Cancelar"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: confirmarTC,
-            children: "Confirmar pago recibido"
+            children: "Cerrar"
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)
