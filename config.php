@@ -144,4 +144,4 @@ define('PAC_USER',    'tu_usuario_pac');
 define('PAC_PASS',    'tu_password_pac');
 
 // ─── Credenciales de Facturapi ───────────────────────────────────────────────
-define('FACTURAPI_KEY', 'sk_test_CcqXrtSri4dxsxK4D2s8zCEriqD3J2Ee5Pb6ejQG49');
+define('FACTURAPI_KEY', 'sk_test_J6gHBD1SfgAfBbXEn2JEA36AVwwAsP3eizL6HdzyFF');
