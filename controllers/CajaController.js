@@ -4,22 +4,7 @@
  * Sigue el mismo patrón que CobroController.js.
  */
 const CajaController = (() => {
-  const API = 'api.php';
-
-  async function apiPost(action, body) {
-    const token = AuthController.getToken();
-    const res = await fetch(`${API}?action=${action}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) { AuthController.logout(); window.location.reload(); throw new Error('Sesión expirada. Inicia sesión de nuevo.'); }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
+  const apiPost = ApiClient.post;
 
   async function listarSucursales(escuela_id) {
     const resultado = await apiPost('caja_sucursales', { escuela_id });

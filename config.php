@@ -5,13 +5,17 @@
  */
 
 // ─── Credenciales Pagadetodo ──────────────────────────────────────────────────
-define('PDT_USER',         'lR0iJO34LG');
-define('PDT_PASS',         '3>tNsg51*Y');
+// PENDIENTE (2026-09-08): reemplaza estos dos valores con el User/Password
+// PRODUCTIVOS reales que mandó Cobroscontarjeta.com (son compartidos para
+// Pagadetodo Y Pagalaescuela — ver PLE_USER/PLE_PASS más abajo, que usan
+// estos mismos valores). Los de aquí abajo son placeholders, NO funcionan.
+define('PDT_USER',         'PENDIENTE_USER_PRODUCCION');
+define('PDT_PASS',         'PENDIENTE_PASSWORD_PRODUCCION');
 define('PDT_INT_ID',       '125');
-define('PDT_BUS_ID_SPEI',  '000002');
-define('PDT_BUS_ID_TC',    '000002');
+define('PDT_BUS_ID_SPEI',  '000067');
+define('PDT_BUS_ID_TC',    '000067');
 
-define('DB_HOST', 'test.grupoideasmx.com');
+define('DB_HOST', 'localhost');
 define('DB_NAME', 'grupoide_pagalaescuela');
 define('DB_USER', 'grupoide_leonel');
 define('DB_PASS', 'M4imvdG#O&NQ');
@@ -27,30 +31,41 @@ define('PDT_URL_REFERENCIA', 'https://pagadetodo.mx/Pagadetodo/Service/GenerarRe
 // Pagalaescuela — normalmente NO son el mismo valor que PDT_INT_ID/BUS_ID.
 define('PLE_USER',     PDT_USER);
 define('PLE_PASS',     PDT_PASS);
-define('PLE_INT_ID',   '106');      // <-- Reemplazar con el IntegrationID de Pagalaescuela del correo
-define('PLE_SCHOOL_ID','000002');   // <-- Reemplazar con el SchoolID de Pagalaescuela del correo
+define('PLE_INT_ID',   '106');
+define('PLE_SCHOOL_ID','000002'); // Corregido 09-sep-2026: el correo original decía 000041, pero Cobroscontarjeta.com confirmó que el BusinessID/SchoolID real de Pagalaescuela en producción es 000002.
 
-// ── INTERRUPTOR DE AMBIENTE para Pago en Línea + CAI/Domiciliación ──────────
-// Aviso de Cobroscontarjeta.com (18-ago-2026): el Sandbox de Pagalaescuela
-// estaba mal configurado; mientras lo arreglan, activaron Pago en Línea y
-// Domiciliación en el Sandbox de PAGADETODO en su lugar. Los nombres de los
-// servicios (GenerarLigaIndi, GenerarLigaDomiciliacionIndi, etc.) y las
-// credenciales (PLE_USER/PASS/INT_ID/SCHOOL_ID) NO cambian — solo cambia el
-// dominio base. Para pasar a producción, cambia ÚNICAMENTE la línea de abajo
-// de 'pagadetodo.mx' a 'pagalaescuela.mx' y ya.
-define('PLE_HOST_BASE', 'https://pagadetodo.mx/Pagadetodo');
-// define('PLE_HOST_BASE', 'https://pagalaescuela.mx/Pagalaescuela'); // <- PRODUCCIÓN
+// ── PRODUCCIÓN (activada 2026-09-08): Cobroscontarjeta.com certificó las
+// URLs productivas y entregó credenciales reales para ambas plataformas.
+// Pagalaescuela ya tiene su propia cuenta de producción (IntegrationID 106,
+// BusinessID 000041) — ya NO corre sobre el Sandbox de Pagadetodo como
+// workaround temporal (ver historial: aviso de Cobroscontarjeta.com
+// 18-ago-2026 sobre el Sandbox de Pagalaescuela mal configurado).
+define('PLE_HOST_BASE', 'https://pagalaescuela.mx/Pagalaescuela');
 
-// Mientras el servicio corre en pagadetodo.mx, Cobroscontarjeta.com devuelve
-// código 26 ("no está vinculado este comercio a su integración") si se manda
-// el IntegrationID de Pagalaescuela (106): ese ID solo está enlazado del
-// lado de Pagalaescuela, no en Pagadetodo. En Pagadetodo, el IntegrationID
-// que SÍ está enlazado a BusinessID 000002 es el 125 (el mismo que ya
-// funciona para SPEI/Efectivo). Estas dos constantes eligen automáticamente
-// cuál usar según el host activo, así que no hay que tocar nada más cuando
-// PLE_HOST_BASE regrese a pagalaescuela.mx en producción.
+// PLE_INT_ID_ACTIVO/PLE_SCHOOL_ID_ACTIVO eligen automáticamente entre las
+// credenciales de Pagadetodo o Pagalaescuela según el host activo — se
+// conservan por si algún día hay que volver a usar el workaround de
+// Pagadetodo como fallback (ver PLE_URL_LIGA_SIMPLE más abajo).
 define('PLE_INT_ID_ACTIVO',    strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? PDT_INT_ID      : PLE_INT_ID);
 define('PLE_SCHOOL_ID_ACTIVO', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? PDT_BUS_ID_TC    : PLE_SCHOOL_ID);
+
+// Largo total de la Reference que arma construir_referencia_pago() (usada
+// por generar_liga.php y cobrar_via_token para Liga/CAI). La doc original
+// (mayo 2022, IntegracionesCAI_V1_1) pide 13 para pagalaescuela.mx (9
+// dígitos de alumno + 4 de pago); el Sandbox de pagadetodo.mx (workaround
+// temporal, ago-2026) solo aceptaba 15 — confirmado con código 22 ("El
+// formato de la referencia es incorrecto") al mandar 15 dígitos ya en
+// producción real contra pagalaescuela.mx (08-sep-2026). Se elige
+// automáticamente según el host activo, igual que las dos constantes de
+// arriba, por si algún día se vuelve a usar el workaround de Pagadetodo.
+define('REFERENCIA_DIGITOS', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? 15 : 13);
+
+// PaymentTypes para Liga/CAI: '401' (Contado) es EXPLÍCITAMENTE solo de
+// Sandbox según la doc del proveedor ("Cabe mencionar que este código solo
+// es para el ambiente de Sandbox"). Cobroscontarjeta.com confirmó por
+// correo (08-sep-2026) que el código de Contado en producción es '41'.
+// Igual que las constantes de arriba, se elige según el host activo.
+define('PLE_PAYMENT_TYPES', strpos(PLE_HOST_BASE, 'pagadetodo.mx') !== false ? '401' : '41');
 
 // Liga con token: sirve para pago simple en línea Y deja el número de
 // tarjeta tokenizado, habilitando después los Cargos Automáticos (CAI) sin
@@ -63,6 +78,43 @@ define('PLE_URL_LIGA_TOKEN',        PLE_HOST_BASE . '/Service/GenerarLigaDomicil
 define('PLE_URL_LIGA_SIMPLE',       PLE_HOST_BASE . '/Service/GenerarLigaIndi');
 define('PLE_URL_DOMICILIACION_PAGAR',    PLE_HOST_BASE . '/Service/PagarDomiciliacionIndi');
 define('PLE_URL_DOMICILIACION_CANCELAR', PLE_HOST_BASE . '/Service/CancelarDomiciliacionIndi');
+// Corregido 09-sep-2026: Cobroscontarjeta.com (Osbel) confirmó que el
+// servicio de Referencias en efectivo YA NO se llama en pagadetodo.mx —
+// hay que llamarlo en la plataforma de Pagalaescuela también (no solo
+// mandar sus credenciales IntegrationID/BusinessID a la URL vieja de
+// Pagadetodo, que fue justo lo que causaba el error 26 "no vinculado").
+define('PLE_URL_REFERENCIA', PLE_HOST_BASE . '/Service/GenerarReferenciaIndi');
+
+// ─── DocuSign (firma electrónica de la autorización de Cargos Automáticos) ──
+// Cobroscontarjeta.com/el banco emisor rechaza domiciliaciones autorizadas
+// solo con un checkbox de "acepto términos y condiciones" — piden una
+// autorización firmada de verdad. Ver lib/docusign_helper.php.
+//
+// Pasos para llenar esto (cuenta de desarrollador, gratis, en
+// developers.docusign.com):
+//   1. Crea una Integration Key (app de OAuth) en el Admin de esa cuenta.
+//   2. Genera un par de llaves RSA (o sube tu propia llave pública) para esa
+//      Integration Key — pega la llave PRIVADA completa abajo.
+//   3. Copia tu User ID y tu Account ID (ambos son GUID, están en el Admin).
+//   4. Da tu consentimiento UNA VEZ visitando (mientras estás logueado):
+//      https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=TU_INTEGRATION_KEY&redirect_uri=https://www.docusign.com
+//      (usa account.docusign.com en vez de account-d.docusign.com si es
+//      cuenta de producción, no de desarrollo/sandbox).
+// Mientras estas 4 constantes no tengan un valor real, docusign_configurado()
+// regresa false y las acciones que dependen de esto responden con un error
+// claro en vez de tronar.
+define('DOCUSIGN_INTEGRATION_KEY', ''); // <-- GUID de tu Integration Key
+define('DOCUSIGN_USER_ID',         ''); // <-- GUID de tu usuario DocuSign
+define('DOCUSIGN_ACCOUNT_ID',      ''); // <-- GUID de tu cuenta DocuSign
+define('DOCUSIGN_PRIVATE_KEY', ''); // <-- Llave privada RSA completa, formato PEM (-----BEGIN RSA PRIVATE KEY-----...-----END RSA PRIVATE KEY-----)
+// account-d.docusign.com = sandbox/desarrollo. Cambiar a account.docusign.com
+// solo cuando se pase a una cuenta de producción real de DocuSign.
+define('DOCUSIGN_AUTH_HOST', 'account-d.docusign.com');
+// Opcional pero recomendado: en DocuSign Admin → Connect, al crear la
+// configuración de este webhook, activa "HMAC Signature" y pon aquí ese
+// mismo secreto compartido — sin esto, cualquiera que adivine la URL del
+// webhook podría fingir que una firma ya se completó.
+define('DOCUSIGN_CONNECT_HMAC_KEY', '');
 
 // ─── CLABE FIJA (legado / fallback) ──────────────────────────────────────────
 // Se mantiene como respaldo, pero el sistema ahora genera una CLABE INDIVIDUAL
@@ -75,7 +127,6 @@ define('SPEI_BENEFICIARIO','Paga la Escuela S.A. de C.V.');
 // Cada CLABE generada se asigna y permanece ligada al alumno hasta que
 // se da de baja (deja la escuela), momento en que se libera/cancela.
 define('SPEI_CLABE_EXPIRACION_DIAS', 365); // vigencia que se solicita a Pagadetodo
-define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local de respaldo
 
 // ─── URL de tu webhook (darla a Pagadetodo para notificaciones SPEI) ─────────
 // IMPORTANTE: genera un token aleatorio propio (ej. bin2hex(random_bytes(24)))
@@ -85,20 +136,14 @@ define('SPEI_CLABES_FILE', __DIR__ . '/clabes_alumnos.json'); // bitácora local
 // Después de desplegar esto, hay que darle este mismo valor a Pagadetodo en su
 // configuración de webhook (?token=...), si no, sus notificaciones dejarán de pasar.
 define('WEBHOOK_SPEI_TOKEN', 'd415bc71bb74b30892b017848882bfa6897c8c2a0c8ca6519a432798955c0956');
-define('WEBHOOK_URL', 'https://test.grupoideasmx.com/webhook_spei.php?token=' . WEBHOOK_SPEI_TOKEN);
 
-// ─── Webhook de Liga/CAI (EntregarPagoLigaToken) — Pagalaescuela ─────────────
-// Este endpoint NO lleva token en query string porque el protocolo de
-// Cobroscontarjeta.com para EntregarPagoLigaToken no soporta parámetros
-// extra en la URL (la ruta debe ser exactamente /Service/EntregarPagoLigaToken).
-// La validación de origen se hace verificando que 'reference' exista en
-// nuestra tabla `cobros` y no esté ya pagada — igual patrón que webhook_spei.
-define('WEBHOOK_LIGA_URL', 'https://test.grupoideasmx.com/webhook_liga.php');
-
-// ─── BusinessID para Referencias en efectivo (OXXO/terceros) — Pagadetodo ───
-// El correo no especifica un BusinessID distinto para efectivo; se usa el
-// mismo que SPEI salvo que Cobroscontarjeta.com indique uno específico.
-define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
+// NOTA histórica sobre Referencias en efectivo: hasta el 09-sep-2026 este
+// servicio corría bajo Pagadetodo (IntegrationID 125), con su propia
+// constante PDT_BUS_ID_EFECTIVO. Cobroscontarjeta.com lo movió a
+// Pagalaescuela ese mismo día — acciones/generar_referencia_efectivo.php
+// ahora usa PLE_INT_ID/PLE_SCHOOL_ID directamente (mismas credenciales que
+// Pago en línea/CAI), aunque la URL del endpoint (PDT_URL_REFERENCIA) no
+// cambió. PDT_BUS_ID_EFECTIVO se quitó de aquí por quedar sin uso.
 
 // Token compartido para los 3 endpoints EMISOR de Referencias
 // (ConsultaReferencia / PagoReferencia / CancelaPago). Cobroscontarjeta.com
@@ -109,16 +154,24 @@ define('PDT_BUS_ID_EFECTIVO', PDT_BUS_ID_SPEI);
 // (ellos llaman /Service/ConsultaReferencia/?r=REFERENCIA tal cual).
 define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
 
-// ─── Configuración del super-admin ───────────────────────────────────────────
-define('ADMIN_EMAIL',    'admin@pagalaescuela.mx');
+// ─── IPs permitidas para los webhooks sin token (efectivo/tarjeta) ───────────
+// pago_referencia.php, cancela_pago_referencia.php y webhook_liga.php NO
+// pueden exigir un token compartido (el protocolo fijo de Cobroscontarjeta.com
+// para estos servicios no lo soporta — ver comentario arriba). La única
+// defensa real posible es restringir por IP de origen: pídele a
+// Cobroscontarjeta.com/Pagadetodo la(s) IP(s) desde donde llaman estos 3
+// endpoints y agrégalas aquí. Vacío = sin restricción (como está hoy, no
+// se rompe nada mientras no la llenes).
+define('IPS_PERMITIDAS_PAGOS_SIN_TOKEN', []); // ej. ['200.23.45.10', '200.23.45.11']
 
-// ─── Envío de correo (facturas, notificaciones) ──────────────────────────────
-// Usa la función mail() nativa de PHP (Hostinger la soporta sin configuración
-// adicional). Sin SMTP autenticado/SPF/DKIM la entregabilidad es limitada (puede
-// caer en spam) — si more adelante se contrata un SMTP real, solo hay que
-// cambiar la implementación de enviar_correo() en mailer.php, no los llamadores.
-define('MAIL_FROM_EMAIL', 'no-responder@pagalaescuela.mx');
-define('MAIL_FROM_NAME',  'Paga la Escuela');
+// Verifica la IP de origen contra IPS_PERMITIDAS_PAGOS_SIN_TOKEN. Devuelve
+// true si la lista está vacía (sin restricción) o si la IP coincide.
+function ip_permitida_pago_sin_token() {
+    $lista = defined('IPS_PERMITIDAS_PAGOS_SIN_TOKEN') ? IPS_PERMITIDAS_PAGOS_SIN_TOKEN : [];
+    if (empty($lista)) return true;
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    return in_array($ip, $lista, true);
+}
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 define('API_LOG_ENABLED', true);
@@ -137,11 +190,42 @@ define('APP_TOKEN_TTL',    60 * 60 * 12); // 12 horas de vigencia
 // ─── Zona horaria ────────────────────────────────────────────────────────────
 date_default_timezone_set('America/Mexico_City');
 
-// ─── Credenciales del PAC (Ej. Facturama) ────────────────────────────────────
-// Usa las credenciales de Sandbox para desarrollo y las reales para producción.
-define('PAC_API_URL', 'https://apisandbox.facturama.mx/2/cfdis'); // URL de pruebas
-define('PAC_USER',    'tu_usuario_pac');
-define('PAC_PASS',    'tu_password_pac');
-
 // ─── Credenciales de Facturapi ───────────────────────────────────────────────
+
 define('FACTURAPI_KEY', 'sk_test_J6gHBD1SfgAfBbXEn2JEA36AVwwAsP3eizL6HdzyFF');
+
+// ─── Correo saliente (SMTP) — recordatorios de vencimiento y cobros ──────────
+// Usado por mailer.php / cron_recordatorios.php. Cuenta real de correo del
+// panel de Hostinger (mail.pagalaescuela.com), puerto 465 con SSL/TLS implícito.
+define('SMTP_HOST',       'mail.seguroslux.mx');
+define('SMTP_PORT',       465);
+define('SMTP_SECURE',     'ssl');
+define('SMTP_USER',       'contacto@seguroslux.mx');
+define('SMTP_PASS',       'S3gur0$2026');     // <-- Reemplazar con la contraseña real de contacto@pagalaescuela.com
+define('SMTP_FROM_EMAIL', 'contacto@seguroslux.mx');  // debe ser igual a SMTP_USER: muchos servidores rechazan un From distinto al autenticado
+define('SMTP_FROM_NAME',  'Pagalaescuela');
+
+// ─── Subida de archivos (fotos de alumno, comprobantes de gastos) ────────────
+// Usado por lib/uploads.php. UPLOADS_DIR_ABS es la ruta absoluta en disco;
+// las rutas que se guardan en BD (ej. clientes.foto_url) son siempre
+// relativas ('uploads/...'), listas para usarse directo como src de <img>.
+define('UPLOADS_DIR_ABS',  __DIR__ . '/uploads');
+define('UPLOADS_URL_BASE', 'uploads');
+
+define('UPLOADS_MAX_BYTES_FOTO',        5 * 1024 * 1024); // 5 MB — foto de alumno
+define('UPLOADS_MAX_BYTES_COMPROBANTE', 8 * 1024 * 1024); // 8 MB — comprobante de gasto (puede ser PDF escaneado)
+
+define('UPLOADS_EXT_FOTO',        ['jpg', 'jpeg', 'png', 'webp']);
+define('UPLOADS_EXT_COMPROBANTE', ['jpg', 'jpeg', 'png', 'webp', 'pdf']);
+
+// ─── Documentos fiscales del colegio (INE, constancia fiscal, etc.) ──────────
+// A diferencia de uploads/ (pública, solo bloquea EJECUCIÓN), esta carpeta
+// debe ser imposible de leer por URL directa -- uploads_privados/.htaccess
+// deniega TODA lectura. Los archivos solo se sirven por
+// acciones/descargar_documento_escuela.php, con autenticación y
+// verificación de pertenencia, igual que ya hace descargar_cfdi.php.
+define('UPLOADS_PRIVADOS_DIR_ABS', __DIR__ . '/uploads_privados');
+define('UPLOADS_MAX_BYTES_DOCUMENTO', 10 * 1024 * 1024); // 10 MB -- mismo tope que pide el formulario de alta de comercio de Cobroscontarjeta.com
+define('UPLOADS_EXT_DOCUMENTO', ['jpg', 'jpeg', 'png', 'pdf']);
+
+define('CORREOS_LOG_FILE', __DIR__ . '/correos_log.txt');

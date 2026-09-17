@@ -38,7 +38,13 @@ const NAV_ITEMS = [{
 
   section: 'principal',
 
-  roles: ['cajero', 'admin']
+  // Dashboard.js YA tenía una rama completa para superadmin sin escuela
+
+  // activa (vista global agregando todas las escuelas) — solo estaba sin
+
+  // usar porque este filtro de roles nunca dejaba pasar a superadmin.
+
+  roles: ['cajero', 'admin', 'superadmin']
 
 }, {
 
@@ -78,6 +84,18 @@ const NAV_ITEMS = [{
 
 }, {
 
+  id: 'gastos',
+
+  label: 'Gastos',
+
+  icon: 'pay',
+
+  section: 'principal',
+
+  roles: ['admin']
+
+}, {
+
   id: 'alumnos',
 
   label: 'Alumnos',
@@ -107,6 +125,18 @@ const NAV_ITEMS = [{
   label: 'Conceptos de pago',
 
   icon: 'productos',
+
+  section: 'configuración',
+
+  roles: ['admin']
+
+}, {
+
+  id: 'proveedores',
+
+  label: 'Proveedores',
+
+  icon: 'bank',
 
   section: 'configuración',
 
@@ -234,6 +264,40 @@ const NAV_ITEMS = [{
 
 }, {
 
+  id: 'mi_suscripcion',
+
+  label: 'Mi suscripción',
+
+  icon: 'facturacion2',
+
+  section: 'configuración',
+
+  // Antes solo el superadmin podia generar una liga de renovacion; el
+
+  // backend ya aceptaba el rol admin restringido a su propia escuela,
+
+  // pero no existia ninguna vista para usarlo desde este lado.
+
+  roles: ['admin']
+
+}, {
+
+  id: 'mi_cuenta',
+
+  label: 'Mi cuenta',
+
+  icon: 'usuarios',
+
+  section: 'configuración',
+
+  // Datos fiscales (persona física/moral, razón social, régimen, CP) y
+  // documentos (INE, constancia de situación fiscal, comprobante de
+  // domicilio) para poder facturar de verdad -- antes no existía ninguna
+  // pantalla donde un admin pudiera tocar esto de su propia escuela.
+  roles: ['admin']
+
+}, {
+
   id: 'superreportes',
 
   label: 'Métricas Globales',
@@ -282,7 +346,9 @@ const TITLES = {
 
   usuarios: 'Gestión de Usuarios',
 
-  miequipo: 'Mi Equipo'
+  miequipo: 'Mi Equipo',
+
+  mi_cuenta: 'Mi cuenta'
 
 };
 
@@ -290,15 +356,7 @@ const TITLES = {
 
 
 
-/*
-
- * Red de seguridad:
-
- * si algo inesperado revienta el render de React,
-
- * evita que toda la pantalla quede en blanco.
-
- */
+// * Red de seguridad: * si algo inesperado revienta el render de React, * evita que toda la pantalla quede en blanco.
 
 class AppErrorBoundary extends React.Component {
 
@@ -534,7 +592,7 @@ function App() {
 
 
 
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
 
 
 
@@ -548,11 +606,7 @@ function App() {
 
 
 
-  /*
-
-   * Tema inicial.
-
-   */
+  // * Tema inicial.
 
   useEffect(() => {
 
@@ -570,17 +624,9 @@ function App() {
 
 
 
-  /*
-
-   * Carga datos desde la API (MySQL)
-
-   * o desde localStorage como fallback.
-
-   */
+  // * Carga datos desde la API (MySQL) * o desde localStorage como fallback.
 
   const cargarDatosDesdeAPI = async (token, escuelaId) => {
-
-
 
     try {
 
@@ -607,6 +653,8 @@ function App() {
         'api.php?' + params.toString(),
 
         {
+
+          cache: 'no-store',
 
           headers: {
 
@@ -636,135 +684,42 @@ function App() {
 
       const json = await res.json();
 
-
-
       if (json.success) {
 
-
-
-        /*
-
-         * Mezcla los datos de la DB
-
-         * con la estructura base de AppModel.
-
-         */
-
-        const base = AppModel.load();
-
-
-
-        const merged = {
-
-          ...base,
-
-
-
-          escuelas:
-
-            (json.escuelas || []).length
-
-              ? json.escuelas
-
-              : (base.escuelas || []),
-
-
-
-          resumen_escuelas:
-
-            json.resumen_escuelas || {},
-
-
-
-          clientes:
-
-            json.clientes || [],
-
-
-
-          clientes_total:
-
-            json.clientes_total,
-
-
-
-          clientes_pagina:
-
-            json.clientes_pagina,
-
-
-
-          clientes_por_pagina:
-
-            json.clientes_por_pagina,
-
-
-
-          planteles:
-
-            json.planteles || [],
-
-
-
-          resumen_planteles:
-
-            json.resumen_planteles || {},
-
-
-
-          familias:
-
-            json.familias || [],
-
-
-
-          productos:
-
-            (json.productos || []).length
-
-              ? json.productos
-
-              : (base.productos || []),
-
-
-
-          cobros:
-
-            json.cobros || [],
-
-
-
-          recordatorios:
-
-            json.recordatorios ||
-
-            base.recordatorios ||
-
-            []
-
+        // Antes se mezclaba con AppModel.load() (un store de localStorage de
+        // antes de que existiera el backend real): si la API regresaba una
+        // lista vacía de escuelas/productos/recordatorios, se rellenaba con
+        // lo último guardado en localStorage en vez de reflejar el estado
+        // real — y ese resultado mezclado se volvía a guardar en AppModel,
+        // perpetuando datos viejos. Ahora se confía siempre en la respuesta
+        // real de la API, sin mezcla con caché local.
+        const datosApi = {
+          escuelas: json.escuelas || [],
+          resumen_escuelas: json.resumen_escuelas || {},
+          clientes: json.clientes || [],
+          clientes_total: json.clientes_total,
+          clientes_activos_total: json.clientes_activos_total,
+          clientes_pagina: json.clientes_pagina,
+          clientes_por_pagina: json.clientes_por_pagina,
+          planteles: json.planteles || [],
+          resumen_planteles: json.resumen_planteles || {},
+          familias: json.familias || [],
+          productos: json.productos || [],
+          proveedores: json.proveedores || [],
+          cobros: json.cobros || [],
+          recordatorios: json.recordatorios || [],
         };
 
-
-
-        AppModel.save(merged);
-
-
-
-        return merged;
+        return datosApi;
 
       }
 
 
 
+
     } catch (e) {
 
-      /*
-
-       * Sin API:
-
-       * usar localStorage.
-
-       */
+      // * Sin API: * usar localStorage.
 
     }
 
@@ -778,11 +733,7 @@ function App() {
 
 
 
-  /*
-
-   * Restaurar sesión existente.
-
-   */
+  // * Restaurar sesión existente.
 
   useEffect(() => {
 
@@ -854,11 +805,7 @@ function App() {
 
 
 
-  /*
-
-   * Mantener referencia actualizada de los datos.
-
-   */
+  // * Mantener referencia actualizada de los datos.
 
   useEffect(() => {
 
@@ -870,15 +817,7 @@ function App() {
 
 
 
-  /*
-
-   * Superadmin:
-
-   * al elegir una escuela se vuelve a consultar cargar_datos
-
-   * usando escuela_id_ver.
-
-   */
+  // * Superadmin: * al elegir una escuela se vuelve a consultar cargar_datos * usando escuela_id_ver.
 
   const esSuperParaFetch =
 
@@ -936,17 +875,7 @@ function App() {
 
 
 
-  /*
-
-   * LOGIN
-
-   *
-
-   * Ya no existe LoginTransition.
-
-   * El login entra directamente al dashboard.
-
-   */
+  // * LOGIN * * Ya no existe LoginTransition. * El login entra directamente al dashboard.
 
   const handleLogin = u => {
 
@@ -964,11 +893,7 @@ function App() {
 
 
 
-    /*
-
-     * Cargar datos frescos de la DB.
-
-     */
+    // * Cargar datos frescos de la DB.
 
     cargarDatosDesdeAPI(
 
@@ -998,11 +923,7 @@ function App() {
 
 
 
-    /*
-
-     * Iniciar polling SPEI.
-
-     */
+    // * Iniciar polling SPEI.
 
     SpeiPoller.iniciar({
 
@@ -1040,11 +961,7 @@ function App() {
 
 
 
-    /*
-
-     * Entrar directamente.
-
-     */
+    // * Entrar directamente.
 
     setUser(u);
 
@@ -1054,11 +971,7 @@ function App() {
 
 
 
-  /*
-
-   * LOGOUT
-
-   */
+  // * LOGOUT
 
   const handleLogout = () => {
 
@@ -1088,41 +1001,13 @@ function App() {
 
 
 
-  /*
-
-   * CAMBIO DE TEMA
-
-   */
+  // * CAMBIO DE TEMA
 
   const toggleTheme = () => {
 
+    // Solo cambia el estado: el useEffect aplica data-theme y lo persiste. Antes esta función invertía el valor.
 
-
-    const next =
-
-      theme === 'dark'
-
-        ? 'light'
-
-        : 'dark';
-
-
-
-    setTheme(next);
-
-
-
-    document.documentElement.setAttribute(
-
-      'data-theme',
-
-      next === 'light'
-
-        ? 'light'
-
-        : ''
-
-    );
+    setTheme(theme === 'dark' ? 'light' : 'dark');
 
   };
 
@@ -1130,17 +1015,13 @@ function App() {
 
 
 
-  /*
-
-   * LOGIN
-
-   */
+  // * LOGIN
 
   if (!user) {
 
 
 
-    return /*#__PURE__*/_jsxDEV(
+    return _jsxDEV(
 
       Login,
 
@@ -1162,11 +1043,7 @@ function App() {
 
 
 
-  /*
-
-   * PORTAL FAMILIA
-
-   */
+  // * PORTAL FAMILIA
 
   if (user.rol === 'familia') {
 
@@ -1194,7 +1071,7 @@ function App() {
 
 
 
-      ? /*#__PURE__*/_jsxDEV(
+      ? _jsxDEV(
 
           PortalFamilia,
 
@@ -1228,7 +1105,7 @@ function App() {
 
 
 
-      : /*#__PURE__*/_jsxDEV(
+      : _jsxDEV(
 
           "div",
 
@@ -1250,7 +1127,15 @@ function App() {
 
 
 
-            children: "Cargando…"
+            children: typeof Cargando !== 'undefined'
+
+
+
+              ? _jsxDEV(Cargando, { variante: 'simple', texto: 'Cargando\u2026' }, void 0, false)
+
+
+
+              : 'Cargando\u2026'
 
           },
 
@@ -1266,19 +1151,11 @@ function App() {
 
 
 
-  /*
-
-   * PORTAL DISTRIBUIDOR
-
-   * No depende de cargar_datos (asume escuela_id fija en sesion);
-
-   * Distribuidor.js trae su propia data via action=distribuidor_datos.
-
-   */
+  // * PORTAL DISTRIBUIDOR * No depende de cargar_datos (asume escuela_id fija en sesion); * Distribuidor.js trae su propia data via action=distribuidor_datos.
 
   if (user.rol === 'distribuidor') {
 
-    return /*#__PURE__*/_jsxDEV(
+    return _jsxDEV(
 
       Distribuidor,
 
@@ -1300,21 +1177,44 @@ function App() {
 
   }
 
+  // * PANEL CONTADOR (11-sep-2026) * Mismo patron que Distribuidor: no
+  // depende de cargar_datos (contador no tiene escuela_id propia, revisa
+  // CUALQUIER escuela) -- Contador.js trae su propia data via
+  // action=contador_listar_escuelas.
+
+  if (user.rol === 'contador') {
+
+    return _jsxDEV(
+
+      Contador,
+
+      {
+
+        user: user,
+
+        onLogout: handleLogout
+
+      },
+
+      void 0,
+
+      false
+
+    );
+
+  }
 
 
 
 
-  /*
 
-   * Mientras llegan los datos.
-
-   */
+  // * Mientras llegan los datos.
 
   if (!data) {
 
 
 
-    return /*#__PURE__*/_jsxDEV(
+    return _jsxDEV(
 
       "div",
 
@@ -1336,7 +1236,15 @@ function App() {
 
 
 
-        children: "Cargando…"
+        children: typeof Cargando !== 'undefined'
+
+
+
+          ? _jsxDEV(Cargando, { variante: 'simple', texto: 'Cargando\u2026' }, void 0, false)
+
+
+
+          : 'Cargando\u2026'
 
       },
 
@@ -1352,15 +1260,7 @@ function App() {
 
 
 
-  /*
-
-   * Blindaje:
-
-   * si la API devuelve una estructura incompleta,
-
-   * nunca dejamos que falte un array.
-
-   */
+  // * Blindaje: * si la API devuelve una estructura incompleta, * nunca dejamos que falte un array.
 
   const dataSegura = {
 
@@ -1396,6 +1296,12 @@ function App() {
 
 
 
+    proveedores:
+
+      data.proveedores || [],
+
+
+
     cobros:
 
       data.cobros || [],
@@ -1416,7 +1322,27 @@ function App() {
 
     resumen_escuelas:
 
-      data.resumen_escuelas || {}
+      data.resumen_escuelas || {},
+
+
+
+    // clientes_total/activos_total/pagina/por_pagina: cargar_datos.php ya los
+    // manda (son el total REAL en BD, no solo lo cargado en esta página), pero
+    // dataSegura es una lista blanca de campos — al agregar esos campos nuevos
+    // nunca se agregaron aquí, así que Alumnos.js/Dashboard.js siempre los veían
+    // undefined y caían a su fallback (contar solo data.clientes.length, la
+    // página cargada) por más que la API los regresara bien.
+    clientes_total:
+      data.clientes_total,
+
+    clientes_activos_total:
+      data.clientes_activos_total,
+
+    clientes_pagina:
+      data.clientes_pagina,
+
+    clientes_por_pagina:
+      data.clientes_por_pagina
 
   };
 
@@ -1492,6 +1418,16 @@ function App() {
 
 
 
+          proveedores:
+
+            dataSegura.proveedores.filter(
+
+              p => p.escuela_id === escuelaActiva
+
+            ),
+
+
+
           cobros:
 
             dataSegura.cobros.filter(
@@ -1516,11 +1452,7 @@ function App() {
 
 
 
-  /*
-
-   * Cobros pendientes.
-
-   */
+  // * Cobros pendientes.
 
   const pendientes =
 
@@ -1538,11 +1470,7 @@ function App() {
 
 
 
-  /*
-
-   * Colegios que superaron el límite de su plan.
-
-   */
+  // * Colegios que superaron el límite de su plan.
 
   const LIMITES_NAV = {
 
@@ -1666,11 +1594,15 @@ function App() {
 
 
 
-  /*
+  // * Navegación.
 
-   * Navegación.
-
-   */
+  // Secciones que el super admin deshabilitó para esta escuela (ver
+  // superadmin_toggle_seccion_escuela.php). Para superadmin sin escuela
+  // seleccionada `escuela` es null, así que esto no le afecta a él.
+  const seccionesDeshabilitadas =
+    Array.isArray(escuela?.secciones_deshabilitadas)
+      ? escuela.secciones_deshabilitadas
+      : [];
 
   const secciones = [
 
@@ -1680,7 +1612,7 @@ function App() {
 
         .filter(
 
-          n => n.roles.includes(user.rol)
+          n => n.roles.includes(user.rol) && !seccionesDeshabilitadas.includes(n.id)
 
         )
 
@@ -1702,7 +1634,7 @@ function App() {
 
     NAV_ITEMS.filter(
 
-      n => n.roles.includes(user.rol)
+      n => n.roles.includes(user.rol) && !seccionesDeshabilitadas.includes(n.id)
 
     );
 
@@ -1710,15 +1642,17 @@ function App() {
 
 
 
-  /*
-
-   * Render de las vistas.
-
-   */
+  // * Render de las vistas.
 
   const renderView = () => {
 
-
+    if (seccionesDeshabilitadas.includes(view)) {
+      return _jsxDEV('div', {
+        className: 'card',
+        style: { textAlign: 'center', padding: 40, color: 'var(--ink-3)' },
+        children: 'Esta sección no está disponible para tu cuenta.'
+      }, void 0, false);
+    }
 
     switch (view) {
 
@@ -1728,7 +1662,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Dashboard,
 
@@ -1759,12 +1693,55 @@ function App() {
 
 
 
+      case 'mi_suscripcion':
+
+        return _jsxDEV(
+
+          MiSuscripcion,
+
+          {
+
+            escuela: escuela,
+
+            user: user
+
+          },
+
+          void 0,
+
+          false
+
+        );
+
+      case 'mi_cuenta':
+
+        return _jsxDEV(
+
+          MiCuenta,
+
+          {
+
+            escuela: escuela,
+
+            user: user
+
+          },
+
+          void 0,
+
+          false
+
+        );
+
+
+
+
 
       case 'caja':
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Caja,
 
@@ -1816,7 +1793,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           CorteCaja,
 
@@ -1844,7 +1821,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Cobros,
 
@@ -1892,7 +1869,14 @@ function App() {
 
         );
 
+      case 'gastos':
 
+        return _jsxDEV(
+          Gastos,
+          { data: dataScopeed, escuela_id: escuelaActiva },
+          void 0,
+          false
+        );
 
 
 
@@ -1900,7 +1884,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Alumnos,
 
@@ -1956,7 +1940,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Familias,
 
@@ -2006,7 +1990,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Productos,
 
@@ -2048,7 +2032,18 @@ function App() {
 
         );
 
+      case 'proveedores':
 
+        return _jsxDEV(
+          Proveedores,
+          {
+            data: dataScopeed,
+            setData: d => setData(mergeScoped(data, typeof d === 'function' ? d(dataScopeed) : d, escuelaActiva)),
+            escuela_id: escuelaActiva
+          },
+          void 0,
+          false
+        );
 
 
 
@@ -2056,7 +2051,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Facturacion,
 
@@ -2104,7 +2099,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Recordatorios,
 
@@ -2152,7 +2147,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Reportes,
 
@@ -2180,7 +2175,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Escuelas,
 
@@ -2224,7 +2219,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           SuperReportes,
 
@@ -2248,7 +2243,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Suscripciones,
 
@@ -2276,7 +2271,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           BusquedaGlobal,
 
@@ -2304,7 +2299,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Logs,
 
@@ -2328,7 +2323,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Usuarios,
 
@@ -2356,7 +2351,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Comisiones,
 
@@ -2384,7 +2379,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Usuarios,
 
@@ -2412,7 +2407,7 @@ function App() {
 
 
 
-        return /*#__PURE__*/_jsxDEV(
+        return _jsxDEV(
 
           Dashboard,
 
@@ -2448,13 +2443,7 @@ function App() {
 
 
 
-  /*
-
-   * Mezcla datos modificados de una escuela
-
-   * con el dataset global.
-
-   */
+  // * Mezcla datos modificados de una escuela * con el dataset global.
 
   function mergeScoped(
 
@@ -2560,6 +2549,24 @@ function App() {
 
 
 
+      proveedores: [
+
+        ...(gd.proveedores || [])
+
+          .filter(
+
+            p => p.escuela_id !== eid
+
+          ),
+
+
+
+        ...(ns.proveedores || [])
+
+      ],
+
+
+
       cobros: [
 
         ...(gd.cobros || [])
@@ -2602,7 +2609,25 @@ function App() {
 
         gd.escuelas ||
 
-        []
+        [],
+
+
+
+      // Igual que arriba: si no se copian aquí, un fetch escopado (ej. la
+      // paginación/búsqueda de Alumnos.js) actualiza clientes/clientes_total
+      // en su vista, pero mergeScoped los tira al re-fusionar con el estado
+      // global — y el próximo render vuelve a mostrar el total viejo/undefined.
+      clientes_total:
+        typeof ns.clientes_total === 'number' ? ns.clientes_total : gd.clientes_total,
+
+      clientes_activos_total:
+        typeof ns.clientes_activos_total === 'number' ? ns.clientes_activos_total : gd.clientes_activos_total,
+
+      clientes_pagina:
+        typeof ns.clientes_pagina === 'number' ? ns.clientes_pagina : gd.clientes_pagina,
+
+      clientes_por_pagina:
+        typeof ns.clientes_por_pagina === 'number' ? ns.clientes_por_pagina : gd.clientes_por_pagina
 
     };
 
@@ -2612,11 +2637,7 @@ function App() {
 
 
 
-  /*
-
-   * Iniciales del usuario para avatar.
-
-   */
+  // * Iniciales del usuario para avatar.
 
   const initials =
 
@@ -2684,19 +2705,9 @@ function App() {
 
 
 
-  /*
+  // * APP PRINCIPAL * * IMPORTANTE: * aquí ya NO existe withLT().
 
-   * APP PRINCIPAL
-
-   *
-
-   * IMPORTANTE:
-
-   * aquí ya NO existe withLT().
-
-   */
-
-  return /*#__PURE__*/_jsxDEV(
+  return _jsxDEV(
 
     "div",
 
@@ -2714,13 +2725,9 @@ function App() {
 
 
 
-        /*
+        // * BACKDROP MOBILE
 
-         * BACKDROP MOBILE
-
-         */
-
-        /*#__PURE__*/_jsxDEV(
+        _jsxDEV(
 
           "div",
 
@@ -2750,13 +2757,9 @@ function App() {
 
 
 
-        /*
+        // * SIDEBAR
 
-         * SIDEBAR
-
-         */
-
-        /*#__PURE__*/_jsxDEV(
+        _jsxDEV(
 
           "aside",
 
@@ -2772,13 +2775,9 @@ function App() {
 
 
 
-              /*
+              // * BRAND
 
-               * BRAND
-
-               */
-
-              /*#__PURE__*/_jsxDEV(
+              _jsxDEV(
 
                 "div",
 
@@ -2796,7 +2795,7 @@ function App() {
 
 
 
-                    /*#__PURE__*/_jsxDEV(
+                    _jsxDEV(
 
                       "img",
 
@@ -2824,7 +2823,13 @@ function App() {
 
 
 
-                          width: '100%',
+                          width: 'auto',
+
+                          maxWidth: '100%',
+
+                          borderRadius: 12,
+
+                          display: 'block',
 
 
 
@@ -2878,13 +2883,9 @@ function App() {
 
 
 
-                    /*
+                    // * Fallback de marca
 
-                     * Fallback de marca
-
-                     */
-
-                    /*#__PURE__*/_jsxDEV(
+                    _jsxDEV(
 
                       "div",
 
@@ -2916,7 +2917,7 @@ function App() {
 
 
 
-                          /*#__PURE__*/_jsxDEV(
+                          _jsxDEV(
 
                             "div",
 
@@ -2932,7 +2933,7 @@ function App() {
 
                               children:
 
-                                /*#__PURE__*/_jsxDEV(
+                                _jsxDEV(
 
                                   Icon,
 
@@ -2974,7 +2975,7 @@ function App() {
 
 
 
-                          /*#__PURE__*/_jsxDEV(
+                          _jsxDEV(
 
                             "div",
 
@@ -2986,7 +2987,7 @@ function App() {
 
 
 
-                                /*#__PURE__*/_jsxDEV(
+                                _jsxDEV(
 
                                   "div",
 
@@ -3014,7 +3015,7 @@ function App() {
 
 
 
-                                /*#__PURE__*/_jsxDEV(
+                                _jsxDEV(
 
                                   "div",
 
@@ -3080,15 +3081,11 @@ function App() {
 
 
 
-              /*
-
-               * ESCUELA ACTIVA
-
-               */
+              // * ESCUELA ACTIVA
 
               escuela &&
 
-                /*#__PURE__*/_jsxDEV(
+                _jsxDEV(
 
                   "div",
 
@@ -3118,7 +3115,7 @@ function App() {
 
 
 
-                      /*#__PURE__*/_jsxDEV(
+                      _jsxDEV(
 
                         "div",
 
@@ -3174,7 +3171,7 @@ function App() {
 
 
 
-                      /*#__PURE__*/_jsxDEV(
+                      _jsxDEV(
 
                         "div",
 
@@ -3198,7 +3195,7 @@ function App() {
 
                             color:
 
-                              'var(--lime)'
+                              'var(--violet-dark)'
 
                           },
 
@@ -3232,15 +3229,11 @@ function App() {
 
 
 
-              /*
-
-               * SELECTOR SUPERADMIN
-
-               */
+              // * SELECTOR SUPERADMIN
 
               esSuper &&
 
-                /*#__PURE__*/_jsxDEV(
+                _jsxDEV(
 
                   "div",
 
@@ -3268,7 +3261,7 @@ function App() {
 
                     children:
 
-                      /*#__PURE__*/_jsxDEV(
+                      _jsxDEV(
 
                         "div",
 
@@ -3290,7 +3283,7 @@ function App() {
 
 
 
-                            /*#__PURE__*/_jsxDEV(
+                            _jsxDEV(
 
                               Icon,
 
@@ -3362,7 +3355,7 @@ function App() {
 
 
 
-                            /*#__PURE__*/_jsxDEV(
+                            _jsxDEV(
 
                               "select",
 
@@ -3480,7 +3473,7 @@ function App() {
 
 
 
-                                  /*#__PURE__*/_jsxDEV(
+                                  _jsxDEV(
 
                                     "option",
 
@@ -3514,7 +3507,7 @@ function App() {
 
                                       e =>
 
-                                        /*#__PURE__*/_jsxDEV(
+                                        _jsxDEV(
 
                                           "option",
 
@@ -3590,13 +3583,9 @@ function App() {
 
 
 
-              /*
+              // * NAV
 
-               * NAV
-
-               */
-
-              /*#__PURE__*/_jsxDEV(
+              _jsxDEV(
 
                 "nav",
 
@@ -3616,7 +3605,7 @@ function App() {
 
                       sec =>
 
-                        /*#__PURE__*/_jsxDEV(
+                        _jsxDEV(
 
                           "div",
 
@@ -3628,7 +3617,7 @@ function App() {
 
 
 
-                              /*#__PURE__*/_jsxDEV(
+                              _jsxDEV(
 
                                 "div",
 
@@ -3672,7 +3661,7 @@ function App() {
 
                                   n =>
 
-                                    /*#__PURE__*/_jsxDEV(
+                                    _jsxDEV(
 
                                       "div",
 
@@ -3722,7 +3711,7 @@ function App() {
 
 
 
-                                          /*#__PURE__*/_jsxDEV(
+                                          _jsxDEV(
 
                                             Icon,
 
@@ -3762,11 +3751,7 @@ function App() {
 
 
 
-                                          /*
-
-                                           * Badge de cobros.
-
-                                           */
+                                          // * Badge de cobros.
 
                                           n.id ===
 
@@ -3776,7 +3761,7 @@ function App() {
 
                                               0 &&
 
-                                            /*#__PURE__*/_jsxDEV(
+                                            _jsxDEV(
 
                                               "span",
 
@@ -3806,11 +3791,7 @@ function App() {
 
 
 
-                                          /*
-
-                                           * Badge de suscripciones.
-
-                                           */
+                                          // * Badge de suscripciones.
 
                                           n.id ===
 
@@ -3820,7 +3801,7 @@ function App() {
 
                                               0 &&
 
-                                            /*#__PURE__*/_jsxDEV(
+                                            _jsxDEV(
 
                                               "span",
 
@@ -3902,696 +3883,57 @@ function App() {
 
 
 
-              /*
+              // * FOOTER SIDEBAR
 
-               * FOOTER SIDEBAR
-
-               */
-
-              /*#__PURE__*/_jsxDEV(
-
+              _jsxDEV(
                 "div",
-
                 {
-
-
-
-                  className:
-
-                    "sidebar-footer",
-
-
-
-                  children: [
-
-
-
-                    /*#__PURE__*/_jsxDEV(
-
-                      "div",
-
-                      {
-
-
-
-                        className:
-
-                          "user-card",
-
-
-
-                        children: [
-
-
-
-                          /*#__PURE__*/_jsxDEV(
-
-                            "div",
-
-                            {
-
-
-
-                              className:
-
-                                `avatar ${avatarCls}`,
-
-
-
-                              children:
-
-                                initials
-
-                            },
-
-                            void 0,
-
-                            false
-
-                          ),
-
-
-
-
-
-                          /*#__PURE__*/_jsxDEV(
-
-                            "div",
-
-                            {
-
-
-
-                              className:
-
-                                "user-info",
-
-
-
-                              children: [
-
-
-
-                                /*#__PURE__*/_jsxDEV(
-
-                                  "div",
-
-                                  {
-
-
-
-                                    className:
-
-                                      "user-name",
-
-
-
-                                    children:
-
-                                      user.nombre
-
-                                  },
-
-                                  void 0,
-
-                                  false
-
-                                ),
-
-
-
-                                /*#__PURE__*/_jsxDEV(
-
-                                  "div",
-
-                                  {
-
-
-
-                                    className:
-
-                                      "user-role",
-
-
-
-                                    children:
-
-                                      roleLabel[
-
-                                        user.rol
-
-                                      ] ||
-
-                                      user.rol
-
-                                  },
-
-                                  void 0,
-
-                                  false
-
-                                )
-
-
-
-                              ]
-
-                            },
-
-                            void 0,
-
-                            true
-
-                          ),
-
-
-
-
-
-                          /*#__PURE__*/_jsxDEV(
-
-                            "button",
-
-                            {
-
-
-
-                              className:
-
-                                "logout-btn",
-
-
-
-                              onClick:
-
-                                handleLogout,
-
-
-
-                              title:
-
-                                "Cerrar sesión",
-
-
-
-                              children:
-
-                                /*#__PURE__*/_jsxDEV(
-
-                                  Icon,
-
-                                  {
-
-
-
-                                    name:
-
-                                      "logout",
-
-
-
-                                    size:
-
-                                      17,
-
-
-
-                                    color:
-
-                                      "currentColor"
-
-                                  },
-
-                                  void 0,
-
-                                  false
-
-                                )
-
-                            },
-
-                            void 0,
-
-                            false
-
-                          )
-
-
-
-                        ]
-
+                  className: "sidebar-footer",
+                  children: _jsxDEV(
+                    MenuPerfil,
+                    {
+                      user: user,
+                      escuela: escuela,
+                      onLogout: handleLogout,
+                      // Helper mínimo: manda la acción al API con el token de sesión
+                      apiPost: async (accion, cuerpo) => {
+                        const res = await fetch('api.php?action=' + accion, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + AuthController.getToken()
+                          },
+                          body: JSON.stringify(cuerpo)
+                        });
+                        return res.json();
                       },
-
-                      void 0,
-
-                      true
-
-                    ),
-
-
-
-
-
-                    /*
-
-                     * COPYRIGHT + LINKEDIN
-
-                     */
-
-                    /*#__PURE__*/_jsxDEV(
-
-                      "div",
-
-                      {
-
-
-
-                        style: {
-
-
-
-                          marginTop:
-
-                            10,
-
-
-
-                          paddingTop:
-
-                            10,
-
-
-
-                          borderTop:
-
-                            '1px solid var(--glass-light)',
-
-
-
-                          display:
-
-                            'flex',
-
-
-
-                          alignItems:
-
-                            'center',
-
-
-
-                          justifyContent:
-
-                            'space-between'
-
-                        },
-
-
-
-                        children: [
-
-
-
-                          /*#__PURE__*/_jsxDEV(
-
-                            "div",
-
-                            {
-
-
-
-                              style: {
-
-
-
-                                fontSize:
-
-                                  10,
-
-
-
-                                color:
-
-                                  'var(--ink-4)',
-
-
-
-                                lineHeight:
-
-                                  1.4
-
-                              },
-
-
-
-                              children: [
-
-
-
-                                /*#__PURE__*/_jsxDEV(
-
-                                  "span",
-
-                                  {
-
-
-
-                                    style: {
-
-
-
-                                      fontWeight:
-
-                                        600,
-
-
-
-                                      color:
-
-                                        'var(--ink-3)'
-
-                                    },
-
-
-
-                                    children:
-
-                                      "Pagalaescuela.com®"
-
-                                  },
-
-                                  void 0,
-
-                                  false
-
-                                ),
-
-
-
-                                /*#__PURE__*/_jsxDEV(
-
-                                  "br",
-
-                                  {},
-
-                                  void 0,
-
-                                  false
-
-                                ),
-
-
-
-                                /*#__PURE__*/_jsxDEV(
-
-                                  "span",
-
-                                  {
-
-
-
-                                    children:
-
-                                      "by Libertyfin · © 2026"
-
-                                  },
-
-                                  void 0,
-
-                                  false
-
-                                )
-
-
-
-                              ]
-
-                            },
-
-                            void 0,
-
-                            true
-
-                          ),
-
-
-
-
-
-                          /*#__PURE__*/_jsxDEV(
-
-                            "a",
-
-                            {
-
-
-
-                              href:
-
-                                "https://www.linkedin.com/company/libertyfin",
-
-
-
-                              target:
-
-                                "_blank",
-
-
-
-                              rel:
-
-                                "noopener noreferrer",
-
-
-
-                              title:
-
-                                "Libertyfin en LinkedIn",
-
-
-
-                              style: {
-
-
-
-                                display:
-
-                                  'flex',
-
-
-
-                                alignItems:
-
-                                  'center',
-
-
-
-                                justifyContent:
-
-                                  'center',
-
-
-
-                                width:
-
-                                  28,
-
-
-
-                                height:
-
-                                  28,
-
-
-
-                                borderRadius:
-
-                                  6,
-
-
-
-                                flexShrink:
-
-                                  0,
-
-
-
-                                background:
-
-                                  'var(--glass-light)',
-
-
-
-                                border:
-
-                                  '1px solid var(--border-glow)',
-
-
-
-                                color:
-
-                                  'var(--ink-3)',
-
-
-
-                                transition:
-
-                                  'all .15s',
-
-
-
-                                textDecoration:
-
-                                  'none'
-
-                              },
-
-
-
-                              onMouseEnter:
-
-                                e => {
-
-
-
-                                  e.currentTarget.style.background =
-
-                                    '#0a66c2';
-
-
-
-                                  e.currentTarget.style.color =
-
-                                    '#fff';
-
-                                },
-
-
-
-                              onMouseLeave:
-
-                                e => {
-
-
-
-                                  e.currentTarget.style.background =
-
-                                    'var(--glass-light)';
-
-
-
-                                  e.currentTarget.style.color =
-
-                                    'var(--ink-3)';
-
-                                },
-
-
-
-                              children:
-
-                                /*#__PURE__*/_jsxDEV(
-
-                                  "svg",
-
-                                  {
-
-
-
-                                    width:
-
-                                      "14",
-
-
-
-                                    height:
-
-                                      "14",
-
-
-
-                                    viewBox:
-
-                                      "0 0 24 24",
-
-
-
-                                    fill:
-
-                                      "currentColor",
-
-
-
-                                    xmlns:
-
-                                      "http://www.w3.org/2000/svg",
-
-
-
-                                    children:
-
-                                      /*#__PURE__*/_jsxDEV(
-
-                                        "path",
-
-                                        {
-
-
-
-                                          d:
-
-                                            "M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
-
-
-
-                                        },
-
-                                        void 0,
-
-                                        false
-
-                                      )
-
-
-
-                                  },
-
-                                  void 0,
-
-                                  false
-
-                                )
-
-                            },
-
-                            void 0,
-
-                            false
-
-                          )
-
-
-
-                        ]
-
-                      },
-
-                      void 0,
-
-                      true
-
-                    )
-
-
-
-                  ]
-
+                      // Refleja el cambio en pantalla sin recargar
+                      onActualizado: (tipo, cambios) => {
+                        if (tipo === 'cuenta') {
+                          // El logo de la escuela ahora se edita en el mismo
+                          // formulario que "Editar mi perfil" (antes era un
+                          // modal aparte) — logo_url pertenece a la escuela,
+                          // no al usuario, así que se separa antes de aplicar.
+                          const { logo_url, ...cambiosUsuario } = cambios;
+                          setUser(prev => prev ? { ...prev, ...cambiosUsuario } : prev);
+                          if (logo_url !== undefined && escuelaActiva) {
+                            // escuelaActiva es el ID (número), no el objeto —
+                            // solo la lista `escuelas` guarda logo_url.
+                            setData(prev => prev ? {
+                              ...prev,
+                              escuelas: (prev.escuelas || []).map(e =>
+                                e.id === escuelaActiva ? { ...e, logo_url } : e)
+                            } : prev);
+                          }
+                        }
+                      }
+                    },
+                    void 0,
+                    false
+                  )
                 },
-
                 void 0,
-
-                true
-
+                false
               )
 
 
@@ -4610,13 +3952,9 @@ function App() {
 
 
 
-        /*
+        // * MAIN
 
-         * MAIN
-
-         */
-
-        /*#__PURE__*/_jsxDEV(
+        _jsxDEV(
 
           "main",
 
@@ -4634,13 +3972,9 @@ function App() {
 
 
 
-              /*
+              // * TOPBAR
 
-               * TOPBAR
-
-               */
-
-              /*#__PURE__*/_jsxDEV(
+              _jsxDEV(
 
                 "header",
 
@@ -4658,13 +3992,9 @@ function App() {
 
 
 
-                    /*
+                    // * MOBILE MENU
 
-                     * MOBILE MENU
-
-                     */
-
-                    /*#__PURE__*/_jsxDEV(
+                    _jsxDEV(
 
                       "button",
 
@@ -4698,7 +4028,7 @@ function App() {
 
                         children:
 
-                          /*#__PURE__*/_jsxDEV(
+                          _jsxDEV(
 
                             Icon,
 
@@ -4742,13 +4072,9 @@ function App() {
 
 
 
-                    /*
+                    // * TITULO
 
-                     * TITULO
-
-                     */
-
-                    /*#__PURE__*/_jsxDEV(
+                    _jsxDEV(
 
                       "div",
 
@@ -4768,7 +4094,7 @@ function App() {
 
                           escuela &&
 
-                            /*#__PURE__*/_jsxDEV(
+                            _jsxDEV(
 
                               "span",
 
@@ -4796,7 +4122,7 @@ function App() {
 
                                 children:
 
-                                  /*#__PURE__*/_jsxDEV(
+                                  _jsxDEV(
 
                                     Icon,
 
@@ -4818,7 +4144,7 @@ function App() {
 
                                       color:
 
-                                        "var(--lime)"
+                                        "var(--violet)"
 
                                     },
 
@@ -4858,13 +4184,9 @@ function App() {
 
 
 
-                    /*
+                    // * ACCIONES
 
-                     * ACCIONES
-
-                     */
-
-                    /*#__PURE__*/_jsxDEV(
+                    _jsxDEV(
 
                       "div",
 
@@ -4882,15 +4204,11 @@ function App() {
 
 
 
-                          /*
-
-                           * Pendientes
-
-                           */
+                          // * Pendientes
 
                           pendientes > 0 &&
 
-                            /*#__PURE__*/_jsxDEV(
+                            _jsxDEV(
 
                               "div",
 
@@ -4968,7 +4286,7 @@ function App() {
 
 
 
-                                  /*#__PURE__*/_jsxDEV(
+                                  _jsxDEV(
 
                                     Icon,
 
@@ -5002,7 +4320,7 @@ function App() {
 
 
 
-                                  /*#__PURE__*/_jsxDEV(
+                                  _jsxDEV(
 
                                     "span",
 
@@ -5082,13 +4400,9 @@ function App() {
 
 
 
-                          /*
+                          // * Nuevo cobro
 
-                           * Nuevo cobro
-
-                           */
-
-                          /*#__PURE__*/_jsxDEV(
+                          _jsxDEV(
 
                             "button",
 
@@ -5142,7 +4456,7 @@ function App() {
 
 
 
-                                /*#__PURE__*/_jsxDEV(
+                                _jsxDEV(
 
                                   Icon,
 
@@ -5194,13 +4508,9 @@ function App() {
 
 
 
-                          /*
+                          // * Tema
 
-                           * Tema
-
-                           */
-
-                          /*#__PURE__*/_jsxDEV(
+                          _jsxDEV(
 
                             "button",
 
@@ -5228,7 +4538,7 @@ function App() {
 
                               children:
 
-                                /*#__PURE__*/_jsxDEV(
+                                _jsxDEV(
 
                                   Icon,
 
@@ -5302,13 +4612,9 @@ function App() {
 
 
 
-              /*
+              // * CONTENT
 
-               * CONTENT
-
-               */
-
-              /*#__PURE__*/_jsxDEV(
+              _jsxDEV(
 
                 "div",
 
@@ -5378,7 +4684,7 @@ const root =
 
 root.render(
 
-  /*#__PURE__*/_jsxDEV(
+  _jsxDEV(
 
     AppErrorBoundary,
 
@@ -5388,7 +4694,7 @@ root.render(
 
       children:
 
-        /*#__PURE__*/_jsxDEV(
+        _jsxDEV(
 
           App,
 

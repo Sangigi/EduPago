@@ -18,7 +18,7 @@
 
 
 
-<title>EduPago — Sistema de Cobros Escolar</title>
+<title>EduPago — Sistema de Cobros</title>
 
 
 
@@ -27,10 +27,8 @@
 
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-
-
-
-<link rel="stylesheet" href="assets/css/main.css">
+<link rel="icon" type="image/png" href="assets/logo_icon.png" sizes="32x32">
+<link rel="stylesheet" href="assets/css/main.css?v=1789200017">
 
 
 
@@ -722,343 +720,7 @@
 
 
 
-<script>
-
-
-
-(function(){
-
-
-
-  var splash = document.getElementById('intro-splash');
-
-
-
-  if (!splash) return;
-
-
-
-
-
-
-
-  var LINEA_1 = 'paga la';
-
-
-
-  var LINEA_2 = 'escuela';
-
-
-
-  
-
-
-
-  var yaVisto = false;
-
-
-
-  try { yaVisto = localStorage.getItem('edupago_intro_seen') === '1'; } catch(e){}
-
-
-
-
-
-
-
-  var prefiereMenosMovimiento = false;
-
-
-
-  try { prefiereMenosMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
-
-
-
-
-
-
-
-  // Si ya lo vio, aplicamos el modo rápido inmediatamente
-
-
-
-  var multiplicadorVelocidad = 1;
-
-
-
-  if (yaVisto) {
-
-
-
-    splash.classList.add('fast-mode');
-
-
-
-    multiplicadorVelocidad = 0.45; // 45% del tiempo original
-
-
-
-  }
-
-
-
-
-
-
-
-  var marcarVisto = function(){
-
-
-
-    try { localStorage.setItem('edupago_intro_seen', '1'); } catch(e){}
-
-
-
-  };
-
-
-
-
-
-
-
-  var wordLine1 = document.getElementById('word-line1');
-
-
-
-  var wordLine2 = document.getElementById('word-line2');
-
-
-
-
-
-
-
-  if (prefiereMenosMovimiento) {
-
-
-
-    wordLine1.textContent = LINEA_1;
-
-
-
-    wordLine2.textContent = LINEA_2;
-
-
-
-    marcarVisto();
-
-
-
-    splash.classList.add('intro-hide');
-
-
-
-    setTimeout(function(){ splash.remove(); }, 100);
-
-
-
-    return;
-
-
-
-  }
-
-
-
-
-
-
-
-  var letterIndex = 0; 
-
-
-
-  
-
-
-
-  function prepararLinea(texto, contenedor) {
-
-
-
-    return texto.split('').map(function(letra){
-
-
-
-      var span = document.createElement('span');
-
-
-
-      span.className = 'intro-letter';
-
-
-
-      span.style.setProperty('--i', letterIndex++);
-
-
-
-      span.textContent = letra;
-
-
-
-      contenedor.appendChild(span);
-
-
-
-      return span;
-
-
-
-    });
-
-
-
-  }
-
-
-
-
-
-
-
-  var spansL1 = prepararLinea(LINEA_1, wordLine1);
-
-
-
-  var spansL2 = prepararLinea(LINEA_2, wordLine2);
-
-
-
-  var todosLosSpans = spansL1.concat(spansL2);
-
-
-
-
-
-
-
-  requestAnimationFrame(function(){
-
-
-
-    var centerX1 = wordLine1.getBoundingClientRect().width / 2;
-
-
-
-    var centerX2 = wordLine2.getBoundingClientRect().width / 2;
-
-
-
-    
-
-
-
-    spansL1.forEach(function(span){
-
-
-
-      var letraCenterX = span.offsetLeft + span.offsetWidth / 2;
-
-
-
-      span.style.setProperty('--dx', (centerX1 - letraCenterX) + 'px');
-
-
-
-      span.classList.add('intro-letter-animar');
-
-
-
-    });
-
-
-
-
-
-
-
-    spansL2.forEach(function(span){
-
-
-
-      var letraCenterX = span.offsetLeft + span.offsetWidth / 2;
-
-
-
-      span.style.setProperty('--dx', (centerX2 - letraCenterX) + 'px');
-
-
-
-      span.classList.add('intro-letter-animar');
-
-
-
-    });
-
-
-
-  });
-
-
-
-
-
-
-
-  // Calculamos la duración total tomando en cuenta si es modo normal o rápido
-
-
-
-  var tiempoBase = 150 + (todosLosSpans.length * 50) + 1600 + 400;
-
-
-
-  var duracionTotal = tiempoBase * multiplicadorVelocidad;
-
-
-
-  
-
-
-
-  setTimeout(function(){
-
-
-
-    splash.classList.add('intro-hide');
-
-
-
-    marcarVisto(); // Marcamos para la próxima vez
-
-
-
-    
-
-
-
-    // Transición de salida ajustada a la velocidad actual
-
-
-
-    var salidaDelay = 600 * multiplicadorVelocidad;
-
-
-
-    setTimeout(function(){ splash.remove(); }, salidaDelay);
-
-
-
-  }, duracionTotal);
-
-
-
-})();
-
-
-
-</script>
+<script src="assets/js/intro-splash.js"></script>
 
 
 
@@ -1086,7 +748,7 @@
 
 
 
-<script src="assets/js/demo_api.js?v=1785782963"></script>
+<script src="assets/js/demo_api.js?v=1787360000"></script>
 
 
 
@@ -1098,7 +760,7 @@
 
 
 
-<script src="assets/js/spei_poller.js?v=1785782963"></script>
+<script src="assets/js/spei_poller.js?v=1787360000"></script>
 
 
 
@@ -1110,7 +772,17 @@
 
 
 
-<script src="models/AppModel.js?v=1785782963"></script>
+<script src="models/AppModel.js?v=1789100000"></script>
+
+
+
+<!-- Cliente HTTP compartido: fetch + header de auth + logout en 401 -->
+<script src="assets/js/ApiClient.js?v=1787360000"></script>
+<script src="assets/js/CSVExport.js?v=1787360000"></script>
+<script src="assets/js/ExcelExport.js?v=1787380000"></script>
+
+
+
 
 
 
@@ -1122,23 +794,25 @@
 
 
 
-<script src="controllers/AuthController.js?v=1785782963"></script>
+<script src="controllers/AuthController.js?v=1787380000"></script>
 
 
 
-<script src="controllers/CobroController.js?v=1785782963"></script>
+<script src="controllers/CobroController.js?v=1787360000"></script>
 
 
 
-<script src="controllers/ProductosController.js?v=1785782963"></script>
+<script src="controllers/ProductosController.js?v=1787360000"></script>
+<script src="controllers/ProveedoresController.js?v=1789100000"></script>
+<script src="controllers/GastosController.js?v=1789100000"></script>
 
 
 
-<script src="controllers/ClienteController.js?v=1785782963"></script>
+<script src="controllers/ClienteController.js?v=1787360000"></script>
 
 
 
-<script src="controllers/CajaController.js?v=1785782963"></script>
+<script src="controllers/CajaController.js?v=1787360000"></script>
 
 
 
@@ -1150,15 +824,55 @@
 
 
 
-<script src="views/components/Icons.js?v=1785782963"></script>
+<script src="views/components/Icons.js?v=1787360000"></script>
 
 
 
-<script src="views/components/Badge.js?v=1785782963"></script>
+<script src="views/components/Cargando.js?v=1787360000"></script>
 
 
 
-<script src="views/components/EmojiPicker.js?v=1785782963"></script>
+<script src="views/components/Badge.js?v=1787360000"></script>
+
+
+
+<script src="views/components/Charts.js?v=1787360000"></script>
+
+
+
+<script src="views/components/BuscadorEtiquetas.js?v=1787360000"></script>
+
+
+
+<script src="views/components/MenuPerfil.js?v=1789200013"></script>
+
+
+
+<script src="views/components/FichaTecnica.js?v=1789100000"></script>
+
+
+
+<script src="views/components/Paginador.js?v=1787360000"></script>
+
+
+
+<script src="views/components/PanelInvitaciones.js?v=1787390000"></script>
+
+
+
+
+
+
+
+<script src="views/components/EmojiPicker.js?v=1787360000"></script>
+
+
+
+<script src="views/components/ConfirmModal.js?v=1787290000"></script>
+
+
+
+<script src="views/hooks/usePaginaActual.js?v=1787290000"></script>
 
 
 
@@ -1170,75 +884,88 @@
 
 
 
-<script src="views/Login.js?v=1785782963"></script>
+<script src="views/Login.js?v=1787370000"></script>
 
-<script src="views/Dashboard.js?v=1785782963"></script>
+<script src="views/Dashboard.js?v=1789200006"></script>
 
-<script src="views/Caja.js?v=1785782963"></script>
-
-
-
-<script src="views/CorteCaja.js?v=1785782963"></script>
+<script src="views/components/CodigoBarras.js?v=1789100000"></script>
 
 
 
-<script src="views/Cobros.js?v=1785782963"></script>
+<script src="views/components/Comprobantes.js?v=1789100000"></script>
+<script src="views/MiSuscripcion.js?v=1789200000"></script>
+<script src="views/MiCuenta.js?v=1789200000"></script>
+<script src="views/Contador.js?v=1789200004"></script>
 
 
 
-<script src="views/Alumnos.js?v=1785782963"></script>
+<script src="views/Caja.js?v=1789100000"></script>
 
 
 
-<script src="views/Familias.js?v=1785782963"></script>
+<script src="views/CorteCaja.js?v=1789100000"></script>
 
 
 
-<script src="views/Productos.js?v=1785782963"></script>
+<script src="views/Cobros.js?v=1787390000"></script>
+<script src="views/Gastos.js?v=1789100000"></script>
 
 
 
-<script src="views/Facturacion.js?v=1785782963"></script>
+<script src="views/Alumnos.js?v=1789200008"></script>
 
 
 
-<script src="views/Reportes.js?v=1785782963"></script>
+<script src="views/Familias.js?v=1789200010"></script>
 
 
 
-<script src="views/Recordatorios.js?v=1785782963"></script>
+<script src="views/Productos.js?v=1787360000"></script>
+<script src="views/Proveedores.js?v=1789100000"></script>
 
 
 
-<script src="views/Escuelas.js?v=1785782963"></script>
+<script src="views/Facturacion.js?v=1787360000"></script>
 
 
 
-<script src="views/Usuarios.js?v=1785782963"></script>
+<script src="views/Reportes.js?v=1789200011"></script>
 
 
 
-<script src="views/Comisiones.js?v=1785782963"></script>
+<script src="views/Recordatorios.js?v=1787360000"></script>
 
 
 
-<script src="views/SuperReportes.js?v=1785782963"></script>
+<script src="views/Escuelas.js?v=1787360000"></script>
 
 
 
-<script src="views/Suscripciones.js?v=1785782963"></script>
+<script src="views/Usuarios.js?v=1789200012"></script>
 
 
 
-<script src="views/Logs.js?v=1785782963"></script>
-
-<script src="views/BusquedaGlobal.js?v=1785782963"></script>
+<script src="views/Comisiones.js?v=1787390000"></script>
 
 
 
-<script src="views/PortalFamilia.js?v=1785782963"></script>
+<script src="views/SuperReportes.js?v=1789200011"></script>
 
-<script src="views/Distribuidor.js?v=1785782963"></script>
+
+
+<script src="views/Suscripciones.js?v=1787360000"></script>
+
+
+
+<script src="views/Logs.js?v=1787360000"></script>
+
+<script src="views/BusquedaGlobal.js?v=1787360000"></script>
+
+
+
+<script src="views/PortalFamilia.js?v=1789200017"></script>
+
+<script src="views/Distribuidor.js?v=1787390000"></script>
 
 
 
@@ -1250,7 +977,7 @@
 
 
 
-<script src="assets/js/app.js?v=1785782963"></script>
+<script src="assets/js/app.js?v=1789100000"></script>
 
 
 

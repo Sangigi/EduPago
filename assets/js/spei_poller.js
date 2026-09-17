@@ -29,7 +29,9 @@ const SpeiPoller = (() => {
       try {
         const resultado = await fetch('api.php?action=verificar_spei', {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // verificar_spei ya requiere sesión (dejó de ser una acción pública
+          // sin token, que permitía enumerar cobro_id de cualquier escuela).
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (AuthController.getToken() || '') },
           // cobro_id es obligatorio para que el backend compare por el cobro
           // exacto — `ref` es la matrícula del alumno, compartida entre todos
           // sus cobros, así que sin cobro_id un pago de OTRO cobro del mismo

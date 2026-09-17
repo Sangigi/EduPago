@@ -5,7 +5,12 @@
 # referencias de pago, folios, montos, y en el caso de CAI, tokens de
 # tarjeta). También bloquea config.php/db.php por si el servidor alguna vez
 # sirviera .php como texto plano en vez de ejecutarlo.
-<FilesMatch "\.(txt|json|log|sql|md)$">
+#
+# ^error_log$ agregado aparte: PHP genera ese archivo SIN punto antes de
+# "log" (no "error.log"), así que nunca coincidía con \.(txt|json|log|sql|md)$
+# — quedaba descargable con rutas absolutas del servidor y detalles de
+# esquema de BD en los stack traces.
+<FilesMatch "(\.(txt|json|log|sql|md)$|^error_log$)">
     Require all denied
 </FilesMatch>
 
@@ -15,3 +20,36 @@
 <Files "db.php">
     Require all denied
 </Files>
+
+# CSP: mitiga XSS restringiendo de dónde puede cargar/ejecutar recursos la
+# página. script-src NO incluye 'unsafe-inline' — el único script inline que
+# había (la animación de bienvenida) se movió a assets/js/intro-splash.js
+# para que esto pudiera ser estricto de verdad. style-src sí necesita
+# 'unsafe-inline' por el bloque <style> de esa misma animación.
+<IfModule mod_headers.c>
+    # img-src: se abre a cualquier https porque las fotos de alumnos y tutores,
+    # y el logo del colegio, se guardan como enlaces externos (Drive, Dropbox,
+    # OneDrive...). Restringirlo a una lista fija haria que un tutor que pega
+    # un enlace de otro servicio vea la imagen rota sin explicacion.
+    # Una imagen no ejecuta codigo, y script-src sigue estricto (sin
+    # 'unsafe-inline'), asi que el riesgo real de esta apertura es bajo.
+    # Si prefieres cerrarlo, sustituye "https:" por los hosts que uses:
+    #   https://drive.google.com https://*.googleusercontent.com
+    #
+    # frame-src: hacia falta para el reproductor de los tutoriales del portal
+    # de distribuidores. Sin esta directiva caia en default-src 'self' y el
+    # video quedaba bloqueado.
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: ; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+    # El shell (index.html) referencia las vistas/JS con "?v=timestamp" para
+    # forzar la descarga de la versión nueva en cada deploy — pero eso solo
+    # funciona si el navegador vuelve a pedir index.html. Sin este header,
+    # algunos navegadores lo sirven de caché por horas incluso con Ctrl+F5
+    # en ciertas condiciones, y entonces cargan las vistas/JS VIEJAS (viejos
+    # "?v=") indefinidamente, aunque el deploy en el servidor ya esté al día.
+    <FilesMatch "^index\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>

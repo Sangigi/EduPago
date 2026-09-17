@@ -12,7 +12,8 @@ function Escuelas({
   onSeleccionar
 }) {
   const {
-    useState
+    useState,
+    useEffect
   } = React;
   const EMPTY = {
     nombre: '',
@@ -118,13 +119,22 @@ function Escuelas({
       AppModel.save(newData);
       setModal(null);
       setForm(EMPTY);
-      if (!form.id && res.admin_email) {
-        alert(
-          'Colegio creado. Cuenta de acceso:\n\n' +
-          'Correo: ' + res.admin_email + '\n' +
-          'Contraseña temporal: ' + res.admin_password_temporal +
-          '\n\nCompártela con el admin del colegio; puede cambiarla después.'
-        );
+      // No se manda contraseña temporal por acá -- mismo motivo que
+      // invitacion_resolver.php: Outlook lo marca como phishing. El backend
+      // ya mandó un correo con un enlace de un solo uso para que el propio
+      // colegio fije su contraseña; solo avisamos si algo no salió como se
+      // esperaba (correo falló, o ya existía una cuenta con ese email).
+      if (!form.id) {
+        if (res.usuario_ya_existia) {
+          alert('Colegio creado. Ya existía una cuenta con ese correo, así que no se creó una nueva -- ese usuario ya puede entrar a este colegio si se le da acceso desde "Mi equipo".');
+        } else if (res.usuario_creado && !res.correo_enviado) {
+          alert(
+            'Colegio creado y cuenta admin creada, pero el correo de activación no se pudo enviar.\n\n' +
+            'Comparte este enlace de un solo uso con el colegio (expira en 72 horas):\n' + (res.activacion_liga || '(sin enlace)')
+          );
+        } else if (res.usuario_creado && res.correo_enviado) {
+          alert('Colegio creado. Se mandó un correo a ' + form.email + ' para que el colegio active su cuenta y ponga su propia contraseña.');
+        }
       }
     } catch (e) {
       setErrorEsc('Error de conexión al guardar el colegio: ' + e.message);
@@ -284,9 +294,55 @@ function Escuelas({
       alert('No se pudo actualizar el estado de la escuela: ' + e.message);
     }
   };
+  const eliminarEscuela = async (id, forzar = false, confirmar_clave = '') => {
+    if (!forzar && !confirm('¿Eliminar este colegio? Solo se puede sin perder historial si nunca tuvo alumnos, cobros, planteles ni CLABEs asignadas. Esta acción no se puede deshacer.')) return;
+    try {
+      const res = await apiPost('eliminar_escuela', { id, forzar, confirmar_clave });
+      if (!res.success) {
+        if (res.requiere_confirmacion_forzada) {
+          // El colegio sí tiene datos: en vez de obligar a limpiar cada tabla
+          // a mano, se ofrece borrar TODO en cascada, pidiendo escribir la
+          // clave del colegio como segunda confirmación real.
+          const escrito = prompt(
+            `${res.error}\n\nSi de verdad quieres borrarlo TODO de forma permanente (alumnos, cobros, usuarios, etc. — no se puede deshacer), escribe la clave "${res.clave_para_confirmar}" para confirmar:`
+          );
+          if (escrito === null) return;
+          if (escrito.trim().toUpperCase() !== String(res.clave_para_confirmar).toUpperCase()) {
+            alert('La clave no coincide. No se eliminó nada.');
+            return;
+          }
+          return eliminarEscuela(id, true, escrito.trim());
+        }
+        alert(res.error || 'No se pudo eliminar el colegio');
+        return;
+      }
+      setData(prevData => ({
+        ...prevData,
+        escuelas: (prevData.escuelas || []).filter(e => e.id !== id && !(res.ids_planteles_eliminados || []).includes(e.id))
+      }));
+      if (res.resumen_eliminado) alert('Colegio eliminado junto con: ' + res.resumen_eliminado);
+    } catch (e) {
+      alert('Error de conexión al eliminar el colegio: ' + e.message);
+    }
+  };
   const metricasEscuela = id => {
     const cobros = data.cobros.filter(c => c.escuela_id === id);
     const alumnos = data.clientes.filter(c => c.escuela_id === id && c.activo);
+    // En esta pantalla (lista de colegios, sin entrar a ninguno) cargar_datos
+    // manda data.cobros/data.clientes VACÍOS a propósito (por costo/escala) —
+    // antes eso hacía que Alumnos/Cobros/Cobrado siempre mostraran 0 aquí,
+    // aunque el colegio sí tuviera actividad real. Se usa el resumen liviano
+    // por escuela (resumen_escuelas, que el backend ya manda siempre) como
+    // respaldo cuando no hay detalle completo cargado.
+    const resumen = (data.resumen_escuelas || {})[id];
+    const hayDetalle = data.cobros.length > 0 || data.clientes.length > 0;
+    if (!hayDetalle && resumen) {
+      return {
+        cobros: resumen.num_cobros_90d || 0,
+        alumnos: resumen.total_alumnos || 0,
+        cobrado: resumen.cobrado_90d || 0
+      };
+    }
     const pagados = cobros.filter(c => c.estado === 'pagado').reduce((a, c) => a + c.total, 0);
     return {
       cobros: cobros.length,
@@ -304,6 +360,22 @@ function Escuelas({
     avanzado: 'badge-blue',
     pro: 'badge-purple'
   };
+  // Debe reflejar SECCIONES_DISPONIBLES en api.php (fuente única de verdad).
+  const SECCIONES_CATALOGO = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'caja', label: 'Ingresos' },
+    { id: 'corte_caja', label: 'Corte de caja' },
+    { id: 'cobros', label: 'Historial de cobros' },
+    { id: 'gastos', label: 'Gastos' },
+    { id: 'alumnos', label: 'Alumnos' },
+    { id: 'familias', label: 'Familias' },
+    { id: 'productos', label: 'Conceptos de pago' },
+    { id: 'proveedores', label: 'Proveedores' },
+    { id: 'facturacion', label: 'Facturación' },
+    { id: 'recordatorios', label: 'Recordatorios' },
+    { id: 'reportes', label: 'Reportes' },
+    { id: 'miequipo', label: 'Mi equipo' },
+  ];
   // ── Pool CLABEs ─────────────────────────────────────────────────────────────
   const [poolEscId,   setPoolEscId]   = useState(null);  // escuela cuyo pool se gestiona
   const [modalPool,   setModalPool]   = useState(false);
@@ -311,6 +383,168 @@ function Escuelas({
   const [poolLoading, setPoolLoading] = useState(false);
   const [poolImportTxt, setPoolImportTxt] = useState('');
   const [poolImportMsg, setPoolImportMsg] = useState('');
+
+  // ── Secciones habilitadas por escuela ──────────────────────────────────────
+  const [seccionesEscId, setSeccionesEscId] = useState(null); // escuela cuyo panel de secciones está abierto
+  const [modalSecciones, setModalSecciones] = useState(false);
+  const [guardandoSeccion, setGuardandoSeccion] = useState(null); // id de la sección que se está guardando
+
+  const abrirSecciones = escId => {
+    setSeccionesEscId(escId);
+    setModalSecciones(true);
+  };
+
+  const toggleSeccion = async seccionId => {
+    const escId = seccionesEscId;
+    const esc = data.escuelas.find(e => e.id === escId);
+    if (!esc) return;
+    const actuales = Array.isArray(esc.secciones_deshabilitadas) ? esc.secciones_deshabilitadas : [];
+    const nuevas = actuales.includes(seccionId)
+      ? actuales.filter(s => s !== seccionId)
+      : [...actuales, seccionId];
+    // Optimista: refleja el cambio de inmediato en la UI
+    const newData = {
+      ...data,
+      escuelas: data.escuelas.map(e => e.id === escId ? { ...e, secciones_deshabilitadas: nuevas } : e)
+    };
+    setData(newData);
+    setGuardandoSeccion(seccionId);
+    try {
+      const res = await apiPost('superadmin_toggle_seccion_escuela', { id: escId, seccion: seccionId });
+      if (!res.success) throw new Error(res.error || 'No se pudo actualizar la sección');
+      AppModel.save(newData);
+    } catch (e) {
+      // Falló en el servidor: revertir el cambio local y avisar
+      setData(data);
+      alert('No se pudo actualizar la sección: ' + e.message);
+    } finally {
+      setGuardandoSeccion(null);
+    }
+  };
+
+  // Catálogo de métodos de pago que se pueden apagar por escuela. Debe
+  // reflejar los mismos valores que ya usa Caja.js (METODOS) y
+  // PortalFamilia.js — si un método nuevo se agrega ahí, hay que agregarlo
+  // aquí también para poder apagarlo.
+  const METODOS_PAGO_CATALOGO = [
+    { id: 'TC', label: 'Tarjeta' },
+    { id: 'SPEI', label: 'SPEI' },
+    { id: 'Efectivo', label: 'Efectivo (caja)' },
+    { id: 'EfectivoRef', label: 'Efectivo (tienda)' },
+    { id: 'Cheque', label: 'Cheque' },
+    { id: 'CAI', label: 'Domiciliación (tarjeta guardada)' },
+  ];
+
+  const toggleMetodoPago = async metodoId => {
+    const escId = seccionesEscId;
+    const esc = data.escuelas.find(e => e.id === escId);
+    if (!esc) return;
+    const actuales = Array.isArray(esc.metodos_pago_deshabilitados) ? esc.metodos_pago_deshabilitados : [];
+    const nuevas = actuales.includes(metodoId)
+      ? actuales.filter(m => m !== metodoId)
+      : [...actuales, metodoId];
+    const newData = {
+      ...data,
+      escuelas: data.escuelas.map(e => e.id === escId ? { ...e, metodos_pago_deshabilitados: nuevas } : e)
+    };
+    setData(newData);
+    setGuardandoSeccion('metodo-' + metodoId);
+    try {
+      const res = await apiPost('superadmin_toggle_metodo_escuela', { id: escId, metodo: metodoId });
+      if (!res.success) throw new Error(res.error || 'No se pudo actualizar el método de pago');
+      AppModel.save(newData);
+    } catch (e) {
+      setData(data);
+      alert('No se pudo actualizar el método de pago: ' + e.message);
+    } finally {
+      setGuardandoSeccion(null);
+    }
+  };
+
+  // ── Modo demo por escuela ──────────────────────────────────────────────────
+  const [demoDias, setDemoDias] = useState(15);
+  const [guardandoDemo, setGuardandoDemo] = useState(false);
+
+  const activarDemo = async () => {
+    const escId = seccionesEscId;
+    setGuardandoDemo(true);
+    try {
+      const res = await apiPost('superadmin_toggle_modo_demo', { id: escId, accion: 'activar', dias: demoDias });
+      if (!res.success) throw new Error(res.error || 'No se pudo activar el modo demo');
+      const newData = { ...data, escuelas: data.escuelas.map(e => e.id === escId ? { ...e, modo: 'demo', fecha_fin_prueba: res.fecha_fin_prueba } : e) };
+      setData(newData);
+      AppModel.save(newData);
+    } catch (e) {
+      alert('No se pudo activar el modo demo: ' + e.message);
+    } finally {
+      setGuardandoDemo(false);
+    }
+  };
+
+  const desactivarDemo = async () => {
+    const escId = seccionesEscId;
+    setGuardandoDemo(true);
+    try {
+      const res = await apiPost('superadmin_toggle_modo_demo', { id: escId, accion: 'desactivar' });
+      if (!res.success) throw new Error(res.error || 'No se pudo desactivar el modo demo');
+      const newData = { ...data, escuelas: data.escuelas.map(e => e.id === escId ? { ...e, modo: 'activa', fecha_fin_prueba: null } : e) };
+      setData(newData);
+      AppModel.save(newData);
+    } catch (e) {
+      alert('No se pudo desactivar el modo demo: ' + e.message);
+    } finally {
+      setGuardandoDemo(false);
+    }
+  };
+
+  // ── Documentos fiscales por escuela (bandeja de revisión del superadmin) ──
+  const [docsEscuela, setDocsEscuela] = useState([]);
+  const [cargandoDocsEsc, setCargandoDocsEsc] = useState(false);
+  const [revisandoDoc, setRevisandoDoc] = useState(null); // id del documento en proceso
+
+  useEffect(() => {
+    if (!modalSecciones || !seccionesEscId) return;
+    setCargandoDocsEsc(true);
+    apiPost('listar_documentos_escuela', { escuela_id: seccionesEscId })
+      .then(res => setDocsEscuela(res.success ? (res.documentos || []) : []))
+      .catch(() => setDocsEscuela([]))
+      .finally(() => setCargandoDocsEsc(false));
+  }, [modalSecciones, seccionesEscId]);
+
+  const revisarDocumento = async (documentoId, accion) => {
+    if (accion === 'rechazar') {
+      const motivo = prompt('Motivo del rechazo (se le muestra al colegio):');
+      if (motivo === null || motivo.trim() === '') return;
+      setRevisandoDoc(documentoId);
+      try {
+        const res = await apiPost('revisar_documento_escuela', { documento_id: documentoId, accion, motivo: motivo.trim() });
+        if (!res.success) throw new Error(res.error || 'No se pudo rechazar el documento');
+      } catch (e) {
+        alert('No se pudo rechazar el documento: ' + e.message);
+      }
+    } else {
+      setRevisandoDoc(documentoId);
+      try {
+        const res = await apiPost('revisar_documento_escuela', { documento_id: documentoId, accion: 'aprobar' });
+        if (!res.success) throw new Error(res.error || 'No se pudo aprobar el documento');
+      } catch (e) {
+        alert('No se pudo aprobar el documento: ' + e.message);
+      }
+    }
+    const res2 = await apiPost('listar_documentos_escuela', { escuela_id: seccionesEscId }).catch(() => null);
+    if (res2 && res2.success) setDocsEscuela(res2.documentos || []);
+    setRevisandoDoc(null);
+  };
+
+  const descargarDocumentoEsc = async doc => {
+    const res = await fetch('api.php?action=descargar_documento_escuela&documento_id=' + doc.id, {
+      headers: { Authorization: 'Bearer ' + tkn() },
+    });
+    if (!res.ok) { alert('No se pudo descargar el documento.'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  };
 
   const tkn = () => AuthController.getToken();
   const apiPost = async (action, body) => {
@@ -444,7 +678,7 @@ function Escuelas({
           setErrorEsc('');
           setModal('form');
         },
-        children: "+ Nueva escuela"
+        children: "+ Alta escuela"
       }, void 0, false)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
       style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
@@ -639,7 +873,8 @@ function Escuelas({
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'flex',
-              gap: 8
+              gap: 8,
+              flexWrap: 'wrap'
             },
             children: [/*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-primary btn-sm",
@@ -667,6 +902,12 @@ function Escuelas({
                 size: 14,
                 color: "currentColor"
               }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              className: "btn btn-secondary btn-sm",
+              title: "Secciones habilitadas",
+              onClick: () => abrirSecciones(esc.id),
+              style: { display:'flex', alignItems:'center', justifyContent:'center' },
+              children: /*#__PURE__*/_jsxDEV(Icon, { name: "settings", size: 14, color: "currentColor" }, void 0, false)
             }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
               className: "btn btn-secondary btn-sm",
               onClick: () => {
@@ -698,11 +939,20 @@ function Escuelas({
                 size: 14,
                 color: "currentColor"
               }, void 0, false)
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              className: "btn btn-secondary btn-sm",
+              title: "Eliminar colegio (solo si nunca tuvo actividad)",
+              onClick: () => eliminarEscuela(esc.id),
+              children: /*#__PURE__*/_jsxDEV(Icon, {
+                name: "trash",
+                size: 14,
+                color: "currentColor"
+              }, void 0, false)
             }, void 0, false)]
           }, void 0, true)]
         }, esc.id, true);
       })
-    }, void 0, false), modal === 'form' && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, false), /*#__PURE__*/_jsxDEV(PanelInvitaciones, { esSuperAdmin: true }, void 0, false), modal === 'form' && /*#__PURE__*/_jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setModal(null),
       children: /*#__PURE__*/_jsxDEV("div", {
@@ -1367,6 +1617,185 @@ function Escuelas({
           }, void 0, true),
           /*#__PURE__*/_jsxDEV("div", { className: "modal-footer",
             children: /*#__PURE__*/_jsxDEV("button", { className:"btn btn-secondary", onClick:()=>setModalPool(false), children:"Cerrar"}, void 0, false)
+          }, void 0, false)
+        ]
+      }, void 0, true)
+    }, void 0, false), modalSecciones && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && setModalSecciones(false),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        style: { maxWidth: 460 },
+        children: [
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-header",
+            children: [
+              /*#__PURE__*/_jsxDEV("span", { className: "modal-title", children: "Secciones habilitadas — " + (data.escuelas.find(e => e.id === seccionesEscId)?.nombre || '') }, void 0, false),
+              /*#__PURE__*/_jsxDEV("button", { className: "modal-close", onClick: () => setModalSecciones(false), children: "✕" }, void 0, false)
+            ]
+          }, void 0, true),
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-body",
+            children: [
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 14 },
+                children: "Todas las secciones están habilitadas por defecto. Desactívalas aquí para ocultarlas del menú de este colegio (los cajeros y administradores dejan de verlas la próxima vez que carguen la app)."
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'flex', flexDirection: 'column', gap: 4 },
+                children: SECCIONES_CATALOGO.map(sec => {
+                  const esc = data.escuelas.find(e => e.id === seccionesEscId);
+                  const deshabilitadas = Array.isArray(esc?.secciones_deshabilitadas) ? esc.secciones_deshabilitadas : [];
+                  const habilitada = !deshabilitadas.includes(sec.id);
+                  return /*#__PURE__*/_jsxDEV("label", {
+                    style: {
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '9px 4px', borderBottom: '1px solid var(--border-glow)',
+                      opacity: guardandoSeccion === sec.id ? .6 : 1, cursor: 'pointer'
+                    },
+                    children: [
+                      /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 13.5, color: 'var(--ink-1)' }, children: sec.label }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("span", {
+                        className: "switch",
+                        children: [
+                          /*#__PURE__*/_jsxDEV("input", {
+                            type: "checkbox",
+                            checked: habilitada,
+                            disabled: guardandoSeccion === sec.id,
+                            onChange: () => toggleSeccion(sec.id)
+                          }, void 0, false),
+                          /*#__PURE__*/_jsxDEV("span", { className: "switch-track" }, void 0, false)
+                        ]
+                      }, void 0, true)
+                    ]
+                  }, sec.id, true);
+                })
+              }, void 0, true),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
+                children: "Modo demo"
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 10 },
+                children: "En demo, este colegio puede usar todo el sistema pero ningún cobro se manda de verdad a la pasarela de pagos ni se asigna una CLABE SPEI real."
+              }, void 0, false),
+              (() => {
+                const esc = data.escuelas.find(e => e.id === seccionesEscId);
+                const enDemo = esc?.modo === 'demo';
+                if (enDemo) {
+                  const dias = esc.fecha_fin_prueba
+                    ? Math.max(0, Math.ceil((new Date(esc.fecha_fin_prueba + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000))
+                    : null;
+                  return /*#__PURE__*/_jsxDEV("div", {
+                    style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 4px' },
+                    children: [
+                      /*#__PURE__*/_jsxDEV("span", {
+                        style: { fontSize: 13, color: 'var(--ink-2)' },
+                        children: dias != null ? `En demo — vence en ${dias} día(s) (${esc.fecha_fin_prueba})` : 'En demo'
+                      }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("button", {
+                        className: "btn btn-secondary btn-sm", disabled: guardandoDemo, onClick: desactivarDemo,
+                        children: guardandoDemo ? 'Guardando…' : 'Quitar demo'
+                      }, void 0, false)
+                    ]
+                  }, void 0, true);
+                }
+                return /*#__PURE__*/_jsxDEV("div", {
+                  style: { display: 'flex', alignItems: 'center', gap: 8, padding: '9px 4px' },
+                  children: [
+                    /*#__PURE__*/_jsxDEV("input", {
+                      type: 'number', min: 1, max: 365, value: demoDias,
+                      onChange: e => setDemoDias(Math.max(1, parseInt(e.target.value, 10) || 1)),
+                      className: 'form-input', style: { width: 70, fontSize: 13 }
+                    }, void 0, false),
+                    /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: "días" }, void 0, false),
+                    /*#__PURE__*/_jsxDEV("button", {
+                      className: "btn btn-primary btn-sm", disabled: guardandoDemo, onClick: activarDemo, style: { marginLeft: 'auto' },
+                      children: guardandoDemo ? 'Activando…' : 'Activar demo'
+                    }, void 0, false)
+                  ]
+                }, void 0, true);
+              })(),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
+                children: "Documentos fiscales"
+              }, void 0, false),
+              cargandoDocsEsc
+                ? /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: "Cargando…" }, void 0, false)
+                : docsEscuela.length === 0
+                  ? /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-4)', marginBottom: 8 }, children: "Este colegio todavía no ha subido ningún documento." }, void 0, false)
+                  : /*#__PURE__*/_jsxDEV("div", {
+                      style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 },
+                      children: docsEscuela.map(doc => /*#__PURE__*/_jsxDEV("div", {
+                        style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '7px 4px', borderBottom: '1px solid var(--border-glow)' },
+                        children: [
+                          /*#__PURE__*/_jsxDEV("div", {
+                            children: [
+                              /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12.5 }, children: doc.tipo }, 1),
+                              /*#__PURE__*/_jsxDEV("span", {
+                                className: 'badge ' + (doc.estado === 'aprobado' ? 'badge-green' : doc.estado === 'rechazado' ? 'badge-red' : 'badge-amber'),
+                                children: doc.estado
+                              }, 2)
+                            ]
+                          }, void 0, true),
+                          /*#__PURE__*/_jsxDEV("div", {
+                            style: { display: 'flex', gap: 4 },
+                            children: [
+                              /*#__PURE__*/_jsxDEV("button", { className: 'btn btn-secondary btn-sm', onClick: () => descargarDocumentoEsc(doc), children: "Ver" }, 'ver'),
+                              doc.estado === 'pendiente' ? /*#__PURE__*/_jsxDEV("button", {
+                                className: 'btn btn-secondary btn-sm', disabled: revisandoDoc === doc.id,
+                                onClick: () => revisarDocumento(doc.id, 'rechazar'), children: "Rechazar"
+                              }, 'rech') : null,
+                              doc.estado === 'pendiente' ? /*#__PURE__*/_jsxDEV("button", {
+                                className: 'btn btn-primary btn-sm', disabled: revisandoDoc === doc.id,
+                                onClick: () => revisarDocumento(doc.id, 'aprobar'), children: "Aprobar"
+                              }, 'apr') : null
+                            ]
+                          }, void 0, true)
+                        ]
+                      }, doc.id, true))
+                    }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: .3 },
+                children: "Métodos de pago"
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 10 },
+                children: "Apaga aquí un método de pago solo para este colegio. Para apagarlo en todos los colegios a la vez, usa el panel de Suscripciones."
+              }, void 0, false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'flex', flexDirection: 'column', gap: 4 },
+                children: METODOS_PAGO_CATALOGO.map(met => {
+                  const esc = data.escuelas.find(e => e.id === seccionesEscId);
+                  const deshabilitados = Array.isArray(esc?.metodos_pago_deshabilitados) ? esc.metodos_pago_deshabilitados : [];
+                  const habilitado = !deshabilitados.includes(met.id);
+                  const guardando = guardandoSeccion === ('metodo-' + met.id);
+                  return /*#__PURE__*/_jsxDEV("label", {
+                    style: {
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '9px 4px', borderBottom: '1px solid var(--border-glow)',
+                      opacity: guardando ? .6 : 1, cursor: 'pointer'
+                    },
+                    children: [
+                      /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 13.5, color: 'var(--ink-1)' }, children: met.label }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("span", {
+                        className: "switch",
+                        children: [
+                          /*#__PURE__*/_jsxDEV("input", {
+                            type: "checkbox",
+                            checked: habilitado,
+                            disabled: guardando,
+                            onChange: () => toggleMetodoPago(met.id)
+                          }, void 0, false),
+                          /*#__PURE__*/_jsxDEV("span", { className: "switch-track" }, void 0, false)
+                        ]
+                      }, void 0, true)
+                    ]
+                  }, met.id, true);
+                })
+              }, void 0, true)
+            ]
+          }, void 0, true),
+          /*#__PURE__*/_jsxDEV("div", { className: "modal-footer",
+            children: /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary", onClick: () => setModalSecciones(false), children: "Cerrar" }, void 0, false)
           }, void 0, false)
         ]
       }, void 0, true)

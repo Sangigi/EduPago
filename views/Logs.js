@@ -29,11 +29,12 @@ function Logs({ data }) {
   const { useState, useEffect } = React;
   const [logs, setLogs] = useState([]);
   const [total, setTotal] = useState(0);
-  const [pagina, setPagina] = useState(1);
   const [accion, setAccion] = useState('');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const porPagina = 25;
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+  const { pagina, setPagina, irAPagina } = usePaginaActual(totalPaginas);
 
   const cargar = async (p, acc) => {
     setCargando(true);
@@ -65,8 +66,6 @@ function Logs({ data }) {
     cargar(pagina, accion);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagina, accion]);
-
-  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
 
   return /*#__PURE__*/_jsxDEV("div", {
     children: /*#__PURE__*/_jsxDEV("div", {
@@ -131,8 +130,8 @@ function Logs({ data }) {
         style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, padding: '12px 16px', fontSize: 13, color: 'var(--ink-3)' },
         children: [
           /*#__PURE__*/_jsxDEV("span", { children: `Página ${pagina} de ${totalPaginas}` }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", disabled: pagina <= 1, onClick: () => setPagina(p => p - 1), children: "‹ Anterior" }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", disabled: pagina >= totalPaginas, onClick: () => setPagina(p => p + 1), children: "Siguiente ›" }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", disabled: pagina <= 1, onClick: () => irAPagina(pagina - 1), children: "‹ Anterior" }, void 0, false),
+          /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", disabled: pagina >= totalPaginas, onClick: () => irAPagina(pagina + 1), children: "Siguiente ›" }, void 0, false),
         ]
       }, void 0, true)]
     }, void 0, true)

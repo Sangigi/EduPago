@@ -31,12 +31,19 @@ function Alumnos({
     tel_emergencia: '',
     doc_curp_url: '',
     doc_acta_url: '',
-    doc_ine_tutor_url: ''
+    doc_ine_tutor_url: '',
+    foto_url: ''
   };
   const [modal, setModal] = useState(null);
+  const [ficha, setFicha] = useState(null);   // alumno cuya credencial se muestra
   const [form, setForm] = useState(EMPTY);
   const [q, setQ] = useState('');
+  // Términos acumulados del buscador. Se mandan al servidor separados por '|'
+  // porque el filtrado debe ocurrir en SQL: la lista viene paginada y filtrar
+  // solo en el navegador daría resultados falsos (ver api_busqueda_etiquetas.md).
+  const [etiquetas, setEtiquetas] = useState([]);
   const [clabeLoadingId, setClabeLoadingId] = useState(null);
+  const [asignandoClabesMasivo, setAsignandoClabesMasivo] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [buscando, setBuscando] = useState(false);
   const [qFamilia, setQFamilia] = useState('');
@@ -83,6 +90,7 @@ function Alumnos({
         pagina_clientes: paginaBuscar || 1,
       });
       const res = await fetch('api.php?' + params.toString(), {
+        cache: 'no-store',
         headers: { 'Authorization': 'Bearer ' + token() },
       });
       const json = await res.json();
@@ -91,6 +99,7 @@ function Alumnos({
           ...data,
           clientes: json.clientes || [],
           clientes_total: json.clientes_total,
+          clientes_activos_total: json.clientes_activos_total,
           clientes_pagina: json.clientes_pagina,
           clientes_por_pagina: json.clientes_por_pagina,
         };
@@ -114,10 +123,16 @@ function Alumnos({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, escuela_id]);
 
+  React.useEffect(() => {
+    setPagina(1);
+    buscarEnServidor(etiquetas.join('|'), 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etiquetas, escuela_id]);
+
   const irAPagina = p => {
     const destino = Math.min(Math.max(1, p), totalPaginas);
     setPagina(destino);
-    buscarEnServidor(q, destino);
+    buscarEnServidor(etiquetas.length ? etiquetas.join('|') : q, destino);
   };
 
   // La lista ya viene filtrada/paginada del backend; se mantiene un filtro
@@ -215,6 +230,11 @@ function Alumnos({
         ...prev,
         clientes: [...prev.clientes, ...(res.clientes_detalle || [])],
         familias: [...prev.familias, ...(res.familias_detalle || [])],
+        // Sin esto, el total quedaba desactualizado hasta recargar la página
+        // completa — el Dashboard (barra de "Tu plan") seguía mostrando el
+        // conteo de antes de importar.
+        clientes_total: (typeof prev.clientes_total === 'number' ? prev.clientes_total : prev.clientes.length) + (res.clientes_detalle || []).length,
+        clientes_activos_total: (typeof prev.clientes_activos_total === 'number' ? prev.clientes_activos_total : prev.clientes.filter(c => c.activo).length) + (res.clientes_detalle || []).length,
       }));
       setResultadoImport(res);
       setModalImport('resultado');
@@ -242,20 +262,28 @@ function Alumnos({
     } : c)
   });
 
-  // Toma la primera CLABE libre del pool y la asigna al alumno
+  // Genera una CLABE SPEI real en vivo vía Pagadetodo (antes tomaba la
+  // primera CLABE libre de un pool subido a mano — ya no hace falta:
+  // la pasarela con la que ya está conectado el sistema genera la CLABE
+  // al momento).
   const asignarClabeDesdePool = async (alumno, dataBase) => {
     const eid = escuela_id || dataBase.escuelas?.[0]?.id;
     if (!eid || !alumno?.id) return;
     setClabeLoadingId(alumno.id);
     try {
-      const res = await _apiPost('asignar_clabe_pool', { escuela_id: eid, cliente_id: alumno.id });
+      const res = await _apiPost('generar_clabe_individual', {
+        alumno_id: alumno.id,
+        matricula: alumno.matricula || '',
+        nombre: alumno.nombre || '',
+        email: alumno.email || '',
+      });
       if (!res.success) {
-        // Sin CLABEs disponibles (u otro error) — guardamos el mensaje real del
+        // Sin poder generar (u otro error) — guardamos el mensaje real del
         // servidor para mostrarlo, en vez de un "Error" genérico sin contexto.
         const upd = {
           ...dataBase,
           clientes: dataBase.clientes.map(c => c.id === alumno.id ? {
-            ...c, clabe_individual_estado: 'error', clabe_individual_error_msg: res.error || 'No hay CLABEs SPEI disponibles'
+            ...c, clabe_individual_estado: 'error', clabe_individual_error_msg: res.error || 'No se pudo generar la CLABE SPEI'
           } : c)
         };
         setData(upd);
@@ -266,9 +294,35 @@ function Alumnos({
       setData(conClabe);
       AppModel.save(conClabe);
     } catch (e) {
-      console.error('Error al asignar CLABE del pool:', e.message);
+      console.error('Error al generar CLABE:', e.message);
     } finally {
       setClabeLoadingId(null);
+    }
+  };
+
+  // Genera CLABEs SPEI reales en vivo vía Pagadetodo para TODOS los alumnos
+  // activos de la escuela que todavía no tienen una — antes tomaba del pool
+  // manual, ahora llama a la pasarela alumno por alumno (más lento porque
+  // cada uno es una llamada de red real, pero ya no depende de tener CLABEs
+  // pre-cargadas a mano). El backend regresa solo conteos (no toca cuál
+  // CLABE le tocó a cuál alumno en la respuesta), así que al terminar se
+  // refresca la página actual para ver los resultados.
+  const asignarClabesMasivo = async () => {
+    if (!escuela_id) return;
+    if (!confirm('¿Generar una CLABE SPEI real para todos los alumnos activos que aún no tienen una? Esto llama a la pasarela de pagos y puede tardar según cuántos alumnos falten.')) return;
+    setAsignandoClabesMasivo(true);
+    try {
+      const res = await _apiPost('generar_clabes_individual_masivo', { escuela_id });
+      if (!res.success) {
+        alert(res.error || 'No se pudieron generar las CLABEs.');
+        return;
+      }
+      alert(res.mensaje || `Se generaron ${res.generadas} CLABEs.`);
+      await buscarEnServidor(etiquetas.length ? etiquetas.join('|') : q, pagina);
+    } catch (e) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setAsignandoClabesMasivo(false);
     }
   };
 
@@ -306,7 +360,7 @@ function Alumnos({
       setQFamilia('');
       return;
     }
-    // Alta nueva: registrar en DB, luego asignar CLABE del pool automáticamente
+    // Alta nueva: registrar en DB, luego generar CLABE SPEI real automáticamente
     try {
       const alumnoNuevo = await ClienteController.agregar(form, eid);
       const newData = {
@@ -320,7 +374,7 @@ function Alumnos({
       setModal(null);
       setForm(EMPTY);
       setQFamilia('');
-      // Asignar CLABE del pool de inmediato
+      // Generar CLABE SPEI real de inmediato
       await asignarClabeDesdePool(alumnoNuevo, newData);
     } catch (e) { alert('Error al dar de alta alumno: ' + e.message); }
   };
@@ -336,10 +390,10 @@ function Alumnos({
     setData(newData);
     AppModel.save(newData);
     if (eraActivo) {
-      // Dar de baja: liberar CLABE al pool
+      // Dar de baja: liberar CLABE
       if (cliente.clabe_individual) await liberarClabePool(cliente, newData);
     } else {
-      // Reactivar: asignar nueva CLABE del pool
+      // Reactivar: generar nueva CLABE
       const alumnoActualizado = newData.clientes.find(c => c.id === cliente.id);
       await asignarClabeDesdePool(alumnoActualizado, newData);
     }
@@ -349,22 +403,46 @@ function Alumnos({
   };
   const familiaDeAlumno = fid => fid ? data.familias.find(f => f.id === fid)?.nombre : null;
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
-  return /*#__PURE__*/_jsxDEV("div", {
-    children: [/*#__PURE__*/_jsxDEV("div", {
+  return _jsxDEV("div", {
+    children: [ficha && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
+      tipo: 'alumno',
+      registro: ficha,
+      extra: {
+        familia: (data.familias || []).find(f => f.id === ficha.familia_id) || null,
+        saldo: ficha.saldo_pendiente || 0,
+        saldoTexto: '$' + Number(ficha.saldo_pendiente || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
+      },
+      onCerrar: () => setFicha(null),
+      // La foto ya se subió como archivo real vía subir_foto_cliente.php
+      // (llamado desde dentro de FichaTecnica) antes de invocar esto —
+      // aquí solo se sincroniza el estado local, sin volver a escribir.
+      onGuardarFoto: async url => {
+        setFicha(f => f ? { ...f, foto_url: url } : f);
+        setData(prev => ({
+          ...prev,
+          clientes: (prev.clientes || []).map(c => c.id === ficha.id ? { ...c, foto_url: url } : c)
+        }));
+        return { success: true };
+      }
+    }, 'ficha', false), _jsxDEV("div", {
       className: "card",
-      children: [/*#__PURE__*/_jsxDEV("div", {
+      children: [_jsxDEV("div", {
         className: "card-header",
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             className: "card-title",
             children: "Alumnos"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), _jsxDEV("div", {
             className: "card-sub",
-            children: [data.clientes.filter(c => c.activo).length, " activos de ", data.clientes.length]
+            children: [
+              typeof data.clientes_activos_total === 'number' ? data.clientes_activos_total : data.clientes.filter(c => c.activo).length,
+              " activos de ",
+              typeof data.clientes_total === 'number' ? data.clientes_total : data.clientes.length
+            ]
           }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          style: { display: 'flex', gap: 8 },
-          children: [/*#__PURE__*/_jsxDEV("button", {
+        }, void 0, true), _jsxDEV("div", {
+          style: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+          children: [_jsxDEV("button", {
             className: "btn btn-secondary",
             disabled: !escuela_id,
             title: !escuela_id ? 'Selecciona una escuela arriba antes de importar' : undefined,
@@ -375,8 +453,16 @@ function Alumnos({
               }
               setModalImport('upload');
             },
-            children: [/*#__PURE__*/_jsxDEV(Icon, { name: "download", size: 14, color: "currentColor" }, void 0, false), " Importar CSV"]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+            children: [_jsxDEV(Icon, { name: "download", size: 14, color: "currentColor" }, void 0, false), " Importar CSV"]
+          }, void 0, true), _jsxDEV("button", {
+            className: "btn btn-secondary",
+            disabled: !escuela_id || asignandoClabesMasivo,
+            title: !escuela_id ? 'Selecciona una escuela arriba' : 'Genera una CLABE SPEI real a todos los alumnos que aún no tienen una',
+            onClick: asignarClabesMasivo,
+            children: asignandoClabesMasivo
+              ? _jsxDEV("span", { style: { display: 'flex', alignItems: 'center', gap: 6 }, children: [_jsxDEV("span", { className: "spinner", style: { width: 12, height: 12 } }, void 0, false), " Asignando…"] }, void 0, true)
+              : "Generar CLABE a todos"
+          }, void 0, true), _jsxDEV("button", {
             className: "btn btn-primary",
             disabled: !escuela_id,
             title: !escuela_id ? 'Selecciona una escuela arriba antes de dar de alta un alumno' : undefined,
@@ -392,7 +478,7 @@ function Alumnos({
             children: "+ Alta de alumno"
           }, void 0, false)]
         }, void 0, true)]
-      }, void 0, true), !escuela_id && /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, true), !escuela_id && _jsxDEV("div", {
         style: {
           marginBottom: 16,
           padding: '10px 12px',
@@ -403,130 +489,129 @@ function Alumnos({
           color: 'var(--ink-2)'
         },
         children: "Estás en \"Vista global\": selecciona una escuela en el selector de arriba para poder dar de alta alumnos."
-      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, false), _jsxDEV("div", {
         style: {
           marginBottom: 16
         },
-        children: /*#__PURE__*/_jsxDEV("div", {
-          className: "search-bar",
-          children: [/*#__PURE__*/_jsxDEV("span", {
-            className: "search-icon",
-            children: /*#__PURE__*/_jsxDEV(Icon, {
-              name: "search",
-              size: 15,
-              color: "currentColor"
-            }, void 0, false)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
-            placeholder: "Buscar por nombre, matrícula o correo…",
-            value: q,
-            onChange: e => setQ(e.target.value)
-          }, void 0, false), buscando && /*#__PURE__*/_jsxDEV("span", {
-            style: { fontSize: 12, color: 'var(--ink-3)', marginLeft: 8 },
+        children: _jsxDEV("div", {
+          children: [_jsxDEV(BuscadorEtiquetas, {
+            etiquetas: etiquetas,
+            onCambio: setEtiquetas,
+            placeholder: "Escribe un dato y presiona Enter…",
+            sugerencias: ['nombre', 'matrícula', 'grado', 'correo', 'teléfono']
+          }, void 0, false), buscando && _jsxDEV("span", {
+            style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 6, display: 'block' },
             children: "Buscando…"
           }, void 0, false)]
         }, void 0, true)
-      }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, false), _jsxDEV("div", {
         className: "table-wrap",
-        children: /*#__PURE__*/_jsxDEV("table", {
-          children: [/*#__PURE__*/_jsxDEV("thead", {
-            children: /*#__PURE__*/_jsxDEV("tr", {
-              children: [/*#__PURE__*/_jsxDEV("th", {
+        children: _jsxDEV("table", {
+          children: [_jsxDEV("thead", {
+            children: _jsxDEV("tr", {
+              children: [_jsxDEV("th", {
                 children: "Nombre"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Matrícula"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Grado"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Familia"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "CLABE SPEI individual"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Saldo pendiente"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Estado"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("th", {
+              }, void 0, false), _jsxDEV("th", {
                 children: "Acciones"
               }, void 0, false)]
             }, void 0, true)
-          }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
-            children: [lista.length === 0 && /*#__PURE__*/_jsxDEV("tr", {
-              children: /*#__PURE__*/_jsxDEV("td", {
+          }, void 0, false), _jsxDEV("tbody", {
+            children: [lista.length === 0 && _jsxDEV("tr", {
+              children: _jsxDEV("td", {
                 colSpan: 8,
-                children: /*#__PURE__*/_jsxDEV("div", {
+                children: _jsxDEV("div", {
                   className: "empty-state",
-                  children: [/*#__PURE__*/_jsxDEV("div", {
+                  children: [_jsxDEV("div", {
                     className: "empty-icon",
-                    children: /*#__PURE__*/_jsxDEV(Icon, {
+                    children: _jsxDEV(Icon, {
                       name: "alumnos",
                       size: 36,
                       color: "currentColor"
                     }, void 0, false)
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+                  }, void 0, false), _jsxDEV("div", {
                     className: "empty-text",
                     children: "Sin alumnos"
                   }, void 0, false)]
                 }, void 0, true)
               }, void 0, false)
-            }, void 0, false), lista.map(c => /*#__PURE__*/_jsxDEV("tr", {
+            }, void 0, false), lista.map(c => _jsxDEV("tr", {
               style: {
-                opacity: c.activo ? 1 : .5
+                opacity: c.activo ? 1 : .5,
+                cursor: 'pointer'
               },
-              children: [/*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("div", {
+              title: "Ver ficha técnica",
+              // Abrir la ficha, salvo que el clic haya sido sobre un control
+              // de la fila (botones de editar, desactivar, CLABE, etc.)
+              onClick: e => {
+                if (e.target.closest('button, a, input, select, label')) return;
+                setFicha(c);
+              },
+              children: [_jsxDEV("td", {
+                children: _jsxDEV("div", {
                   style: {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10
                   },
-                  children: [/*#__PURE__*/_jsxDEV("div", {
-                    className: "avatar avatar-admin",
-                    style: {
-                      width: 30,
-                      height: 30,
-                      fontSize: 11
-                    },
-                    children: c.nombre.charAt(0)
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                  children: [(typeof FotoPerfil !== 'undefined'
+                    ? _jsxDEV(FotoPerfil, { url: c.foto_url, tam: 30, radio: '50%' }, 'foto', false)
+                    : _jsxDEV("div", {
+                        className: "avatar avatar-admin",
+                        style: { width: 30, height: 30, fontSize: 11 },
+                        children: c.nombre.charAt(0)
+                      }, 'ini', false)), _jsxDEV("span", {
                     style: {
                       fontWeight: 500
                     },
                     children: c.nombre
                   }, void 0, false)]
                 }, void 0, true)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontSize: 12
                   },
                   children: c.matricula || '—'
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", {
                 style: {
                   color: 'var(--ink-3)',
                   fontSize: 12
                 },
                 children: c.grado || '—'
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: c.familia_id ? /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: c.familia_id ? _jsxDEV("span", {
                   style: {
                     fontSize: 12,
                     color: 'var(--ink-2)'
                   },
-                  children: [/*#__PURE__*/_jsxDEV(Icon, {
+                  children: [_jsxDEV(Icon, {
                     name: "familias",
                     size: 14,
                     color: "currentColor"
                   }, void 0, false), " ", familiaDeAlumno(c.familia_id)?.split(' ').slice(1).join(' ') || '—']
-                }, void 0, true) : /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, true) : _jsxDEV("span", {
                   style: {
                     fontSize: 12,
                     color: 'var(--ink-4)'
                   },
                   children: "—"
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: clabeLoadingId === c.id ? /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: clabeLoadingId === c.id ? _jsxDEV("span", {
                   style: {
                     display: 'flex',
                     alignItems: 'center',
@@ -534,14 +619,14 @@ function Alumnos({
                     fontSize: 11.5,
                     color: 'var(--ink-3)'
                   },
-                  children: [/*#__PURE__*/_jsxDEV("span", {
+                  children: [_jsxDEV("span", {
                     className: "spinner",
                     style: {
                       width: 12,
                       height: 12
                     }
                   }, void 0, false), " Generando…"]
-                }, void 0, true) : c.clabe_individual_estado === 'activa' && c.clabe_individual ? /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, true) : c.clabe_individual_estado === 'activa' && c.clabe_individual ? _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontSize: 11.5,
@@ -550,36 +635,36 @@ function Alumnos({
                   },
                   title: `Asignada: ${c.clabe_individual_fecha || ''}`,
                   children: fmtCLABE(c.clabe_individual)
-                }, void 0, false) : c.clabe_individual_estado === 'liberada' ? /*#__PURE__*/_jsxDEV("div", {
+                }, void 0, false) : c.clabe_individual_estado === 'liberada' ? _jsxDEV("div", {
                   style: { display: 'flex', alignItems: 'center', gap: 6 },
-                  children: [/*#__PURE__*/_jsxDEV("span", {
+                  children: [_jsxDEV("span", {
                     style: { fontSize: 11.5, color: 'var(--ink-4)' },
                     children: "Sin CLABE"
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                  }, void 0, false), _jsxDEV("button", {
                     className: "btn btn-primary btn-sm",
                     style: { fontSize: 10.5, padding: '2px 8px' },
                     onClick: e => { e.stopPropagation(); asignarClabeDesdePool(c, data); },
-                    title: "Asignar CLABE del pool",
+                    title: "Generar CLABE SPEI",
                     children: "Asignar"
                   }, void 0, false)]
-                }, void 0, false) : c.clabe_individual_estado === 'error' ? /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, false) : c.clabe_individual_estado === 'error' ? _jsxDEV("span", {
                   style: {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6
                   },
                   title: c.clabe_individual_error_msg || 'No hay CLABEs SPEI disponibles',
-                  children: [/*#__PURE__*/_jsxDEV("span", {
+                  children: [_jsxDEV("span", {
                     style: {
                       fontSize: 11.5,
                       color: 'var(--red)'
                     },
-                    children: [/*#__PURE__*/_jsxDEV(Icon, {
+                    children: [_jsxDEV(Icon, {
                       name: "warning",
                       size: 12,
                       color: "currentColor"
                     }, void 0, false), " ", c.clabe_individual_error_msg || 'No hay CLABEs SPEI disponibles']
-                  }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+                  }, void 0, true), _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     style: {
                       padding: '2px 6px',
@@ -588,12 +673,12 @@ function Alumnos({
                     onClick: () => regenerarClabe(c),
                     children: "Reintentar"
                   }, void 0, false)]
-                }, void 0, true) : c.activo ? /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, true) : c.activo ? _jsxDEV("span", {
                   style: {
                     fontSize: 11.5,
                     color: 'var(--ink-4)'
                   },
-                  children: ["Pendiente", /*#__PURE__*/_jsxDEV("button", {
+                  children: ["Pendiente", _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     style: {
                       padding: '2px 6px',
@@ -603,15 +688,15 @@ function Alumnos({
                     onClick: () => regenerarClabe(c),
                     children: "Generar"
                   }, void 0, false)]
-                }, void 0, true) : /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, true) : _jsxDEV("span", {
                   style: {
                     fontSize: 11.5,
                     color: 'var(--ink-4)'
                   },
                   children: "—"
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: c.saldo_pendiente > 0 ? /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: c.saldo_pendiente > 0 ? _jsxDEV("span", {
                   style: {
                     color: 'var(--red)',
                     fontFamily: 'var(--mono)',
@@ -619,35 +704,35 @@ function Alumnos({
                     fontSize: 13
                   },
                   children: fmt(c.saldo_pendiente)
-                }, void 0, false) : /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, false) : _jsxDEV("span", {
                   style: {
                     color: 'var(--green)',
                     fontSize: 12
                   },
-                  children: [/*#__PURE__*/_jsxDEV(Icon, {
+                  children: [_jsxDEV(Icon, {
                     name: "check",
                     size: 11,
                     color: "currentColor"
                   }, void 0, false), " Al corriente"]
                 }, void 0, true)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: c.activo ? /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: c.activo ? _jsxDEV("span", {
                   className: "badge badge-green",
                   children: "Activo"
-                }, void 0, false) : /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, false) : _jsxDEV("span", {
                   className: "badge badge-gray",
                   children: "Inactivo"
                 }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: !puedeEditar ? /*#__PURE__*/_jsxDEV("span", {
+              }, void 0, false), _jsxDEV("td", {
+                children: !puedeEditar ? _jsxDEV("span", {
                   style: { fontSize: 11, color: 'var(--ink-4)' },
                   children: "Sin edición"
-                }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
+                }, void 0, false) : _jsxDEV("div", {
                   style: {
                     display: 'flex',
                     gap: 5
                   },
-                  children: [/*#__PURE__*/_jsxDEV("button", {
+                  children: [_jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     onClick: () => {
                       setForm({
@@ -662,20 +747,20 @@ function Alumnos({
                       alignItems: 'center',
                       justifyContent: 'center'
                     },
-                    children: /*#__PURE__*/_jsxDEV(Icon, {
+                    children: _jsxDEV(Icon, {
                       name: "edit",
                       size: 14,
                       color: "currentColor"
                     }, void 0, false)
-                  }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                  }, void 0, false), _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     onClick: () => toggle(c),
                     title: c.activo ? 'Dar de baja (libera su CLABE)' : 'Reactivar (genera nueva CLABE)',
-                    children: c.activo ? /*#__PURE__*/_jsxDEV(Icon, {
+                    children: c.activo ? _jsxDEV(Icon, {
                       name: "shield",
                       size: 14,
                       color: "currentColor"
-                    }, void 0, false) : /*#__PURE__*/_jsxDEV(Icon, {
+                    }, void 0, false) : _jsxDEV(Icon, {
                       name: "eyeOff",
                       size: 14,
                       color: "currentColor"
@@ -686,27 +771,28 @@ function Alumnos({
             }, c.id, true))]
           }, void 0, true)]
         }, void 0, true)
-      }, void 0, false), totalPaginas > 1 && /*#__PURE__*/_jsxDEV("div", {
+      }, void 0, false), totalPaginas > 1 && _jsxDEV("div", {
         style: {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
+          flexWrap: 'wrap',
           gap: 10,
           marginTop: 12,
           fontSize: 13,
           color: 'var(--ink-3)',
         },
         children: [
-          /*#__PURE__*/_jsxDEV("span", {
+          _jsxDEV("span", {
             children: `Página ${pagina} de ${totalPaginas} · ${totalAlumnos} alumnos`
           }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", {
+          _jsxDEV("button", {
             className: "btn btn-ghost btn-sm",
             disabled: pagina <= 1 || buscando,
             onClick: () => irAPagina(pagina - 1),
             children: "‹ Anterior"
           }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", {
+          _jsxDEV("button", {
             className: "btn btn-ghost btn-sm",
             disabled: pagina >= totalPaginas || buscando,
             onClick: () => irAPagina(pagina + 1),
@@ -714,28 +800,28 @@ function Alumnos({
           }, void 0, false),
         ],
       }, void 0, true)]
-    }, void 0, true), modal === 'form' && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true), modal === 'form' && _jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setModal(null),
-      children: /*#__PURE__*/_jsxDEV("div", {
+      children: _jsxDEV("div", {
         className: "modal modal-lg",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             className: "modal-title",
             children: form.id ? 'Editar alumno' : 'Alta de alumno'
-          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+          }, void 0, false), _jsxDEV("button", {
             className: "btn btn-ghost btn-sm",
             onClick: () => setModal(null),
-            children: /*#__PURE__*/_jsxDEV(Icon, {
+            children: _jsxDEV(Icon, {
               name: "close",
               size: 16,
               color: "currentColor"
             }, void 0, false)
           }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-body",
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             style: {
               fontSize: 11,
               color: 'var(--ink-4)',
@@ -745,65 +831,65 @@ function Alumnos({
               marginBottom: 10
             },
             children: "Datos generales"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), _jsxDEV("div", {
             className: "form-group",
             style: { position: 'relative' },
-            children: [/*#__PURE__*/_jsxDEV("label", {
+            children: [_jsxDEV("label", {
               className: "form-label",
               children: "Familia (opcional)"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+            }, void 0, false), _jsxDEV("input", {
               className: "form-input",
               placeholder: "Buscar familia por nombre…",
               value: qFamilia,
               onChange: e => { setQFamilia(e.target.value); setFamiliaAbierta(true); },
               onFocus: () => setFamiliaAbierta(true),
               onBlur: () => setTimeout(() => setFamiliaAbierta(false), 150),
-            }, void 0, false), form.familia_id && !familiaAbierta && /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), form.familia_id && !familiaAbierta && _jsxDEV("div", {
               style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 },
-              children: [/*#__PURE__*/_jsxDEV(Icon, {
+              children: [_jsxDEV(Icon, {
                 name: "escuelas",
                 size: 14,
                 color: "var(--lime)",
                 style: { display: 'inline' }
-              }, void 0, false), "Seleccionada: ", data.familias.find(f => f.id === form.familia_id)?.nombre, /*#__PURE__*/_jsxDEV("button", {
+              }, void 0, false), "Seleccionada: ", data.familias.find(f => f.id === form.familia_id)?.nombre, _jsxDEV("button", {
                 type: "button",
                 className: "btn btn-ghost btn-sm",
                 style: { padding: '2px 8px', fontSize: 11 },
                 onClick: () => { setForm(f => ({ ...f, familia_id: null })); setQFamilia(''); },
                 children: "Quitar"
               }, void 0, false)]
-            }, void 0, true), familiaAbierta && /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), familiaAbierta && _jsxDEV("div", {
               style: {
                 position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0,
                 marginTop: 4, maxHeight: 220, overflowY: 'auto',
                 background: 'var(--bg-2, #17181c)', border: '1px solid var(--glass-light)',
                 borderRadius: 'var(--radius-sm)', boxShadow: '0 8px 24px rgba(0,0,0,.35)'
               },
-              children: familiasFiltradas.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+              children: familiasFiltradas.length === 0 ? _jsxDEV("div", {
                 style: { padding: 12, fontSize: 12.5, color: 'var(--ink-3)' },
                 children: "Sin coincidencias"
-              }, void 0, false) : familiasFiltradas.map(({ fam, exacta }) => /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, false) : familiasFiltradas.map(({ fam, exacta }) => _jsxDEV("div", {
                 onMouseDown: () => { setForm(f => ({ ...f, familia_id: fam.id })); setQFamilia(''); setFamiliaAbierta(false); },
                 style: {
                   padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
                   fontSize: 13, borderBottom: '1px solid var(--glass-light)'
                 },
-                children: [exacta && /*#__PURE__*/_jsxDEV(Icon, {
+                children: [exacta && _jsxDEV(Icon, {
                   name: "escuelas",
                   size: 16,
                   color: "var(--lime)",
                   style: { display: 'inline' }
-                }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, false), _jsxDEV("span", {
                   children: fam.nombre
                 }, void 0, false)]
               }, fam.id, true))
             }, void 0, false)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             className: "form-group",
-            children: [/*#__PURE__*/_jsxDEV("label", {
+            children: [_jsxDEV("label", {
               className: "form-label",
               children: "Nombre completo *"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+            }, void 0, false), _jsxDEV("input", {
               className: "form-input",
               placeholder: "Nombre completo",
               value: form.nombre,
@@ -812,18 +898,18 @@ function Alumnos({
                 nombre: e.target.value
               }))
             }, void 0, false)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             style: {
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
               gap: 12
             },
-            children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("div", {
               className: "form-group",
-              children: [/*#__PURE__*/_jsxDEV("label", {
+              children: [_jsxDEV("label", {
                 className: "form-label",
                 children: "Grado / Grupo"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              }, void 0, false), _jsxDEV("input", {
                 className: "form-input",
                 placeholder: "3° Primaria",
                 value: form.grado,
@@ -832,12 +918,12 @@ function Alumnos({
                   grado: e.target.value
                 }))
               }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), _jsxDEV("div", {
               className: "form-group",
-              children: [/*#__PURE__*/_jsxDEV("label", {
+              children: [_jsxDEV("label", {
                 className: "form-label",
                 children: "Matrícula"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              }, void 0, false), _jsxDEV("input", {
                 className: "form-input",
                 placeholder: "ITM-2024-001",
                 value: form.matricula,
@@ -850,12 +936,12 @@ function Alumnos({
                 }
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             className: "form-group",
-            children: [/*#__PURE__*/_jsxDEV("label", {
+            children: [_jsxDEV("label", {
               className: "form-label",
               children: "CURP"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+            }, void 0, false), _jsxDEV("input", {
               className: "form-input",
               placeholder: "GALA090315MDFPNB08",
               value: form.curp,
@@ -867,18 +953,18 @@ function Alumnos({
                 fontFamily: 'var(--mono)'
               }
             }, void 0, false)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             style: {
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
               gap: 12
             },
-            children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("div", {
               className: "form-group",
-              children: [/*#__PURE__*/_jsxDEV("label", {
+              children: [_jsxDEV("label", {
                 className: "form-label",
                 children: "Correo electrónico"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              }, void 0, false), _jsxDEV("input", {
                 className: "form-input",
                 type: "email",
                 placeholder: "correo@mail.com",
@@ -888,12 +974,12 @@ function Alumnos({
                   email: e.target.value
                 }))
               }, void 0, false)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), _jsxDEV("div", {
               className: "form-group",
-              children: [/*#__PURE__*/_jsxDEV("label", {
+              children: [_jsxDEV("label", {
                 className: "form-label",
                 children: "Teléfono"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              }, void 0, false), _jsxDEV("input", {
                 className: "form-input",
                 placeholder: "9991234567",
                 value: form.tel,
@@ -906,13 +992,13 @@ function Alumnos({
                 }
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             style: {
               marginTop: 18,
               paddingTop: 14,
               borderTop: '1px solid var(--border-glow)'
             },
-            children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("div", {
               style: {
                 fontSize: 11,
                 color: 'var(--ink-4)',
@@ -922,12 +1008,12 @@ function Alumnos({
                 marginBottom: 10
               },
               children: "Dirección"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), _jsxDEV("div", {
               className: "form-group",
-              children: [/*#__PURE__*/_jsxDEV("label", {
+              children: [_jsxDEV("label", {
                 className: "form-label",
                 children: "Domicilio del alumno"
-              }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              }, void 0, false), _jsxDEV("input", {
                 className: "form-input",
                 placeholder: "Calle, Número, Colonia, Ciudad, Estado, CP",
                 value: form.direccion || '',
@@ -937,13 +1023,13 @@ function Alumnos({
                 }))
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             style: {
               marginTop: 18,
               paddingTop: 14,
               borderTop: '1px solid var(--border-glow)'
             },
-            children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("div", {
               style: {
                 fontSize: 11,
                 color: 'var(--ink-4)',
@@ -953,18 +1039,18 @@ function Alumnos({
                 marginBottom: 10
               },
               children: "Contacto de emergencia"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), _jsxDEV("div", {
               style: {
                 display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
                 gap: 12
               },
-              children: [/*#__PURE__*/_jsxDEV("div", {
+              children: [_jsxDEV("div", {
                 className: "form-group",
-                children: [/*#__PURE__*/_jsxDEV("label", {
+                children: [_jsxDEV("label", {
                   className: "form-label",
                   children: "Nombre del contacto"
-                }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                }, void 0, false), _jsxDEV("input", {
                   className: "form-input",
                   placeholder: "Nombre del familiar",
                   value: form.contacto_emergencia || '',
@@ -973,12 +1059,12 @@ function Alumnos({
                     contacto_emergencia: e.target.value
                   }))
                 }, void 0, false)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, true), _jsxDEV("div", {
                 className: "form-group",
-                children: [/*#__PURE__*/_jsxDEV("label", {
+                children: [_jsxDEV("label", {
                   className: "form-label",
                   children: "Teléfono de emergencia"
-                }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                }, void 0, false), _jsxDEV("input", {
                   className: "form-input",
                   placeholder: "9991234567",
                   value: form.tel_emergencia || '',
@@ -992,13 +1078,13 @@ function Alumnos({
                 }, void 0, false)]
               }, void 0, true)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), _jsxDEV("div", {
             style: {
               marginTop: 18,
               paddingTop: 14,
               borderTop: '1px solid var(--border-glow)'
             },
-            children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("div", {
               style: {
                 fontSize: 11,
                 color: 'var(--ink-4)',
@@ -1008,7 +1094,7 @@ function Alumnos({
                 marginBottom: 6
               },
               children: "Digitalización de documentos oficiales"
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), _jsxDEV("div", {
               style: {
                 marginBottom: 12,
                 padding: '8px 12px',
@@ -1018,23 +1104,23 @@ function Alumnos({
                 color: 'var(--ink-2)',
                 lineHeight: 1.6
               },
-              children: [/*#__PURE__*/_jsxDEV(Icon, {
+              children: [_jsxDEV(Icon, {
                 name: "bank",
                 size: 13,
                 color: "currentColor"
               }, void 0, false), " Pega la URL o ruta del documento digitalizado (Google Drive, servidor, etc.)"]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), _jsxDEV("div", {
               style: {
                 display: 'grid',
                 gridTemplateColumns: '1fr',
                 gap: 10
               },
-              children: [/*#__PURE__*/_jsxDEV("div", {
+              children: [_jsxDEV("div", {
                 className: "form-group",
-                children: [/*#__PURE__*/_jsxDEV("label", {
+                children: [_jsxDEV("label", {
                   className: "form-label",
                   children: "CURP (documento PDF/imagen)"
-                }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                }, void 0, false), _jsxDEV("input", {
                   className: "form-input",
                   placeholder: "https://drive.google.com/…",
                   value: form.doc_curp_url || '',
@@ -1047,12 +1133,12 @@ function Alumnos({
                     fontSize: 12
                   }
                 }, void 0, false)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, true), _jsxDEV("div", {
                 className: "form-group",
-                children: [/*#__PURE__*/_jsxDEV("label", {
+                children: [_jsxDEV("label", {
                   className: "form-label",
                   children: "Acta de nacimiento"
-                }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                }, void 0, false), _jsxDEV("input", {
                   className: "form-input",
                   placeholder: "https://drive.google.com/…",
                   value: form.doc_acta_url || '',
@@ -1065,12 +1151,12 @@ function Alumnos({
                     fontSize: 12
                   }
                 }, void 0, false)]
-              }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, true), _jsxDEV("div", {
                 className: "form-group",
-                children: [/*#__PURE__*/_jsxDEV("label", {
+                children: [_jsxDEV("label", {
                   className: "form-label",
                   children: "INE / Identificación oficial del padre/tutor"
-                }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+                }, void 0, false), _jsxDEV("input", {
                   className: "form-input",
                   placeholder: "https://drive.google.com/…",
                   value: form.doc_ine_tutor_url || '',
@@ -1084,14 +1170,14 @@ function Alumnos({
                   }
                 }, void 0, false)]
               }, void 0, true)]
-            }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, true), _jsxDEV("div", {
               style: {
                 display: 'flex',
                 gap: 16,
                 marginTop: 6,
                 flexWrap: 'wrap'
               },
-              children: [form.doc_curp_url && /*#__PURE__*/_jsxDEV("a", {
+              children: [form.doc_curp_url && _jsxDEV("a", {
                 href: form.doc_curp_url,
                 target: "_blank",
                 rel: "noopener noreferrer",
@@ -1099,12 +1185,12 @@ function Alumnos({
                 style: {
                   fontSize: 11
                 },
-                children: [/*#__PURE__*/_jsxDEV(Icon, {
+                children: [_jsxDEV(Icon, {
                   name: "eye",
                   size: 12,
                   color: "currentColor"
                 }, void 0, false), " Ver CURP"]
-              }, void 0, true), form.doc_acta_url && /*#__PURE__*/_jsxDEV("a", {
+              }, void 0, true), form.doc_acta_url && _jsxDEV("a", {
                 href: form.doc_acta_url,
                 target: "_blank",
                 rel: "noopener noreferrer",
@@ -1112,12 +1198,12 @@ function Alumnos({
                 style: {
                   fontSize: 11
                 },
-                children: [/*#__PURE__*/_jsxDEV(Icon, {
+                children: [_jsxDEV(Icon, {
                   name: "eye",
                   size: 12,
                   color: "currentColor"
                 }, void 0, false), " Ver Acta"]
-              }, void 0, true), form.doc_ine_tutor_url && /*#__PURE__*/_jsxDEV("a", {
+              }, void 0, true), form.doc_ine_tutor_url && _jsxDEV("a", {
                 href: form.doc_ine_tutor_url,
                 target: "_blank",
                 rel: "noopener noreferrer",
@@ -1125,14 +1211,14 @@ function Alumnos({
                 style: {
                   fontSize: 11
                 },
-                children: [/*#__PURE__*/_jsxDEV(Icon, {
+                children: [_jsxDEV(Icon, {
                   name: "eye",
                   size: 12,
                   color: "currentColor"
                 }, void 0, false), " Ver INE"]
               }, void 0, true)]
             }, void 0, true)]
-          }, void 0, true), !form.id && /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), !form.id && _jsxDEV("div", {
             style: {
               marginTop: 16,
               padding: '8px 12px',
@@ -1142,19 +1228,19 @@ function Alumnos({
               color: 'var(--ink-2)',
               lineHeight: 1.6
             },
-            children: [/*#__PURE__*/_jsxDEV(Icon, {
+            children: [_jsxDEV(Icon, {
               name: "bank",
               size: 13,
               color: "currentColor"
             }, void 0, false), " Al guardar, se generará automáticamente una CLABE SPEI individual para este alumno."]
           }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-footer",
-          children: [/*#__PURE__*/_jsxDEV("button", {
+          children: [_jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: () => setModal(null),
             children: "Cancelar"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+          }, void 0, false), _jsxDEV("button", {
             className: "btn btn-primary",
             onClick: guardar,
             disabled: !form.nombre,
@@ -1162,109 +1248,121 @@ function Alumnos({
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)
-    }, void 0, false), modalImport === 'upload' && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, false), modalImport === 'upload' && _jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && cerrarModalImport(),
-      children: /*#__PURE__*/_jsxDEV("div", {
+      children: _jsxDEV("div", {
         className: "modal",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", { className: "modal-title", children: "Importar alumnos por CSV" }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: cerrarModalImport, children: /*#__PURE__*/_jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false) }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", { className: "modal-title", children: "Importar alumnos por CSV" }, void 0, false),
+          _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: cerrarModalImport, children: _jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false) }, void 0, false)]
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-body",
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             style: { fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 },
-            children: ["Cada fila del CSV es un alumno. Si dos filas comparten el mismo ", /*#__PURE__*/_jsxDEV("strong", { children: "tutor_email" }, void 0, false), ", se agrupan como hermanos de la misma familia — y si ese correo no tiene cuenta todavía, se crea una automáticamente con contraseña temporal."]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+            children: ["Cada fila del CSV es un alumno. Si dos filas comparten el mismo ", _jsxDEV("strong", { children: "tutor_email" }, void 0, false), ", se agrupan como hermanos de la misma familia — y si ese correo no tiene cuenta todavía, se crea una automáticamente con contraseña temporal."]
+          }, void 0, true), _jsxDEV("button", {
             className: "btn btn-secondary btn-sm",
             style: { marginBottom: 16 },
             onClick: descargarPlantillaCSV,
-            children: [/*#__PURE__*/_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Descargar plantilla de ejemplo"]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV(Icon, { name: "download", size: 13, color: "currentColor" }, void 0, false), " Descargar plantilla de ejemplo"]
+          }, void 0, true), _jsxDEV("div", {
             style: { fontSize: 11.5, color: 'var(--ink-4)', marginBottom: 10 },
-            children: ["Columnas: ", CSV_COLUMNAS.join(', '), ". Solo ", /*#__PURE__*/_jsxDEV("strong", { children: "alumno_nombre" }, void 0, false), " es obligatoria."]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("input", {
+            children: ["Columnas: ", CSV_COLUMNAS.join(', '), ". Solo ", _jsxDEV("strong", { children: "alumno_nombre" }, void 0, false), " es obligatoria."]
+          }, void 0, true), _jsxDEV("input", {
             type: "file", accept: ".csv,text/csv", onChange: onArchivoCSV,
             className: "form-input"
-          }, void 0, false), csvErrorParse && /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, false), csvErrorParse && _jsxDEV("div", {
             style: { fontSize: 12.5, color: 'var(--red)', marginTop: 10 },
             children: csvErrorParse
           }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-footer",
-          children: /*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary", onClick: cerrarModalImport, children: "Cerrar" }, void 0, false)
+          children: _jsxDEV("button", { className: "btn btn-secondary", onClick: cerrarModalImport, children: "Cerrar" }, void 0, false)
         }, void 0, true)]
       }, void 0, true)
-    }, void 0, false), modalImport === 'preview' && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, false), modalImport === 'preview' && _jsxDEV("div", {
       className: "modal-backdrop",
-      children: /*#__PURE__*/_jsxDEV("div", {
+      children: _jsxDEV("div", {
         className: "modal modal-lg",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "modal-header",
-          children: [/*#__PURE__*/_jsxDEV("div", { className: "modal-title", children: ["Revisar antes de importar (", csvFilas.length, " filas)"] }, void 0, true),
-          /*#__PURE__*/_jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: cerrarModalImport, children: /*#__PURE__*/_jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false) }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", { className: "modal-title", children: ["Revisar antes de importar (", csvFilas.length, " filas)"] }, void 0, true),
+          _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: cerrarModalImport, children: _jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false) }, void 0, false)]
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-body",
-          children: /*#__PURE__*/_jsxDEV("div", {
+          children: _jsxDEV("div", {
             className: "table-wrap",
             style: { maxHeight: 380, overflowY: 'auto' },
-            children: /*#__PURE__*/_jsxDEV("table", {
+            children: _jsxDEV("table", {
               className: "table",
-              children: [/*#__PURE__*/_jsxDEV("thead", {
-                children: /*#__PURE__*/_jsxDEV("tr", { children: CSV_COLUMNAS.map(c => /*#__PURE__*/_jsxDEV("th", { children: c }, c, false)) }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
-                children: csvFilas.slice(0, 200).map((f, i) => /*#__PURE__*/_jsxDEV("tr", {
-                  children: CSV_COLUMNAS.map(c => /*#__PURE__*/_jsxDEV("td", { style: { fontSize: 12 }, children: f[c] || '—' }, c, false))
+              children: [_jsxDEV("thead", {
+                children: _jsxDEV("tr", { children: CSV_COLUMNAS.map(c => _jsxDEV("th", { children: c }, c, false)) }, void 0, false)
+              }, void 0, false), _jsxDEV("tbody", {
+                children: csvFilas.slice(0, 200).map((f, i) => _jsxDEV("tr", {
+                  children: CSV_COLUMNAS.map(c => _jsxDEV("td", { style: { fontSize: 12 }, children: f[c] || '—' }, c, false))
                 }, i, true))
               }, void 0, false)]
             }, void 0, true)
           }, void 0, false)
-        }, void 0, true), csvFilas.length > 200 && /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), csvFilas.length > 200 && _jsxDEV("div", {
           style: { fontSize: 11.5, color: 'var(--ink-4)', padding: '0 20px' },
           children: ["Mostrando las primeras 200 de ", csvFilas.length, " filas — se importarán todas."]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-footer",
-          children: [/*#__PURE__*/_jsxDEV("button", { className: "btn btn-secondary", onClick: () => setModalImport('upload'), children: "Atrás" }, void 0, false),
-          /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary", disabled: importando, onClick: confirmarImportacion, children: importando ? 'Importando…' : `Importar ${csvFilas.length} alumno(s)` }, void 0, false)]
+          children: [_jsxDEV("button", { className: "btn btn-secondary", onClick: () => setModalImport('upload'), children: "Atrás" }, void 0, false),
+          _jsxDEV("button", { className: "btn btn-primary", disabled: importando, onClick: confirmarImportacion, children: importando ? 'Importando…' : `Importar ${csvFilas.length} alumno(s)` }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)
-    }, void 0, false), modalImport === 'resultado' && resultadoImport && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, false), modalImport === 'resultado' && resultadoImport && _jsxDEV("div", {
       className: "modal-backdrop",
-      children: /*#__PURE__*/_jsxDEV("div", {
+      children: _jsxDEV("div", {
         className: "modal",
-        children: [/*#__PURE__*/_jsxDEV("div", {
+        children: [_jsxDEV("div", {
           className: "modal-header",
-          children: /*#__PURE__*/_jsxDEV("div", { className: "modal-title", children: "Importación completada" }, void 0, false)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          children: _jsxDEV("div", { className: "modal-title", children: "Importación completada" }, void 0, false)
+        }, void 0, false), _jsxDEV("div", {
           className: "modal-body",
-          children: [/*#__PURE__*/_jsxDEV("div", {
+          children: [_jsxDEV("div", {
             style: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 },
-            children: [/*#__PURE__*/_jsxDEV("span", { className: "badge badge-green", children: [resultadoImport.alumnos_creados, " alumnos creados"] }, void 0, true),
-            /*#__PURE__*/_jsxDEV("span", { className: "badge badge-blue", children: [resultadoImport.familias_creadas, " familias nuevas"] }, void 0, true),
-            /*#__PURE__*/_jsxDEV("span", { className: "badge badge-gray", children: [resultadoImport.familias_reutilizadas, " familias reutilizadas"] }, void 0, true),
-            resultadoImport.errores.length > 0 && /*#__PURE__*/_jsxDEV("span", { className: "badge badge-red", children: [resultadoImport.errores.length, " con error"] }, void 0, true)]
-          }, void 0, true), resultadoImport.cuentas_creadas.length > 0 && /*#__PURE__*/_jsxDEV("div", {
+            children: [_jsxDEV("span", { className: "badge badge-green", children: [resultadoImport.alumnos_creados, " alumnos creados"] }, void 0, true),
+            _jsxDEV("span", { className: "badge badge-blue", children: [resultadoImport.familias_creadas, " familias nuevas"] }, void 0, true),
+            _jsxDEV("span", { className: "badge badge-gray", children: [resultadoImport.familias_reutilizadas, " familias reutilizadas"] }, void 0, true),
+            resultadoImport.errores.length > 0 && _jsxDEV("span", { className: "badge badge-red", children: [resultadoImport.errores.length, " con error"] }, void 0, true)]
+          }, void 0, true), resultadoImport.cuentas_creadas.length > 0 && _jsxDEV("div", {
             style: { marginBottom: 14 },
-            children: [/*#__PURE__*/_jsxDEV("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 6 }, children: "Cuentas de acceso nuevas — compártelas con cada tutor:" }, void 0, false),
-            /*#__PURE__*/_jsxDEV("div", { className: "table-wrap", style: { maxHeight: 200, overflowY: 'auto' }, children: /*#__PURE__*/_jsxDEV("table", { className: "table", children: [
-              /*#__PURE__*/_jsxDEV("thead", { children: /*#__PURE__*/_jsxDEV("tr", { children: [/*#__PURE__*/_jsxDEV("th", { children: "Tutor" }, void 0, false), /*#__PURE__*/_jsxDEV("th", { children: "Correo" }, void 0, false), /*#__PURE__*/_jsxDEV("th", { children: "Contraseña temporal" }, void 0, false)] }, void 0, true) }, void 0, false),
-              /*#__PURE__*/_jsxDEV("tbody", { children: resultadoImport.cuentas_creadas.map((c, i) => /*#__PURE__*/_jsxDEV("tr", { children: [
-                /*#__PURE__*/_jsxDEV("td", { style: { fontSize: 12.5 }, children: c.nombre || '—' }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", { style: { fontSize: 12.5 }, children: c.email }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", { style: { fontSize: 12.5, fontFamily: 'var(--mono)' }, children: c.password_temporal }, void 0, false)
+            children: [_jsxDEV("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 6 }, children: "Cuentas de acceso nuevas — a cada tutor se le mandó (o falta compartir) su enlace para activar su cuenta:" }, void 0, false),
+            _jsxDEV("div", { className: "table-wrap", style: { maxHeight: 200, overflowY: 'auto' }, children: _jsxDEV("table", { className: "table", children: [
+              _jsxDEV("thead", { children: _jsxDEV("tr", { children: [_jsxDEV("th", { children: "Tutor" }, void 0, false), _jsxDEV("th", { children: "Correo" }, void 0, false), _jsxDEV("th", { children: "Estado" }, void 0, false)] }, void 0, true) }, void 0, false),
+              _jsxDEV("tbody", { children: resultadoImport.cuentas_creadas.map((c, i) => _jsxDEV("tr", { children: [
+                _jsxDEV("td", { style: { fontSize: 12.5 }, children: c.nombre || '—' }, void 0, false),
+                _jsxDEV("td", { style: { fontSize: 12.5 }, children: c.email }, void 0, false),
+                _jsxDEV("td", { style: { fontSize: 12.5 }, children: c.correo_enviado
+                  ? _jsxDEV("span", { className: "badge badge-green", children: "Correo enviado" }, void 0, false)
+                  : _jsxDEV("div", { style: { display: 'flex', gap: 6, alignItems: 'center' }, children: [
+                      _jsxDEV("span", { className: "badge badge-gray", children: "Comparte el enlace" }, void 0, false),
+                      _jsxDEV("button", {
+                        type: 'button',
+                        className: 'btn btn-secondary',
+                        style: { fontSize: 11, padding: '2px 8px' },
+                        onClick: () => navigator.clipboard && navigator.clipboard.writeText(c.activacion_liga || ''),
+                        children: 'Copiar enlace'
+                      }, void 0, false)
+                    ] }, void 0, true)
+                } , void 0, false)
               ] }, i, true)) }, void 0, false)
             ] }, void 0, true) }, void 0, false)]
-          }, void 0, true), resultadoImport.errores.length > 0 && /*#__PURE__*/_jsxDEV("div", {
-            children: [/*#__PURE__*/_jsxDEV("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 6, color: 'var(--red)' }, children: "Filas no importadas:" }, void 0, false),
-            /*#__PURE__*/_jsxDEV("div", { style: { maxHeight: 160, overflowY: 'auto' }, children: resultadoImport.errores.map((er, i) => /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), resultadoImport.errores.length > 0 && _jsxDEV("div", {
+            children: [_jsxDEV("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 6, color: 'var(--red)' }, children: "Filas no importadas:" }, void 0, false),
+            _jsxDEV("div", { style: { maxHeight: 160, overflowY: 'auto' }, children: resultadoImport.errores.map((er, i) => _jsxDEV("div", {
               style: { fontSize: 12, color: 'var(--ink-2)', padding: '4px 0', borderBottom: '1px solid var(--glass-light)' },
               children: ["Fila ", er.fila, ": ", er.error]
             }, i, true)) }, void 0, false)]
           }, void 0, true)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        }, void 0, true), _jsxDEV("div", {
           className: "modal-footer",
-          children: /*#__PURE__*/_jsxDEV("button", { className: "btn btn-primary", onClick: cerrarModalImport, children: "Cerrar" }, void 0, false)
+          children: _jsxDEV("button", { className: "btn btn-primary", onClick: cerrarModalImport, children: "Cerrar" }, void 0, false)
         }, void 0, true)]
       }, void 0, true)
     }, void 0, false)]

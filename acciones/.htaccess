@@ -1,0 +1,4 @@
+# Estos archivos solo deben ejecutarse vía require() desde api.php (que ya
+# resolvió $pdo/$usuario_actual/$input antes de incluirlos) — nunca accedidos
+# directo por URL.
+Require all denied

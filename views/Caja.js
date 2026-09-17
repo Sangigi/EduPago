@@ -49,6 +49,11 @@ function Caja({
   const [efvRefInfo, setEfvRefInfo] = useState(null); // { referencia, barcode_url, payformat_url, vencimiento }
   const [efvRefLoading, setEfvRefLoading] = useState(false);
   const [efvRefError, setEfvRefError] = useState(null);
+  // Efectivo directo (cobro inmediato en caja, distinto de "Efectivo por
+  // referencia"/OXXO): monto que el cliente entrega físicamente, para
+  // calcular el cambio a devolver. Vive SOLO en el frontend — no se
+  // persiste en BD, nada en el proyecto pide auditar el cambio entregado.
+  const [montoRecibido, setMontoRecibido] = useState('');
   // Cheque
   const [chequeInfo, setChequeInfo] = useState({
     banco: '',
@@ -80,7 +85,7 @@ function Caja({
     beca: 'Beca / Descuento', otro: 'Otro'
   };
   const productosBase = data.productos.filter(p =>
-    p.activo && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
+    p.activo && p.tipo !== 'recurrente' && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
   );
   // Aplica clasificación seleccionada
   const productosFiltrados = (() => {
@@ -112,7 +117,7 @@ function Caja({
     });
     return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], 'es'));
   })();
-  const clientesFiltrados = data.clientes.filter(c => {
+  const clientesFiltradosTotal = data.clientes.filter(c => {
     if (!c.activo) return false;
     if (!qCliente) return true;
     const fam = c.familia_id ? data.familias.find(f => f.id === c.familia_id) : null;
@@ -123,6 +128,11 @@ function Caja({
     const exacto = busq !== '' && (c.nombre.toLowerCase() === busq || (c.matricula || '').toLowerCase() === busq);
     return { c, exacto };
   }).sort((a, b) => (b.exacto - a.exacto)).map(x => x.c);
+  // Tope defensivo: sin buscar nada, un colegio con cientos de alumnos
+  // renderizaba la lista completa dentro del modal — se corta a 40 y se pide
+  // escribir para acotar, igual que el buscador de familia en Alumnos.js.
+  const CLIENTES_CAP = 40;
+  const clientesFiltrados = clientesFiltradosTotal.slice(0, CLIENTES_CAP);
   const clientesFiltradosExactos = new Set(
     clientesFiltrados.filter(c => {
       const busq = qCliente.trim().toLowerCase();
@@ -331,6 +341,13 @@ function Caja({
       try {
         const liga = await CobroController.iniciarTC(cobro);
         setTcInfo(liga);
+        // Modo demo: la escuela está en modo de prueba -- no hay liga real
+        // que abrir ni nada que hacer polling. Antes esto habría dejado el
+        // modal con una URL/QR vacíos para siempre.
+        if (liga.demo) {
+          setTcLoading(false);
+          return;
+        }
 
         // Polling automático: igual que SPEI, revisa cada 10s si
         // webhook_liga.php ya marcó este cobro (por su ID exacto, nunca por
@@ -383,6 +400,11 @@ function Caja({
       try {
         const ref = await CobroController.iniciarEfectivoRef(cobro);
         setEfvRefInfo(ref);
+        // Modo demo: ver nota igual en la rama TC de arriba.
+        if (ref.demo) {
+          setEfvRefLoading(false);
+          return;
+        }
 
         // Polling automático: igual que SPEI/TC, revisa cada 10s si el
         // webhook de pago_referencia.php ya marcó este cobro como pagado,
@@ -411,68 +433,44 @@ function Caja({
       } finally {
         setEfvRefLoading(false);
       }
-    } else {
-      // Efectivo en caja: el cajero recibe el dinero en el momento, cobro
-      // inmediato y se imprime el ticket. Distinto de "Efectivo por
-      // referencia" (OXXO), que deja el cobro pendiente hasta el pago real.
+    } else if (metodo === 'CAI') {
+      // Cargo automático (CAI): cobro inmediato con la tarjeta ya
+      // domiciliada del alumno — a diferencia de TC/SPEI/EfectivoRef, no hay
+      // nada que esperar: el proveedor aprueba o rechaza el cargo al
+      // instante, no hace falta ningún modal de polling.
       setData(newData);
-      AppModel.save(newData);
-      setModal('ticket');
-      resetCarrito();
-    }
-  };
-
-  /* ── CONFIRMAR TC MANUALMENTE (cliente ya pagó en el link) ── */
-  const confirmarTC = async () => {
-    try { const res = await CobroController.confirmarPago(cobroActivo.id, { auth_code: tcInfo?.referencia }); actualizarSaldoCliente(res); } catch(e) {}
-    setData(prev => {
-      const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: tcInfo?.referencia } : c) };
-      AppModel.save(upd);
-      return upd;
-    });
-    setModal('ticket');
-    resetCarrito();
-  };
-
-  /* ── CONFIRMAR SPEI MANUAL (botón de "ya pagué") ── */
-  const confirmarSPEI = async () => {
-    if (speiStatus === 'confirmado') {
-      setModal('ticket');
-      resetCarrito();
-      return;
-    }
-    setSpeiStatus('verificando');
-    try {
-      const refSpei = cobroActivo?.referencia_spei || cobroActivo?.referencia || cobroActivo?.clabe;
-      const clabeActiva = cobroActivo?.clabe;
-      if (refSpei || clabeActiva) {
-        const ver = await CobroController.verificarSPEI(refSpei, clabeActiva, cobroActivo?.id);
-        if (ver.pagado) {
-          clearInterval(speiPollRef.current);
-          try { const res = await CobroController.confirmarPago(cobroActivo.id, { transaccion: ver.transaccion }); actualizarSaldoCliente(res); } catch(e) {}
-          setData(prev => {
-            const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado', auth_code: ver.transaccion } : c) };
-            AppModel.save(upd);
-            return upd;
-          });
-          setSpeiStatus('confirmado');
-          return;
-        }
+      try {
+        const res = await CobroController.cobrarCAI(cobro);
+        setData(prev => {
+          const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobro.id ? { ...c, estado: 'pagado', metodo: 'TC', auth_code: res.autorizacion || '' } : c) };
+          AppModel.save(upd);
+          return upd;
+        });
+        const resSaldo = await CobroController.confirmarPago(cobro.id, { auth_code: res.autorizacion || '' }).catch(() => null);
+        if (resSaldo) actualizarSaldoCliente(resSaldo);
+        setModal('ticket');
+        resetCarrito();
+      } catch (err) {
+        alert('No se pudo cobrar con la tarjeta guardada: ' + err.message);
       }
-      // Si no se verificó, confirmar manualmente de todas formas
-      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e) {}
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
-        AppModel.save(upd); return upd;
-      });
-      setSpeiStatus('confirmado');
-    } catch (e) {
-      try { const res = await CobroController.confirmarPago(cobroActivo.id); actualizarSaldoCliente(res); } catch(e2) {}
-      setData(prev => {
-        const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
-        AppModel.save(upd); return upd;
-      });
-      setSpeiStatus('confirmado');
+    } else if (metodo === 'Efectivo') {
+      // Efectivo directo: el cajero cuenta el dinero en el momento. Se pide
+      // el monto recibido para calcular el cambio a devolver (solo en
+      // frontend, no se persiste) y SOLO al confirmar en el modal se marca
+      // el cobro como pagado — mismo patrón que Cheque: el cobro ya se creó
+      // 'pendiente' arriba, nunca se asume pagado sin llamar confirmarPago.
+      setData(newData);
+      setMontoRecibido('');
+      setModal('efectivo');
+    } else {
+      // Red de seguridad para un método sin rama propia: antes este bloque
+      // (el único "else") cerraba el ticket sin llamar nunca a
+      // confirmarPago, dejando el cobro 'pendiente' para siempre en la BD
+      // si alguna vez se disparaba. Ahora nunca marca nada como pagado
+      // solo; el cobro queda pendiente y visible en Cobros.
+      setData(newData);
+      console.error(`cobrar(): método de pago sin manejar: "${metodo}"`);
+      alert('Método de pago no reconocido. El cobro se guardó como pendiente; contacta a soporte.');
     }
   };
 
@@ -497,6 +495,7 @@ function Caja({
     setTcError(null);
     setEfvRefInfo(null);
     setEfvRefError(null);
+    setMontoRecibido('');
     setChequeInfo({
       banco: '',
       num_cuenta: '',
@@ -612,7 +611,53 @@ function Caja({
   /* ── FORMATO CLABE ── */
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
 
-  /* ── QR CODI (SVG simple) ── */
+  // numeroALetras, TIENDAS_PARTICIPANTES, abrirDocumentoImprimible, escHtml y
+  // rutaAbsoluta viven ahora en views/components/Comprobantes.js, compartidas
+  // con el Portal de Familia — antes eran una copia local de esta vista.
+
+  const abrirComprobanteEfectivo = () => {
+    if (!efvRefInfo || !cobroActivo) return;
+    const cliente = (data.clientes || []).find(c => c.id === cobroActivo.cliente_id) || null;
+    const familia = cliente?.familia_id ? (data.familias || []).find(f => f.id === cliente.familia_id) : null;
+    abrirComprobanteEfectivoModulo({
+      cobro: {
+        folio: cobroActivo.folio,
+        total: cobroActivo.total,
+        descripcion: cobroActivo.descripcion,
+        items: cobroActivo.items,
+        referencia: efvRefInfo.referencia,
+        barcode_url: efvRefInfo.barcode_url,
+        vencimiento: efvRefInfo.vencimiento
+      },
+      cliente,
+      familia,
+      escuela
+    });
+  };
+
+  const abrirComprobanteSPEI = () => {
+    if (!cobroActivo || !cobroActivo.clabe) return;
+    const cliente = (data.clientes || []).find(c => c.id === cobroActivo.cliente_id) || null;
+    const familia = cliente?.familia_id ? (data.familias || []).find(f => f.id === cliente.familia_id) : null;
+    abrirComprobanteSPEIModulo({
+      cobro: {
+        folio: cobroActivo.folio,
+        total: cobroActivo.total,
+        descripcion: cobroActivo.descripcion,
+        items: cobroActivo.items,
+        referencia_spei: cobroActivo.referencia_spei,
+        referencia: cobroActivo.referencia,
+        clabe: cobroActivo.clabe,
+        clabe_es_individual: cobroActivo.clabe_es_individual,
+        banco: cobroActivo.banco,
+        beneficiario: cobroActivo.beneficiario
+      },
+      cliente,
+      familia,
+      escuela
+    });
+  };
+
   const QRSimple = ({
     value
   }) => {
@@ -662,6 +707,10 @@ function Caja({
     { value: 'S01', label: 'S01 — Sin efectos fiscales' },
   ];
   const METODOS = [{
+    id: 'Efectivo',
+    label: 'Efectivo',
+    icon: 'caja'
+  }, {
     id: 'TC',
     label: 'Tarjeta',
     icon: 'card'
@@ -671,13 +720,26 @@ function Caja({
     icon: 'bank'
   }, {
     id: 'EfectivoRef',
-    label: 'Efectivo (OXXO/tienda)',
+    label: 'Efectivo (tienda)',
     icon: 'pay'
   }, {
     id: 'Cheque',
     label: 'Cheque',
     icon: 'reportes'
   }];
+  // Cargo automático (CAI): solo aparece si el alumno seleccionado ya tiene
+  // una tarjeta domiciliada activa de un pago anterior — no pide tarjeta de
+  // nuevo, cobra directo con el token guardado.
+  // Antes cualquier metodo aparecia siempre, sin importar si el superadmin
+  // lo habia apagado (globalmente o para esta escuela en particular). El
+  // apagado real de TC/EfectivoRef/CAI ya se valida tambien en el backend
+  // (generar_liga.php, generar_referencia_efectivo.php, cobrar_cai.php); este
+  // filtro es lo que evita que el cajero ni siquiera vea la opcion.
+  const metodosApagados = escuela?.metodos_pago_deshabilitados || [];
+  const metodosConCai = clienteSel?.token_tarjeta_estado === 'activo'
+    ? [...METODOS, { id: 'CAI', label: 'Tarjeta guardada', icon: 'card' }]
+    : METODOS;
+  const metodosDisponibles = metodosConCai.filter(m => !metodosApagados.includes(m.id));
   if (requiereCajaAbierta && cajaEstadoCargando) {
     return /*#__PURE__*/_jsxDEV("div", {
       className: "empty-state",
@@ -951,7 +1013,7 @@ function Caja({
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         className: "payment-methods",
-        children: METODOS.map(m => /*#__PURE__*/_jsxDEV("div", {
+        children: metodosDisponibles.map(m => /*#__PURE__*/_jsxDEV("div", {
           className: `pay-method ${metodo === m.id ? 'selected' : ''}`,
           onClick: () => { setMetodo(m.id); setSpeiBloqueo(null); },
           children: [/*#__PURE__*/_jsxDEV("span", {
@@ -1124,7 +1186,10 @@ function Caja({
                 children: fmt(c.saldo_pendiente)
               }, void 0, false)]
             }, c.id, true);
-          })]
+          }), clientesFiltradosTotal.length > CLIENTES_CAP && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 11.5, color: 'var(--ink-4)', padding: '8px 4px', textAlign: 'center' },
+            children: `Mostrando ${CLIENTES_CAP} de ${clientesFiltradosTotal.length} — escribe para acotar la búsqueda`
+          }, void 0, false)]
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "modal-footer",
           children: /*#__PURE__*/_jsxDEV("button", {
@@ -1302,6 +1367,12 @@ function Caja({
                 className: `copy-btn ${copiedCLABE ? 'copied' : ''}`,
                 onClick: copiarCLABE,
                 children: copiedCLABE ? 'CLABE copiada' : 'Copiar CLABE al portapapeles'
+              }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                type: "button",
+                onClick: abrirComprobanteSPEI,
+                className: "btn btn-secondary",
+                style: { width: '100%', display: 'block', textAlign: 'center', marginTop: 8, boxSizing: 'border-box' },
+                children: "Ver / imprimir instrucciones de pago"
               }, void 0, false)]
             }, void 0, true), (speiStatus === 'esperando' || speiStatus === 'verificando') && /*#__PURE__*/_jsxDEV("div", {
               className: "verif-row",
@@ -1384,19 +1455,6 @@ function Caja({
               cerrarModal();
             },
             children: speiStatus === 'confirmado' ? 'Cerrar' : 'Dejar pendiente'
-          }, void 0, false), speiStatus !== 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: confirmarSPEI,
-            disabled: speiStatus === 'verificando' || speiStatus === 'generando',
-            children: speiStatus === 'verificando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner"
-              }, void 0, false), " Verificando…"]
-            }, void 0, true) : speiStatus === 'generando' ? /*#__PURE__*/_jsxDEV(_Fragment, {
-              children: [/*#__PURE__*/_jsxDEV("span", {
-                className: "spinner"
-              }, void 0, false), " Generando…"]
-            }, void 0, true) : 'Confirmar pago recibido'
           }, void 0, false), speiStatus === 'confirmado' && /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-success",
             onClick: () => {
@@ -1706,7 +1764,10 @@ function Caja({
               },
               children: "Puedes confirmar el cobro manualmente si el cliente pagó por otro medio."
             }, void 0, false)]
-          }, void 0, true), tcInfo && !tcLoading && /*#__PURE__*/_jsxDEV(_Fragment, {
+          }, void 0, true), tcInfo && !tcLoading && tcInfo.demo && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 13, color: 'var(--ink-2)', textAlign: 'center', padding: '20px 10px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px dashed var(--border)' },
+            children: tcInfo.mensaje || 'Esta cuenta está en modo de prueba: aquí se generaría el cobro real, pero no se envía a la pasarela de pagos.'
+          }, void 0, false), tcInfo && !tcLoading && !tcInfo.demo && /*#__PURE__*/_jsxDEV(_Fragment, {
             children: [/*#__PURE__*/_jsxDEV("p", {
               style: {
                 fontSize: 13,
@@ -1806,7 +1867,7 @@ function Caja({
                 color: 'var(--ink-4)',
                 marginTop: 10
               },
-              children: "ℹ Una vez que el cliente complete el pago en el enlace, confirma el cobro con el botón de abajo."
+              children: "ℹ Una vez que el cliente complete el pago en el enlace, se confirmará solo — no hace falta que esperes en pantalla."
             }, void 0, false)]
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -1814,11 +1875,7 @@ function Caja({
           children: [/*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: cerrarModal,
-            children: "Cancelar"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
-            className: "btn btn-primary",
-            onClick: confirmarTC,
-            children: "Confirmar pago recibido"
+            children: "Cerrar"
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)
@@ -1839,7 +1896,7 @@ function Caja({
               name: "pay",
               size: 18,
               color: "currentColor"
-            }, void 0, false), " Pago en efectivo (OXXO / tienda)"]
+            }, void 0, false), " Pago en efectivo (tienda)"]
           }, void 0, true), efvRefInfo && /*#__PURE__*/_jsxDEV("span", {
             className: "badge badge-green",
             children: [/*#__PURE__*/_jsxDEV(Icon, {
@@ -1925,7 +1982,10 @@ function Caja({
               },
               children: efvRefError
             }, void 0, false)]
-          }, void 0, true), efvRefInfo && !efvRefLoading && /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), efvRefInfo && !efvRefLoading && efvRefInfo.demo && /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 13, color: 'var(--ink-2)', textAlign: 'center', padding: '20px 10px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px dashed var(--border)' },
+            children: efvRefInfo.mensaje || 'Esta cuenta está en modo de prueba: aquí se generaría el cobro real, pero no se envía a la pasarela de pagos.'
+          }, void 0, false), efvRefInfo && !efvRefLoading && !efvRefInfo.demo && /*#__PURE__*/_jsxDEV("div", {
             children: [/*#__PURE__*/_jsxDEV("div", {
               style: {
                 textAlign: 'center',
@@ -1969,10 +2029,9 @@ function Caja({
                 marginBottom: 10
               },
               children: "Copiar referencia"
-            }, void 0, false), efvRefInfo.payformat_url && /*#__PURE__*/_jsxDEV("a", {
-              href: efvRefInfo.payformat_url,
-              target: "_blank",
-              rel: "noreferrer",
+            }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+              type: "button",
+              onClick: abrirComprobanteEfectivo,
               className: "btn btn-secondary",
               style: {
                 width: '100%',
@@ -1981,7 +2040,7 @@ function Caja({
                 marginBottom: 10,
                 boxSizing: 'border-box'
               },
-              children: "Ver / imprimir formato de pago (PDF)"
+              children: "Ver / imprimir comprobante de pago"
             }, void 0, false), efvRefInfo.vencimiento && /*#__PURE__*/_jsxDEV("div", {
               style: {
                 fontSize: 12,
@@ -1998,7 +2057,7 @@ function Caja({
                   fontSize: 12,
                   color: 'var(--ink-2)'
                 },
-                children: "El cobro queda pendiente hasta que el cliente pague en OXXO/tienda. Se confirmará automáticamente."
+                children: "El cobro queda pendiente hasta que el cliente pague en tienda. Se confirmará automáticamente."
               }, void 0, false)]
             }, void 0, true), /*#__PURE__*/_jsxDEV("p", {
               style: {
@@ -2430,6 +2489,122 @@ function Caja({
               resetCarrito();
             },
             children: "Registrar cheque"
+          }, void 0, false)]
+        }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), modal === 'efectivo' && cobroActivo && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && cerrarModal(),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            className: "modal-title",
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            },
+            children: [/*#__PURE__*/_jsxDEV(Icon, {
+              name: "caja",
+              size: 17,
+              color: "currentColor"
+            }, void 0, false), " Cobro en efectivo"]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: cerrarModal,
+            children: /*#__PURE__*/_jsxDEV(Icon, {
+              name: "close",
+              size: 16,
+              color: "currentColor"
+            }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            style: {
+              marginBottom: 14,
+              padding: '10px 14px',
+              background: 'var(--accent-glow)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 13,
+              display: 'flex',
+              justifyContent: 'space-between'
+            },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              style: {
+                color: 'var(--ink-3)'
+              },
+              children: "Total a cobrar"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              style: {
+                fontFamily: 'var(--mono)',
+                fontWeight: 700,
+                fontSize: 15
+              },
+              children: fmt(cobroActivo.total)
+            }, void 0, false)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            className: "form-group",
+            children: [/*#__PURE__*/_jsxDEV("label", {
+              className: "form-label",
+              children: "Monto recibido del cliente"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("input", {
+              className: "form-input",
+              type: "number",
+              min: "0",
+              step: "0.01",
+              autoFocus: true,
+              placeholder: "0.00",
+              value: montoRecibido,
+              onChange: e => setMontoRecibido(e.target.value)
+            }, void 0, false)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              marginTop: 4,
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 13,
+              display: 'flex',
+              justifyContent: 'space-between',
+              background: (parseFloat(montoRecibido) || 0) < cobroActivo.total ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)'
+            },
+            children: [/*#__PURE__*/_jsxDEV("span", {
+              children: "Cambio a devolver"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
+              style: {
+                fontFamily: 'var(--mono)',
+                fontWeight: 700,
+                fontSize: 15
+              },
+              children: fmt(Math.max(0, (parseFloat(montoRecibido) || 0) - cobroActivo.total))
+            }, void 0, false)]
+          }, void 0, true)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: cerrarModal,
+            children: "Cancelar"
+          }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            disabled: (parseFloat(montoRecibido) || 0) < cobroActivo.total,
+            onClick: () => {
+              // Igual que Cheque: se confirma el pago YA CREADO como
+              // 'pendiente' — esto es lo que la rama muerta original
+              // nunca hacia, dejando el cobro pendiente para siempre.
+              CobroController.confirmarPago(cobroActivo.id).then(res => {
+                actualizarSaldoCliente(res);
+              }).catch(()=>{});
+              setData(prev => {
+                const upd = { ...prev, cobros: prev.cobros.map(c => c.id === cobroActivo.id ? { ...c, estado: 'pagado' } : c) };
+                AppModel.save(upd); return upd;
+              });
+              setModal('ticket');
+              resetCarrito();
+            },
+            children: "Confirmar cobro"
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)

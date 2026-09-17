@@ -1,0 +1,13 @@
+# Documentos fiscales del colegio (INE, constancia de situación fiscal,
+# comprobante de domicilio, etc.) — a diferencia de ../uploads/.htaccess,
+# que solo bloquea EJECUCIÓN, esta carpeta niega TODA lectura directa.
+# Los archivos solo se sirven por acciones/descargar_documento_escuela.php,
+# con autenticación y verificación de pertenencia.
+Require all denied
+Options -Indexes -ExecCGI
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>

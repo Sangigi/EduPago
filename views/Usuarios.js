@@ -6,8 +6,7 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : React.createElement(type,p,ch);
 };
 var _Fragment = React.Fragment;
-/* views/Usuarios.jsx — Gestión dinámica de usuarios con jerarquía de roles e integración de Portal Familiar
-   FIX: FormModal extraído del render de Usuarios para evitar desmonte/remonte en cada cambio de estado */
+// views/Usuarios.jsx — Gestión dinámica de usuarios con jerarquía de roles e integración de Portal Familiar FIX: FormModal extraído del render de Usuarios para evitar desmonte/remonte en cada cambio de estado
 
 /* ─── Componente del modal de formulario — FUERA de Usuarios para evitar re-creación en cada render ─── */
 function UsuariosFormModal({
@@ -26,8 +25,32 @@ function UsuariosFormModal({
   obtenerNombreFamilia,
   nombreEscuela,
   zonas,
-  onGuardar
+  onGuardar,
+  onCrearFamiliaInline
 }) {
+  const { useState } = React;
+  const [nuevaFamOpen, setNuevaFamOpen] = useState(false);
+  const [nuevaFamNombre, setNuevaFamNombre] = useState('');
+  const [nuevaFamEmail, setNuevaFamEmail] = useState('');
+  const [nuevaFamGuardando, setNuevaFamGuardando] = useState(false);
+  const [nuevaFamError, setNuevaFamError] = useState('');
+
+  const crearFamiliaInline = async () => {
+    if (!nuevaFamNombre.trim()) { setNuevaFamError('Escribe un nombre para la familia.'); return; }
+    setNuevaFamGuardando(true);
+    setNuevaFamError('');
+    try {
+      const fam = await onCrearFamiliaInline({ nombre: nuevaFamNombre.trim(), email: nuevaFamEmail.trim() });
+      setForm(f => ({ ...f, familia_id: String(fam.id), escuela_id: fam.escuela_id || f.escuela_id }));
+      setNuevaFamOpen(false);
+      setNuevaFamNombre('');
+      setNuevaFamEmail('');
+    } catch (e) {
+      setNuevaFamError(e.message);
+    }
+    setNuevaFamGuardando(false);
+  };
+
   return _jsxDEV("div", {
     className: "modal-backdrop",
     onClick: e => e.target === e.currentTarget && setModal(null),
@@ -60,7 +83,7 @@ function UsuariosFormModal({
             }, void 0, true),
 
             _jsxDEV("div", {
-              style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+              style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 },
               children: [
                 /* Nombre */
                 _jsxDEV("div", {
@@ -124,8 +147,53 @@ function UsuariosFormModal({
                   className: "form-group",
                   style: { gridColumn: '1/-1' },
                   children: [
-                    _jsxDEV("label", { className: "form-label", children: "Vincular con Cuenta Familiar / Alumno *" }, void 0, false),
-                    _jsxDEV("select", {
+                    _jsxDEV("div", {
+                      style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+                      children: [
+                        _jsxDEV("label", { className: "form-label", style: { marginBottom: 0 }, children: "Vincular con Cuenta Familiar / Alumno *" }, void 0, false),
+                        modal === 'crear' && !nuevaFamOpen && _jsxDEV("button", {
+                          type: "button",
+                          className: "btn btn-ghost btn-sm",
+                          style: { fontSize: 11.5, padding: '2px 8px' },
+                          onClick: () => { setNuevaFamOpen(true); setNuevaFamError(''); },
+                          children: "+ Nueva familia"
+                        }, void 0, false)
+                      ]
+                    }, void 0, true),
+                    nuevaFamOpen ? _jsxDEV("div", {
+                      style: {
+                        border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                        padding: 12, marginTop: 6, background: 'var(--bg-2)'
+                      },
+                      children: [
+                        _jsxDEV("input", {
+                          className: "form-input", placeholder: "Nombre de la familia *",
+                          value: nuevaFamNombre, onChange: e => setNuevaFamNombre(e.target.value),
+                          style: { marginBottom: 8 }
+                        }, void 0, false),
+                        _jsxDEV("input", {
+                          className: "form-input", type: "email", placeholder: "Correo del tutor (opcional)",
+                          value: nuevaFamEmail, onChange: e => setNuevaFamEmail(e.target.value),
+                          style: { marginBottom: 8 }
+                        }, void 0, false),
+                        nuevaFamError && _jsxDEV("div", { style: { color: 'var(--red)', fontSize: 12, marginBottom: 8 }, children: nuevaFamError }, void 0, false),
+                        _jsxDEV("div", {
+                          style: { display: 'flex', gap: 8 },
+                          children: [
+                            _jsxDEV("button", {
+                              type: "button", className: "btn btn-primary btn-sm", disabled: nuevaFamGuardando,
+                              onClick: crearFamiliaInline,
+                              children: nuevaFamGuardando ? 'Creando…' : 'Crear y vincular'
+                            }, void 0, false),
+                            _jsxDEV("button", {
+                              type: "button", className: "btn btn-ghost btn-sm",
+                              onClick: () => { setNuevaFamOpen(false); setNuevaFamError(''); },
+                              children: "Cancelar"
+                            }, void 0, false)
+                          ]
+                        }, void 0, true)
+                      ]
+                    }, void 0, true) : _jsxDEV("select", {
                       className: "form-select",
                       value: form.familia_id,
                       onChange: e => {
@@ -172,6 +240,15 @@ function UsuariosFormModal({
                       children: "Informativa — un distribuidor no pertenece a ninguna escuela"
                     }, void 0, false)
                   ]
+                }, void 0, true) : form.rol === 'contador' ? _jsxDEV("div", {
+                  className: "form-group",
+                  children: [
+                    _jsxDEV("label", { className: "form-label", children: "Escuela asignada (ninguna)" }, void 0, false),
+                    _jsxDEV("div", {
+                      style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 4 },
+                      children: "Informativa — un contador revisa documentos de CUALQUIER escuela, no pertenece a una sola."
+                    }, void 0, false)
+                  ]
                 }, void 0, true) : _jsxDEV("div", {
                   className: "form-group",
                   children: [
@@ -201,32 +278,35 @@ function UsuariosFormModal({
                   ]
                 }, void 0, true),
 
-                /* Contraseña */
-                _jsxDEV("div", {
+                /* Contraseña — solo al editar. Al crear ya no se pide: la cuenta
+                   nace con un enlace de activación de un solo uso que se manda
+                   por correo, mismo criterio que el resto de altas del sistema
+                   (invitaciones, CSV de alumnos) — nadie más que el propio
+                   usuario llega a conocer su contraseña real. */
+                modal === 'editar' && _jsxDEV("div", {
                   className: "form-group",
                   children: [
                     _jsxDEV("label", {
                       className: "form-label",
-                      children: modal === 'editar' ? 'Nueva contraseña (dejar vacío = mantener)' : 'Contraseña *'
+                      children: 'Nueva contraseña (dejar vacío = mantener)'
                     }, void 0, false),
                     _jsxDEV("input", {
                       className: "form-input",
                       type: "password",
-                      placeholder: modal === 'editar' ? '••••••• (opcional)' : 'Mínimo 6 caracteres',
+                      placeholder: '••••••• (opcional)',
                       value: form.password,
                       onChange: e => setForm(f => ({ ...f, password: e.target.value }))
                     }, void 0, false)
                   ]
                 }, void 0, true),
 
-                /* Confirmar contraseña */
-                _jsxDEV("div", {
+                modal === 'editar' && _jsxDEV("div", {
                   className: "form-group",
                   children: [
                     _jsxDEV("label", {
                       className: "form-label",
-                      children: ["Confirmar contraseña", modal === 'editar' ? ' (si cambia)' : ' *']
-                    }, void 0, true),
+                      children: "Confirmar contraseña (si cambia)"
+                    }, void 0, false),
                     _jsxDEV("input", {
                       className: "form-input",
                       type: "password",
@@ -235,6 +315,17 @@ function UsuariosFormModal({
                       onChange: e => setForm(f => ({ ...f, password2: e.target.value }))
                     }, void 0, false)
                   ]
+                }, void 0, true),
+
+                modal === 'crear' && _jsxDEV("div", {
+                  className: "form-group",
+                  children: _jsxDEV("div", {
+                    style: {
+                      fontSize: 12.5, color: 'var(--ink-3)', background: 'var(--bg-2)',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px'
+                    },
+                    children: 'Se le mandará un correo a esta cuenta con un enlace para que cree su propia contraseña.'
+                  }, void 0, false)
                 }, void 0, true),
 
                 /* Contraseña actual (solo al editar tu propio perfil, si cambias password o correo) */
@@ -342,6 +433,15 @@ function Usuarios({ user, data }) {
   const [filtroRol, setFiltroRol] = useState('todos');
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
+  const [reenviando, setReenviando] = useState(null);
+  const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — solo si falló el correo
+  // Familias creadas desde el propio modal de "nuevo usuario" (ver
+  // crearFamiliaInline) — Usuarios.js no recibe setData (a diferencia de
+  // Familias.js/Alumnos.js), así que no puede actualizar data.familias
+  // compartido; se guardan aquí solo para que aparezcan de inmediato en el
+  // selector de esta sesión. Al recargar la página ya vienen en data.familias
+  // como cualquier otra.
+  const [familiasNuevas, setFamiliasNuevas] = useState([]);
 
   const esSuper = AuthController.isSuperAdmin(user);
 
@@ -377,18 +477,16 @@ function Usuarios({ user, data }) {
   }
   const escuelasDisp = AuthController.escuelasDisponibles(user, data.escuelas);
 
+  // Antes se armaba recorriendo data.clientes (alumnos) buscando familia_id —
+  // pero data.clientes solo trae LA PÁGINA actual de alumnos (25 por defecto,
+  // ver Alumnos.js), así que en escuelas grandes casi ninguna familia real
+  // aparecía en este selector. data.familias ya viene completa (hasta 1000
+  // por escuela, sin paginar — ver cargar_datos.php) y con su propio nombre.
   const familiasUnicas = React.useMemo(() => {
-    const lista = [];
-    const idsVistos = new Set();
-    (data.clientes || []).forEach(c => {
-      if (c.familia_id && !idsVistos.has(c.familia_id)) {
-        idsVistos.add(c.familia_id);
-        const nombreFamilia = c.apellido_familia || `Familia de ${c.nombre}`;
-        lista.push({ id: c.familia_id, nombre: nombreFamilia, escuela_id: c.escuela_id });
-      }
-    });
-    return lista;
-  }, [data.clientes]);
+    const base = (data.familias || []).map(f => ({ id: f.id, nombre: f.nombre, escuela_id: f.escuela_id }));
+    const idsBase = new Set(base.map(f => f.id));
+    return [...base, ...familiasNuevas.filter(f => !idsBase.has(f.id))];
+  }, [data.familias, familiasNuevas]);
 
   const nombreEscuela = eid => {
     const e = (data.escuelas || []).find(e => e.id === eid);
@@ -413,13 +511,32 @@ function Usuarios({ user, data }) {
     }
     return true;
   });
+  // Sin tope, un colegio que importó cientos de familias por CSV (cada una con
+  // su propia cuenta de acceso) pintaba de golpe toda esa lista en la tabla.
+  const pagUsr = (typeof usePaginacion === 'function') ? usePaginacion(lista, 25) : null;
 
   const ROL_INFO = {
     superadmin:   { label: 'Super Admin',  icon: 'shield',  color: 'var(--amber)', bg: 'var(--amber-glow)',    badge: 'badge-amber'  },
     admin:        { label: 'Admin',        icon: 'escuelas', color: 'var(--accent)', bg: 'var(--accent-glow)', badge: 'badge-blue'   },
     cajero:       { label: 'Cajero',       icon: 'cobros',  color: 'var(--green)', bg: 'var(--green-glow)',    badge: 'badge-green'  },
     familia:      { label: 'Familia',      icon: 'home',    color: '#a855f7',      bg: 'rgba(168,85,247,.15)', badge: 'badge-purple' },
-    distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   }
+    distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   },
+    // Revisa documentos fiscales y datos de alta de comercio de cualquier
+    // escuela (11-sep-2026) -- sin los demás poderes de superadmin.
+    contador:     { label: 'Contador',     icon: 'shield', color: '#0891b2', bg: 'rgba(8,145,178,.15)', badge: 'badge-blue'   }
+  };
+
+  // Crea una familia sin salir del modal de "nuevo usuario" — antes había
+  // que ir primero a Familias.js, crearla ahí, y volver aquí a vincularla.
+  // Devuelve la familia creada para que el selector la seleccione de una vez.
+  const crearFamiliaInline = async ({ nombre, email }) => {
+    const escId = parseInt(user.escuela_id || form.escuela_id || 0);
+    if (!escId) throw new Error('No se pudo determinar la escuela para la nueva familia.');
+    const res = await ApiClient.post('crear_familia', { escuela_id: escId, nombre, email });
+    if (!res.success) throw new Error(res.error || 'No se pudo crear la familia.');
+    const nueva = { id: res.familia.id, nombre: res.familia.nombre || nombre, escuela_id: escId };
+    setFamiliasNuevas(prev => [...prev, nueva]);
+    return nueva;
   };
 
   /* ── Crear ── */
@@ -430,14 +547,10 @@ function Usuarios({ user, data }) {
   };
   const guardarNuevo = async () => {
     setErrForm('');
-    if (!form.nombre || !form.email || !form.password || !form.rol)
+    if (!form.nombre || !form.email || !form.rol)
       return setErrForm('Completa todos los campos obligatorios.');
     if (form.rol === 'familia' && !form.familia_id)
       return setErrForm('Debes vincular este usuario a una cuenta familiar obligatoriamente.');
-    if (form.password !== form.password2)
-      return setErrForm('Las contraseñas no coinciden.');
-    if (form.password.length < 6)
-      return setErrForm('La contraseña debe tener al menos 6 caracteres.');
     const payload = {
       ...form,
       escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
@@ -445,10 +558,17 @@ function Usuarios({ user, data }) {
       zona: form.rol === 'distribuidor' ? form.zona.trim() : '',
       zona_id: form.rol === 'distribuidor' ? (parseInt(form.zona_id) || null) : null
     };
-    try { await AuthController.crearUsuario(user, payload, data.escuelas); }
+    let res;
+    try { res = await AuthController.crearUsuario(user, payload, data.escuelas); }
     catch(e) { setErrForm(e.message); return; }
     await cargarUsuarios();
     setModal(null);
+    // La cuenta ya se creó — si el correo de activación no se pudo mandar,
+    // se ofrece el enlace para compartirlo a mano (mismo criterio que
+    // reenviarCredenciales, ver ModalLigaCopiar más abajo).
+    if (res && res.correo_enviado === false && res.activacion_liga) {
+      setLigaActivacion({ liga: res.activacion_liga });
+    }
   };
 
   /* ── Editar ── */
@@ -495,6 +615,41 @@ function Usuarios({ user, data }) {
     setConfirm(null);
   };
 
+  const reenviarCredenciales = async u => {
+    // No se manda contraseña por correo (Outlook la marcaba como phishing —
+    // ver PRODUCCION.md). Esto genera un enlace de activación de un solo uso
+    // para que el propio usuario ponga su contraseña; la actual no cambia
+    // hasta que de verdad entre a ese enlace.
+    if (!window.confirm(`¿Generar un enlace de acceso nuevo para ${u.nombre} y mandarlo a ${u.email}?`)) return;
+    setReenviando(u.id);
+    try {
+      const res = await apiPost('reenviar_credenciales', { id: u.id });
+      if (res.success === false) {
+        alert(res.error || 'No se pudo reenviar el acceso.');
+      } else if (res.correo_enviado) {
+        alert(`Se envió un enlace de activación a ${res.email}.`);
+      } else {
+        setLigaActivacion({ liga: res.activacion_liga });
+      }
+    } catch (e) {
+      alert('Error de conexión: ' + e.message);
+    }
+    setReenviando(null);
+  };
+
+  const cerrarSesiones = async u => {
+    // Fuerza a que este usuario tenga que iniciar sesión de nuevo en todos
+    // sus dispositivos (sin cambiarle la contraseña) — útil si se perdió un
+    // dispositivo o se sospecha que su sesión se filtró.
+    if (!window.confirm(`¿Cerrar todas las sesiones activas de ${u.nombre}? Tendrá que iniciar sesión de nuevo en todos sus dispositivos.`)) return;
+    try {
+      await AuthController.cerrarSesionesUsuario(u.id);
+      alert('Sesiones cerradas.');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  };
+
   const puedeEditar = objetivo => {
     if (!objetivo) return false;
     if (esSuper) return true;
@@ -506,7 +661,8 @@ function Usuarios({ user, data }) {
   const modalProps = {
     modal, form, setForm, setModal, errForm,
     rolesCreables, escuelasDisp, familiasUnicas,
-    esSuper, user, ROL_INFO, obtenerNombreFamilia, nombreEscuela, zonas
+    esSuper, user, ROL_INFO, obtenerNombreFamilia, nombreEscuela, zonas,
+    onCrearFamiliaInline: crearFamiliaInline
   };
 
   /* ── Render ── */
@@ -517,13 +673,16 @@ function Usuarios({ user, data }) {
         className: "stats-grid",
         style: { marginBottom: 20 },
         children: [
-          { rol: 'superadmin', count: usuarios.filter(u => u.rol === 'superadmin').length },
+          // Un admin nunca puede tener ni ver cuentas superadmin (listar_usuarios.php
+          // ya las excluye server-side) — mostrarle esta tarjeta siempre en 0 solo
+          // confunde, así que se oculta por completo si no eres superadmin.
+          esSuper ? { rol: 'superadmin', count: usuarios.filter(u => u.rol === 'superadmin').length } : null,
           { rol: 'admin',      count: usuarios.filter(u => u.rol === 'admin').length },
           { rol: 'cajero',     count: usuarios.filter(u => u.cajero || u.rol === 'cajero').length },
           { rol: 'familia',    count: usuarios.filter(u => u.rol === 'familia').length },
           { rol: 'distribuidor', count: usuarios.filter(u => u.rol === 'distribuidor').length },
           { label: 'Total activos', count: usuarios.filter(u => u.activo !== false).length, icon: 'check', color: 'var(--green)', bg: 'var(--green-glow)' }
-        ].map((s, i) => {
+        ].filter(Boolean).map((s, i) => {
           const info = s.rol ? ROL_INFO[s.rol] : null;
           return _jsxDEV("div", {
             className: "stat-card",
@@ -533,9 +692,9 @@ function Usuarios({ user, data }) {
             },
             onClick: () => setFiltroRol(s.rol || 'todos'),
             children: [
-              _jsxDEV("div", { className: "stat-icon", style: { background: info?.bg || s.bg, color: info?.color }, children: _jsxDEV(Icon, { name: info?.icon || s.icon, size: 24, color: "currentColor" }, void 0, false) }, void 0, false),
+              _jsxDEV("div", { className: "stat-icon" + (info?.tint ? " " + info.tint : ""), children: _jsxDEV(Icon, { name: info?.icon || s.icon, size: 24, color: "currentColor" }, void 0, false) }, void 0, false),
               _jsxDEV("div", { className: "stat-label", children: info?.label || s.label }, void 0, false),
-              _jsxDEV("div", { className: "stat-value", style: { fontSize: 22 }, children: s.count }, void 0, false)
+              _jsxDEV("div", { className: "stat-value", children: s.count }, void 0, false)
             ]
           }, i, true);
         })
@@ -563,7 +722,7 @@ function Usuarios({ user, data }) {
               rolesCreables.length > 0 && _jsxDEV("button", {
                 className: "btn btn-primary",
                 onClick: abrirCrear,
-                children: "+ Nuevo usuario"
+                children: "+ Alta usuario"
               }, void 0, false)
             ]
           }, void 0, true),
@@ -572,7 +731,7 @@ function Usuarios({ user, data }) {
           _jsxDEV("div", {
             style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' },
             children: [
-              ['todos', 'superadmin', 'admin', 'cajero', 'familia', 'distribuidor'].map(r =>
+              ['todos', ...(esSuper ? ['superadmin'] : []), 'admin', 'cajero', 'familia', 'distribuidor', 'contador'].map(r =>
                 _jsxDEV("button", {
                   className: `badge ${filtroRol === r ? ROL_INFO[r]?.badge || 'badge-blue' : 'badge-gray'}`,
                   style: {
@@ -621,9 +780,10 @@ function Usuarios({ user, data }) {
                         }, void 0, true)
                       }, void 0, false)
                     }, void 0, false),
-                    lista.map(u => {
+                    (pagUsr ? pagUsr.pagina : lista).map(u => {
                       const info = ROL_INFO[u.rol];
                       const puedeAcc = puedeEditar(u);
+                      const esUnoMismo = u.id === user.id;
                       return _jsxDEV("tr", {
                         children: [
                           _jsxDEV("td", {
@@ -675,10 +835,10 @@ function Usuarios({ user, data }) {
                             children: _jsxDEV("div", {
                               style: { display: 'flex', gap: 5 },
                               children: [
-                                puedeAcc && _jsxDEV(_Fragment, {
+                                (puedeAcc || esUnoMismo) && _jsxDEV(_Fragment, {
                                   children: [
-                                    _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(u), title: "Editar", children: _jsxDEV(Icon, { name: "edit", size: 14, color: "currentColor" }, void 0, false) }, void 0, false),
-                                    !u.es_semilla && _jsxDEV("button", {
+                                    _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(u), title: esUnoMismo ? "Editar mi perfil / cambiar mi contraseña" : "Editar", children: _jsxDEV(Icon, { name: "edit", size: 14, color: "currentColor" }, void 0, false) }, void 0, false),
+                                    puedeAcc && !u.es_semilla && !esUnoMismo && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => setConfirm({ tipo: 'toggle', userId: u.id }),
                                       title: u.activo === false ? 'Activar' : 'Desactivar',
@@ -686,7 +846,20 @@ function Usuarios({ user, data }) {
                                         ? _jsxDEV(Icon, { name: "eyeOff", size: 14, color: "currentColor" }, void 0, false)
                                         : _jsxDEV(Icon, { name: "shield", size: 14, color: "currentColor" }, void 0, false)
                                     }, void 0, false),
-                                    !u.es_semilla && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
+                                    puedeAcc && !esUnoMismo && _jsxDEV("button", {
+                                      className: "btn btn-ghost btn-sm",
+                                      onClick: () => cerrarSesiones(u),
+                                      title: "Cerrar sus sesiones activas (forzar a iniciar sesión de nuevo)",
+                                      children: _jsxDEV(Icon, { name: "logout", size: 14, color: "currentColor" }, void 0, false)
+                                    }, void 0, false),
+                                    puedeAcc && !esUnoMismo && _jsxDEV("button", {
+                                      className: "btn btn-ghost btn-sm",
+                                      disabled: reenviando === u.id,
+                                      onClick: () => reenviarCredenciales(u),
+                                      title: "Generar una contraseña nueva y reenviarla por correo (por si el correo original no le llegó)",
+                                      children: _jsxDEV(Icon, { name: "history", size: 14, color: "currentColor" }, void 0, false)
+                                    }, void 0, false),
+                                    puedeAcc && !u.es_semilla && !esUnoMismo && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => setConfirm({ tipo: 'eliminar', userId: u.id }),
                                       title: "Eliminar",
@@ -694,7 +867,7 @@ function Usuarios({ user, data }) {
                                     }, void 0, false)
                                   ]
                                 }, void 0, true),
-                                !puedeAcc && _jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', padding: '0 4px' }, children: "—" }, void 0, false)
+                                !puedeAcc && !esUnoMismo && _jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', padding: '0 4px' }, children: "—" }, void 0, false)
                               ]
                             }, void 0, true)
                           }, void 0, false)
@@ -706,6 +879,10 @@ function Usuarios({ user, data }) {
               ]
             }, void 0, true)
           }, void 0, false),
+
+          (typeof Paginador !== 'undefined' && lista.length > 0)
+            ? _jsxDEV(Paginador, { ctrl: pagUsr, etiqueta: 'usuarios' }, 'pagusr', false)
+            : null,
 
           /* Leyenda de roles */
           _jsxDEV("div", {
@@ -720,7 +897,8 @@ function Usuarios({ user, data }) {
                 { rol: 'admin',      desc: 'Gestiona cajeros y familias asignados a su mismo plantel escolar.' },
                 { rol: 'cajero',     desc: 'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.' },
                 { rol: 'familia',    desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' },
-                { rol: 'distribuidor', desc: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.' }
+                { rol: 'distribuidor', desc: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.' },
+                { rol: 'contador', desc: 'Revisa documentos fiscales y datos de alta de comercio de cualquier escuela. Sin los demás poderes de superadmin.' }
               ].filter(item => item.rol !== 'superadmin' || user?.rol === 'superadmin').map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [
@@ -748,36 +926,25 @@ function Usuarios({ user, data }) {
       }, void 0, false),
 
       /* Modal Confirmar */
-      confirm && _jsxDEV("div", {
-        className: "modal-backdrop",
-        onClick: e => e.target === e.currentTarget && setConfirm(null),
-        children: _jsxDEV("div", {
-          className: "modal",
-          style: { maxWidth: 380 },
-          children: [
-            _jsxDEV("div", { className: "modal-header", children: _jsxDEV("div", { className: "modal-title", children: confirm.tipo === 'toggle' ? 'Cambiar estado' : 'Eliminar usuario' }, void 0, false) }, void 0, false),
-            _jsxDEV("div", {
-              className: "modal-body",
-              children: _jsxDEV("p", {
-                style: { fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6 },
-                children: confirm.tipo === 'toggle'
-                  ? `¿Seguro que quieres ${usuarios.find(u => u.id === confirm.userId)?.activo === false ? 'activar' : 'desactivar'} a ${usuarios.find(u => u.id === confirm.userId)?.nombre}?`
-                  : `¿Eliminar permanentemente a ${usuarios.find(u => u.id === confirm.userId)?.nombre}? Esta acción no se puede revertir del sistema.`
-              }, void 0, false)
-            }, void 0, false),
-            _jsxDEV("div", {
-              className: "modal-footer",
-              children: [
-                _jsxDEV("button", { className: "btn btn-secondary", onClick: () => setConfirm(null), children: "Cancelar" }, void 0, false),
-                _jsxDEV("button", {
-                  className: `btn ${confirm.tipo === 'eliminar' ? 'btn-danger' : 'btn-primary'}`,
-                  onClick: confirmarAccion,
-                  children: confirm.tipo === 'toggle' ? 'Confirmar' : 'Eliminar'
-                }, void 0, false)
-              ]
-            }, void 0, true)
-          ]
-        }, void 0, true)
+      _jsxDEV(ConfirmModal, {
+        abierto: !!confirm,
+        titulo: confirm?.tipo === 'toggle' ? 'Cambiar estado' : 'Eliminar usuario',
+        mensaje: confirm?.tipo === 'toggle'
+          ? `¿Seguro que quieres ${usuarios.find(u => u.id === confirm.userId)?.activo === false ? 'activar' : 'desactivar'} a ${usuarios.find(u => u.id === confirm.userId)?.nombre}?`
+          : `¿Eliminar permanentemente a ${usuarios.find(u => u.id === confirm?.userId)?.nombre}? Esta acción no se puede revertir del sistema.`,
+        textoConfirmar: confirm?.tipo === 'toggle' ? 'Confirmar' : 'Eliminar',
+        peligroso: confirm?.tipo === 'eliminar',
+        onConfirmar: confirmarAccion,
+        onCancelar: () => setConfirm(null),
+      }, void 0, false),
+
+      /* Fallback cuando "Reenviar credenciales" no pudo mandar el correo —
+         componente compartido con PanelInvitaciones.js (ya se carga antes). */
+      ligaActivacion && typeof ModalLigaCopiar !== 'undefined' && _jsxDEV(ModalLigaCopiar, {
+        liga: ligaActivacion.liga,
+        titulo: 'No se pudo mandar el correo',
+        mensaje: 'Comparte este enlace para que el usuario active su cuenta y ponga su propia contraseña — expira en 72 horas.',
+        onCerrar: () => setLigaActivacion(null)
       }, void 0, false)
     ]
   }, void 0, true);
