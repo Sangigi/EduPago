@@ -224,7 +224,7 @@ try {
     if (!$cobro) {
         $refBuscarEsc = $referencia_reconstruida ?? $reference;
         $stmtEsc = $pdo->prepare(
-            "SELECT id, nombre, plan, fecha_vencimiento_plan, pago_renovacion_monto, modo, fecha_fin_prueba
+            "SELECT id, nombre, email, plan, fecha_vencimiento_plan, pago_renovacion_monto, modo, fecha_fin_prueba
                FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1"
         );
         $stmtEsc->execute([$refBuscarEsc]);
@@ -275,6 +275,37 @@ try {
             registrar_log($pdo, ['user_id' => null, 'rol' => 'sistema'], 'suscripcion_renovada_automatico',
                 "Escuela '{$escRenov['nombre']}' #{$escRenov['id']}: pago detectado, vencimiento -> {$nuevoVencimiento}",
                 $escRenov['id']);
+
+            // Correo de confirmación al colegio -- antes la renovación quedaba
+            // registrada solo en el log del sistema, sin avisar a nadie. Mismos
+            // destinatarios que el aviso de vencimiento próximo (cron_recordatorios.php):
+            // el correo de contacto de la escuela + sus admins activos.
+            try {
+                $destinatarios = [];
+                if (!empty($escRenov['email'])) $destinatarios[] = $escRenov['email'];
+                $stmtAdmins = $pdo->prepare("SELECT email FROM usuarios WHERE escuela_id = ? AND rol = 'admin' AND activo = 1");
+                $stmtAdmins->execute([$escRenov['id']]);
+                foreach ($stmtAdmins->fetchAll() as $a) $destinatarios[] = $a['email'];
+                $destinatarios = array_values(array_unique(array_filter($destinatarios)));
+
+                if ($destinatarios) {
+                    $fechaFmtRenov = date('d/m/Y', strtotime($nuevoVencimiento));
+                    $rCorreoRenov = enviar_correo(
+                        $destinatarios,
+                        'Tu suscripción de Pagalaescuela fue renovada',
+                        "<p>Hola,</p>
+                         <p>Se confirmó el pago de renovación de la suscripción de <strong>" . htmlspecialchars($escRenov['nombre']) . "</strong>.</p>
+                         <p>Tu nueva fecha de vencimiento es <strong>{$fechaFmtRenov}</strong>.</p>
+                         <p>— Equipo Pagalaescuela</p>"
+                    );
+                    log_api_liga('LIGA RENOVACIÓN: correo de confirmación a ' . implode(',', $destinatarios)
+                        . ' -> ' . (!empty($rCorreoRenov['success']) ? 'OK' : ('FALLÓ: ' . ($rCorreoRenov['error'] ?? 'desconocido'))));
+                } else {
+                    log_api_liga("LIGA RENOVACIÓN: escuela #{$escRenov['id']} sin correo de contacto ni admin activo, se omite aviso de renovación.");
+                }
+            } catch (\Throwable $eMailRenov) {
+                log_api_liga('LIGA RENOVACIÓN: no se pudo mandar el correo de confirmación -> ' . $eMailRenov->getMessage());
+            }
 
             log_api_liga("LIGA RENOVACIÓN confirmada -> escuela_id:{$escRenov['id']} ref:{$refBuscarEsc} auth:{$auth} nuevo_vencimiento:{$nuevoVencimiento}");
             responder_liga(true, 'Renovación confirmada, suscripción extendida');
