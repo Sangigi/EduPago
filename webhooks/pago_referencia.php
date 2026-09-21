@@ -506,32 +506,52 @@ try {
 
     $monto_esperado_cent = intval(round(floatval($cobro['total']) * 100));
 
+    $autorizacion = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
+
+    // ABONOS (21-sep-2026): antes, un pago en tienda por un importe distinto
+    // al del cobro se rechazaba con código 30. Ahora se aplica como abono y el
+    // cobro pasa a 'pagado' solo si queda cubierto. Ver la nota larga de
+    // webhooks/pago_clabe.php sobre por qué esto cambia quién se queda con el
+    // dinero: al responder código 0 el proveedor ya no lo devuelve.
+    $resAbono = aplicar_abono_a_cobro($pdo, intval($cobro['id']), $monto_cent / 100, [
+        'metodo'      => 'EfectivoRef',
+        'referencia'  => $referencia,
+        'transaccion' => $transaccion,
+        'auth_code'   => $autorizacion,
+        'origen'      => 'webhook_referencia',
+    ]);
+
+    if ($resAbono['duplicado']) {
+        $pdo->rollBack();
+        log_ref_pago("abono duplicado (idempotente): {$referencia} transaccion:{$transaccion}");
+        responder_pago(0, 'Operación exitosa', $cobro['auth_code'] ?: $autorizacion, $transaccion);
+    }
+
+    // Sobrepago: se abona hasta cubrir el cobro y el excedente queda
+    // registrado para que el colegio lo resuelva (no se crea saldo a favor).
+    if ($resAbono['sobrante'] > 0.004) {
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'efectivo',
+            'motivo'         => 'sobrepago',
+            'referencia'     => $referencia,
+            'transaccion'    => $transaccion !== '' ? $transaccion . '-sobrante' : '',
+            'auth_code'      => $autorizacion,
+            'monto_recibido' => $resAbono['sobrante'],
+            'monto_esperado' => 0,
+            'cliente_id'     => $cobro['cliente_id'] ?? null,
+            'cobro_id'       => $cobro['id'],
+            'escuela_id'     => $cobro['escuela_id'] ?? null,
+            'payload_raw'    => $raw,
+        ]);
+    }
+
 
 
     if ($monto_cent !== $monto_esperado_cent) {
 
 
 
-        $pdo->rollBack();
-
-
-
-        log_ref_pago("monto no coincide: {$referencia} esperado:{$monto_esperado_cent} recibido:{$monto_cent}");
-
-        registrar_pago_no_aplicado($pdo, [
-            'canal'          => 'efectivo',
-            'motivo'         => 'monto_no_coincide',
-            'referencia'     => $referencia,
-            'transaccion'    => $transaccion,
-            'monto_recibido' => $monto_cent / 100,
-            'monto_esperado' => $monto_esperado_cent / 100,
-            'cliente_id'     => $cobro['cliente_id'] ?? null,
-            'cobro_id'       => $cobro['id'],
-            'escuela_id'     => $cobro['escuela_id'] ?? null,
-            'payload_raw'    => $raw,
-        ]);
-
-        responder_pago(30, 'Monto inválido', '', $transaccion);
+        log_ref_pago("abono parcial: {$referencia} esperado:{$monto_esperado_cent} recibido:{$monto_cent} cubierto:" . ($resAbono['cubierto'] ? 'si' : 'no'));
 
 
 
@@ -543,15 +563,15 @@ try {
 
 
 
-    $autorizacion = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
+    // (El $autorizacion que se usa aquí es el mismo que ya se registró en el
+    // abono más arriba; antes se regeneraba en esta línea, lo que dejaba el
+    // auth_code del cobro distinto al del renglón de cobro_abonos.)
 
-
-
-
-
-
-
-    $pdo->prepare("UPDATE cobros SET estado = 'pagado', auth_code = ?, ref_transaccion = ?, fecha = CURRENT_DATE WHERE id = ?")
+    // El estado ya lo decidió aplicar_abono_a_cobro() más arriba (solo pasa a
+    // 'pagado' si el abono cubrió el total), así que aquí NO se fuerza. Lo que
+    // sí se conserva es auth_code/ref_transaccion/fecha, que los leen el
+    // Historial y los comprobantes.
+    $pdo->prepare("UPDATE cobros SET auth_code = ?, ref_transaccion = ?, fecha = CURRENT_DATE WHERE id = ?")
 
 
 

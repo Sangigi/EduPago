@@ -17,12 +17,162 @@
  */
 function recalcular_saldo_pendiente(PDO $pdo, int $cliente_id): void
 {
+    // SUM(total - monto_pagado), no SUM(total): desde que existen los abonos
+    // (migracion_2026_09_21_abonos.sql) un cobro pendiente puede estar
+    // parcialmente cubierto, y lo que la familia debe de verdad es el resto.
+    // Para todo lo anterior a esa migración monto_pagado vale 0.00 y la
+    // fórmula da exactamente el mismo resultado que antes.
     $pdo->prepare(
         "UPDATE clientes SET saldo_pendiente = (
-            SELECT COALESCE(SUM(total), 0) FROM cobros
+            SELECT COALESCE(SUM(total - monto_pagado), 0) FROM cobros
             WHERE cliente_id = ? AND estado = 'pendiente'
         ) WHERE id = ?"
     )->execute([$cliente_id, $cliente_id]);
+}
+
+/**
+ * Abona dinero a UN cobro concreto.
+ *
+ * Debe llamarse DENTRO de una transacción, con el cobro ya bloqueado por el
+ * llamador (SELECT ... FOR UPDATE): sin ese bloqueo, dos abonos simultáneos
+ * sobre el mismo cobro pueden leer el mismo monto_pagado y perder uno.
+ *
+ * Idempotencia: si `transaccion` ya existe en cobro_abonos, NO vuelve a
+ * abonar. El proveedor reintenta notificaciones, y sin esto un reintento
+ * abonaría dos veces el mismo dinero real.
+ *
+ * @return array{aplicado:float, sobrante:float, cubierto:bool, duplicado:bool}
+ */
+function aplicar_abono_a_cobro(PDO $pdo, int $cobro_id, float $monto, array $d = []): array
+{
+    $vacio = ['aplicado' => 0.0, 'sobrante' => round($monto, 2), 'cubierto' => false, 'duplicado' => false];
+    if ($monto <= 0) return $vacio;
+
+    $transaccion = trim(strval($d['transaccion'] ?? ''));
+    if ($transaccion !== '') {
+        $chk = $pdo->prepare("SELECT id FROM cobro_abonos WHERE transaccion_proveedor = ? LIMIT 1");
+        $chk->execute([$transaccion]);
+        if ($chk->fetch()) {
+            $vacio['duplicado'] = true;
+            return $vacio;
+        }
+    }
+
+    $stmt = $pdo->prepare("SELECT id, total, monto_pagado, cliente_id, escuela_id FROM cobros WHERE id = ?");
+    $stmt->execute([$cobro_id]);
+    $cobro = $stmt->fetch();
+    if (!$cobro) return $vacio;
+
+    // Centavos enteros: sumar decimales en float arrastra errores que, a la
+    // larga, dejan cobros "pagados" con un centavo de diferencia.
+    $total_c   = intval(round(floatval($cobro['total']) * 100));
+    $pagado_c  = intval(round(floatval($cobro['monto_pagado']) * 100));
+    $falta_c   = max(0, $total_c - $pagado_c);
+    $monto_c   = intval(round($monto * 100));
+    $aplicar_c = min($monto_c, $falta_c);
+
+    if ($aplicar_c <= 0) {
+        $vacio['cubierto'] = true;
+        return $vacio;
+    }
+
+    $pdo->prepare(
+        "INSERT INTO cobro_abonos
+            (cobro_id, cliente_id, escuela_id, monto, metodo, referencia, clabe,
+             transaccion_proveedor, auth_code, origen, registrado_por, notas)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )->execute([
+        $cobro_id,
+        $cobro['cliente_id'] ?: null,
+        $cobro['escuela_id'] ?: null,
+        $aplicar_c / 100,
+        isset($d['metodo']) && $d['metodo'] !== '' ? substr(strval($d['metodo']), 0, 20) : null,
+        isset($d['referencia']) && $d['referencia'] !== '' ? substr(strval($d['referencia']), 0, 64) : null,
+        isset($d['clabe']) && $d['clabe'] !== '' ? substr(strval($d['clabe']), 0, 24) : null,
+        $transaccion !== '' ? substr($transaccion, 0, 64) : null,
+        isset($d['auth_code']) && $d['auth_code'] !== '' ? substr(strval($d['auth_code']), 0, 32) : null,
+        isset($d['origen']) ? substr(strval($d['origen']), 0, 30) : null,
+        isset($d['registrado_por']) && $d['registrado_por'] ? intval($d['registrado_por']) : null,
+        isset($d['notas']) && $d['notas'] !== '' ? strval($d['notas']) : null,
+    ]);
+
+    // monto_pagado se recalcula SIEMPRE desde el libro mayor, nunca se suma
+    // sobre el valor anterior: así la columna cacheada no puede desviarse de
+    // la verdad aunque algo se haya insertado o borrado por fuera.
+    $pdo->prepare(
+        "UPDATE cobros SET monto_pagado = (
+            SELECT COALESCE(SUM(monto), 0) FROM cobro_abonos WHERE cobro_id = ?
+         ) WHERE id = ?"
+    )->execute([$cobro_id, $cobro_id]);
+
+    $cubierto = ($pagado_c + $aplicar_c) >= $total_c;
+    if ($cubierto) {
+        $pdo->prepare("UPDATE cobros SET estado = 'pagado' WHERE id = ?")->execute([$cobro_id]);
+    }
+
+    return [
+        'aplicado'  => $aplicar_c / 100,
+        'sobrante'  => ($monto_c - $aplicar_c) / 100,
+        'cubierto'  => $cubierto,
+        'duplicado' => false,
+    ];
+}
+
+/**
+ * Reparte un depósito entre TODOS los cobros pendientes de un alumno, del más
+ * viejo al más nuevo, hasta agotarlo.
+ *
+ * Es el caso del canal SPEI: la CLABE es del ALUMNO, no de un cobro, así que
+ * un depósito no viene marcado para ningún cobro en particular. Se aplica a
+ * lo más viejo primero, que es lo que espera cualquiera que deba varias
+ * colegiaturas.
+ *
+ * Debe llamarse DENTRO de una transacción. Bloquea él mismo los cobros.
+ *
+ * @return array{aplicado:float, sobrante:float, cobros:int[], duplicado:bool}
+ */
+function aplicar_abono_a_cliente(PDO $pdo, int $cliente_id, float $monto, array $d = []): array
+{
+    $res = ['aplicado' => 0.0, 'sobrante' => round($monto, 2), 'cobros' => [], 'duplicado' => false];
+    if ($monto <= 0) return $res;
+
+    $transaccion = trim(strval($d['transaccion'] ?? ''));
+    if ($transaccion !== '') {
+        $chk = $pdo->prepare("SELECT id FROM cobro_abonos WHERE transaccion_proveedor = ? LIMIT 1");
+        $chk->execute([$transaccion]);
+        if ($chk->fetch()) {
+            $res['duplicado'] = true;
+            $res['sobrante']  = 0.0;
+            return $res;
+        }
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT id FROM cobros
+          WHERE cliente_id = ? AND estado = 'pendiente'
+          ORDER BY id ASC FOR UPDATE"
+    );
+    $stmt->execute([$cliente_id]);
+    $ids = array_column($stmt->fetchAll(), 'id');
+
+    $restante = $monto;
+    foreach ($ids as $i => $cid) {
+        if ($restante <= 0.004) break;
+        // La transacción del proveedor solo puede ir en UN renglón (la llave
+        // única de cobro_abonos es global). Se le pone al primero; los demás
+        // quedan ligados por el auth_code y la fecha.
+        $datos = $d;
+        if ($i > 0) unset($datos['transaccion']);
+        $r = aplicar_abono_a_cobro($pdo, intval($cid), $restante, $datos);
+        if ($r['aplicado'] > 0) {
+            $res['aplicado'] += $r['aplicado'];
+            $res['cobros'][] = intval($cid);
+            $restante = round($restante - $r['aplicado'], 2);
+        }
+    }
+
+    $res['sobrante'] = round($restante, 2);
+    return $res;
 }
 
 /**

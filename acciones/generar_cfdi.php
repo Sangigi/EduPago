@@ -46,7 +46,9 @@
                 "SELECT c.nombre AS alumno_nombre, c.curp, c.nivel_educativo_sat,
                         e.rvoe AS escuela_rvoe, e.id AS escuela_id, e.es_plantel,
                         cb.escuela_id AS cobro_escuela_id, cb.factura AS cobro_ya_facturado,
-                        cb.metodo AS cobro_metodo, cb.cc_type AS cobro_cc_type
+                        cb.metodo AS cobro_metodo, cb.cc_type AS cobro_cc_type,
+                        cb.total AS cobro_total, cb.monto_pagado AS cobro_monto_pagado,
+                        cb.estado AS cobro_estado
                  FROM cobros cb
                  JOIN clientes c ON c.id = cb.cliente_id
                  JOIN escuelas e ON e.id = c.escuela_id
@@ -62,6 +64,24 @@
             // COBRO -- nunca compara contra la escuela del usuario. Este es
             // el check de pertenencia que faltaba.
             requerir_escuela_propia($rol_cfdi, $al['cobro_escuela_id'], $usuario_actual, 'No tienes permiso para facturar cobros de otra escuela.');
+            // Candado fiscal de los abonos (21-sep-2026). Este endpoint timbra
+            // SIEMPRE con payment_method "PUE" (Pago en Una Exhibición). Un
+            // cobro que se está pagando en abonos no puede facturarse así:
+            // el SAT exige emitirlo como PPD (con forma de pago "99 Por
+            // definir") y además un CFDI de pago —complemento de recepción de
+            // pagos— por cada abono recibido, ligado al UUID de la factura.
+            // Eso todavía no está implementado, así que en vez de timbrar un
+            // comprobante fiscalmente incorrecto, se bloquea con una
+            // explicación. Se factura cuando el cobro quede cubierto.
+            $pagadoParcial = floatval($al['cobro_monto_pagado'] ?? 0);
+            $totalCobro    = floatval($al['cobro_total'] ?? 0);
+            if ($pagadoParcial > 0.004 && $pagadoParcial + 0.004 < $totalCobro) {
+                $restante = number_format($totalCobro - $pagadoParcial, 2);
+                respond([
+                    'success' => false,
+                    'error'   => "Este cobro se está pagando en abonos (faltan \${$restante}). No se puede facturar hasta que quede cubierto: un pago en parcialidades requiere CFDI tipo PPD con complemento de pagos, que aún no está habilitado.",
+                ]);
+            }
             if ($al['cobro_ya_facturado']) {
                 respond(['success' => false, 'error' => 'Este cobro ya fue facturado.']);
             }

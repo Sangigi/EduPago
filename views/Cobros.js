@@ -699,21 +699,31 @@ function Cobros({
                   children: c.referencia || '—'
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
-                children: _jsxDEV("span", {
+                children: [_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontWeight: 600
                   },
                   children: fmt(c.total)
-                }, void 0, false)
-              }, void 0, false), _jsxDEV("td", {
+                }, 'total', false),
+                // Abonos: si el cobro está parcialmente cubierto se muestra
+                // cuánto falta. Un cobro sin abonos (monto_pagado 0) o ya
+                // pagado por completo se ve exactamente igual que antes.
+                (Number(c.monto_pagado) > 0 && c.estado !== 'pagado') ? _jsxDEV("div", {
+                  style: { fontSize: 11, color: 'var(--amber)', fontFamily: 'var(--mono)', marginTop: 2 },
+                  title: 'Abonado ' + fmt(c.monto_pagado) + ' de ' + fmt(c.total),
+                  children: 'faltan ' + fmt(Number(c.total) - Number(c.monto_pagado))
+                }, 'abono', false) : null]
+              }, void 0, true), _jsxDEV("td", {
                 children: _jsxDEV(MetodoBadge, {
                   metodo: c.metodo
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
-                children: _jsxDEV(EstadoBadge, {
-                  estado: c.estado
-                }, void 0, false)
+                children: (Number(c.monto_pagado) > 0 && c.estado !== 'pagado')
+                  ? _jsxDEV("span", { className: "badge badge-amber", children: "Abonado" }, void 0, false)
+                  : _jsxDEV(EstadoBadge, {
+                      estado: c.estado
+                    }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
                 onClick: e => e.stopPropagation(),
                 children: _jsxDEV("div", {

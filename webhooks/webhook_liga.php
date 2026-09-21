@@ -480,16 +480,42 @@ try {
         responder_liga(false, 'Falta el monto pagado (amount)');
     }
     $monto_recibido = floatval($amount);
-    if (abs($monto_recibido - floatval($cobro['total'])) > 0.01) {
-        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA monto no coincide, se rechaza | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_recibido}");
-        // Para llegar aquí el pago ya pasó el filtro de response==='approved':
-        // el banco cobró y nosotros no lo aplicamos. Sin registro no hay forma
-        // de devolvérselo ni de explicárselo a la familia.
+    $montoDistinto  = abs($monto_recibido - floatval($cobro['total'])) > 0.01;
+
+    $pdo->beginTransaction();
+
+    // ABONOS (21-sep-2026). ANTES: si el monto no coincidía, se rechazaba y el
+    // cobro se quedaba pendiente — pero para llegar hasta aquí el pago ya pasó
+    // el filtro response==='approved', o sea que EL BANCO YA COBRÓ. Descartar
+    // ese aviso era perder el rastro de dinero real (es justo lo que produjo
+    // las "LIGA HUÉRFANA con response:approved" que PRODUCCION.md 5.3ax dejó
+    // pendientes de investigar). Ahora se aplica como abono.
+    //
+    // A diferencia de SPEI/efectivo, aquí el importe lo fijamos NOSOTROS al
+    // generar la liga, así que una diferencia no es un abono deliberado de la
+    // familia: es una anomalía. Se aplica igual (el dinero existe) pero además
+    // se deja un aviso en pagos_no_aplicados para que alguien lo revise.
+    $resAbono = aplicar_abono_a_cobro($pdo, intval($cobro['id']), $monto_recibido, [
+        'metodo'      => 'TC',
+        'referencia'  => $reference,
+        'transaccion' => $foliocpagos,
+        'auth_code'   => $auth,
+        'origen'      => 'webhook_liga',
+    ]);
+
+    if ($resAbono['duplicado']) {
+        $pdo->rollBack();
+        log_api_liga("LIGA abono duplicado (idempotente) -> cobro_id:{$cobro['id']} folio_cct:{$foliocpagos}");
+        responder_liga(true, 'Ya estaba confirmado (reintento idempotente)');
+    }
+
+    if ($montoDistinto) {
+        if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "⚠ LIGA monto distinto, se APLICA como abono y se marca para revisión | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_recibido}");
         registrar_pago_no_aplicado($pdo, [
             'canal'          => 'tarjeta',
-            'motivo'         => 'monto_no_coincide',
+            'motivo'         => $resAbono['sobrante'] > 0.004 ? 'sobrepago' : 'monto_distinto_aplicado',
             'referencia'     => $reference,
-            'transaccion'    => $foliocpagos,
+            'transaccion'    => $foliocpagos !== '' ? $foliocpagos . '-rev' : '',
             'auth_code'      => $auth,
             'monto_recibido' => $monto_recibido,
             'monto_esperado' => floatval($cobro['total']),
@@ -497,12 +523,11 @@ try {
             'cobro_id'       => $cobro['id'],
             'payload_raw'    => $raw,
         ]);
-        responder_liga(false, 'El monto pagado no coincide con el cobro pendiente');
     }
 
-    $pdo->beginTransaction();
-
-    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', auth_code = ?, cc_mask = ?, cc_type = ?, pago_email = ? WHERE id = ?")
+    // El estado lo decidió aplicar_abono_a_cobro(): solo queda 'pagado' si el
+    // abono cubrió el total. Aquí solo se guarda la evidencia del cargo.
+    $pdo->prepare("UPDATE cobros SET metodo = 'TC', auth_code = ?, cc_mask = ?, cc_type = ?, pago_email = ? WHERE id = ?")
         ->execute([$auth ?: $foliocpagos, $cc_mask ?: null, $cc_type ?: null, $pago_email ?: null, $cobro['id']]);
 
     // Recalcular saldo_pendiente del cliente vinculado (mismo patrón que confirmar_pago).
@@ -522,8 +547,12 @@ try {
 
     $pdo->commit();
 
-    log_api_liga("LIGA confirmada -> cobro_id:{$cobro['id']} ref:{$reference} auth:{$auth} tarjeta:" . ($cc_mask ?: 's/d') . " tokenizado:" . ($number_tkn ? 'sí' : 'no'));
-    responder_liga(true, 'Pago confirmado');
+    log_api_liga(
+        "LIGA confirmada -> cobro_id:{$cobro['id']} ref:{$reference} auth:{$auth}"
+        . " abonado:{$resAbono['aplicado']} cubierto:" . ($resAbono['cubierto'] ? 'si' : 'no')
+        . " tarjeta:" . ($cc_mask ?: 's/d') . " tokenizado:" . ($number_tkn ? 'sí' : 'no')
+    );
+    responder_liga(true, $resAbono['cubierto'] ? 'Pago confirmado' : 'Abono aplicado, cobro parcialmente cubierto');
 
 } catch (\Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();

@@ -159,37 +159,75 @@ try {
     foreach ($pendientes as $p) { $total_pendiente += floatval($p['total']); }
     $monto_esperado_cent = intval(round($total_pendiente * 100));
 
-    if ($monto_cent !== $monto_esperado_cent) {
+    $autorizacion = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
+
+    // ABONOS (21-sep-2026). Antes, cualquier monto distinto al total exacto se
+    // rechazaba con código 30 y el proveedor le devolvía el dinero a la
+    // familia automáticamente (confirmado en producción ese mismo día: una
+    // transferencia de $8.00 contra un adeudo de $10.00 volvió sola). Es
+    // decir: no se perdía dinero, pero era imposible abonar de a poco — la
+    // familia tenía que transferir el total al centavo, o el colegio partir el
+    // cobro a mano en dos.
+    //
+    // Ahora el depósito se aplica como abono, del cobro más viejo al más
+    // nuevo, y los cobros se marcan 'pagado' solo cuando quedan cubiertos.
+    // OJO CON LA CONSECUENCIA: al responder código 0 el proveedor YA NO
+    // devuelve el dinero — se queda con nosotros y la familia espera el
+    // crédito. Por eso aplicar_abono_a_cliente() es idempotente por
+    // `transaccion` y corre con los cobros bloqueados (FOR UPDATE).
+    $resAbono = aplicar_abono_a_cliente($pdo, intval($cliente['id']), $monto_cent / 100, [
+        'metodo'      => 'SPEI',
+        'clabe'       => $clabe,
+        'transaccion' => $transaccion,
+        'auth_code'   => $autorizacion,
+        'origen'      => 'webhook_spei',
+    ]);
+
+    if ($resAbono['duplicado']) {
+        // Reintento del proveedor sobre un depósito ya abonado.
         $pdo->rollBack();
-        log_pago_clabe("monto no coincide: cliente:{$cliente['id']} esperado:{$monto_esperado_cent} recibido:{$monto_cent} pendientes:" . count($pendientes));
-        // El caso que originó todo esto: transferencia real que no se aplica.
-        // El rechazo se mantiene igual; lo nuevo es que deja rastro en BD.
+        log_pago_clabe("abono duplicado (idempotente): cliente:{$cliente['id']} transaccion:{$transaccion}");
+        responder_pago_clabe(0, 'Operación exitosa', $autorizacion, $transaccion);
+    }
+
+    // auth_code en los cobros que quedaron cubiertos con este depósito: se
+    // conserva porque el resto del sistema (Historial, comprobantes, la rama
+    // idempotente de arriba) lo lee de `cobros`, no de `cobro_abonos`.
+    $pdo->prepare(
+        "UPDATE cobros SET auth_code = ?
+          WHERE cliente_id = ? AND estado = 'pagado' AND (auth_code IS NULL OR auth_code = '')"
+    )->execute([$autorizacion, $cliente['id']]);
+
+    recalcular_saldo_pendiente($pdo, intval($cliente['id']));
+
+    // Sobrepago: pagó más de lo que debía. El excedente no se pierde ni se
+    // inventa un saldo a favor (eso sería otra feature): queda registrado
+    // para que el colegio lo vea en Cobros y decida qué hacer.
+    if ($resAbono['sobrante'] > 0.004) {
         registrar_pago_no_aplicado($pdo, [
             'canal'          => 'spei',
-            'motivo'         => 'monto_no_coincide',
+            'motivo'         => 'sobrepago',
             'clabe'          => $clabe,
-            'transaccion'    => $transaccion,
-            'monto_recibido' => $monto_cent / 100,
-            'monto_esperado' => $monto_esperado_cent / 100,
+            'transaccion'    => $transaccion !== '' ? $transaccion . '-sobrante' : '',
+            'auth_code'      => $autorizacion,
+            'monto_recibido' => $resAbono['sobrante'],
+            'monto_esperado' => 0,
             'cliente_id'     => $cliente['id'],
             'escuela_id'     => $cliente['escuela_id'] ?? null,
             'payload_raw'    => $raw,
         ]);
-        responder_pago_clabe(30, 'Monto inválido', '', $transaccion);
     }
-
-    $autorizacion = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
-
-    $idsPendientes = array_map(function ($p) { return intval($p['id']); }, $pendientes);
-    $placeholders  = implode(',', array_fill(0, count($idsPendientes), '?'));
-    $pdo->prepare("UPDATE cobros SET estado = 'pagado', auth_code = ? WHERE id IN ($placeholders)")
-        ->execute(array_merge([$autorizacion], $idsPendientes));
-
-    recalcular_saldo_pendiente($pdo, intval($cliente['id']));
 
     $pdo->commit();
 
-    log_pago_clabe("OK: clabe:{$clabe} cliente:{$cliente['id']} cobros_pagados:" . implode(',', $idsPendientes) . " auth:{$autorizacion}");
+    log_pago_clabe(
+        "OK: clabe:{$clabe} cliente:{$cliente['id']}"
+        . " recibido:{$monto_cent} esperado:{$monto_esperado_cent}"
+        . " abonado:" . round($resAbono['aplicado'] * 100)
+        . " sobrante:" . round($resAbono['sobrante'] * 100)
+        . " cobros:" . implode(',', $resAbono['cobros'])
+        . " auth:{$autorizacion}"
+    );
     responder_pago_clabe(0, 'Operación exitosa', $autorizacion, $transaccion ?: $cliente['id']);
 
 } catch (\Throwable $e) {
