@@ -38,6 +38,10 @@ function Caja({
   const [cobroActivo, setCobroActivo] = useState(null);
   const [copiedCLABE, setCopiedCLABE] = useState(false);
   const [speiStatus, setSpeiStatus] = useState('esperando'); // esperando | verificando | confirmado
+  // Abono parcial detectado mientras se espera la transferencia: { abonado, falta }.
+  // Sin esto, si el papá transfería menos del total la pantalla se quedaba en
+  // "Esperando transferencia…" sin ninguna señal de que YA había entrado dinero.
+  const [speiAbono, setSpeiAbono] = useState(null);
   const [speiError, setSpeiError] = useState(null);
   const [codiStatus, setCodiStatus] = useState('esperando'); // esperando | escaneado | pagado | expirado
   const [codiTimer, setCodiTimer] = useState(300); // 5 minutos
@@ -261,6 +265,7 @@ function Caja({
     if (metodo === 'SPEI') {
       setSpeiStatus('generando');
       setSpeiError(null);
+      setSpeiAbono(null);
       setData(newData);
       setModal('spei');
       try {
@@ -298,6 +303,11 @@ function Caja({
         speiPollRef.current = setInterval(async () => {
           try {
             const ver = await CobroController.verificarSPEI(spei.referencia, spei.clabe, cobro.id);
+            // Abono parcial: no cierra el cobro, pero sí hay que avisarle al
+            // cajero que ya entró dinero y cuánto falta.
+            if (!ver.pagado && ver.abonado > 0) {
+              setSpeiAbono({ abonado: ver.abonado, falta: ver.falta });
+            }
             if (ver.pagado) {
               clearInterval(speiPollRef.current);
               CobroController.confirmarPago(cobro.id, { transaccion: ver.transaccion }).then(res => {
@@ -495,6 +505,7 @@ function Caja({
     setTcError(null);
     setEfvRefInfo(null);
     setEfvRefError(null);
+    setSpeiAbono(null);
     setMontoRecibido('');
     setChequeInfo({
       banco: '',
@@ -1386,7 +1397,9 @@ function Caja({
                   fontSize: 12.5,
                   color: 'var(--ink-2)'
                 },
-                children: speiStatus === 'esperando' ? 'Esperando transferencia… verificación automática cada 10s' : 'Verificando pago…'
+                children: speiAbono
+                  ? `Se recibió un abono de ${fmt(speiAbono.abonado)} — faltan ${fmt(speiAbono.falta)}`
+                  : (speiStatus === 'esperando' ? 'Esperando transferencia… verificación automática cada 10s' : 'Verificando pago…')
               }, void 0, false), speiStatus === 'verificando' && /*#__PURE__*/_jsxDEV("span", {
                 className: "spinner",
                 style: {

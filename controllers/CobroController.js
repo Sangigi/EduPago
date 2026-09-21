@@ -52,7 +52,15 @@ const CobroController = (() => {
   async function verificarSPEI(referencia, clabe, cobro_id) {
     const resultado = await apiPost('verificar_spei', { referencia, clabe, cobro_id });
     if (!resultado.success) throw new Error(resultado.error || 'Error al verificar');
-    return { pagado: resultado.pagado, monto: resultado.monto_pesos };
+    // abonado/falta: el cobro puede estar parcialmente cubierto desde que
+    // existen los abonos. Sin esto la pantalla de Caja no tenía forma de
+    // saber que ya entró dinero mientras el cobro siga pendiente.
+    return {
+      pagado:  resultado.pagado,
+      monto:   resultado.monto_pesos,
+      abonado: resultado.abonado || 0,
+      falta:   resultado.falta,
+    };
   }
 
   // Verificación genérica por cobro_id — sirve para cualquier método (TC,

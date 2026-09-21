@@ -148,12 +148,42 @@ function aplicar_abono_a_cliente(PDO $pdo, int $cliente_id, float $monto, array 
     }
 
     $stmt = $pdo->prepare(
-        "SELECT id FROM cobros
+        "SELECT id, total, monto_pagado FROM cobros
           WHERE cliente_id = ? AND estado = 'pendiente'
           ORDER BY id ASC FOR UPDATE"
     );
     $stmt->execute([$cliente_id]);
-    $ids = array_column($stmt->fetchAll(), 'id');
+    $filas = $stmt->fetchAll();
+    $ids   = array_column($filas, 'id');
+
+    // COINCIDENCIA EXACTA PRIMERO (21-sep-2026). Repartir siempre del cobro
+    // más viejo al más nuevo parece lo natural, pero rompe el mostrador: el
+    // cajero levanta una venta nueva, le enseña la CLABE al papá, el papá
+    // transfiere justo ese importe... y el dinero se va a un adeudo viejo,
+    // así que la venta que el cajero está esperando nunca se marca pagada y
+    // la pantalla se queda en "Esperando transferencia…" para siempre.
+    // (Reportado en producción con un alumno que tenía un pendiente previo.)
+    //
+    // La CLABE es del alumno, no del cobro, así que el depósito no puede
+    // decirnos a cuál iba dirigido. Pero si el importe calza EXACTO con lo
+    // que le falta a un cobro pendiente, esa es la intención más probable —
+    // y es justo lo que pasa en el mostrador. Si hay varios que calzan, gana
+    // el más reciente: es el que se acaba de levantar en caja.
+    $monto_c = intval(round($monto * 100));
+    foreach (array_reverse($filas) as $f) {
+        $falta_c = intval(round(floatval($f['total']) * 100)) - intval(round(floatval($f['monto_pagado']) * 100));
+        if ($falta_c > 0 && $falta_c === $monto_c) {
+            $r = aplicar_abono_a_cobro($pdo, intval($f['id']), $monto, $d);
+            if ($r['aplicado'] > 0) {
+                return [
+                    'aplicado'  => $r['aplicado'],
+                    'sobrante'  => $r['sobrante'],
+                    'cobros'    => [intval($f['id'])],
+                    'duplicado' => false,
+                ];
+            }
+        }
+    }
 
     $restante = $monto;
     foreach ($ids as $i => $cid) {
