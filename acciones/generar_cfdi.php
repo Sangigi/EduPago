@@ -45,7 +45,8 @@
             $stmtAl = $pdo->prepare(
                 "SELECT c.nombre AS alumno_nombre, c.curp, c.nivel_educativo_sat,
                         e.rvoe AS escuela_rvoe, e.id AS escuela_id, e.es_plantel,
-                        cb.escuela_id AS cobro_escuela_id, cb.factura AS cobro_ya_facturado
+                        cb.escuela_id AS cobro_escuela_id, cb.factura AS cobro_ya_facturado,
+                        cb.metodo AS cobro_metodo, cb.cc_type AS cobro_cc_type
                  FROM cobros cb
                  JOIN clientes c ON c.id = cb.cliente_id
                  JOIN escuelas e ON e.id = c.escuela_id
@@ -132,6 +133,26 @@
         if ($iedu_complement) {
             $item_producto['complement'] = $iedu_complement;
         }
+        // Forma de pago (catálogo c_FormaPago del SAT). ANTES estaba fija en
+        // "03 Transferencia electrónica" para TODO: un cobro pagado en
+        // efectivo en OXXO o con tarjeta se facturaba diciéndole al SAT que
+        // había sido transferencia. Ahora sale del método real del cobro.
+        // El fallback se queda en "03" (no en "99 Por definir") a propósito:
+        // el 99 solo es válido con método PPD, y aquí siempre emitimos PUE —
+        // mandarlo haría que el PAC rechace el timbrado.
+        $metodo_cobro = strtoupper(trim($al['cobro_metodo'] ?? ''));
+        $forma_pago_sat = '03';
+        if ($metodo_cobro === 'EFECTIVO' || $metodo_cobro === 'EFECTIVOREF') {
+            $forma_pago_sat = '01'; // Efectivo
+        } elseif ($metodo_cobro === 'CHEQUE') {
+            $forma_pago_sat = '02'; // Cheque nominativo
+        } elseif ($metodo_cobro === 'TC' || $metodo_cobro === 'TARJETA' || $metodo_cobro === 'CAI') {
+            // cc_type lo guarda webhook_liga.php tal como lo manda el
+            // proveedor (ej. "DEBITO/MERCADO LIBRE/MasterCard"), así que se
+            // distingue débito (28) de crédito (04) cuando se puede.
+            $forma_pago_sat = stripos(strval($al['cobro_cc_type'] ?? ''), 'DEBITO') !== false ? '28' : '04';
+        }
+
         $payload_facturapi = [
             "customer" => [
                 "legal_name" => $razon,
@@ -142,7 +163,13 @@
             ],
             "items" => [$item_producto],
             "use"          => $uso,
-            "payment_form" => "03", // Transferencia electrónica
+            "payment_form" => $forma_pago_sat,
+            // PUE = Pago en Una Exhibición. Es correcto MIENTRAS el sistema
+            // solo permita pagar un cobro completo de un golpe. Si algún día
+            // se aceptan abonos parciales sobre un mismo cobro, ese caso NO
+            // puede facturarse como PUE: requiere emitir la factura como PPD
+            // (con forma de pago "99 Por definir") y además un CFDI de pago
+            // (complemento de recepción de pagos) por cada abono recibido.
             "payment_method" => "PUE"
         ];
         // 2. Ejecutamos la petición cURL a Facturapi

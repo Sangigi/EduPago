@@ -46,6 +46,15 @@ function log_clabe($msg) {
     }
 }
 
+// Control de origen (21-sep-2026). Con IPS_PERMITIDAS_PAGOS_SIN_TOKEN vacía
+// no bloquea nada; está aquí sobre todo porque la consulta es el endpoint más
+// llamado (la tienda/banco consulta antes de cada pago), así que es la mejor
+// fuente para descubrir las IPs reales del proveedor en ips_webhooks_log.txt.
+if (!ip_permitida_pago_sin_token()) {
+    log_clabe('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
+    responder_consulta_clabe(40, 'No autorizado');
+}
+
 $clabe = trim($_GET['r'] ?? '');
 
 if (!$clabe || !preg_match('/^\d{18}$/', $clabe)) {

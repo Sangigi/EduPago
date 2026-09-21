@@ -29,6 +29,15 @@ function log_cancela_spei($msg) {
     }
 }
 
+// Control de origen (21-sep-2026): este endpoint revierte un pago ya
+// aplicado, así que merece el mismo control que los demás. Con la lista
+// IPS_PERMITIDAS_PAGOS_SIN_TOKEN vacía no bloquea nada (igual que antes);
+// sirve para registrar los orígenes reales en ips_webhooks_log.txt.
+if (!ip_permitida_pago_sin_token()) {
+    log_cancela_spei('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
+    responder_cancela_spei(40, 'No autorizado');
+}
+
 $raw  = file_get_contents('php://input');
 $data = json_decode($raw, true);
 log_cancela_spei("RAW ({$_SERVER['REQUEST_METHOD']}): {$raw}");

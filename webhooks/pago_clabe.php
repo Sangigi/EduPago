@@ -33,6 +33,20 @@ function log_pago_clabe($msg) {
     }
 }
 
+// Control de origen (21-sep-2026). Este endpoint es el más poderoso de los
+// cinco: marca como pagados TODOS los cobros pendientes de un alumno de un
+// solo golpe. Hasta hoy no validaba NADA -- ni token ni IP. El
+// WEBHOOK_SPEI_TOKEN de config.php solo se verifica en webhook_spei.php, que
+// es el endpoint del esquema viejo que el propio repo declara muerto (ver
+// consulta_clabe.php:14-19), así que en la práctica este servicio estaba
+// abierto. Con IPS_PERMITIDAS_PAGOS_SIN_TOKEN vacía esto NO bloquea nada
+// todavía (mismo comportamiento que antes), pero ya deja registrada la IP de
+// cada llamada en ips_webhooks_log.txt para poder armar la lista blanca.
+if (!ip_permitida_pago_sin_token()) {
+    log_pago_clabe('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
+    responder_pago_clabe(40, 'No autorizado');
+}
+
 $raw  = file_get_contents('php://input');
 $data = json_decode($raw, true);
 log_pago_clabe("RAW: {$raw}");
@@ -57,8 +71,10 @@ if ($monto_cent <= 0) {
 try {
     $pdo->beginTransaction();
 
+    // escuela_id se trae para poder atribuir a un colegio los depósitos que
+    // no se logren aplicar (ver registrar_pago_no_aplicado más abajo).
     $stmtCli = $pdo->prepare(
-        "SELECT id FROM clientes WHERE clabe_individual = ? AND clabe_individual_estado = 'activa' LIMIT 1"
+        "SELECT id, escuela_id FROM clientes WHERE clabe_individual = ? AND clabe_individual_estado = 'activa' LIMIT 1"
     );
     $stmtCli->execute([$clabe]);
     $cliente = $stmtCli->fetch();
@@ -66,6 +82,16 @@ try {
     if (!$cliente) {
         $pdo->rollBack();
         log_pago_clabe("clabe no encontrada: {$clabe}");
+        // Dinero que llegó a una CLABE que no reconocemos (o que se liberó y
+        // volvió al pool). Antes se descartaba sin dejar nada en BD.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'spei',
+            'motivo'         => 'clabe_desconocida',
+            'clabe'          => $clabe,
+            'transaccion'    => $transaccion,
+            'monto_recibido' => $monto_cent / 100,
+            'payload_raw'    => $raw,
+        ]);
         responder_pago_clabe(40, 'Adquiriente inválido', '', $transaccion);
     }
 
@@ -94,9 +120,38 @@ try {
         $pdo->rollBack();
         if ($ultimo) {
             log_pago_clabe("ya pagado (idempotente, sin pendientes): cliente:{$cliente['id']}");
+            // OJO — esta rama responde "Operación exitosa" reciclando un
+            // auth_code viejo SIN comparar el monto: si de verdad entró un
+            // depósito nuevo (y no un reintento del proveedor sobre uno ya
+            // aplicado), lo estamos autorizando sin aplicarlo ni registrarlo.
+            // No se cambia el comportamiento aquí (romper la idempotencia
+            // haría fallar reintentos legítimos), pero al menos ya queda la
+            // constancia para poder revisarlo caso por caso.
+            registrar_pago_no_aplicado($pdo, [
+                'canal'          => 'spei',
+                'motivo'         => 'idempotente_sin_monto',
+                'clabe'          => $clabe,
+                'transaccion'    => $transaccion,
+                'auth_code'      => $ultimo['auth_code'],
+                'monto_recibido' => $monto_cent / 100,
+                'cliente_id'     => $cliente['id'],
+                'escuela_id'     => $cliente['escuela_id'] ?? null,
+                'payload_raw'    => $raw,
+            ]);
             responder_pago_clabe(0, 'Operación exitosa', $ultimo['auth_code'], $transaccion);
         }
         log_pago_clabe("sin pendientes para clabe:{$clabe} cliente:{$cliente['id']}");
+        // Llegó dinero para un alumno que ya no debe nada.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'spei',
+            'motivo'         => 'sin_adeudo_pendiente',
+            'clabe'          => $clabe,
+            'transaccion'    => $transaccion,
+            'monto_recibido' => $monto_cent / 100,
+            'cliente_id'     => $cliente['id'],
+            'escuela_id'     => $cliente['escuela_id'] ?? null,
+            'payload_raw'    => $raw,
+        ]);
         responder_pago_clabe(40, 'Adquiriente inválido', '', $transaccion);
     }
 
@@ -107,6 +162,19 @@ try {
     if ($monto_cent !== $monto_esperado_cent) {
         $pdo->rollBack();
         log_pago_clabe("monto no coincide: cliente:{$cliente['id']} esperado:{$monto_esperado_cent} recibido:{$monto_cent} pendientes:" . count($pendientes));
+        // El caso que originó todo esto: transferencia real que no se aplica.
+        // El rechazo se mantiene igual; lo nuevo es que deja rastro en BD.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'spei',
+            'motivo'         => 'monto_no_coincide',
+            'clabe'          => $clabe,
+            'transaccion'    => $transaccion,
+            'monto_recibido' => $monto_cent / 100,
+            'monto_esperado' => $monto_esperado_cent / 100,
+            'cliente_id'     => $cliente['id'],
+            'escuela_id'     => $cliente['escuela_id'] ?? null,
+            'payload_raw'    => $raw,
+        ]);
         responder_pago_clabe(30, 'Monto inválido', '', $transaccion);
     }
 

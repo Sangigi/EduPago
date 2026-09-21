@@ -209,6 +209,16 @@ try {
             $monto_recibido_susc = floatval($amount);
             if (abs($monto_recibido_susc - floatval($inv['monto_suscripcion'])) > 0.01) {
                 if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA SUSCRIPCIÓN monto no coincide | invitacion:{$inv['id']} esperado:{$inv['monto_suscripcion']} recibido:{$monto_recibido_susc}");
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'tarjeta',
+                    'motivo'         => 'monto_no_coincide',
+                    'referencia'     => $refBuscar,
+                    'transaccion'    => $foliocpagos,
+                    'auth_code'      => $auth,
+                    'monto_recibido' => $monto_recibido_susc,
+                    'monto_esperado' => floatval($inv['monto_suscripcion']),
+                    'payload_raw'    => $raw,
+                ]);
                 responder_liga(false, 'El monto pagado no coincide con el plan elegido');
             }
 
@@ -250,6 +260,17 @@ try {
             $montoRecibidoRenov = floatval($amount);
             if (abs($montoRecibidoRenov - floatval($escRenov['pago_renovacion_monto'])) > 0.01) {
                 if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA RENOVACIÓN monto no coincide | escuela:{$escRenov['id']} esperado:{$escRenov['pago_renovacion_monto']} recibido:{$montoRecibidoRenov}");
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'tarjeta',
+                    'motivo'         => 'monto_no_coincide',
+                    'referencia'     => $refBuscarEsc,
+                    'transaccion'    => $foliocpagos,
+                    'auth_code'      => $auth,
+                    'monto_recibido' => $montoRecibidoRenov,
+                    'monto_esperado' => floatval($escRenov['pago_renovacion_monto']),
+                    'escuela_id'     => $escRenov['id'],
+                    'payload_raw'    => $raw,
+                ]);
                 responder_liga(false, 'El monto pagado no coincide con el plan');
             }
 
@@ -351,6 +372,18 @@ try {
             $montoRecibidoGrp = floatval($amount);
             if (abs($montoRecibidoGrp - floatval($grp['total'])) > 0.01) {
                 if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA AGRUPADA monto no coincide | agrupado:{$grp['id']} esperado:{$grp['total']} recibido:{$montoRecibidoGrp}");
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'tarjeta',
+                    'motivo'         => 'monto_no_coincide',
+                    'referencia'     => $refBuscarGrp,
+                    'transaccion'    => $foliocpagos,
+                    'auth_code'      => $auth,
+                    'monto_recibido' => $montoRecibidoGrp,
+                    'monto_esperado' => floatval($grp['total']),
+                    'cliente_id'     => $grp['cliente_id'] ?? null,
+                    'escuela_id'     => $grp['escuela_id'] ?? null,
+                    'payload_raw'    => $raw,
+                ]);
                 responder_liga(false, 'El monto pagado no coincide con el grupo');
             }
 
@@ -402,6 +435,20 @@ try {
     if (!$cobro) {
         $log_msg = "⚠ LIGA HUÉRFANA | ref:{$reference} folio_cct:{$foliocpagos} response:{$response}";
         if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
+        // Éste es el caso que PRODUCCION.md (5.3ax) dejó marcado como "anomalía
+        // a investigar": una liga HUÉRFANA con response:approved significa que
+        // el banco SÍ cobró y nosotros no supimos a qué cobro aplicarlo. Hasta
+        // hoy solo quedaba esa línea de texto; ahora queda una fila revisable.
+        // Se distingue del caso no aprobado, que no mueve dinero.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'tarjeta',
+            'motivo'         => $response === 'approved' ? 'huerfana_cobrada' : 'huerfana_no_aprobada',
+            'referencia'     => $reference,
+            'transaccion'    => $foliocpagos,
+            'auth_code'      => $auth,
+            'monto_recibido' => $amount !== null ? floatval($amount) : 0,
+            'payload_raw'    => $raw,
+        ]);
         responder_liga(true, 'Recibido, sin cobro pendiente para esa referencia');
     }
 
@@ -435,6 +482,21 @@ try {
     $monto_recibido = floatval($amount);
     if (abs($monto_recibido - floatval($cobro['total'])) > 0.01) {
         if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, "❌ LIGA monto no coincide, se rechaza | cobro_id:{$cobro['id']} esperado:{$cobro['total']} recibido:{$monto_recibido}");
+        // Para llegar aquí el pago ya pasó el filtro de response==='approved':
+        // el banco cobró y nosotros no lo aplicamos. Sin registro no hay forma
+        // de devolvérselo ni de explicárselo a la familia.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'tarjeta',
+            'motivo'         => 'monto_no_coincide',
+            'referencia'     => $reference,
+            'transaccion'    => $foliocpagos,
+            'auth_code'      => $auth,
+            'monto_recibido' => $monto_recibido,
+            'monto_esperado' => floatval($cobro['total']),
+            'cliente_id'     => $cobro['cliente_id'] ?? null,
+            'cobro_id'       => $cobro['id'],
+            'payload_raw'    => $raw,
+        ]);
         responder_liga(false, 'El monto pagado no coincide con el cobro pendiente');
     }
 

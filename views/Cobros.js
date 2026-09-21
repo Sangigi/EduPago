@@ -46,6 +46,13 @@ function Cobros({
   // se ha buscado en el servidor -> se usa el fallback local de data.cobros.
   const [paginaBackend, setPaginaBackend] = useState(null);
   const [itemsDetalle, setItemsDetalle] = useState(null); // null = cargando/no pedido; [] = ya cargó y no hay
+  // Depósitos que llegaron por webhook pero no se pudieron aplicar a ningún
+  // cobro (monto distinto, referencia desconocida, CLABE reciclada, cargo de
+  // tarjeta huérfano). Antes se descartaban sin dejar rastro en BD; ahora se
+  // guardan en `pagos_no_aplicados` y aquí es donde el colegio los ve.
+  const [noAplicados, setNoAplicados] = useState([]);
+  const [noAplicadosAbierto, setNoAplicadosAbierto] = useState(false);
+  const [resolviendoId, setResolviendoId] = useState(null);
 
   const hoyISO = new Date().toISOString().slice(0, 10);
   // desdeRango/hastaRango: para la TABLA — "todo" = sin filtro de fecha
@@ -215,8 +222,153 @@ function Cobros({
     ];
     ExcelExport.descargar(`cobros-${new Date().toISOString().slice(0, 10)}`, filas);
   };
+
+  // ── Depósitos sin aplicar ───────────────────────────────────────────────
+  const cargarNoAplicados = React.useCallback(async () => {
+    try {
+      const res = await fetch('api.php?action=listar_pagos_no_aplicados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+        body: JSON.stringify({ estado: 'pendiente' }),
+      });
+      const json = await res.json();
+      setNoAplicados(json.success ? (json.pagos || []) : []);
+    } catch (e) {
+      // Silencioso a propósito: si la tabla aún no existe (migración sin
+      // correr) no tiene caso molestar con un error en la pantalla de cobros.
+      setNoAplicados([]);
+    }
+  }, []);
+
+  React.useEffect(() => { cargarNoAplicados(); }, [cargarNoAplicados]);
+
+  const resolverNoAplicado = async (id, estado) => {
+    let notas = '';
+    if (estado === 'descartado') {
+      notas = prompt('¿Por qué se descarta este depósito? (queda en la bitácora)') || '';
+      if (notas.trim() === '') return;
+    } else {
+      notas = prompt('Nota de lo que se hizo con este depósito (opcional):') || '';
+    }
+    setResolviendoId(id);
+    try {
+      const res = await fetch('api.php?action=resolver_pago_no_aplicado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+        body: JSON.stringify({ id, estado, notas: notas.trim() }),
+      });
+      const json = await res.json();
+      if (!json.success) { alert(json.error || 'No se pudo actualizar'); return; }
+      await cargarNoAplicados();
+    } catch (e) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setResolviendoId(null);
+    }
+  };
+
+  const MOTIVO_TXT = {
+    monto_no_coincide:     'El monto depositado no coincide con el cobro',
+    referencia_desconocida:'La referencia no corresponde a ningún cobro',
+    clabe_desconocida:     'CLABE no reconocida o dada de baja',
+    sin_adeudo_pendiente:  'El alumno ya no tenía adeudo',
+    idempotente_sin_monto: 'Se autorizó como reintento, sin validar el monto',
+    solicitud_cerrada:     'La solicitud ya estaba cerrada',
+    huerfana_cobrada:      'Cargo aprobado por el banco que no se pudo conciliar',
+    huerfana_no_aprobada:  'Aviso de pago no aprobado, sin cobro asociado',
+  };
+  const CANAL_TXT = { spei: 'SPEI', efectivo: 'Efectivo en tienda', tarjeta: 'Tarjeta' };
+
   return _jsxDEV("div", {
-    children: [_jsxDEV("div", {
+    children: [noAplicados.length > 0 && _jsxDEV("div", {
+      className: "card",
+      style: {
+        marginBottom: 18,
+        border: '1px solid rgba(239,68,68,.35)',
+        background: 'linear-gradient(135deg,rgba(239,68,68,.07),rgba(239,68,68,.02))'
+      },
+      children: [
+        _jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+          children: [
+            _jsxDEV("div", {
+              style: { flex: 1, minWidth: 200 },
+              children: [
+                _jsxDEV("div", {
+                  style: { fontWeight: 700, fontSize: 14, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 7 },
+                  children: [
+                    _jsxDEV(Icon, { name: "warning", size: 15, color: "currentColor" }, 'i', false),
+                    `${noAplicados.length} depósito${noAplicados.length !== 1 ? 's' : ''} recibido${noAplicados.length !== 1 ? 's' : ''} sin aplicar`
+                  ]
+                }, 't', true),
+                _jsxDEV("div", {
+                  style: { fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 },
+                  children: 'Llegó dinero que el sistema no pudo asignar a ningún cobro. Revísalo para conciliarlo con el colegio.'
+                }, 's', false)
+              ]
+            }, 'txt', true),
+            _jsxDEV("div", {
+              style: { fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 16, color: 'var(--red)' },
+              children: fmt(noAplicados.reduce((a, p) => a + (Number(p.monto_recibido) || 0), 0))
+            }, 'monto', false),
+            _jsxDEV("button", {
+              className: "btn btn-secondary btn-sm",
+              onClick: () => setNoAplicadosAbierto(v => !v),
+              children: noAplicadosAbierto ? 'Ocultar' : 'Ver detalle'
+            }, 'btn', false)
+          ]
+        }, 'head', true),
+
+        noAplicadosAbierto ? _jsxDEV("div", {
+          className: "table-wrap",
+          style: { marginTop: 14 },
+          children: _jsxDEV("table", {
+            children: [
+              _jsxDEV("thead", {
+                children: _jsxDEV("tr", {
+                  children: ['Fecha', 'Canal', 'Motivo', 'Recibido', 'Esperado', 'Referencia', 'Alumno', ''].map(h =>
+                    _jsxDEV("th", { children: h }, h, false))
+                }, void 0, false)
+              }, 'th', false),
+              _jsxDEV("tbody", {
+                children: noAplicados.map(p => _jsxDEV("tr", {
+                  children: [
+                    _jsxDEV("td", { style: { fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }, children: (p.creado_en || '').slice(0, 16) }, 1, false),
+                    _jsxDEV("td", { style: { fontSize: 12 }, children: CANAL_TXT[p.canal] || p.canal }, 2, false),
+                    _jsxDEV("td", { style: { fontSize: 12 }, children: MOTIVO_TXT[p.motivo] || p.motivo }, 3, false),
+                    _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--red)' }, children: fmt(p.monto_recibido) }, 4, false),
+                    _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-3)' }, children: p.monto_esperado != null ? fmt(p.monto_esperado) : '—' }, 5, false),
+                    _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 11, wordBreak: 'break-all', maxWidth: 160 }, children: p.referencia || p.clabe || '—' }, 6, false),
+                    _jsxDEV("td", { style: { fontSize: 12 }, children: p.cliente_nombre || (p.cobro_folio ? ('Folio ' + p.cobro_folio) : '—') }, 7, false),
+                    _jsxDEV("td", {
+                      children: _jsxDEV("div", {
+                        style: { display: 'flex', gap: 5, flexWrap: 'wrap' },
+                        children: [
+                          _jsxDEV("button", {
+                            className: "btn btn-secondary btn-sm",
+                            disabled: resolviendoId === p.id,
+                            onClick: () => resolverNoAplicado(p.id, 'resuelto'),
+                            title: "Ya se aclaró con la familia o con el proveedor",
+                            children: "Resuelto"
+                          }, 'r', false),
+                          _jsxDEV("button", {
+                            className: "btn btn-ghost btn-sm",
+                            disabled: resolviendoId === p.id,
+                            onClick: () => resolverNoAplicado(p.id, 'descartado'),
+                            title: "No corresponde a un depósito real",
+                            children: "Descartar"
+                          }, 'd', false)
+                        ]
+                      }, void 0, true)
+                    }, 8, false)
+                  ]
+                }, p.id, true))
+              }, 'tb', false)
+            ]
+          }, void 0, true)
+        }, 'tabla', false) : null
+      ]
+    }, 'noaplicados', true), _jsxDEV("div", {
       className: "stats-grid",
       children: (() => {
         // Resumen del listado que se está viendo, con los datos ya cargados.

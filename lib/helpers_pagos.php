@@ -25,6 +25,71 @@ function recalcular_saldo_pendiente(PDO $pdo, int $cliente_id): void
     )->execute([$cliente_id, $cliente_id]);
 }
 
+/**
+ * Deja constancia en BD de un depósito que llegó pero NO se pudo aplicar.
+ *
+ * Hasta el 21-sep-2026 los 3 webhooks de pago descartaban estos casos con un
+ * rollBack() y una línea de texto en un .txt — sin una sola fila en la base de
+ * datos. Eso hacía imposible conciliar, detectar el faltante, o responderle a
+ * una familia que reclamara con su comprobante. Ver la tabla y el caso real
+ * que lo originó en migracion_2026_09_21_pagos_no_aplicados.sql.
+ *
+ * DOS REGLAS AL LLAMARLA:
+ *
+ * 1. SIEMPRE después de rollBack()/commit(), NUNCA dentro de la transacción
+ *    que el webhook va a revertir — si no, la fila se borraría junto con el
+ *    rechazo, que es exactamente lo que esta función existe para evitar.
+ *
+ * 2. Nunca puede tumbar la respuesta del webhook. Si el INSERT falla (tabla
+ *    sin migrar, BD caída), se traga el error y sigue: es preferible perder
+ *    el registro a romper la conciliación de un pago que sí era válido.
+ *
+ * @param array $d canal, motivo, referencia, clabe, transaccion, auth_code,
+ *                 monto_recibido, monto_esperado, cliente_id, cobro_id,
+ *                 escuela_id, payload_raw
+ */
+function registrar_pago_no_aplicado(PDO $pdo, array $d): void
+{
+    try {
+        // Cadena vacía -> NULL: en el índice UNIQUE de la tabla varios NULL no
+        // chocan entre sí, pero varias '' sí — y eso haría que dos avisos
+        // distintos sin id de transacción se pisaran uno al otro.
+        $transaccion = trim(strval($d['transaccion'] ?? ''));
+        if ($transaccion === '') $transaccion = null;
+
+        $sql = "INSERT INTO pagos_no_aplicados
+                    (canal, motivo, referencia, clabe, transaccion_proveedor, auth_code,
+                     monto_recibido, monto_esperado, cliente_id, cobro_id, escuela_id,
+                     payload_raw, ip_origen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    intentos = intentos + 1,
+                    actualizado_en = NOW()";
+
+        $pdo->prepare($sql)->execute([
+            substr(strval($d['canal'] ?? 'desconocido'), 0, 20),
+            substr(strval($d['motivo'] ?? 'desconocido'), 0, 40),
+            isset($d['referencia']) && $d['referencia'] !== '' ? substr(strval($d['referencia']), 0, 64) : null,
+            isset($d['clabe']) && $d['clabe'] !== '' ? substr(strval($d['clabe']), 0, 24) : null,
+            $transaccion !== null ? substr($transaccion, 0, 64) : null,
+            isset($d['auth_code']) && $d['auth_code'] !== '' ? substr(strval($d['auth_code']), 0, 32) : null,
+            round(floatval($d['monto_recibido'] ?? 0), 2),
+            isset($d['monto_esperado']) ? round(floatval($d['monto_esperado']), 2) : null,
+            isset($d['cliente_id']) && $d['cliente_id'] ? intval($d['cliente_id']) : null,
+            isset($d['cobro_id']) && $d['cobro_id'] ? intval($d['cobro_id']) : null,
+            isset($d['escuela_id']) && $d['escuela_id'] ? intval($d['escuela_id']) : null,
+            // El payload crudo se recorta: es para reconstruir el caso, no un archivo.
+            isset($d['payload_raw']) ? substr(strval($d['payload_raw']), 0, 8000) : null,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+    } catch (\Throwable $e) {
+        // Regla 2: jamás propagar. Solo dejar rastro en el log de texto.
+        if (defined('REFERENCIA_LOG_FILE') && function_exists('webhook_log')) {
+            webhook_log(REFERENCIA_LOG_FILE, 'NO-APLICADO | falló el registro en BD: ' . $e->getMessage());
+        }
+    }
+}
+
 require_once __DIR__ . '/curl_helper.php';
 require_once __DIR__ . '/mailer.php';
 

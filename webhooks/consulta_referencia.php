@@ -42,6 +42,13 @@ function log_ref($msg) {
     }
 }
 
+// Control de origen (21-sep-2026). Ver la nota en consulta_clabe.php: con la
+// lista vacía no bloquea, y sirve para descubrir las IPs reales del proveedor.
+if (!ip_permitida_pago_sin_token()) {
+    log_ref('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
+    responder_consulta(40, 'No autorizado');
+}
+
 $referencia = trim($_GET['r'] ?? '');
 
 if (!$referencia || !preg_match('/^\d+$/', $referencia)) {

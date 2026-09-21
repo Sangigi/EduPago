@@ -218,7 +218,7 @@ try {
 
 
 
-        "SELECT id, total, estado, cliente_id, auth_code FROM cobros
+        "SELECT id, total, estado, cliente_id, escuela_id, auth_code FROM cobros
 
 
 
@@ -266,6 +266,17 @@ try {
             if ($monto_cent !== $monto_esperado_grp) {
                 $pdo->rollBack();
                 log_ref_pago("agrupado monto no coincide: {$referencia} esperado:{$monto_esperado_grp} recibido:{$monto_cent}");
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'efectivo',
+                    'motivo'         => 'monto_no_coincide',
+                    'referencia'     => $referencia,
+                    'transaccion'    => $transaccion,
+                    'monto_recibido' => $monto_cent / 100,
+                    'monto_esperado' => $monto_esperado_grp / 100,
+                    'cliente_id'     => $grp['cliente_id'] ?? null,
+                    'escuela_id'     => $grp['escuela_id'] ?? null,
+                    'payload_raw'    => $raw,
+                ]);
                 responder_pago(30, 'Monto inválido', '', $transaccion);
             }
             $autorizacionGrp = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
@@ -306,6 +317,16 @@ try {
             if ($monto_cent !== $monto_esperado_esc) {
                 $pdo->rollBack();
                 log_ref_pago("renovación monto no coincide: {$referencia} esperado:{$monto_esperado_esc} recibido:{$monto_cent}");
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'efectivo',
+                    'motivo'         => 'monto_no_coincide',
+                    'referencia'     => $referencia,
+                    'transaccion'    => $transaccion,
+                    'monto_recibido' => $monto_cent / 100,
+                    'monto_esperado' => $monto_esperado_esc / 100,
+                    'escuela_id'     => $escRenov['id'],
+                    'payload_raw'    => $raw,
+                ]);
                 responder_pago(30, 'Monto inválido', '', $transaccion);
             }
             // Modo demo: mismo criterio que webhook_liga.php -- la fecha de
@@ -366,12 +387,31 @@ try {
             if (in_array($inv['estado'], ['rechazada', 'cancelada', 'expirada'], true)) {
                 $pdo->rollBack();
                 log_ref_pago("suscripción {$inv['estado']}, pago rechazado: {$referencia} invitacion_id:{$inv['id']}");
+                // Pago real contra una solicitud ya cerrada: no revive la
+                // invitación (eso es intencional), pero el dinero sí existió.
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'efectivo',
+                    'motivo'         => 'solicitud_cerrada',
+                    'referencia'     => $referencia,
+                    'transaccion'    => $transaccion,
+                    'monto_recibido' => $monto_cent / 100,
+                    'payload_raw'    => $raw,
+                ]);
                 responder_pago(40, 'Adquiriente inválido', '', $transaccion);
             }
             $monto_esperado_inv = intval(round(floatval($inv['monto_suscripcion']) * 100));
             if ($monto_cent !== $monto_esperado_inv) {
                 $pdo->rollBack();
                 log_ref_pago("suscripción monto no coincide: {$referencia} esperado:{$monto_esperado_inv} recibido:{$monto_cent}");
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'efectivo',
+                    'motivo'         => 'monto_no_coincide',
+                    'referencia'     => $referencia,
+                    'transaccion'    => $transaccion,
+                    'monto_recibido' => $monto_cent / 100,
+                    'monto_esperado' => $monto_esperado_inv / 100,
+                    'payload_raw'    => $raw,
+                ]);
                 responder_pago(30, 'Monto inválido', '', $transaccion);
             }
             $autorizacionInv = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
@@ -389,6 +429,16 @@ try {
     if (!$cobro) {
         $pdo->rollBack();
         log_ref_pago("no encontrada: {$referencia}");
+        // La referencia no calzó en NINGUNA de las cuatro tablas. Si la tienda
+        // ya cobró el efectivo, este es el único rastro que va a existir.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'efectivo',
+            'motivo'         => 'referencia_desconocida',
+            'referencia'     => $referencia,
+            'transaccion'    => $transaccion,
+            'monto_recibido' => $monto_cent / 100,
+            'payload_raw'    => $raw,
+        ]);
         responder_pago(40, 'Adquiriente inválido', '', $transaccion);
     }
 
@@ -468,7 +518,18 @@ try {
 
         log_ref_pago("monto no coincide: {$referencia} esperado:{$monto_esperado_cent} recibido:{$monto_cent}");
 
-
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'efectivo',
+            'motivo'         => 'monto_no_coincide',
+            'referencia'     => $referencia,
+            'transaccion'    => $transaccion,
+            'monto_recibido' => $monto_cent / 100,
+            'monto_esperado' => $monto_esperado_cent / 100,
+            'cliente_id'     => $cobro['cliente_id'] ?? null,
+            'cobro_id'       => $cobro['id'],
+            'escuela_id'     => $cobro['escuela_id'] ?? null,
+            'payload_raw'    => $raw,
+        ]);
 
         responder_pago(30, 'Monto inválido', '', $transaccion);
 

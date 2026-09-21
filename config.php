@@ -162,14 +162,58 @@ define('REFERENCIA_LOG_FILE', __DIR__ . '/referencias_log.txt');
 // Cobroscontarjeta.com/Pagadetodo la(s) IP(s) desde donde llaman estos 3
 // endpoints y agrégalas aquí. Vacío = sin restricción (como está hoy, no
 // se rompe nada mientras no la llenes).
+// CÓMO LLENARLA SIN ESPERAR AL PROVEEDOR (21-sep-2026): cada llamada a
+// cualquiera de los 5 webhooks queda registrada en ips_webhooks_log.txt con su
+// IP de origen. Deja correr unos días de pagos reales, revisa qué IPs
+// aparecen, y ponlas aquí.
+// DESPUÉS DE LLENARLA, SIGUE VIGILANDO ESE ARCHIVO: cada línea dice
+// 'permitida' o 'BLOQUEADA'. Si el proveedor agrega un servidor nuevo, va a
+// aparecer como BLOQUEADA — y eso significa pagos que dejan de conciliarse en
+// tienda. Ante la duda, vacía la lista (vuelve a aceptar todo) y avisa.
 define('IPS_PERMITIDAS_PAGOS_SIN_TOKEN', []); // ej. ['200.23.45.10', '200.23.45.11']
 
 // Verifica la IP de origen contra IPS_PERMITIDAS_PAGOS_SIN_TOKEN. Devuelve
 // true si la lista está vacía (sin restricción) o si la IP coincide.
+//
+// MIENTRAS LA LISTA ESTÉ VACÍA (21-sep-2026): estos 3 endpoints aceptan
+// llamadas de cualquier origen. Con la lista vacía, lo único que impide que
+// alguien marque cobros como pagados es acertar la referencia Y el monto
+// exacto — y la referencia va impresa en el ticket de la propia familia.
+// Por eso ahora se registra la IP de CADA llamada en ips_webhooks_log.txt:
+// deja correr unos días de tráfico real, revisa qué IPs aparecen, confírmalas
+// con Cobroscontarjeta.com y llénalas arriba. Ese archivo es la forma de
+// obtener la lista sin tener que esperar a que el proveedor conteste.
 function ip_permitida_pago_sin_token() {
     $lista = defined('IPS_PERMITIDAS_PAGOS_SIN_TOKEN') ? IPS_PERMITIDAS_PAGOS_SIN_TOKEN : [];
+    $ip    = $_SERVER['REMOTE_ADDR'] ?? '';
+
+    // Cabeceras de proxy/CDN: si el sitio está detrás de Cloudflare o de un
+    // balanceador, REMOTE_ADDR es la IP del proxy y NO la del proveedor — así
+    // que una lista blanca armada con ese valor sería inútil (o peor:
+    // autorizaría a cualquiera que pase por el mismo proxy). Se registran
+    // también estas cabeceras para poder distinguir el caso al revisar el log.
+    // OJO: son cabeceras que el cliente puede falsificar, así que se guardan
+    // SOLO como información de diagnóstico — la decisión de bloquear se sigue
+    // tomando con REMOTE_ADDR, que es el único valor que no se puede fingir.
+    $reenviadas = [];
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP'] as $h) {
+        if (!empty($_SERVER[$h])) $reenviadas[] = substr($h, 5) . '=' . $_SERVER[$h];
+    }
+
+    // Bitácora de orígenes reales, para poder construir la lista blanca.
+    // Se escribe SIEMPRE (con lista o sin ella) para detectar también a
+    // quien intente llamar desde una IP no autorizada.
+    @file_put_contents(
+        __DIR__ . '/ips_webhooks_log.txt',
+        date('Y-m-d H:i:s') . ' | ' . ($ip ?: 'sin-ip')
+            . ' | ' . ($_SERVER['REQUEST_URI'] ?? '?')
+            . ' | ' . (empty($lista) ? 'sin-lista' : (in_array($ip, $lista, true) ? 'permitida' : 'BLOQUEADA'))
+            . ($reenviadas ? ' | ' . implode(' ', $reenviadas) : '')
+            . "\n",
+        FILE_APPEND
+    );
+
     if (empty($lista)) return true;
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
     return in_array($ip, $lista, true);
 }
 
