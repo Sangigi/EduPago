@@ -2065,7 +2065,7 @@ function Caja({
                 color: 'var(--ink-4)',
                 marginTop: 10
               },
-              children: "ℹ Entrega esta referencia (o el PDF) al padre de familia. No es necesario que esperes en pantalla: el saldo se actualizará solo cuando Cobroscontarjeta.com confirme el pago."
+              children: "ℹ Entrega esta referencia (o el PDF) al padre de familia. En la tienda hay que pedir un pago de servicios de Club Pago. No es necesario que esperes en pantalla: el saldo se actualizará solo cuando Cobroscontarjeta.com confirme el pago."
             }, void 0, false)]
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {

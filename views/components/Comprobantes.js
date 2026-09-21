@@ -200,7 +200,7 @@ function generarComprobanteEfectivo({ cobro, cliente, familia, escuela }) {
         <h3>Instrucciones para realizar tu pago</h3>
         <ul>
           <li>Acude a cualquier tienda de conveniencia o farmacia participante que reciba pagos de servicios.</li>
-          <li>Solicita hacer un pago de servicios y proporciona el código de barras o el número de referencia de este formato.</li>
+          <li>Indícale al cajero que es un pago de servicios de <strong>Club Pago</strong>, y proporciona el código de barras o el número de referencia de este formato.</li>
           <li>Realiza tu pago en efectivo. La tienda te entregará un ticket como comprobante — consérvalo por cualquier aclaración.</li>
           <li>Tu pago se reflejará automáticamente en ${esc(nombreEscuela)} en cuanto la tienda lo confirme.</li>
         </ul>
