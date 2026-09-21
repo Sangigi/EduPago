@@ -77,9 +77,13 @@
             log_api("generar_referencia_efectivo FALLÓ -> " . json_encode($raw, JSON_UNESCAPED_UNICODE));
             respond(['success' => false, 'error' => $raw['Error'] ?? ($raw['Message'] ?? 'No se pudo generar la referencia')]);
         }
-        if (empty($raw['PayFormat'])) {
-            log_api("generar_referencia_efectivo OK sin PayFormat -> " . json_encode($raw, JSON_UNESCAPED_UNICODE));
-        }
+        // Se registraba la petición que mandamos, pero nunca la respuesta
+        // completa del proveedor cuando la llamada SÍ tenía éxito (solo si
+        // fallaba, o si venía sin PayFormat) -- así que un caso como
+        // "se generó la referencia pero la tienda dice monto inválido" no
+        // se podía diagnosticar después: no había forma de ver qué Amount,
+        // BarCode o campos extra regresó realmente Cobroscontarjeta.com.
+        log_api("generar_referencia_efectivo OK -> folio={$folio} ref_cct={$referencia_cct} respuesta=" . json_encode($raw, JSON_UNESCAPED_UNICODE));
         // IMPORTANTE: aquí SÍ hay que sobreescribir "referencia" otra vez,
         // ahora con $referencia_cct (la Reference ENVUELTA que regresa el
         // proveedor), no dejar el $ref interno de arriba. webhooks/
