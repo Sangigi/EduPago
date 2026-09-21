@@ -135,24 +135,32 @@ try {
     $stmt->execute([$reference]);
     $cobro = $stmt->fetch();
 
-    // Cobroscontarjeta.com no regresa nuestra Reference original (15 digitos)
-    // tal cual: la envuelve en un codigo propio mas largo con la forma
-    // prefijo + nuestros 9 digitos finales (la parte aleatoria) + 1 digito de
-    // cola -- confirmado con un pago real (nuestra "000000182222901" volvio
-    // como "0000020000001822229011"). Si el match exacto falla, reconstruimos
-    // nuestra referencia tomando esos 9 digitos (10 posiciones antes del final
-    // del string recibido) y volvemos a buscar.
-    if (!$cobro && preg_match('/\d{10}$/', $reference)) {
-        $core9 = substr($reference, -10, 9);
-        // REFERENCIA_DIGITOS, NO 15 fijo: desde que se migró a producción en
-        // pagalaescuela.mx (08-sep-2026) las referencias que generamos son de
-        // 13 dígitos, no 15 (ese 15 era del Sandbox de pagadetodo.mx). Dejar
-        // esto en 15 hacía que TODO pago con tarjeta llegara aquí como
-        // "huérfano" aunque el banco sí lo hubiera aprobado, porque el
-        // padding ya no coincidía con lo que de verdad se guardó en
-        // `referencia` — el pago quedaba aprobado por el banco pero nunca
-        // se marcaba como pagado en el sistema.
-        $referencia_reconstruida = str_pad($core9, REFERENCIA_DIGITOS, '0', STR_PAD_LEFT);
+    // Cobroscontarjeta.com no regresa nuestra Reference original tal cual: la
+    // envuelve como PLE_SCHOOL_ID_ACTIVO (su propio identificador de comercio,
+    // "000002" en producción) + NUESTRA referencia completa intacta + relleno
+    // de ceros a la derecha hasta completar el ancho fijo de su campo. Si el
+    // match exacto falla, la reconstruimos leyendo justo esos
+    // REFERENCIA_DIGITOS caracteres inmediatamente después del prefijo.
+    //
+    // CORREGIDO 21-sep-2026 (bug real en producción, pago aprobado por el
+    // banco que se quedó "pendiente" para siempre): el heurístico anterior
+    // tomaba los últimos 9 dígitos antes de 1 dígito de cola, asumiendo un
+    // relleno fijo de 1 dígito. Eso coincidía por casualidad con el formato
+    // viejo de 15 dígitos ("000000182222901" volvía como
+    // "0000020000001822229011", relleno real de 1 dígito), pero con el
+    // formato actual de 13 dígitos el relleno real resultó ser de 3 dígitos,
+    // no de 1: nuestra "0000000014901" volvió como
+    // "0000020000000014901002" (prefijo "000002" + los 13 dígitos intactos +
+    // relleno "002"). El heurístico anterior reconstruía
+    // "0000001490100" (2 ceros de más) en vez de "0000000014901", nunca
+    // hacía match, y el cobro se registraba como "LIGA HUÉRFANA" pese a que
+    // el pago sí se había cobrado de verdad. Anclar la extracción al
+    // prefijo fijo (conocido, viene de nuestra propia config) en vez de
+    // contar posiciones desde el final ya no depende de cuántos dígitos de
+    // relleno use el proveedor.
+    if (!$cobro && strpos($reference, PLE_SCHOOL_ID_ACTIVO) === 0
+        && strlen($reference) >= strlen(PLE_SCHOOL_ID_ACTIVO) + REFERENCIA_DIGITOS) {
+        $referencia_reconstruida = substr($reference, strlen(PLE_SCHOOL_ID_ACTIVO), REFERENCIA_DIGITOS);
         $stmt->execute([$referencia_reconstruida]);
         $cobro = $stmt->fetch();
         if ($cobro) {
