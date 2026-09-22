@@ -404,20 +404,54 @@ try {
                 $stmtDetalle->execute([$grp['id']]);
                 $idsDetalle = array_column($stmtDetalle->fetchAll(), 'cobro_id');
 
+                // El importe cobrado se REPARTE como abonos, cobro por cobro
+                // (22-sep-2026), igual que en pago_referencia.php.
+                //
+                // Antes esto liquidaba de golpe con monto_pagado = total contra
+                // el total CONGELADO en cobros_agrupados al generar la liga. La
+                // liga vive días, así que cualquier abono que entrara mientras
+                // tanto se cobraba dos veces y el monto_pagado = total borraba
+                // la evidencia. (Ese monto_pagado = total lo puse yo mismo hoy
+                // para sostener el invariante; sostenerlo así resultó ser el
+                // error — quien lo sostiene bien es el reparto, que además
+                // escribe el renglón en el libro mayor.)
+                $sobranteGrpTC = 0.0;
                 if ($idsDetalle) {
                     $inPlaceholders = implode(',', array_fill(0, count($idsDetalle), '?'));
+                    // aplicar_abono_a_cobro() exige los cobros bloqueados.
+                    $pdo->prepare("SELECT id FROM cobros WHERE id IN ($inPlaceholders) FOR UPDATE")
+                        ->execute($idsDetalle);
+
+                    $restanteGrpTC = floatval($grp['total']);
+                    $llaveGrpTC    = false;
+                    foreach ($idsDetalle as $cidGrpTC) {
+                        if ($restanteGrpTC <= 0.004) break;
+                        $datosGrpTC = [
+                            'metodo'      => 'TC',
+                            'referencia'  => $refBuscarGrp,
+                            'transaccion' => $foliocpagos,
+                            'auth_code'   => $auth,
+                            'origen'      => 'webhook_liga',
+                        ];
+                        if ($llaveGrpTC) $datosGrpTC['sin_idem'] = true;
+                        $rGrpTC = aplicar_abono_a_cobro($pdo, intval($cidGrpTC), $restanteGrpTC, $datosGrpTC);
+                        if ($rGrpTC['aplicado'] > 0) {
+                            $llaveGrpTC    = true;
+                            $restanteGrpTC = round($restanteGrpTC - $rGrpTC['aplicado'], 2);
+                        }
+                    }
+                    $sobranteGrpTC = round($restanteGrpTC, 2);
+
                     // metodo = 'TC' (10-sep-2026): el comentario de arriba ya decía
                     // "con el mismo auth_code y metodo" pero el UPDATE nunca lo ponía
                     // -- cobros.metodo se quedaba vacío para todo pago agrupado con
                     // tarjeta, así que la gráfica de "por método" (Dashboard/Reportes)
-                    // los perdía en "Otro / sin método" en vez de "Tarjeta".
+                    // los perdía en "Otro / sin método" en vez de "Tarjeta". El
+                    // estado y el monto_pagado ya los movió el reparto.
                     $pdo->prepare(
-                        // monto_pagado = total: sostiene el invariante
-                        // estado='pagado' <=> monto_pagado >= total. Sin esto,
-                        // los cobros de un grupo quedaban 'pagado' con
-                        // monto_pagado en 0.00 y descuadraban el saldo del
-                        // alumno, que ahora suma (total - monto_pagado).
-                        "UPDATE cobros SET estado = 'pagado', monto_pagado = total, metodo = 'TC', auth_code = ?, referencia = ?
+                        "UPDATE cobros SET metodo = 'TC',
+                                           auth_code = COALESCE(NULLIF(auth_code, ''), ?),
+                                           referencia = ?
                           WHERE id IN ($inPlaceholders)"
                     )->execute(array_merge([$auth ?: $foliocpagos, $refBuscarGrp], $idsDetalle));
                 }
@@ -433,7 +467,26 @@ try {
                 responder_liga(false, 'Error de sistema');
             }
 
-            log_api_liga("LIGA AGRUPADA confirmada -> agrupado_id:{$grp['id']} ref:{$refBuscarGrp} auth:{$auth} cobros:" . implode(',', $idsDetalle));
+            log_api_liga("LIGA AGRUPADA confirmada -> agrupado_id:{$grp['id']} ref:{$refBuscarGrp} auth:{$auth} cobros:" . implode(',', $idsDetalle) . ($sobranteGrpTC > 0.004 ? " SOBRANTE:{$sobranteGrpTC}" : ''));
+
+            // Sobrante: se cobró más de lo que los cobros del grupo debían hoy,
+            // normalmente porque entró un abono entre la generación de la liga y
+            // su pago. Queda registrado para que el colegio lo resuelva.
+            // Después del commit, regla 1 de registrar_pago_no_aplicado.
+            if ($sobranteGrpTC > 0.004) {
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'tarjeta',
+                    'motivo'         => 'sobrepago',
+                    'referencia'     => $refBuscarGrp,
+                    'transaccion'    => $foliocpagos !== '' ? $foliocpagos . '-sobrante' : '',
+                    'auth_code'      => $auth,
+                    'monto_recibido' => $sobranteGrpTC,
+                    'monto_esperado' => 0,
+                    'cliente_id'     => $grp['cliente_id'] ?? null,
+                    'escuela_id'     => $grp['escuela_id'] ?? null,
+                    'payload_raw'    => $raw,
+                ]);
+            }
             responder_liga(true, 'Pago agrupado confirmado, ' . count($idsDetalle) . ' conceptos pagados');
         }
     }
@@ -562,14 +615,41 @@ try {
     if (!empty($cobro['cliente_id'])) {
         recalcular_saldo_pendiente($pdo, intval($cobro['cliente_id']));
 
-        // Tokenización para CAI: solo si Pagalaescuela mandó un token válido.
-        // cc_mask/cc_type también se guardan aquí (no solo en el cobro): es la
-        // única forma de mostrar "tarjeta terminada en ****" en la UI sin
-        // tener que ir a buscar el cobro que la originó.
-        if ($number_tkn) {
+        // Tokenización para CAI: solo si Pagalaescuela mandó un token válido
+        // Y la domiciliación está HABILITADA para esta escuela (22-sep-2026).
+        //
+        // Antes bastaba con que el proveedor mandara number_tkn: la tarjeta se
+        // guardaba y token_tarjeta_estado quedaba en 'activo' aunque el colegio
+        // tuviera la domiciliación apagada. De ahí salían los dos correos que
+        // no deberían existir — el de cargo recurrente y el aviso de "se va a
+        // cobrar a tu tarjeta guardada" — porque el cron busca por
+        // token_tarjeta_estado='activo', no por si el método está permitido.
+        //
+        // Guardar la tarjeta de alguien que no autorizó domiciliación no es un
+        // detalle de configuración: es conservar un instrumento de pago sin
+        // permiso. Por eso el bloqueo va aquí, en el punto donde se persiste,
+        // y no solo en el momento de cobrar.
+        //
+        // La liga se sigue generando con PLE_URL_LIGA_TOKEN, que tokeniza del
+        // lado del proveedor. Existe PLE_URL_LIGA_SIMPLE (GenerarLigaIndi) que
+        // no tokeniza, pero su contrato de payload no está verificado contra
+        // este proveedor y cambiarlo a ciegas arriesga tumbar todos los pagos
+        // con tarjeta. Lo correcto es confirmarlo con Cobroscontarjeta.com y
+        // entonces elegir la URL según el método; mientras tanto, lo que no se
+        // guarda no se puede cobrar.
+        $cai_apagado = metodo_pago_deshabilitado($pdo, intval($cobro['escuela_id'] ?? 0), 'CAI');
+        if ($number_tkn && !$cai_apagado) {
             $pdo->prepare(
                 "UPDATE clientes SET token_tarjeta = ?, token_tarjeta_expmes = ?, token_tarjeta_expanio = ?, token_tarjeta_estado = 'activo', token_tarjeta_mask = ?, token_tarjeta_tipo = ? WHERE id = ?"
             )->execute([$number_tkn, $cc_expmonth, $cc_expyear, $cc_mask ?: null, $cc_type ?: null, $cobro['cliente_id']]);
+        } elseif ($number_tkn && $cai_apagado) {
+            // La máscara sí se guarda: sirve para mostrar "terminada en ****"
+            // en el historial del pago. Lo que NO se guarda es el token, que es
+            // lo único con lo que se podría volver a cobrar.
+            $pdo->prepare(
+                "UPDATE clientes SET token_tarjeta_mask = ?, token_tarjeta_tipo = ? WHERE id = ?"
+            )->execute([$cc_mask ?: null, $cc_type ?: null, $cobro['cliente_id']]);
+            log_api_liga("LIGA token DESCARTADO (domiciliación apagada) -> cliente:{$cobro['cliente_id']} escuela:" . ($cobro['escuela_id'] ?? '?'));
         }
     }
 

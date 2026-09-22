@@ -120,9 +120,12 @@
             'total'      => $total,
             'abonado'    => round(floatval($cobroRow['monto_pagado'] ?? 0), 2),
             'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
-            // true: PLE_URL_LIGA_TOKEN sí tokeniza la tarjeta — el webhook
-            // (webhook_liga.php) guardará number_tkn/exp si el proveedor lo
-            // manda al confirmar el pago. El frontend ya no necesita avisar
-            // que la domiciliación no está disponible.
-            'con_cai'    => true,
+            // PLE_URL_LIGA_TOKEN tokeniza la tarjeta del lado del proveedor,
+            // pero eso NO significa que nosotros la vayamos a guardar: desde el
+            // 22-sep-2026 webhook_liga.php descarta el token cuando el colegio
+            // tiene la domiciliación apagada. Este flag le dice la verdad al
+            // frontend, que lo usa para decidir si pide la casilla de
+            // autorización de cargo automático — antes iba en true fijo y la
+            // pedía incluso con la domiciliación deshabilitada.
+            'con_cai'    => !metodo_pago_deshabilitado($pdo, $cobroRow['escuela_id'], 'CAI'),
         ]);

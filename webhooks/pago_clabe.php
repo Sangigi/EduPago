@@ -217,13 +217,31 @@ try {
         responder_pago_clabe(0, 'Operación exitosa', $autorizacion, $transaccion);
     }
 
-    // auth_code en los cobros que quedaron cubiertos con este depósito: se
-    // conserva porque el resto del sistema (Historial, comprobantes, la rama
-    // idempotente de arriba) lo lee de `cobros`, no de `cobro_abonos`.
-    $pdo->prepare(
-        "UPDATE cobros SET auth_code = ?
-          WHERE cliente_id = ? AND estado = 'pagado' AND (auth_code IS NULL OR auth_code = '')"
-    )->execute([$autorizacion, $cliente['id']]);
+    // auth_code SOLO en los cobros que tocó ESTE depósito, por id.
+    //
+    // CORREGIDO 22-sep-2026. Antes el filtro era
+    //   WHERE cliente_id = ? AND estado='pagado' AND (auth_code IS NULL OR '')
+    // que estampaba la autorización de hoy sobre CUALQUIER cobro histórico del
+    // alumno que anduviera sin auth_code — y eso es de lo más común, porque
+    // confirmar_pago.php usa COALESCE(?, auth_code) y el cajero que registra un
+    // pago en efectivo o cheque rara vez captura una autorización.
+    //
+    // No era cosmético: cancela_pago_spei.php cancela TODOS los cobros que
+    // compartan un auth_code, sin filtrar por fecha. Un depósito revertido por
+    // el banco arrastraba así a 'cancelado' pagos viejos, reales y en efectivo,
+    // que desaparecían de los ingresos del colegio.
+    //
+    // Se conserva el sello porque el resto del sistema (Historial, comprobantes,
+    // la rama idempotente de arriba) lee el auth_code de `cobros`, no de
+    // `cobro_abonos`.
+    $ids_cubiertos = array_values(array_filter(array_map('intval', $resAbono['cobros'] ?? [])));
+    if ($ids_cubiertos) {
+        $ph = implode(',', array_fill(0, count($ids_cubiertos), '?'));
+        $pdo->prepare(
+            "UPDATE cobros SET auth_code = ?
+              WHERE id IN ($ph) AND estado = 'pagado' AND (auth_code IS NULL OR auth_code = '')"
+        )->execute(array_merge([$autorizacion], $ids_cubiertos));
+    }
 
     recalcular_saldo_pendiente($pdo, intval($cliente['id']));
 

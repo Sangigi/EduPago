@@ -288,7 +288,17 @@ try {
     // CAI_DIAS_AVISO dias, y en ese lapso sale este correo.
     try {
         $stmtPorAvisar = $pdo->query(
-            "SELECT co.id AS cobro_id, co.total, co.fecha, cl.nombre AS cliente_nombre,
+            // escuela_id va en el SELECT para poder revisar abajo si la
+            // domiciliación está apagada (22-sep-2026). El bloque del cargo
+            // sí lo revisaba, pero ESTE, el del aviso previo, no — así que un
+            // colegio con la domiciliación deshabilitada seguía recibiendo el
+            // correo "se procesará un cargo automático a tu tarjeta guardada"
+            // por un cargo que nunca iba a ocurrir. Reportado en producción.
+            //
+            // (total - monto_pagado): el aviso tiene que decir lo que se va a
+            // cobrar de verdad, no el importe original del cobro.
+            "SELECT co.id AS cobro_id, (co.total - co.monto_pagado) AS total, co.fecha,
+                    co.escuela_id, cl.nombre AS cliente_nombre,
                     cl.email AS cliente_email, fa.email AS familia_email
                FROM cobros co
                JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
@@ -299,6 +309,14 @@ try {
                 AND co.fecha > DATE_SUB(CURDATE(), INTERVAL " . CAI_DIAS_AVISO . " DAY)"
         );
         foreach ($stmtPorAvisar->fetchAll() as $av) {
+            // Mismo candado que el bloque del cargo de más abajo: si el colegio
+            // tiene la domiciliación apagada, no hay cargo que avisar.
+            if (metodo_pago_deshabilitado($pdo, intval($av['escuela_id']), 'CAI')) {
+                $resumen[] = "OMITIDO aviso previo de cargo automático (cobro #{$av['cobro_id']}): Domiciliación está deshabilitada.";
+                continue;
+            }
+            // Un cobro ya cubierto por abonos no genera cargo ni aviso.
+            if (floatval($av['total']) <= 0.004) continue;
             $mailAv = $av['cliente_email'] ?: $av['familia_email'];
             if (!$mailAv) continue;
             $montoAv = '$' . number_format((float) $av['total'], 2) . ' MXN';

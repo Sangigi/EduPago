@@ -250,7 +250,11 @@ try {
         // cualquiera haga commit, y la segunda sobreescribe en silencio el
         // auth_code de la primera.
         $stmtGrp = $pdo->prepare(
-            "SELECT id, cliente_id, total, estado, auth_code
+            // escuela_id va en el SELECT (22-sep-2026): más abajo se lee
+            // $grp['escuela_id'] al registrar un pago no aplicado, y sin él esa
+            // fila quedaba siempre con escuela NULL — invisible en el panel del
+            // admin del colegio, que solo ve lo de su propia escuela.
+            "SELECT id, cliente_id, escuela_id, total, estado, auth_code
                FROM cobros_agrupados WHERE referencia = ? LIMIT 1 FOR UPDATE"
         );
         $stmtGrp->execute([$referencia]);
@@ -286,19 +290,87 @@ try {
             $stmtDetalle = $pdo->prepare("SELECT cobro_id FROM cobros_agrupados_detalle WHERE cobro_agrupado_id = ?");
             $stmtDetalle->execute([$grp['id']]);
             $idsDetalle = array_column($stmtDetalle->fetchAll(), 'cobro_id');
+            // El importe recibido se REPARTE como abonos, cobro por cobro
+            // (22-sep-2026). Antes se liquidaba de golpe con
+            //   UPDATE cobros SET estado='pagado', monto_pagado = total ...
+            // contra el total CONGELADO en cobros_agrupados al generar la
+            // referencia. Esa referencia vive días, y cualquier abono que
+            // entrara mientras tanto se cobraba dos veces: la familia pagaba
+            // $600 por SPEI el día 2 y los $1,000 congelados el día 4, y el
+            // monto_pagado = total borraba la evidencia — sin renglón en el
+            // libro mayor y sin una sola fila en pagos_no_aplicados. Antes de
+            // los abonos no podía pasar, porque un depósito parcial se
+            // rechazaba con código 30 y el proveedor lo devolvía.
+            //
+            // Repartiendo con aplicar_abono_a_cobro() se respeta lo que cada
+            // cobro DEBE hoy, el sobrante queda registrado, y los cobros que no
+            // alcanzan a cubrirse se quedan pendientes con su abono, que es lo
+            // correcto.
+            $sobranteGrp = 0.0;
             if ($idsDetalle) {
                 $inPlaceholders = implode(',', array_fill(0, count($idsDetalle), '?'));
+                // Bloqueo explícito: aplicar_abono_a_cobro() exige que el
+                // llamador tenga los cobros tomados con FOR UPDATE.
+                $pdo->prepare("SELECT id FROM cobros WHERE id IN ($inPlaceholders) FOR UPDATE")
+                    ->execute($idsDetalle);
+
+                $restanteGrp = $monto_cent / 100;
+                $llaveGrp    = false;
+                foreach ($idsDetalle as $cidGrp) {
+                    if ($restanteGrp <= 0.004) break;
+                    $datosGrp = [
+                        'metodo'      => 'EfectivoRef',
+                        'referencia'  => $referencia,
+                        'transaccion' => $transaccion,
+                        'auth_code'   => $autorizacionGrp,
+                        'origen'      => 'webhook_referencia',
+                    ];
+                    // La llave de idempotencia solo en el primer renglón que de
+                    // verdad se inserte — mismo criterio que aplicar_abono_a_cliente.
+                    if ($llaveGrp) $datosGrp['sin_idem'] = true;
+                    $rGrp = aplicar_abono_a_cobro($pdo, intval($cidGrp), $restanteGrp, $datosGrp);
+                    if ($rGrp['aplicado'] > 0) {
+                        $llaveGrp    = true;
+                        $restanteGrp = round($restanteGrp - $rGrp['aplicado'], 2);
+                    }
+                }
+                $sobranteGrp = round($restanteGrp, 2);
+
                 // metodo = 'EfectivoRef' (10-sep-2026, mismo arreglo que en
                 // webhook_liga.php): sin esto cobros.metodo se quedaba vacío
                 // para todo pago agrupado en efectivo y la gráfica de "por
-                // método" lo perdía en "Otro / sin método".
-                $pdo->prepare("UPDATE cobros SET estado = 'pagado', monto_pagado = total, metodo = 'EfectivoRef', auth_code = ?, referencia = ? WHERE id IN ($inPlaceholders)")
-                    ->execute(array_merge([$autorizacionGrp, $referencia], $idsDetalle));
+                // método" lo perdía en "Otro / sin método". El estado y el
+                // monto_pagado ya los movió el reparto de arriba.
+                $pdo->prepare(
+                    "UPDATE cobros SET metodo = 'EfectivoRef',
+                                       auth_code = COALESCE(NULLIF(auth_code, ''), ?),
+                                       referencia = ?
+                      WHERE id IN ($inPlaceholders)"
+                )->execute(array_merge([$autorizacionGrp, $referencia], $idsDetalle));
             }
             if (!empty($grp['cliente_id'])) recalcular_saldo_pendiente($pdo, intval($grp['cliente_id']));
 
             $pdo->commit();
-            log_ref_pago("OK agrupado: {$referencia} agrupado_id:{$grp['id']} auth:{$autorizacionGrp} cobros:" . implode(',', $idsDetalle));
+            log_ref_pago("OK agrupado: {$referencia} agrupado_id:{$grp['id']} auth:{$autorizacionGrp} cobros:" . implode(',', $idsDetalle) . ($sobranteGrp > 0.004 ? " SOBRANTE:{$sobranteGrp}" : ''));
+
+            // Sobrante: llegó más de lo que los cobros del grupo debían hoy
+            // (típicamente porque alguien abonó entre la generación de la
+            // referencia y su pago). Queda registrado para que el colegio lo
+            // resuelva. DESPUÉS del commit, regla 1 de registrar_pago_no_aplicado.
+            if ($sobranteGrp > 0.004) {
+                registrar_pago_no_aplicado($pdo, [
+                    'canal'          => 'efectivo',
+                    'motivo'         => 'sobrepago',
+                    'referencia'     => $referencia,
+                    'transaccion'    => $transaccion !== '' ? $transaccion . '-sobrante' : '',
+                    'auth_code'      => $autorizacionGrp,
+                    'monto_recibido' => $sobranteGrp,
+                    'monto_esperado' => 0,
+                    'cliente_id'     => $grp['cliente_id'] ?? null,
+                    'escuela_id'     => $grp['escuela_id'] ?? null,
+                    'payload_raw'    => $raw,
+                ]);
+            }
             responder_pago(0, 'Operación exitosa', $autorizacionGrp, $transaccion);
         }
     }

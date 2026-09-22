@@ -77,7 +77,12 @@ try {
     // Suma de TODOS los cobros pendientes de ese alumno (una CLABE puede cubrir
     // varios cobros a lo largo del ciclo escolar; se cobran todos de un jalón).
     $stmtCob = $pdo->prepare(
-        "SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'"
+        // SUM(total - monto_pagado) y no SUM(total) (22-sep-2026): este es el
+        // importe que se le cotiza al proveedor para el depósito SPEI. Con
+        // SUM(total) pelón, a quien ya hubiera abonado parte de su adeudo se le
+        // volvía a pedir el importe original completo — el mismo bug que se
+        // corrigió en el portal, pero en el lado del banco.
+        "SELECT COUNT(*) AS n, COALESCE(SUM(total - monto_pagado),0) AS total FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'"
     );
     $stmtCob->execute([$cliente['cliente_id']]);
     $resumen = $stmtCob->fetch();

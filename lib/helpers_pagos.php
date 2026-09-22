@@ -244,19 +244,31 @@ function aplicar_abono_a_cliente(PDO $pdo, int $cliente_id, float $monto, array 
     }
 
     $restante = $monto;
-    foreach ($ids as $i => $cid) {
+    // La llave de idempotencia va SOLO en el primer renglón REALMENTE INSERTADO:
+    // es el que representa al depósito completo, y con él basta para que un
+    // reintento del proveedor rebote en el guard de arriba. Los renglones
+    // siguientes conservan la transacción del proveedor (la columna ya no es
+    // única, solo indexada) para que la conciliación los pueda rastrear, pero
+    // marcados con sin_idem para que no generen llave propia — ver el porqué
+    // en construir_idem_key().
+    //
+    // CORREGIDO 22-sep-2026: antes esto se decidía con `if ($i > 0)`, o sea por
+    // la POSICIÓN en el arreglo, dando por hecho que el primer cobro de la lista
+    // siempre escribe un renglón. No es cierto: aplicar_abono_a_cobro no inserta
+    // nada y devuelve aplicado=0 cuando al cobro no le falta nada (total 0.00, o
+    // un cobro pendiente con monto_pagado >= total). Cuando eso pasaba, el
+    // índice 0 no escribía llave, todos los demás iban marcados sin_idem, y el
+    // depósito ENTERO quedaba sin idem_key: el guard no lo encontraba y un
+    // reintento del proveedor lo repartía por segunda vez, acreditando dos veces
+    // un solo depósito real.
+    $llave_escrita = false;
+    foreach ($ids as $cid) {
         if ($restante <= 0.004) break;
-        // La llave de idempotencia va SOLO en el primer renglón: es el que
-        // representa al depósito completo, y con él basta para que un reintento
-        // del proveedor rebote en el guard de arriba. Los renglones siguientes
-        // conservan la transacción del proveedor (la columna ya no es única,
-        // solo indexada) para que la conciliación los pueda rastrear, pero
-        // marcados con sin_idem para que no generen llave propia — ver el
-        // porqué en construir_idem_key().
         $datos = $d;
-        if ($i > 0) $datos['sin_idem'] = true;
+        if ($llave_escrita) $datos['sin_idem'] = true;
         $r = aplicar_abono_a_cobro($pdo, intval($cid), $restante, $datos);
         if ($r['aplicado'] > 0) {
+            $llave_escrita = true;
             $res['aplicado'] += $r['aplicado'];
             $res['cobros'][] = intval($cid);
             $restante = round($restante - $r['aplicado'], 2);

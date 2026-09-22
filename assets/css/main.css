@@ -902,6 +902,10 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .checkout-btn {
 
+  /* flex-shrink:0 — .pos-cart es un flex column con max-height y
+     overflow:hidden. Sin esto, el botón es lo primero que se comprime cuando
+     el contenido no cabe, y lo que sobra queda recortado e inalcanzable. */
+  flex-shrink:0;
   margin:12px; padding:13px; background:var(--btn-gradient);
 
   color:#fff; font-size:14px; font-weight:700; border:none;
@@ -1311,6 +1315,31 @@ box-shadow:0 0 0 3px var(--accent-glow);
      altura vuelve a ser seguro: solo la lista de artículos hace scroll
      interno y el botón de cobrar queda siempre visible en pantalla. */
   .pos-cart { max-height: 56vh; }
+
+  /* Los métodos de pago en UNA sola fila con scroll horizontal (22-sep-2026).
+     Esta era la causa real de que el botón "Cobrar" se recortara en celular
+     vertical, y el tope de altura de arriba solo era el mensajero.
+
+     .pay-method es flex:1 con min-width:60px. En un celular de 360px quedan
+     332px útiles, y seis métodos piden 6*60 + 5*7 de gap = 395px. Con
+     flex-wrap:wrap se envolvían a dos o tres filas de ~53px cada una, así que
+     la parte fija de .pos-cart (header + totales + métodos + botón) crecía
+     hasta pasarse de los 56vh. Como .pos-cart tiene overflow:hidden, lo que
+     sobraba no se podía alcanzar con scroll: simplemente se recortaba, y lo
+     último en la columna es justo el botón de cobrar.
+
+     En una sola fila los métodos ocupan ~53px fijos en vez de 160, y el
+     usuario los desliza de lado — que es el gesto natural en móvil. */
+  .payment-methods {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .payment-methods::-webkit-scrollbar { display: none; }
+  /* flex:0 0 auto en vez de flex:1 — con flex:1 y nowrap se comprimirían
+     todos hasta volverse ilegibles en vez de desbordar y poder deslizarse. */
+  .pay-method { flex: 0 0 auto; min-width: 74px; }
 
 }
 

@@ -58,7 +58,7 @@ if (!$referencia || !preg_match('/^\d+$/', $referencia)) {
 
 try {
     $stmt = $pdo->prepare(
-        "SELECT id, total, estado, ref_vencimiento FROM cobros WHERE referencia = ? AND metodo = 'EfectivoRef' ORDER BY id DESC LIMIT 1"
+        "SELECT id, total, monto_pagado, estado, ref_vencimiento FROM cobros WHERE referencia = ? AND metodo = 'EfectivoRef' ORDER BY id DESC LIMIT 1"
     );
     $stmt->execute([$referencia]);
     $cobro = $stmt->fetch();
@@ -79,7 +79,15 @@ try {
         // Identificador consecutivo de la operación — usamos el id del
         // cobro, suficiente porque es único y estable para toda la vida de
         // esa referencia.
-        $monto_centavos = intval(round(floatval($cobro['total']) * 100));
+        // (total - monto_pagado) y no total pelón (22-sep-2026): este es el
+        // importe que la tienda le va a cobrar al padre. Con el total original,
+        // a quien ya hubiera abonado parte se le cobraba otra vez el adeudo
+        // completo — el mismo bug del portal, pero del lado del proveedor.
+        $monto_centavos = intval(round((floatval($cobro['total']) - floatval($cobro['monto_pagado'] ?? 0)) * 100));
+        if ($monto_centavos <= 0) {
+            log_ref("ya cubierta por abonos: {$referencia} cobro_id:{$cobro['id']}");
+            responder_consulta(13, 'Referencia sin adeudo', 0, $referencia);
+        }
         log_ref("OK cobro: {$referencia} cobro_id:{$cobro['id']} monto:{$monto_centavos}");
         responder_consulta(0, 'Operación exitosa', $monto_centavos, $referencia, intval($cobro['id']));
     }

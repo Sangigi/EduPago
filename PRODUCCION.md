@@ -516,6 +516,35 @@ Implementación de las tres mejoras pedidas por el usuario tras una investigaci�
 
 **Pendiente antes de operar**: correr la migración SQL en phpMyAdmin; probar en vivo cada parte (foto real, cobro en efectivo, cierre de caja con diferencia, alta de proveedor/gasto con comprobante) antes de considerar esto terminado.
 
+### 5.3bd Pagos parciales (abonos) — modelo, migraciones y el orden en que se despliegan
+
+Hasta el 21-sep-2026 `cobros` era binario: o entraba el total exacto, o el webhook rechazaba el depósito con código 30 y el proveedor lo devolvía. Si una familia debía $1,000 y transfería $200, ese dinero no se podía acreditar. Ahora un cobro puede recibir varios abonos hasta cubrirse.
+
+**Modelo.** `cobro_abonos` es la fuente de verdad (un renglón por pago recibido). `cobros.monto_pagado` es una columna **cacheada** que se recalcula siempre desde ese libro mayor — mismo patrón que `clientes.saldo_pendiente`. Invariante: `estado='pagado'` ⟺ `monto_pagado >= total`. `clientes.saldo_pendiente` pasó de `SUM(total)` a `SUM(total - monto_pagado)`.
+
+**Consecuencia que cambia quién se queda el dinero:** al aplicar un abono respondemos código 0, y con código 0 el proveedor **ya no devuelve** el depósito. Antes, un importe distinto se rechazaba con 30 y el dinero regresaba solo. Por eso todo lo que no se pueda acreditar tiene que quedar registrado en `pagos_no_aplicados` — ver 5.3bc y la migración `migracion_2026_09_21_pagos_no_aplicados.sql`.
+
+**Migraciones, en este orden:**
+
+1. `migracion_2026_09_21_pagos_no_aplicados.sql`
+2. `migracion_2026_09_21_abonos.sql` — **solo una vez.** Su paso 2 (`UPDATE cobros SET monto_pagado = total WHERE estado='pagado'`) **no es idempotente**: re-ejecutarlo cuando ya hay abonos parciales los da por cubiertos y borra lo que falta cobrar. Si el paso 1 truena con *Duplicate column name 'monto_pagado'*, la migración ya corrió: no ejecutes nada más de ese archivo.
+3. `migracion_2026_09_22_idem_key.sql` — **solo si corriste la #2 antes del 22-sep-2026.** En una instalación desde cero no hace falta.
+
+**Llave de idempotencia — por qué no es `transaccion_proveedor`.** La primera versión puso `UNIQUE (transaccion_proveedor)`. Está mal: ese campo lo pone el proveedor y no está garantizado como único entre canales (en los logs se han visto valores cortos y repetibles, del estilo `"101"`). Con ese UNIQUE, un pago real de efectivo se descartaba en silencio como "duplicado" nada más porque uno de SPEI ya había usado ese número — y perder un pago real es peor que registrar uno de más. La llave es ahora `idem_key`, un SHA1 de `canal | referencia o CLABE | transacción | centavos | fecha`, que la calcula `construir_idem_key()` en `lib/helpers_pagos.php`. `transaccion_proveedor` se conserva como índice normal porque sigue siendo la llave común con el reporte del proveedor.
+
+**Orden de despliegue — importa.** Primero la migración en phpMyAdmin, después el `git pull`. Al revés, el código nuevo hace `INSERT` con `idem_key`, la columna no existe y **todo pago por webhook falla** en esa ventana. Los tres webhooks responden código 50, no 30, así que no se le devuelve el dinero a la familia — pero el pago no se registra y el cobro se queda pendiente aunque alguien ya pagó.
+
+**Nota de hosting:** el usuario MySQL de Hostinger **no tiene permiso sobre `information_schema`** (error #1044). Las migraciones que quieran saltarse pasos ya aplicados no pueden consultarla: hay que usar `SHOW COLUMNS` / `SHOW INDEX`, o bien `ALTER` pelones documentando qué error significa "esto ya estaba".
+
+**Reglas al tocar este código:**
+
+- Todo `UPDATE` que ponga `estado='pagado'` tiene que poner también `monto_pagado`, o el saldo del alumno se descuadra. Y todo camino que **regrese** un cobro a `'pendiente'` tiene que bajar `monto_pagado` — si no, la deuda desaparece (fue el caso de `marcar_cheque_rebotado.php`).
+- Nunca liquidar un grupo con `monto_pagado = total` contra un total congelado: una referencia o liga vive días, y cualquier abono que entre mientras tanto se cobraría dos veces. Repartir siempre con `aplicar_abono_a_cobro()`.
+- En pantalla y al cotizarle al proveedor, `cobros.total` es la deuda **original**; lo que se cobra es `total - monto_pagado`. Aplica igual a `consulta_clabe.php` y `consulta_referencia.php`, que le dictan el importe al banco y a la tienda.
+- `aplicar_abono_a_*` se llama **dentro** de una transacción y con los cobros tomados con `SELECT ... FOR UPDATE`. `registrar_pago_no_aplicado()` se llama **después** del `commit()`/`rollBack()`, nunca dentro.
+
+**Pendiente (decisión de producto, no implementado):** revertir un abono parcial. Si el banco cancela un depósito SPEI que no alcanzó a cubrir ningún cobro, `cancela_pago_spei.php` no encuentra nada en `estado='pagado'` y responde "sin registro que cancelar" — el renglón del libro mayor y el `monto_pagado` se quedan como están, o sea que el banco se llevó el dinero y nosotros seguimos acreditándolo. Lo mismo aplica a `cancela_pago_referencia.php`. La solución razonable es un **contra-abono**: un renglón negativo en `cobro_abonos` que preserve la historia en vez de borrar el original.
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.
