@@ -1246,6 +1246,32 @@ function App() {
 
   }
 
+  // * PANEL TESORERÍA (22-sep-2026) * Calendario de cuentas por pagar a
+  // proveedores, del lado del dueño del sistema y no de cada colegio. Mismo
+  // patrón autónomo: trae su data con action=tesoreria_cuentas_por_pagar.
+
+  if (user.rol === 'tesoreria') {
+
+    return _jsxDEV(
+
+      Tesoreria,
+
+      {
+
+        user: user,
+
+        onLogout: handleLogout
+
+      },
+
+      void 0,
+
+      false
+
+    );
+
+  }
+
 
 
 

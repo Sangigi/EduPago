@@ -530,7 +530,9 @@ function Usuarios({ user, data }) {
     soporte:      { label: 'Soporte',      icon: 'info',   color: '#6366f1', bg: 'rgba(99,102,241,.15)', badge: 'badge-blue'  },
     // Captura el identificador que el proveedor asigna al colegio tras la
     // aprobación del contador, y con eso lo activa (22-sep-2026).
-    provision:    { label: 'Provisión',    icon: 'settings', color: '#f97316', bg: 'rgba(249,115,22,.15)', badge: 'badge-amber' }
+    provision:    { label: 'Provisión',    icon: 'settings', color: '#f97316', bg: 'rgba(249,115,22,.15)', badge: 'badge-amber' },
+    // Cuentas por pagar a proveedores, del lado del dueño del sistema (22-sep-2026).
+    tesoreria:    { label: 'Tesorería',    icon: 'bank',    color: '#0d9488', bg: 'rgba(13,148,136,.15)', badge: 'badge-green' }
   };
 
   // Crea una familia sin salir del modal de "nuevo usuario" — antes había

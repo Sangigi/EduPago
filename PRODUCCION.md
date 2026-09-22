@@ -545,6 +545,33 @@ Hasta el 21-sep-2026 `cobros` era binario: o entraba el total exacto, o el webho
 
 **Pendiente (decisión de producto, no implementado):** revertir un abono parcial. Si el banco cancela un depósito SPEI que no alcanzó a cubrir ningún cobro, `cancela_pago_spei.php` no encuentra nada en `estado='pagado'` y responde "sin registro que cancelar" — el renglón del libro mayor y el `monto_pagado` se quedan como están, o sea que el banco se llevó el dinero y nosotros seguimos acreditándolo. Lo mismo aplica a `cancela_pago_referencia.php`. La solución razonable es un **contra-abono**: un renglón negativo en `cobro_abonos` que preserve la historia en vez de borrar el original.
 
+### 5.3be Tres roles nuevos: `soporte`, `provision` y `tesoreria`
+
+**No necesitan migración de la tabla `usuarios`**: `usuarios.rol` es `VARCHAR(20)` desde `migracion_2026_09_11_rol_contador.sql`. Sí necesitan `migracion_2026_09_22_provision_y_cuentas_por_pagar.sql` para las columnas que usan `provision` y `tesoreria`.
+
+**El modelo de permisos es default-deny y conviene no perderlo.** `requerir_rol($rol, [lista])` corta con 403 si el rol no está en la lista. Eso significa que un rol nuevo **no puede hacer nada** hasta que se le agregue explícitamente a cada acción, y que un endpoint que se cree mañana le queda cerrado sin que nadie tenga que acordarse de prohibírselo. Cuando agregues un rol, la seguridad no depende de enumerar prohibiciones sino de ser avaro con los permisos.
+
+Dos listas tienen que ir a la par, y el backend es el que manda: `$roles_validos` en `acciones/crear_usuario.php` y `rolesQuePuedeCriar()` en `controllers/AuthController.js`. Un rol que falte en la segunda simplemente no se puede dar de alta desde la interfaz.
+
+`rol_alcance_global($rol)` en `api.php` responde *"¿qué escuelas ve?"*, **nunca** *"¿qué puede modificar?"*. Se usa en las 4 ramas de alcance de `cargar_datos.php`. No la uses para decidir permisos de escritura.
+
+**`soporte`** — atención a colegios. Ve cualquier escuela y es **estrictamente de lectura**: solo aparece en `buscar_global.php` y `listar_logs.php`. Menú: Búsqueda Global, Logs, Métricas Globales. Aterriza en Búsqueda Global vía `VISTA_INICIAL_POR_ROL` en `app.js` (se aplica en el handler de login, no en el `useState` de `view`, porque ese inicializador corre cuando `user` todavía es `null`).
+
+**`provision`** — captura el identificador que el proveedor asigna a un colegio **después** de que `contador` aprueba sus documentos. Es el eslabón que faltaba entre dos máquinas de estado que nunca se hablaban: `escuelas.documentacion_estado` (`sin_enviar → en_revision → aprobada`) y `distribuidor_referidos.estado` (`prospecto → demo_agendada → implementacion → activo`). Ese segundo estado solo se movía a mano desde el panel de superadmin, y por eso `implementacion` y `demo_agendada` nunca se veían en uso. Al guardar el identificador, el renglón de referido pasa a `activo`.
+
+Dos decisiones a respetar:
+
+- El campo se llama `escuelas.proveedor_school_id` y **no** `BusinessID`, `SchoolID` ni `subEmisor`. En este repo esos tres términos ya se usan con valores distintos según el servicio (`PDT_BUS_ID_EFECTIVO` es `000002`, `PDT_BUS_ID_SPEI` es `000067` — ver 5.3ba/5.3bb). Hasta que Cobroscontarjeta.com confirme por escrito qué es, guardarlo como "el id que nos dio el proveedor" es más honesto que fingir que sabemos cuál de sus conceptos es.
+- **Ningún código de pagos lo usa todavía, a propósito.** Cambiar a dónde cae el dinero de un colegio con base en un identificador cuyo significado nadie confirmó sería imprudente. Ese paso va después de la confirmación del proveedor y se prueba con un cobro real de monto chico.
+
+**`tesoreria`** — cuentas por pagar a proveedores, del lado del dueño del sistema. El módulo de Gastos (5.3bc) nació como **historial**: un renglón se capturaba cuando el dinero ya había salido, así que no había dónde preguntar "¿a quién le tengo que pagar este mes?". La migración agrega `gastos.fecha_vencimiento`, `gastos.estado`, `gastos.fecha_pago` y `proveedores.dia_pago_mes`.
+
+`gastos.estado` tiene `DEFAULT 'pagado'` y no `'pendiente'`, a propósito: las filas que ya existen se capturaron con el dinero ya fuera. Con el default al revés, todo el historial aparecería de golpe como deuda viva.
+
+El panel mezcla dos fuentes: los gastos `pendiente` (deuda concreta con monto) y los proveedores con `dia_pago_mes` que **todavía no tienen gasto capturado** ese mes — sin esto, el calendario se vería vacío justo antes de cada pago recurrente, que es cuando más falta hace.
+
+**Pendiente de decidir:** `proveedores` y `gastos` tienen `escuela_id NOT NULL`, así que hoy `tesoreria` ve las cuentas por pagar de **todas las escuelas**. Si lo que quieres llevar ahí son los proveedores de PagaLaEscuela misma (hosting, el propio Cobroscontarjeta.com), hace falta o un renglón de inquilino para la plataforma, o volver `escuela_id` nullable para gastos de plataforma.
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.

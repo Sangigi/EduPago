@@ -64,7 +64,7 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost }) {
   const rolLabel = {
     superadmin: 'Superadministrador', admin: 'Administrador',
     cajero: 'Cajero', familia: 'Familia', distribuidor: 'Distribuidor',
-    contador: 'Contador', soporte: 'Soporte', provision: 'Provisión'
+    contador: 'Contador', soporte: 'Soporte', provision: 'Provisión', tesoreria: 'Tesorería'
   }[user.rol] || user.rol;
 
   // El logo de la escuela (admin/superadmin) se edita dentro de "Editar mi
