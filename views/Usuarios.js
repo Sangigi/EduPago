@@ -523,7 +523,14 @@ function Usuarios({ user, data }) {
     distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   },
     // Revisa documentos fiscales y datos de alta de comercio de cualquier
     // escuela (11-sep-2026) -- sin los demás poderes de superadmin.
-    contador:     { label: 'Contador',     icon: 'shield', color: '#0891b2', bg: 'rgba(8,145,178,.15)', badge: 'badge-blue'   }
+    contador:     { label: 'Contador',     icon: 'shield', color: '#0891b2', bg: 'rgba(8,145,178,.15)', badge: 'badge-blue'   },
+    // Atención a colegios (22-sep-2026): ve cualquier escuela para poder
+    // diagnosticar, pero es estrictamente de lectura — no aparece en la lista
+    // de roles permitidos de ninguna acción que escriba.
+    soporte:      { label: 'Soporte',      icon: 'info',   color: '#6366f1', bg: 'rgba(99,102,241,.15)', badge: 'badge-blue'  },
+    // Captura el identificador que el proveedor asigna al colegio tras la
+    // aprobación del contador, y con eso lo activa (22-sep-2026).
+    provision:    { label: 'Provisión',    icon: 'settings', color: '#f97316', bg: 'rgba(249,115,22,.15)', badge: 'badge-amber' }
   };
 
   // Crea una familia sin salir del modal de "nuevo usuario" — antes había

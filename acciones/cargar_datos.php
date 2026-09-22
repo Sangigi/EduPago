@@ -25,11 +25,16 @@
         // Superadmin: si no especifica una escuela concreta, solo recibe el
         // catálogo de escuelas + conteos por escuela (resumen liviano), no el
         // detalle de alumnos/familias/productos/cobros de TODAS las escuelas.
-        $escuela_id_ver = $rol === 'superadmin'
+        // rol_alcance_global() en vez de comparar con 'superadmin' a mano
+        // (22-sep-2026, ver api.php): estas ramas deciden QUÉ ESCUELAS ve el
+        // usuario, no qué puede hacer. 'soporte' también las ve todas, pero
+        // sigue sin poder escribir nada — eso lo decide requerir_rol() en cada
+        // acción, que es default-deny.
+        $escuela_id_ver = rol_alcance_global($rol)
             ? (intval($input['escuela_id_ver'] ?? $_GET['escuela_id_ver'] ?? 0) ?: null)
             : $escuela_id_usuario;
         // ── Escuelas ──
-        if ($rol === 'superadmin') {
+        if (rol_alcance_global($rol)) {
             $stmt = $pdo->query("SELECT * FROM escuelas ORDER BY id");
         } else {
             $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ? OR escuela_padre_id = ?");
@@ -73,7 +78,7 @@
         //    de superadmin y para el desglose por plantel sin cargar el detalle
         //    completo de cada escuela) ──
         $resumen_escuelas = [];
-        if ($rol === 'superadmin') {
+        if (rol_alcance_global($rol)) {
             $rs = $pdo->query(
                 "SELECT escuela_id, COUNT(*) AS total_alumnos, SUM(saldo_pendiente) AS saldo_total
                  FROM clientes GROUP BY escuela_id"
@@ -107,8 +112,8 @@
                 $resumen_escuelas[$eid]['num_cobros_90d'] += intval($row['n']);
             }
         }
-        if ($escuela_id_ver === null && $rol === 'superadmin') {
-            // Superadmin sin escuela seleccionada: responde solo lo liviano.
+        if ($escuela_id_ver === null && rol_alcance_global($rol)) {
+            // Superadmin/soporte sin escuela seleccionada: solo lo liviano.
             respond([
                 'success'          => true,
                 'escuelas'         => $escuelas,

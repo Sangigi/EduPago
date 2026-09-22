@@ -1,5 +1,7 @@
 <?php
-        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el superadmin puede ver los logs del sistema.');
+        // 'soporte' incluido (22-sep-2026): sin el log no puede diagnosticar nada.
+        // Es de solo lectura; borrar o archivar logs sigue siendo de superadmin.
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'soporte'], 'No tienes permiso para ver los logs del sistema.');
         $pagina_lg    = max(1, intval($input['pagina'] ?? $_GET['pagina'] ?? 1));
         $por_pagina_lg = max(1, min(intval($input['por_pagina'] ?? $_GET['por_pagina'] ?? 25), 200));
         $offset_lg    = ($pagina_lg - 1) * $por_pagina_lg;

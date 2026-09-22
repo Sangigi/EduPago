@@ -81,7 +81,11 @@ const AuthController = (() => {
 
   // Roles que puede crear según jerarquía
   function rolesQuePuedeCriar(user) {
-    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia','distribuidor','contador'];
+    // 'soporte' y 'provision' (22-sep-2026). Esta lista tiene que ir a la par
+    // de $roles_validos en acciones/crear_usuario.php: el backend es quien
+    // manda, así que un rol que falte aquí simplemente no se puede dar de alta
+    // desde la interfaz aunque el backend lo acepte.
+    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia','distribuidor','contador','soporte','provision'];
     if (user?.rol === 'admin')      return ['cajero','familia'];
     return [];
   }

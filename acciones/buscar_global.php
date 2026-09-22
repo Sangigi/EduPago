@@ -2,7 +2,10 @@
         // Búsqueda cruzando TODAS las escuelas — solo superadmin. Sirve para
         // soporte: "no encuentro a mi hijo/mi cuenta" sin adivinar en qué
         // colegio está.
-        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede usar la búsqueda global.');
+        // 'soporte' incluido (22-sep-2026): es la herramienta central de atención —
+        // encontrar un alumno, una familia o un pago de cualquier colegio. Es de
+        // solo lectura, no expone ninguna acción.
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'soporte'], 'No tienes permiso para usar la búsqueda global.');
         $q = trim($input['q'] ?? $_GET['q'] ?? '');
         if (mb_strlen($q) < 3) {
             respond(['success' => false, 'error' => 'Escribe al menos 3 caracteres para buscar.']);

@@ -28,6 +28,13 @@ var _jsxDEV = function(type, props, key, _s, _src, _self) {
 
 
 
+// Sección a la que aterriza cada rol al entrar. Solo hace falta listar los
+// roles cuya primera sección NO es 'dashboard' (el resto usa ese valor por
+// omisión). Si agregas un rol al menú, revisa si necesita una entrada aquí:
+// aterrizar en una sección que su propio menú no incluye se ve como una
+// pantalla en blanco, sin ningún mensaje de error que lo explique.
+const VISTA_INICIAL_POR_ROL = { soporte: 'busqueda_global' };
+
 const NAV_ITEMS = [{
 
   id: 'dashboard',
@@ -212,7 +219,7 @@ const NAV_ITEMS = [{
 
   section: 'superadmin',
 
-  roles: ['superadmin']
+  roles: ['superadmin', 'soporte']
 
 }, {
 
@@ -224,7 +231,7 @@ const NAV_ITEMS = [{
 
   section: 'superadmin',
 
-  roles: ['superadmin']
+  roles: ['superadmin', 'soporte']
 
 }, {
 
@@ -306,7 +313,7 @@ const NAV_ITEMS = [{
 
   section: 'superadmin',
 
-  roles: ['superadmin']
+  roles: ['superadmin', 'soporte']
 
 }];
 
@@ -917,7 +924,14 @@ function App() {
 
 
 
-    setView('dashboard');
+    // La vista de aterrizaje depende del rol (22-sep-2026). Antes era
+    // 'dashboard' fijo, pero esa sección no está en el menú de todos los
+    // roles: 'soporte' caía en una pantalla que su navegación no incluye —
+    // sin error visible, solo una vista que no le toca y sin forma obvia de
+    // salir. Va aquí, en el login, y no en el useState de `view`, porque ese
+    // inicializador corre una sola vez cuando `user` todavía es null.
+
+    setView(VISTA_INICIAL_POR_ROL[u.rol] || 'dashboard');
 
 
 
@@ -1187,6 +1201,34 @@ function App() {
     return _jsxDEV(
 
       Contador,
+
+      {
+
+        user: user,
+
+        onLogout: handleLogout
+
+      },
+
+      void 0,
+
+      false
+
+    );
+
+  }
+
+  // * PANEL PROVISIÓN (22-sep-2026) * Mismo patrón que Contador: sin
+  // escuela_id propia, trae su data con action=provision_listar_pendientes.
+  // Captura el identificador que el proveedor asigna al colegio DESPUÉS de
+  // que el contador aprueba sus documentos — son dos personas y dos pasos
+  // distintos, por eso es un rol aparte y no una pestaña más del contador.
+
+  if (user.rol === 'provision') {
+
+    return _jsxDEV(
+
+      Provision,
 
       {
 

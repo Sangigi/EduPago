@@ -307,6 +307,24 @@ function requerir_rol($rol_actual, array $roles_permitidos, $mensaje = 'No tiene
         respond(['success' => false, 'error' => $mensaje]);
     }
 }
+// Roles de PLATAFORMA que ven TODAS las escuelas, no una sola (22-sep-2026).
+//
+// Es una pregunta de ALCANCE de lectura, no de permiso para actuar: responde
+// "¿qué escuelas puede ver este usuario?", nunca "¿puede modificarlas?". Cada
+// acción sigue decidiendo lo suyo con requerir_rol(), que es default-deny —
+// un rol que no esté en su lista queda bloqueado aunque vea los datos.
+//
+// Existe para no repetir `$rol === 'superadmin'` en las ramas de alcance de
+// cargar_datos.php: ese patrón hacía que agregar un rol de plataforma
+// obligara a cazar cada comparación suelta, y olvidar una dejaba al rol
+// nuevo viendo una lista de escuelas vacía sin ningún error visible.
+//
+// 'soporte' entra aquí porque su trabajo es justamente mirar cualquier
+// colegio para responderle a quien llama; lo que NO puede es escribir nada,
+// y eso lo garantiza su ausencia de las listas de requerir_rol().
+function rol_alcance_global($rol_actual) {
+    return in_array($rol_actual, ['superadmin', 'soporte'], true);
+}
 // Requiere que $rol_actual sea 'superadmin' O que $escuela_id_fila coincida
 // con la escuela del usuario — el patrón "superadmin ve todo, los demás solo
 // lo de su propia escuela" repetido en checks de pertenencia sobre cobros,

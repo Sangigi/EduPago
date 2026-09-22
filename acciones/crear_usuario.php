@@ -12,7 +12,16 @@
         // demás), pero no tiene el resto de los poderes de superadmin
         // (no edita planes, no activa demo, no ve reportes globales). Solo
         // superadmin puede crear esta cuenta, igual que distribuidor.
-        if ($rol_actual === 'superadmin') { $roles_validos[] = 'superadmin'; $roles_validos[] = 'distribuidor'; $roles_validos[] = 'contador'; }
+        // 'soporte' (22-sep-2026): personal de PagaLaEscuela que atiende a los
+        // colegios. Ve CUALQUIER escuela para poder responder "¿qué pasó con
+        // este pago?", pero es estrictamente de LECTURA: no aparece en la
+        // lista de roles permitidos de ninguna acción que escriba, y como
+        // requerir_rol() es default-deny, todo lo demás le queda bloqueado sin
+        // tener que enumerarlo. Ver rol_alcance_global() en api.php.
+        //
+        // usuarios.rol es VARCHAR desde migracion_2026_09_11_rol_contador.sql,
+        // así que un rol nuevo NO necesita migración.
+        if ($rol_actual === 'superadmin') { $roles_validos[] = 'superadmin'; $roles_validos[] = 'distribuidor'; $roles_validos[] = 'contador'; $roles_validos[] = 'soporte'; $roles_validos[] = 'provision'; }
         if (!$nombre || !$email || !in_array($rol, $roles_validos)) {
             respond(['success' => false, 'error' => 'Datos incompletos o rol no permitido']);
         }
@@ -32,7 +41,11 @@
             $zNom->execute([$zona_id]);
             $zona = $zNom->fetchColumn() ?: $zona;
         }
-        if ($rol === 'distribuidor' || $rol === 'contador') { $esc_id = null; $fam_id = null; }
+        // Roles de PLATAFORMA: no pertenecen a ninguna escuela ni familia, su
+        // trabajo es mirar o atender a TODAS. Dejarles un escuela_id los
+        // encerraría en ese colegio y les vaciaría su propia pantalla.
+        // 'soporte' y 'provision' se sumaron el 22-sep-2026.
+        if (in_array($rol, ['distribuidor', 'contador', 'soporte', 'provision'], true)) { $esc_id = null; $fam_id = null; }
         // Verificar email único
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);

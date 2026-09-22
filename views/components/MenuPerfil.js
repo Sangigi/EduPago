@@ -58,9 +58,13 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost }) {
   const iniciales = (user.nombre || '?').trim().split(/\s+/).slice(0, 2)
     .map(w => w[0]).join('').toUpperCase();
 
+  // 'contador' y 'soporte' se agregaron aquí el 22-sep-2026: faltaban, así que
+  // a esas cuentas el menú de perfil les mostraba el valor crudo de la columna
+  // ("contador" en minúsculas) en vez de una etiqueta legible.
   const rolLabel = {
     superadmin: 'Superadministrador', admin: 'Administrador',
-    cajero: 'Cajero', familia: 'Familia', distribuidor: 'Distribuidor'
+    cajero: 'Cajero', familia: 'Familia', distribuidor: 'Distribuidor',
+    contador: 'Contador', soporte: 'Soporte', provision: 'Provisión'
   }[user.rol] || user.rol;
 
   // El logo de la escuela (admin/superadmin) se edita dentro de "Editar mi
