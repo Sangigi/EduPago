@@ -23,6 +23,13 @@
 --
 -- INVARIANTE: estado='pagado' <=> monto_pagado >= total.
 --
+-- >>> SI YA CORRISTE ESTE ARCHIVO ANTES DEL 22-sep-2026, NO LO VUELVAS A
+-- >>> CORRER: corre migracion_2026_09_22_idem_key.sql en su lugar. La llave
+-- >>> de idempotencia de cobro_abonos se corrigió después (ver el UNIQUE de
+-- >>> hasta abajo), y ese parche es el que aplica el cambio sobre una tabla
+-- >>> que ya existe. Este archivo, tal como está, solo sirve para una
+-- >>> instalación desde cero.
+--
 -- CÓMO CORRERLA: pegar en phpMyAdmin y ejecutar UNA SOLA VEZ, completa.
 --
 -- >>> CUIDADO con el paso 2: NO es idempotente. <<<
