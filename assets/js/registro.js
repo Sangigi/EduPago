@@ -23,8 +23,8 @@
   // (api.php). ¡Revertir a 999/1500/3000 antes de dar de alta colegios reales!
   var PLANES = {
     basico:   { label: 'Básico',   precio: 50,  detalle: 'Hasta 400 alumnos, 1 plantel' },
-    avanzado: { label: 'Avanzado', precio: 50, detalle: 'Hasta 800 alumnos, 1 plantel' },
-    pro:      { label: 'Pro',      precio: 50, detalle: 'Alumnos y planteles ilimitados' },
+    avanzado: { label: 'Avanzado', precio: 55, detalle: 'Hasta 800 alumnos, 1 plantel' },
+    pro:      { label: 'Pro',      precio: 60, detalle: 'Alumnos y planteles ilimitados' },
   };
 
   function esc(t) {
