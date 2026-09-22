@@ -19,8 +19,8 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
 // (api.php). ¡Revertir a 999/1500/3000 antes de dar de alta colegios reales!
 const PLANES_INFO_MS = {
   basico:   { label: 'Básico',   precio: 50,  max_alumnos: 400,  max_planteles: 1 },
-  avanzado: { label: 'Avanzado', precio: 50, max_alumnos: 800,  max_planteles: 1 },
-  pro:      { label: 'Pro',      precio: 50, max_alumnos: null, max_planteles: null },
+  avanzado: { label: 'Avanzado', precio: 55, max_alumnos: 800,  max_planteles: 1 },
+  pro:      { label: 'Pro',      precio: 60, max_alumnos: null, max_planteles: null },
 };
 
 function MiSuscripcion({ escuela, user, onIrA }) {
