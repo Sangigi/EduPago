@@ -18,8 +18,8 @@ require_once __DIR__ . '/lib/uploads.php';
 // precios reales (999 / 1500 / 3000) antes de dar de alta colegios de verdad!
 const PLANES_LIMITES = [
     'basico'   => ['precio' => 50.00,  'max_alumnos' => 400, 'max_planteles' => 1,    'label' => 'Básico'],
-    'avanzado' => ['precio' => 50.00, 'max_alumnos' => 800, 'max_planteles' => 1,    'label' => 'Avanzado'],
-    'pro'      => ['precio' => 50.00, 'max_alumnos' => null, 'max_planteles' => null, 'label' => 'Pro'],
+    'avanzado' => ['precio' => 55.00, 'max_alumnos' => 800, 'max_planteles' => 1,    'label' => 'Avanzado'],
+    'pro'      => ['precio' => 60.00, 'max_alumnos' => null, 'max_planteles' => null, 'label' => 'Pro'],
 ];
 // Plan de respaldo si `escuelas.plan` trae un valor no reconocido (typo,
 // dato viejo tipo 'free' que ya no existe como plan real, etc.) — se usa el
