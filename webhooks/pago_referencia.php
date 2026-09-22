@@ -292,7 +292,7 @@ try {
                 // webhook_liga.php): sin esto cobros.metodo se quedaba vacío
                 // para todo pago agrupado en efectivo y la gráfica de "por
                 // método" lo perdía en "Otro / sin método".
-                $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'EfectivoRef', auth_code = ?, referencia = ? WHERE id IN ($inPlaceholders)")
+                $pdo->prepare("UPDATE cobros SET estado = 'pagado', monto_pagado = total, metodo = 'EfectivoRef', auth_code = ?, referencia = ? WHERE id IN ($inPlaceholders)")
                     ->execute(array_merge([$autorizacionGrp, $referencia], $idsDetalle));
             }
             if (!empty($grp['cliente_id'])) recalcular_saldo_pendiente($pdo, intval($grp['cliente_id']));
@@ -524,6 +524,27 @@ try {
     if ($resAbono['duplicado']) {
         $pdo->rollBack();
         log_ref_pago("abono duplicado (idempotente): {$referencia} transaccion:{$transaccion}");
+        // Igual que en pago_clabe.php: se responde 0 para no provocar una
+        // devolución de un pago que sí tenemos, pero queda la fila por si el
+        // "duplicado" era en realidad un segundo pago real. El UNIQUE
+        // (canal, transaccion) colapsa los reintentos legítimos en un renglón
+        // con `intentos` subiendo. Después del rollBack, regla 1.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'efectivo',
+            'motivo'         => 'duplicado_idempotente',
+            'referencia'     => $referencia,
+            // '-dup': ver la nota en pago_clabe.php. Sin el sufijo, el UNIQUE
+            // (canal, transaccion) haría que este aviso se fundiera con el de
+            // otra rama que ya hubiera escrito la misma transacción.
+            'transaccion'    => $transaccion !== '' ? $transaccion . '-dup' : '',
+            'auth_code'      => $cobro['auth_code'] ?: $autorizacion,
+            'monto_recibido' => $monto_cent / 100,
+            'monto_esperado' => $monto_esperado_cent / 100,
+            'cliente_id'     => $cobro['cliente_id'] ?? null,
+            'cobro_id'       => $cobro['id'],
+            'escuela_id'     => $cobro['escuela_id'] ?? null,
+            'payload_raw'    => $raw,
+        ]);
         responder_pago(0, 'Operación exitosa', $cobro['auth_code'] ?: $autorizacion, $transaccion);
     }
 

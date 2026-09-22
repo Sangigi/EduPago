@@ -276,6 +276,13 @@ function Cobros({
     solicitud_cerrada:     'La solicitud ya estaba cerrada',
     huerfana_cobrada:      'Cargo aprobado por el banco que no se pudo conciliar',
     huerfana_no_aprobada:  'Aviso de pago no aprobado, sin cobro asociado',
+    sobrepago:             'Se pagó de más: el excedente no se aplicó a ningún cobro',
+    monto_distinto_aplicado:'Llegó un importe distinto al de la liga; se aplicó como abono',
+    // Casi siempre es ruido: el proveedor reintenta la misma notificación y el
+    // sistema la ignora, que es lo correcto. Se lista de todos modos porque si
+    // el importe no cuadra con lo ya acreditado, puede ser un pago REAL que se
+    // confundió con un reintento — y ese sí hay que aplicarlo a mano.
+    duplicado_idempotente: 'Aviso repetido del proveedor (ya estaba acreditado) — revisar solo si el importe no cuadra',
   };
   const CANAL_TXT = { spei: 'SPEI', efectivo: 'Efectivo en tienda', tarjeta: 'Tarjeta' };
 

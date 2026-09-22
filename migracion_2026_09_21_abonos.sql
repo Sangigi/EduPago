@@ -23,9 +23,16 @@
 --
 -- INVARIANTE: estado='pagado' <=> monto_pagado >= total.
 --
--- Cómo correrla: pegar en phpMyAdmin y ejecutar. Si el ALTER TABLE falla con
--- "Duplicate column name 'monto_pagado'", esa línea ya se había corrido:
--- bórrala y ejecuta el resto. (Este MySQL no soporta ADD COLUMN IF NOT EXISTS.)
+-- CÓMO CORRERLA: pegar en phpMyAdmin y ejecutar UNA SOLA VEZ, completa.
+--
+-- >>> CUIDADO con el paso 2: NO es idempotente. <<<
+-- Si vuelves a ejecutar este archivo DESPUÉS de que ya haya abonos
+-- parciales registrados, el paso 2 pisará monto_pagado de cobros que
+-- estaban a medias y los dará por cubiertos. Si el ALTER del paso 1 falla
+-- con "Duplicate column name 'monto_pagado'", significa que esta migración
+-- YA SE CORRIÓ: no ejecutes nada más de este archivo. (Este MySQL no
+-- soporta ADD COLUMN IF NOT EXISTS, por eso el paso 1 falla en vez de
+-- ignorarse.)
 -- ════════════════════════════════════════════════════════════════════════
 
 -- 1. Cuánto se lleva pagado de cada cobro. 0.00 = nada (el estado normal
@@ -58,6 +65,10 @@ CREATE TABLE IF NOT EXISTS cobro_abonos (
   transaccion_proveedor VARCHAR(64) DEFAULT NULL,
   auth_code VARCHAR(32) DEFAULT NULL,
 
+  -- Llave de idempotencia REAL (ver el UNIQUE de abajo). La calcula
+  -- construir_idem_key() en lib/helpers_pagos.php; aquí solo se guarda.
+  idem_key CHAR(40) DEFAULT NULL,
+
   -- 'webhook_spei' | 'webhook_referencia' | 'webhook_liga' | 'caja' | ...
   origen VARCHAR(30) DEFAULT NULL,
   -- Usuario que lo registró, cuando fue a mano desde Caja. NULL = automático.
@@ -70,9 +81,24 @@ CREATE TABLE IF NOT EXISTS cobro_abonos (
   KEY idx_cliente (cliente_id),
   KEY idx_creado (creado_en),
 
-  -- Idempotencia: si el proveedor reenvía la MISMA transacción, el segundo
+  KEY idx_transaccion (transaccion_proveedor),
+
+  -- Idempotencia: si el proveedor reenvía la MISMA notificación, el segundo
   -- INSERT falla en vez de abonar dos veces el mismo dinero. Varios NULL no
-  -- chocan entre sí en MySQL, así que los abonos manuales (sin transacción)
-  -- no se estorban.
-  UNIQUE KEY uq_transaccion (transaccion_proveedor)
+  -- chocan entre sí en MySQL, así que los abonos manuales (sin llave) no se
+  -- estorban.
+  --
+  -- La llave NO es transaccion_proveedor a secas, y esa fue una decisión
+  -- deliberada: ese campo no está garantizado como único entre canales. En
+  -- los logs de producción se han visto `transaccion` cortos y repetibles
+  -- (del estilo "101"), así que un UNIQUE global sobre esa sola columna
+  -- habría hecho que un pago legítimo de efectivo se descartara en silencio
+  -- como "duplicado" nada más porque un pago de SPEI ya había usado ese
+  -- mismo número. Perder un pago real es peor que registrar uno de más.
+  --
+  -- Por eso la llave es un hash de (canal | referencia o CLABE | transacción
+  -- | centavos | fecha del proveedor): un reintento del proveedor reproduce
+  -- los cinco valores y choca, mientras que dos pagos distintos que casualmente
+  -- compartan `transaccion` difieren en el canal, el importe o la fecha.
+  UNIQUE KEY uq_idem (idem_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

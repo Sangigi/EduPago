@@ -5,7 +5,7 @@
         if (!$folio) respond(['success' => false, 'error' => 'folio requerido']);
         // Confirmar que el folio corresponde a un cobro real pendiente antes
         // de gastar una llamada al proveedor — evita generar ligas huérfanas.
-        $stmtCob = $pdo->prepare("SELECT id, cliente_id, escuela_id, total FROM cobros WHERE folio = ? AND estado = 'pendiente'");
+        $stmtCob = $pdo->prepare("SELECT id, cliente_id, escuela_id, total, monto_pagado FROM cobros WHERE folio = ? AND estado = 'pendiente'");
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
@@ -31,7 +31,12 @@
         // El monto a cobrar SIEMPRE sale del total real del cobro en BD, nunca
         // del request — antes se usaba $input['total'] directo, permitiendo
         // pagar cualquier adeudo real cobrando solo el mínimo permitido.
-        $total = floatval($cobroRow['total']);
+        // Lo que falta, NO el total original (21-sep-2026). Desde que existen
+        // los abonos un cobro pendiente puede estar parcialmente cubierto: si
+        // aquí se cobrara `total`, a una familia que ya abonó $5 de $50 se le
+        // cobrarían los $50 completos con la tarjeta. Reportado en producción.
+        $total = round(floatval($cobroRow['total']) - floatval($cobroRow['monto_pagado'] ?? 0), 2);
+        if ($total <= 0) respond(['success' => false, 'error' => 'Este cobro ya está cubierto.']);
         if ($total < 50) respond(['success' => false, 'error' => 'Monto mínimo $50.00 (mínimo de Cobroscontarjeta.com)']);
         if ($total > 15000) respond(['success' => false, 'error' => 'Monto máximo $15,000.00 (máximo de Cobroscontarjeta.com)']);
         if (!$cliente_id) $cliente_id = $cobroRow['cliente_id'] ? intval($cobroRow['cliente_id']) : null;
@@ -110,6 +115,10 @@
             'url'        => $url_pago,
             'referencia' => $ref,
             'cobro_id'   => intval($cobroRow['id']),
+            // Monto real de la liga (total menos lo ya abonado), para que el
+            // frontend muestre lo que se va a cobrar y no la deuda original.
+            'total'      => $total,
+            'abonado'    => round(floatval($cobroRow['monto_pagado'] ?? 0), 2),
             'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
             // true: PLE_URL_LIGA_TOKEN sí tokeniza la tarjeta — el webhook
             // (webhook_liga.php) guardará number_tkn/exp si el proveedor lo

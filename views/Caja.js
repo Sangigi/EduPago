@@ -633,7 +633,11 @@ function Caja({
     abrirComprobanteEfectivoModulo({
       cobro: {
         folio: cobroActivo.folio,
-        total: cobroActivo.total,
+        // efvRefInfo.total es el importe que el backend realmente mandó a la
+        // tienda (total - monto_pagado). En un cobro nuevo coincide con
+        // cobroActivo.total, pero si el cobro ya traía un abono parcial,
+        // imprimir cobroActivo.total le pediría al padre la deuda original.
+        total: efvRefInfo.total != null ? Number(efvRefInfo.total) : cobroActivo.total,
         descripcion: cobroActivo.descripcion,
         items: cobroActivo.items,
         referencia: efvRefInfo.referencia,

@@ -22,14 +22,18 @@
         // El cobro debe pertenecer a ESTE mismo alumno — antes solo se
         // validaba folio+pendiente, permitiendo saldar el adeudo de un alumno
         // cobrando la tarjeta domiciliada de otro completamente distinto.
-        $stmtCob = $pdo->prepare("SELECT id, total FROM cobros WHERE folio = ? AND estado = 'pendiente' AND cliente_id = ?");
+        $stmtCob = $pdo->prepare("SELECT id, total, monto_pagado FROM cobros WHERE folio = ? AND estado = 'pendiente' AND cliente_id = ?");
         $stmtCob->execute([$folio, $cliente_id]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio para este alumno']);
         // El monto a cobrar sale del total real del cobro, nunca del request
         // — antes $total venía de $input y se mandaba tal cual a la pasarela,
         // desligado por completo de lo que el cobro realmente debía.
-        $total = floatval($cobroRow['total']);
+        // Menos lo ya abonado (21-sep-2026): con abonos parciales, cobros.total
+        // es la deuda ORIGINAL. Sin restar monto_pagado, a quien ya abonó $5 de
+        // $50 la tarjeta domiciliada le volvería a cobrar los $50 completos.
+        $total = round(floatval($cobroRow['total']) - floatval($cobroRow['monto_pagado'] ?? 0), 2);
+        if ($total <= 0) respond(['success' => false, 'error' => 'Este cobro ya está cubierto.']);
         // cobrar_via_token (lib/helpers_pagos.php) arma el payload, llama al
         // proveedor y ya recalcula saldo_pendiente — compartida con el cobro
         // automático de recurrentes en cron_recordatorios.php, para no

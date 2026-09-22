@@ -114,7 +114,7 @@ try {
         responder(30, 'Monto no coincide con el cobro pendiente');
     }
 
-    $update = $pdo->prepare("UPDATE cobros SET estado = 'pagado', auth_code = ?, fecha = CURRENT_DATE WHERE id = ?");
+    $update = $pdo->prepare("UPDATE cobros SET estado = 'pagado', monto_pagado = total, auth_code = ?, fecha = CURRENT_DATE WHERE id = ?");
     $update->execute([$clave_rastreo, $cobro['id']]);
 
     if ($cobro['cliente_id']) {

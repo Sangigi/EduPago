@@ -131,7 +131,10 @@ if (!$reference) {
 }
 
 try {
-    $stmt = $pdo->prepare("SELECT id, cliente_id, total, estado, auth_code FROM cobros WHERE referencia = ? ORDER BY id DESC LIMIT 1");
+    // escuela_id va en el SELECT porque las filas de pagos_no_aplicados que se
+    // escriben más abajo lo necesitan para quedar atribuidas a un colegio; sin
+    // él, un admin no veía en su panel los avisos de sus propios cobros.
+    $stmt = $pdo->prepare("SELECT id, cliente_id, escuela_id, total, estado, auth_code FROM cobros WHERE referencia = ? ORDER BY id DESC LIMIT 1");
     $stmt->execute([$reference]);
     $cobro = $stmt->fetch();
 
@@ -409,7 +412,12 @@ try {
                     // tarjeta, así que la gráfica de "por método" (Dashboard/Reportes)
                     // los perdía en "Otro / sin método" en vez de "Tarjeta".
                     $pdo->prepare(
-                        "UPDATE cobros SET estado = 'pagado', metodo = 'TC', auth_code = ?, referencia = ?
+                        // monto_pagado = total: sostiene el invariante
+                        // estado='pagado' <=> monto_pagado >= total. Sin esto,
+                        // los cobros de un grupo quedaban 'pagado' con
+                        // monto_pagado en 0.00 y descuadraban el saldo del
+                        // alumno, que ahora suma (total - monto_pagado).
+                        "UPDATE cobros SET estado = 'pagado', monto_pagado = total, metodo = 'TC', auth_code = ?, referencia = ?
                           WHERE id IN ($inPlaceholders)"
                     )->execute(array_merge([$auth ?: $foliocpagos, $refBuscarGrp], $idsDetalle));
                 }
@@ -506,6 +514,26 @@ try {
     if ($resAbono['duplicado']) {
         $pdo->rollBack();
         log_api_liga("LIGA abono duplicado (idempotente) -> cobro_id:{$cobro['id']} folio_cct:{$foliocpagos}");
+        // Mismo criterio que los otros dos webhooks: se confirma para no
+        // disparar una devolución, pero queda la fila por si el "duplicado"
+        // encubría un cargo real. Los reintentos legítimos se colapsan en un
+        // renglón gracias al UNIQUE (canal, transaccion). Después del rollBack.
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'tarjeta',
+            'motivo'         => 'duplicado_idempotente',
+            'referencia'     => $reference,
+            // '-dup': ver la nota en pago_clabe.php. Sin el sufijo, el UNIQUE
+            // (canal, transaccion) haría que este aviso se fundiera con el de
+            // otra rama que ya hubiera escrito este mismo foliocpagos.
+            'transaccion'    => $foliocpagos !== '' ? $foliocpagos . '-dup' : '',
+            'auth_code'      => $auth,
+            'monto_recibido' => $monto_recibido,
+            'monto_esperado' => floatval($cobro['total']),
+            'cliente_id'     => $cobro['cliente_id'] ?? null,
+            'cobro_id'       => $cobro['id'],
+            'escuela_id'     => $cobro['escuela_id'] ?? null,
+            'payload_raw'    => $raw,
+        ]);
         responder_liga(true, 'Ya estaba confirmado (reintento idempotente)');
     }
 

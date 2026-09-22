@@ -31,15 +31,63 @@ function recalcular_saldo_pendiente(PDO $pdo, int $cliente_id): void
 }
 
 /**
+ * Llave de idempotencia de un abono.
+ *
+ * A propósito NO es `transaccion` a secas. Ese campo lo pone el proveedor y
+ * no está garantizado como único entre canales: en los logs de producción se
+ * han visto valores cortos y repetibles (del estilo "101"). Con un UNIQUE
+ * global sobre esa sola columna, un pago real de efectivo se habría
+ * descartado en silencio como "duplicado" nada más porque un pago de SPEI ya
+ * había usado ese mismo número — y perder un pago real es peor que
+ * registrar uno de más.
+ *
+ * Se combinan cinco valores que un REINTENTO del proveedor reproduce idénticos
+ * (mismo canal, misma referencia/CLABE, misma transacción, mismo importe,
+ * misma fecha), pero que dos pagos genuinamente distintos casi nunca comparten
+ * los cinco a la vez.
+ *
+ * `fecha` es la que manda el proveedor cuando viene en el payload. Si no
+ * viene, se usa la de hoy: un reintento llega en segundos o minutos, así que
+ * cae el mismo día y la llave sigue chocando como debe.
+ *
+ * Devuelve '' cuando no hay transacción (abono manual desde Caja): ahí no hay
+ * nada que deduplicar y la columna queda NULL, que en MySQL no choca consigo
+ * misma.
+ */
+function construir_idem_key(array $d, int $monto_centavos): string
+{
+    // sin_idem: el renglón guarda la transacción del proveedor para poder
+    // conciliar, pero NO participa en la deduplicación. Lo usa el reparto de
+    // un depósito entre varios cobros (aplicar_abono_a_cliente): ahí los
+    // renglones 2 en adelante son pedazos de un depósito que ya quedó
+    // deduplicado por su renglón principal, y darles llave propia sería
+    // peligroso — el pedazo de $40 de un depósito de $100 generaría la misma
+    // llave que un depósito posterior de $40 del mismo día, canal, referencia
+    // y transacción, y ese segundo pago real se perdería como "duplicado".
+    if (!empty($d['sin_idem'])) return '';
+    $transaccion = trim(strval($d['transaccion'] ?? ''));
+    if ($transaccion === '') return '';
+    $fecha = trim(strval($d['fecha_proveedor'] ?? ''));
+    if ($fecha === '') $fecha = date('Y-m-d');
+    return sha1(implode('|', [
+        strtolower(trim(strval($d['origen'] ?? $d['metodo'] ?? ''))),
+        trim(strval($d['referencia'] ?? '')) !== '' ? trim(strval($d['referencia'])) : trim(strval($d['clabe'] ?? '')),
+        $transaccion,
+        (string) $monto_centavos,
+        $fecha,
+    ]));
+}
+
+/**
  * Abona dinero a UN cobro concreto.
  *
  * Debe llamarse DENTRO de una transacción, con el cobro ya bloqueado por el
  * llamador (SELECT ... FOR UPDATE): sin ese bloqueo, dos abonos simultáneos
  * sobre el mismo cobro pueden leer el mismo monto_pagado y perder uno.
  *
- * Idempotencia: si `transaccion` ya existe en cobro_abonos, NO vuelve a
- * abonar. El proveedor reintenta notificaciones, y sin esto un reintento
- * abonaría dos veces el mismo dinero real.
+ * Idempotencia: si la llave compuesta (ver construir_idem_key) ya existe en
+ * cobro_abonos, NO vuelve a abonar. El proveedor reintenta notificaciones, y
+ * sin esto un reintento abonaría dos veces el mismo dinero real.
  *
  * @return array{aplicado:float, sobrante:float, cubierto:bool, duplicado:bool}
  */
@@ -49,9 +97,13 @@ function aplicar_abono_a_cobro(PDO $pdo, int $cobro_id, float $monto, array $d =
     if ($monto <= 0) return $vacio;
 
     $transaccion = trim(strval($d['transaccion'] ?? ''));
-    if ($transaccion !== '') {
-        $chk = $pdo->prepare("SELECT id FROM cobro_abonos WHERE transaccion_proveedor = ? LIMIT 1");
-        $chk->execute([$transaccion]);
+    // La llave se calcula sobre el monto RECIBIDO, no sobre el que se termine
+    // aplicando: un reintento del proveedor reenvía el mismo importe original,
+    // así que es ese el que tiene que reproducir la llave.
+    $idem_key = construir_idem_key($d, intval(round($monto * 100)));
+    if ($idem_key !== '') {
+        $chk = $pdo->prepare("SELECT id FROM cobro_abonos WHERE idem_key = ? LIMIT 1");
+        $chk->execute([$idem_key]);
         if ($chk->fetch()) {
             $vacio['duplicado'] = true;
             return $vacio;
@@ -79,8 +131,8 @@ function aplicar_abono_a_cobro(PDO $pdo, int $cobro_id, float $monto, array $d =
     $pdo->prepare(
         "INSERT INTO cobro_abonos
             (cobro_id, cliente_id, escuela_id, monto, metodo, referencia, clabe,
-             transaccion_proveedor, auth_code, origen, registrado_por, notas)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             transaccion_proveedor, auth_code, origen, registrado_por, notas, idem_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )->execute([
         $cobro_id,
         $cobro['cliente_id'] ?: null,
@@ -94,6 +146,10 @@ function aplicar_abono_a_cobro(PDO $pdo, int $cobro_id, float $monto, array $d =
         isset($d['origen']) ? substr(strval($d['origen']), 0, 30) : null,
         isset($d['registrado_por']) && $d['registrado_por'] ? intval($d['registrado_por']) : null,
         isset($d['notas']) && $d['notas'] !== '' ? strval($d['notas']) : null,
+        // NULL y no '' cuando no hay transacción (abono manual): en MySQL
+        // varios NULL no chocan en un UNIQUE, varias cadenas vacías sí — con
+        // '' el segundo abono manual del sistema fallaría el INSERT.
+        $idem_key !== '' ? $idem_key : null,
     ]);
 
     // monto_pagado se recalcula SIEMPRE desde el libro mayor, nunca se suma
@@ -136,10 +192,12 @@ function aplicar_abono_a_cliente(PDO $pdo, int $cliente_id, float $monto, array 
     $res = ['aplicado' => 0.0, 'sobrante' => round($monto, 2), 'cobros' => [], 'duplicado' => false];
     if ($monto <= 0) return $res;
 
-    $transaccion = trim(strval($d['transaccion'] ?? ''));
-    if ($transaccion !== '') {
-        $chk = $pdo->prepare("SELECT id FROM cobro_abonos WHERE transaccion_proveedor = ? LIMIT 1");
-        $chk->execute([$transaccion]);
+    // Misma llave compuesta que aplicar_abono_a_cobro (ver construir_idem_key):
+    // se chequea aquí arriba para no repartir un depósito que ya se repartió.
+    $idem_key_cli = construir_idem_key($d, intval(round($monto * 100)));
+    if ($idem_key_cli !== '') {
+        $chk = $pdo->prepare("SELECT id FROM cobro_abonos WHERE idem_key = ? LIMIT 1");
+        $chk->execute([$idem_key_cli]);
         if ($chk->fetch()) {
             $res['duplicado'] = true;
             $res['sobrante']  = 0.0;
@@ -188,11 +246,15 @@ function aplicar_abono_a_cliente(PDO $pdo, int $cliente_id, float $monto, array 
     $restante = $monto;
     foreach ($ids as $i => $cid) {
         if ($restante <= 0.004) break;
-        // La transacción del proveedor solo puede ir en UN renglón (la llave
-        // única de cobro_abonos es global). Se le pone al primero; los demás
-        // quedan ligados por el auth_code y la fecha.
+        // La llave de idempotencia va SOLO en el primer renglón: es el que
+        // representa al depósito completo, y con él basta para que un reintento
+        // del proveedor rebote en el guard de arriba. Los renglones siguientes
+        // conservan la transacción del proveedor (la columna ya no es única,
+        // solo indexada) para que la conciliación los pueda rastrear, pero
+        // marcados con sin_idem para que no generen llave propia — ver el
+        // porqué en construir_idem_key().
         $datos = $d;
-        if ($i > 0) unset($datos['transaccion']);
+        if ($i > 0) $datos['sin_idem'] = true;
         $r = aplicar_abono_a_cobro($pdo, intval($cid), $restante, $datos);
         if ($r['aplicado'] > 0) {
             $res['aplicado'] += $r['aplicado'];
@@ -607,7 +669,7 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
 
     // referencia ya se guardó arriba (antes de llamar al proveedor) — aquí
     // solo falta marcar el cobro como pagado con el resto de la evidencia.
-    $pdo->prepare("UPDATE cobros SET estado = 'pagado', metodo = 'TC', auth_code = ?, cc_mask = ?, cc_type = ? WHERE id = ?")
+    $pdo->prepare("UPDATE cobros SET estado = 'pagado', monto_pagado = total, metodo = 'TC', auth_code = ?, cc_mask = ?, cc_type = ? WHERE id = ?")
         ->execute([$tx['auth'] ?? null, $ccMask ?: null, $ccType ?: null, $cobroId]);
     if ($ccMask || $ccType) {
         $pdo->prepare("UPDATE clientes SET token_tarjeta_mask = ?, token_tarjeta_tipo = ? WHERE id = ?")

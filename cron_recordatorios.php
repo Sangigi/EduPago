@@ -264,7 +264,12 @@ try {
     // cuenta (consulta lo que necesita internamente), no hacía falta
     // duplicar esos datos en esta consulta.
     $stmtCaiPend = $pdo->query(
-        "SELECT co.id AS cobro_id, co.total, co.escuela_id, co.cliente_id,
+        // (co.total - co.monto_pagado): el cargo automático cobra lo que
+        // FALTA, no la deuda original. Si el padre ya abonó por SPEI parte de
+        // una colegiatura recurrente, sin esto el cron le pasaría el monto
+        // completo a la tarjeta domiciliada y le cobraría ese abono dos veces.
+        "SELECT co.id AS cobro_id, (co.total - co.monto_pagado) AS total,
+                co.escuela_id, co.cliente_id,
                 cl.token_tarjeta, cl.token_tarjeta_expmes, cl.token_tarjeta_expanio
          FROM cobros co
          JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id

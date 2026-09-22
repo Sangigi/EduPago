@@ -151,6 +151,10 @@ function PortalFamilia({
   const alternarTema = () => setModoTema(temaOscuro ? 'claro' : 'oscuro');
   const [copied, setCopied] = useState('');
   const [pollStatus, setPollStatus] = useState(null);
+  // Abono parcial detectado por el polling de SPEI: { abonado, falta }.
+  // Cuando existe, el modal deja de decir "¡Pago confirmado!" (que sería
+  // mentira si de $50 solo llegaron $5) y dice cuánto entró y cuánto falta.
+  const [speiAbonoFam, setSpeiAbonoFam] = useState(null);
   const pollRef = useRef(null);
   const [editandoHijoId, setEditandoHijoId] = useState(null);
 
@@ -434,7 +438,9 @@ function PortalFamilia({
     border: 'var(--border-glow)',
     text: 'var(--ink)',
     muted: 'var(--ink-3)',
-    red: 'var(--red)'
+    red: 'var(--red)',
+    amber: 'var(--amber)',
+    amberGlow: 'var(--amber-glow)'
   };
   useEffect(() => {
     if (user.familia_id) {
@@ -458,6 +464,7 @@ function PortalFamilia({
   // saldo_pendiente REAL del alumno bajó desde que se abrió el modal.
   const iniciarPollingSaldo = (clienteId, saldoAlAbrir) => {
     setPollStatus('waiting');
+    setSpeiAbonoFam(null);
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
@@ -470,6 +477,15 @@ function PortalFamilia({
         const json = await r.json();
         if (json.success && json.saldo_pendiente < saldoAlAbrir - 0.01) {
           clearInterval(pollRef.current);
+          // El saldo bajó, pero eso NO siempre significa "pagado". Si el
+          // proveedor mandó menos de lo que valía el cobro, lo que hubo fue
+          // un abono: el backend devuelve `abonado` (lo aplicado a cobros que
+          // siguen abiertos) y `falta`. Con abonado > 0 el modal tiene que
+          // decir la verdad — cuánto entró y cuánto sigue debiéndose — en vez
+          // de un "¡Pago confirmado!" que el padre leería como saldado.
+          const abonado = parseFloat(json.abonado || 0);
+          const falta   = parseFloat(json.falta   || 0);
+          setSpeiAbonoFam(abonado > 0.01 && falta > 0.01 ? { abonado, falta } : null);
           setPollStatus('confirmed');
           setData(prev => ({
             ...prev,
@@ -482,6 +498,13 @@ function PortalFamilia({
   useEffect(() => () => {
     if (pollRef.current) clearInterval(pollRef.current);
   }, []);
+  // Lo que realmente falta de un cobro: su total menos lo ya abonado.
+  // Desde que existen los abonos parciales, `c.total` es la deuda ORIGINAL,
+  // no lo que queda por pagar — usar c.total en pantalla le cobraba $50 a
+  // quien ya había abonado $5. SPEI salía bien solo porque va contra el
+  // saldo del alumno, que sí descuenta abonos; tarjeta y efectivo iban
+  // contra el cobro y por eso mostraban el monto viejo.
+  const faltaDe = (c) => Math.round((Number(c?.total || 0) - Number(c?.monto_pagado || 0)) * 100) / 100;
   const hijosConSaldo = misHijos.filter(h => h.saldo_pendiente > 0);
   const hijoSeleccionado = hijosConSaldo.find(h => h.id === hijoPagoId) || hijosConSaldo[0] || null;
   // Si el método quedó en "Tarjeta guardada" y luego se cambia de alumno a
@@ -609,7 +632,7 @@ function PortalFamilia({
           if (metodo === 'Efectivo') {
             const cobroPendiente = cobrosPendientesHijo[0];
             const ref = await CobroController.iniciarEfectivoRef({
-              folio: cobroPendiente.folio, total: cobroPendiente.total,
+              folio: cobroPendiente.folio, total: faltaDe(cobroPendiente),
               descripcion: cobroPendiente.items?.map(i => i.nombre).join(', ') || 'Pago escolar'
             });
             if (ref.demo) {
@@ -626,8 +649,14 @@ function PortalFamilia({
             const cliente = (data.clientes || []).find(c => c.id === hijoSeleccionado.id) || { nombre: hijoSeleccionado.nombre };
             abrirComprobanteEfectivoModulo({
               cobro: {
-                folio: cobroPendiente.folio, total: cobroPendiente.total,
-                descripcion: cobroPendiente.items?.map(i => i.nombre).join(', '),
+                folio: cobroPendiente.folio,
+                // El importe del comprobante lo manda el backend (ref.total),
+                // que es la única fuente confiable: ahí se calculó
+                // total - monto_pagado contra la BD. faltaDe() es el respaldo
+                // por si una respuesta vieja no trae el campo.
+                total: ref.total != null ? Number(ref.total) : faltaDe(cobroPendiente),
+                descripcion: cobroPendiente.items?.map(i => i.nombre).join(', ')
+                  + (Number(ref.abonado || 0) > 0 ? ` — abonado ${fmt(Number(ref.abonado))} de ${fmt(cobroPendiente.total)}` : ''),
                 referencia: ref.referencia, barcode_url: ref.barcode_url, vencimiento: ref.vencimiento
               },
               cliente, familia: miFamilia, escuela
@@ -664,7 +693,10 @@ function PortalFamilia({
             window.location.href = json.url;
           } else {
             const cliente = (data.clientes || []).find(c => c.id === hijoSeleccionado.id) || { nombre: hijoSeleccionado.nombre };
-            const desglose = cobrosPendientesHijo.map(c => (c.items?.map(i => i.nombre).join(', ') || c.folio) + ' — ' + fmt(c.total)).join('; ');
+            // faltaDe(c): el desglose del comprobante tiene que sumar lo mismo
+            // que json.total (que el backend calculó neto de abonos). Con
+            // c.total, el desglose sumaba más que el importe a pagar.
+            const desglose = cobrosPendientesHijo.map(c => (c.items?.map(i => i.nombre).join(', ') || c.folio) + ' — ' + fmt(faltaDe(c))).join('; ');
             abrirComprobanteEfectivoModulo({
               cobro: {
                 folio: json.folio, total: json.total,
@@ -1168,13 +1200,31 @@ function PortalFamilia({
                   }, void 0, true)]
                 }, void 0, true), _jsxDEV("div", {
                   style: {
-                    fontFamily: 'monospace',
-                    fontWeight: 700,
-                    color: PLC.navy,
-                    fontSize: 14
+                    textAlign: 'right'
                   },
-                  children: fmt(cob.total)
-                }, void 0, false)]
+                  // Con un abono encima, el monto grande es lo que FALTA (que
+                  // es lo que se va a cobrar), y debajo se aclara de dónde
+                  // sale — si no, el padre ve una cifra que no coincide con el
+                  // cobro que le mandaron y no sabe por qué.
+                  children: [_jsxDEV("div", {
+                    style: {
+                      fontFamily: 'monospace',
+                      fontWeight: 700,
+                      color: PLC.navy,
+                      fontSize: 14
+                    },
+                    children: fmt(faltaDe(cob))
+                  }, void 0, false), Number(cob.monto_pagado || 0) > 0 && _jsxDEV("div", {
+                    style: {
+                      fontSize: 10.5,
+                      color: PLC.amber,
+                      fontWeight: 600,
+                      marginTop: 2,
+                      whiteSpace: 'nowrap'
+                    },
+                    children: ["abonado ", fmt(Number(cob.monto_pagado)), " de ", fmt(cob.total)]
+                  }, void 0, true)]
+                }, void 0, true)]
               }, cob.id, true)), totalPagPends > 1 && _jsxDEV("div", {
                 style: {
                   display: 'flex',
@@ -1524,8 +1574,21 @@ function PortalFamilia({
                     fontWeight: 700,
                     color: PLC.navy
                   },
-                  children: fmt(cob.total)
-                }, void 0, false), _jsxDEV("td", {
+                  // Aquí el monto grande SÍ es el total del cobro: es el
+                  // historial, y ese es el importe del documento. Lo que se
+                  // agrega es cuánto falta, cuando el cobro sigue abierto con
+                  // un abono parcial aplicado.
+                  children: [fmt(cob.total), cob.estado === 'pendiente' && Number(cob.monto_pagado || 0) > 0 && _jsxDEV("div", {
+                    style: {
+                      fontSize: 10.5,
+                      color: PLC.amber,
+                      fontWeight: 600,
+                      marginTop: 2,
+                      whiteSpace: 'nowrap'
+                    },
+                    children: ["faltan ", fmt(faltaDe(cob))]
+                  }, void 0, true)]
+                }, void 0, true), _jsxDEV("td", {
                   style: {
                     padding: '11px 16px'
                   },
@@ -2190,8 +2253,14 @@ function PortalFamilia({
                     // primero que se encuentre -- antes de esto, con varios
                     // conceptos pendientes el boton mostraba solo el monto del
                     // primero, aunque el cobro real terminara sumando todos.
+                    // faltaDe(c) y no c.total: c.total es la deuda ORIGINAL del
+                    // cobro. Con un abono parcial encima, este botón decía
+                    // "Pagar $50" cuando ya solo se deben $45 — mientras SPEI,
+                    // que va contra saldo_pendiente (ya neto de abonos),
+                    // mostraba los $45 correctos. De ahí que los montos no
+                    // cuadraran entre un método y otro.
                     (metodo === 'Efectivo' || metodo === 'TC')
-                      ? misCobros.filter(c => c.cliente_id === hijoSeleccionado?.id && c.estado === 'pendiente').reduce((a, c) => a + (c.total || 0), 0)
+                      ? misCobros.filter(c => c.cliente_id === hijoSeleccionado?.id && c.estado === 'pendiente').reduce((a, c) => a + faltaDe(c), 0)
                       : (hijoSeleccionado?.saldo_pendiente || 0)
                   ), " con ", metodo === 'SPEI' ? 'SPEI' : metodo === 'CAI' ? 'tarjeta guardada' : metodo === 'Efectivo' ? 'Efectivo' : 'Tarjeta']
                 }, void 0, true)
@@ -2210,7 +2279,7 @@ function PortalFamilia({
                   name: "shield",
                   size: 13,
                   color: PLC.muted
-                }, void 0, false), "Pago seguro procesado por Pagadetodo.mx · Powered by STP"]
+                }, void 0, false), "Pago seguro procesado por Pagadetodo.mx"]
               }, void 0, true)]
             }, void 0, true)]
           }, void 0, true)]
@@ -2317,35 +2386,41 @@ function PortalFamilia({
                 width: 64,
                 height: 64,
                 borderRadius: '50%',
-                background: `rgba(73,175,84,.12)`,
+                background: speiAbonoFam ? PLC.amberGlow : `rgba(73,175,84,.12)`,
                 margin: '0 auto 14px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               },
               children: _jsxDEV(Icon, {
-                name: "check",
+                name: speiAbonoFam ? "warning" : "check",
                 size: 32,
-                color: PLC.green
+                color: speiAbonoFam ? PLC.amber : PLC.green
               }, void 0, false)
             }, void 0, false), _jsxDEV("div", {
               style: {
                 fontSize: 18,
                 fontWeight: 700,
-                color: PLC.green,
+                color: speiAbonoFam ? PLC.amber : PLC.green,
                 marginBottom: 8
               },
-              children: "¡Pago confirmado!"
+              children: speiAbonoFam ? "Abono recibido" : "¡Pago confirmado!"
             }, void 0, false), _jsxDEV("div", {
               style: {
                 fontSize: 13,
-                color: PLC.muted
+                color: PLC.muted,
+                lineHeight: 1.5
               },
-              children: "Tu pago fue recibido y procesado. Gracias."
-            }, void 0, false), _jsxDEV("button", {
+              children: speiAbonoFam
+                ? ["Se recibió un abono de ", _jsxDEV("b", { style: { color: PLC.text }, children: fmt(speiAbonoFam.abonado) }, void 0, false),
+                   " — faltan ", _jsxDEV("b", { style: { color: PLC.amber }, children: fmt(speiAbonoFam.falta) }, void 0, false),
+                   " para cubrir este cobro. Puedes completarlo cuando quieras desde esta misma pantalla."]
+                : "Tu pago fue recibido y procesado. Gracias."
+            }, void 0, true), _jsxDEV("button", {
               onClick: () => {
                 setModal(null);
                 setPollStatus(null);
+                setSpeiAbonoFam(null);
               },
               style: {
                 marginTop: 20,

@@ -1,13 +1,19 @@
 <?php
         $folio       = trim($input['folio'] ?? '');
-        $total       = floatval($input['total'] ?? 0);
         $descripcion = $input['descripcion'] ?? 'Pago escolar';
         if (!$folio) respond(['success' => false, 'error' => 'folio requerido']);
-        if ($total < 50 || $total > 15000) respond(['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00)']);
-        $stmtCob = $pdo->prepare("SELECT id, cliente_id, escuela_id FROM cobros WHERE folio = ? AND estado = 'pendiente'");
+        $stmtCob = $pdo->prepare("SELECT id, cliente_id, escuela_id, total, monto_pagado FROM cobros WHERE folio = ? AND estado = 'pendiente'");
         $stmtCob->execute([$folio]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio']);
+        // El importe SIEMPRE sale de la BD, nunca de $input['total'] (21-sep-2026).
+        // Antes se tomaba tal cual lo que mandara el cliente y jamás se comparaba
+        // contra el cobro: se podía imprimir una referencia por cualquier cantidad.
+        // Y desde que existen los abonos hay que cobrar lo que FALTA, no el total
+        // original — si no, a quien ya abonó $5 de $50 la tienda le cobraría $50.
+        $total = round(floatval($cobroRow['total']) - floatval($cobroRow['monto_pagado'] ?? 0), 2);
+        if ($total <= 0) respond(['success' => false, 'error' => 'Este cobro ya está cubierto.']);
+        if ($total < 50 || $total > 15000) respond(['success' => false, 'error' => 'Monto fuera de rango ($50.00 - $15,000.00). Faltan $' . number_format($total, 2) . ' de este cobro.']);
         requerir_metodo_pago_habilitado($pdo, $cobroRow['escuela_id'], 'EfectivoRef', 'Efectivo (tienda)');
         // Verificar pertenencia: admin/cajero solo de su propia escuela (antes
         // no se validaba nada de esto — mismo hueco que tenía generar_liga.php).
@@ -107,6 +113,12 @@
         respond([
             'success'      => true,
             'cobro_id'     => intval($cobroRow['id']),
+            // El monto que REALMENTE se cobra en la tienda: total menos lo ya
+            // abonado. El portal y la caja imprimen este valor en el
+            // comprobante en vez del total original del cobro — si no, a quien
+            // abonó $5 de $50 el ticket le seguiría diciendo $50.
+            'total'        => $total,
+            'abonado'      => round(floatval($cobroRow['monto_pagado'] ?? 0), 2),
             'referencia'   => $referencia_cct,
             'barcode_url'  => $raw['BarCode'] ?? null,
             'payformat_url'=> $raw['PayFormat'] ?? null,

@@ -39,7 +39,12 @@ $cobro_ids = array_values(array_unique(array_map('intval', $cobro_ids)));
 // del navegador (mismo criterio que ya usan generar_liga.php y crear_cobro.php).
 $in = implode(',', array_fill(0, count($cobro_ids), '?'));
 $stmt = $pdo->prepare(
-    "SELECT id, cliente_id, escuela_id, total, folio FROM cobros
+    // (total - monto_pagado) AS total (21-sep-2026): lo que se agrupa para
+    // cobrar es lo que FALTA de cada cobro, no su importe original. Si un
+    // cobro de $50 ya tiene $5 abonados, al grupo debe entrar por $45 — si no,
+    // se le cobraría de más a la familia. El alias mantiene intacto el resto
+    // del archivo, que sigue leyendo $c['total'].
+    "SELECT id, cliente_id, escuela_id, (total - monto_pagado) AS total, folio FROM cobros
       WHERE id IN ($in) AND estado = 'pendiente'"
 );
 $stmt->execute($cobro_ids);

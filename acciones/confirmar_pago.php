@@ -45,9 +45,15 @@
             }
         }
         $extra_auth = $auth_code ?: $transaccion ?: null;
+        // monto_pagado = total (21-sep-2026): esta acción declara el cobro
+        // cubierto por completo, así que hay que sostener el invariante
+        // estado='pagado' <=> monto_pagado >= total. Sin esto, un cobro
+        // confirmado a mano quedaba 'pagado' con monto_pagado en 0.00 y el
+        // saldo del alumno (que ahora suma total - monto_pagado) se
+        // descuadraba, además de romper cualquier recálculo posterior.
         if ($banco_cheque !== null) {
             $stmt = $pdo->prepare(
-                "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code),
+                "UPDATE cobros SET estado = 'pagado', monto_pagado = total, auth_code = COALESCE(?, auth_code),
                                     banco_cheque = ?, num_cuenta_cheque = ?, num_cheque = ?,
                                     fecha_cheque = ?, titular_cheque = ?, estatus_cheque = 'recibido'
                  WHERE id = ?"
@@ -55,7 +61,7 @@
             $stmt->execute([$extra_auth, $banco_cheque, $num_cuenta_cheque, $num_cheque, $fecha_cheque, $titular_cheque, $cobro_id]);
         } else {
             $stmt = $pdo->prepare(
-                "UPDATE cobros SET estado = 'pagado', auth_code = COALESCE(?, auth_code) WHERE id = ?"
+                "UPDATE cobros SET estado = 'pagado', monto_pagado = total, auth_code = COALESCE(?, auth_code) WHERE id = ?"
             );
             $stmt->execute([$extra_auth, $cobro_id]);
         }

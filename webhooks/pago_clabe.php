@@ -184,9 +184,36 @@ try {
     ]);
 
     if ($resAbono['duplicado']) {
-        // Reintento del proveedor sobre un depósito ya abonado.
+        // Reintento del proveedor sobre un depósito ya abonado. Se responde 0
+        // (exitoso) a propósito: si de verdad es un reintento, ese depósito ya
+        // está acreditado y responder 30 provocaría que el proveedor le
+        // devolviera el dinero a la familia por un pago que sí recibimos.
         $pdo->rollBack();
         log_pago_clabe("abono duplicado (idempotente): cliente:{$cliente['id']} transaccion:{$transaccion}");
+        // Pero un "duplicado" también puede ser un pago REAL que la llave de
+        // idempotencia confundió con un reintento, y entonces nos quedamos con
+        // dinero sin acreditar y sin una sola huella de ello. Por eso queda la
+        // fila: el UNIQUE (canal, transaccion) hace que los reintentos legítimos
+        // se colapsen en un solo renglón con `intentos` subiendo, así que una
+        // fila con muchos intentos es ruido normal y una con importes que no
+        // cuadran es algo que revisar. Va DESPUÉS del rollBack a propósito
+        // (regla 1 de registrar_pago_no_aplicado).
+        registrar_pago_no_aplicado($pdo, [
+            'canal'          => 'spei',
+            'motivo'         => 'duplicado_idempotente',
+            'clabe'          => $clabe,
+            // Sufijo '-dup' por la misma razón que '-sobrante' más abajo: el
+            // UNIQUE de pagos_no_aplicados es (canal, transaccion), así que sin
+            // él este aviso se fundiría con el de otra rama que ya hubiera
+            // escrito esa misma transacción y solo le subiría el contador,
+            // dejando un motivo que no corresponde.
+            'transaccion'    => $transaccion !== '' ? $transaccion . '-dup' : '',
+            'auth_code'      => $autorizacion,
+            'monto_recibido' => $monto_cent / 100,
+            'cliente_id'     => intval($cliente['id']),
+            'escuela_id'     => $cliente['escuela_id'] ?? null,
+            'payload_raw'    => $raw,
+        ]);
         responder_pago_clabe(0, 'Operación exitosa', $autorizacion, $transaccion);
     }
 
