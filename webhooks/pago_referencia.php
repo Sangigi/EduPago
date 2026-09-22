@@ -416,9 +416,18 @@ try {
             $autorizacionEsc = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
 
             $pdo->prepare(
+                // El plan elegido al pagar se aplica AQUÍ, al confirmarse —
+                // nunca al generar el cobro (22-sep-2026, misma regla que en
+                // webhook_liga.php; ver la nota en
+                // acciones/escuela_generar_pago_renovacion.php). COALESCE: sin
+                // plan elegido, renueva con el que ya tenía. Y se limpia junto
+                // con el resto del cobro, para que el siguiente no herede una
+                // intención vieja.
                 "UPDATE escuelas
                     SET fecha_vencimiento_plan = ?, ultimo_recordatorio_plan = NULL,
+                        plan = COALESCE(NULLIF(pago_renovacion_plan, ''), plan),
                         pago_renovacion_referencia = NULL, pago_renovacion_folio = NULL, pago_renovacion_monto = NULL,
+                        pago_renovacion_plan = NULL,
                         modo = 'activa', fecha_fin_prueba = NULL
                   WHERE id = ?"
             )->execute([$nuevoVencimiento, $escRenov['id']]);

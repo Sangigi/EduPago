@@ -32,9 +32,44 @@ $stmt->execute([$escuela_id]);
 $esc = $stmt->fetch();
 if (!$esc) respond(['success' => false, 'error' => 'Colegio no encontrado']);
 
-$total = floatval(PLANES_LIMITES[$esc['plan']]['precio'] ?? PLANES_LIMITES[PLAN_FALLBACK]['precio']);
+// Plan elegido AL PAGAR (22-sep-2026). Antes el monto salía siempre del plan
+// que la escuela ya tenía, así que solo podías pagar por el plan que elegiste
+// al registrarte: para subir o bajar de plan había que pedírselo al superadmin.
+//
+// Se cobra el precio del plan ELEGIDO, pero el plan NO se aplica todavía: se
+// guarda como intención en pago_renovacion_plan y se aplica cuando el pago se
+// confirma (ver webhook_liga.php y pago_referencia.php). Aplicarlo aquí
+// dejaría que cualquiera se subiera a Pro con solo abrir esta pantalla y no
+// pagar nunca; y al revés, un colegio que empieza a bajarse de plan y se
+// arrepiente se quedaría ya con los límites del plan chico, posiblemente por
+// debajo de los alumnos que tiene dados de alta.
+$plan_elegido = strtolower(trim($input['plan'] ?? ''));
+if ($plan_elegido === '') {
+    $plan_elegido = $esc['plan'];
+} elseif (!isset(PLANES_LIMITES[$plan_elegido])) {
+    respond(['success' => false, 'error' => 'Plan no reconocido.']);
+}
+
+$total = floatval(PLANES_LIMITES[$plan_elegido]['precio'] ?? PLANES_LIMITES[PLAN_FALLBACK]['precio']);
 if ($total < 50 || $total > 15000) {
     respond(['success' => false, 'error' => 'El monto de este plan no se puede cobrar con este método. Contacta a soporte.']);
+}
+
+// Bajar de plan con más alumnos de los que el plan nuevo permite dejaría al
+// colegio en un estado imposible: con alumnos dados de alta por encima de su
+// propio límite. Se revisa ANTES de cobrar, porque descubrirlo después del
+// pago significaría devolver dinero.
+$max_alumnos_nuevo = PLANES_LIMITES[$plan_elegido]['max_alumnos'] ?? null;
+if ($max_alumnos_nuevo !== null) {
+    $stmtCnt = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE escuela_id = ? AND activo = 1");
+    $stmtCnt->execute([$escuela_id]);
+    $alumnos_actuales = intval($stmtCnt->fetchColumn());
+    if ($alumnos_actuales > $max_alumnos_nuevo) {
+        respond(['success' => false,
+                 'error' => 'El plan ' . PLANES_LIMITES[$plan_elegido]['label'] . ' permite hasta '
+                          . $max_alumnos_nuevo . ' alumnos, y este colegio tiene ' . $alumnos_actuales
+                          . ' activos. Da de baja alumnos o elige un plan mayor.']);
+    }
 }
 
 $folio = 'RENOV-' . $esc['id'] . '-' . date('Ym');
@@ -49,9 +84,10 @@ if ($metodo === 'TC') {
     $id_pago = str_pad(strval($esc['id']), 9, '0', STR_PAD_LEFT);
 
     $pdo->prepare(
-        "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_folio = ?, pago_renovacion_monto = ?
-          WHERE id = ?"
-    )->execute([$ref, $folio, $total, $esc['id']]);
+        "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_folio = ?, pago_renovacion_monto = ?,
+              pago_renovacion_plan = ?
+            WHERE id = ?"
+    )->execute([$ref, $folio, $total, $plan_elegido, $esc['id']]);
 
     $payload = [
         'User'           => PLE_USER,
@@ -97,13 +133,31 @@ if ($metodo === 'TC') {
 // (el webhook la pone en NULL al confirmar el pago, ver pago_referencia.php),
 // se regresa esa misma sin volver a llamar al proveedor.
 $stmtVig = $pdo->prepare(
-    "SELECT pago_renovacion_referencia, pago_renovacion_barcode_url, pago_renovacion_payformat_url, pago_renovacion_vencimiento
+    "SELECT pago_renovacion_referencia, pago_renovacion_barcode_url, pago_renovacion_payformat_url,
+            pago_renovacion_vencimiento, pago_renovacion_plan, pago_renovacion_monto
        FROM escuelas
       WHERE id = ? AND pago_renovacion_folio = ? AND pago_renovacion_referencia IS NOT NULL
         AND pago_renovacion_vencimiento >= CURDATE()"
 );
 $stmtVig->execute([$esc['id'], $folio]);
 $vigente = $stmtVig->fetch();
+
+// Si hay una referencia vigente pero de OTRO plan, no se puede reutilizar (el
+// monto es distinto) ni tampoco generar otra encima: la vieja sigue siendo
+// pagable en tienda, y terminaríamos con dos referencias válidas del mismo
+// colegio por importes distintos — justo el problema que la idempotencia de
+// abajo existe para evitar. Se corta con una explicación en vez de escoger
+// por el usuario cuál de las dos cobrar.
+if ($vigente && !empty($vigente['pago_renovacion_plan'])
+    && $vigente['pago_renovacion_plan'] !== $plan_elegido) {
+    $labelVig = PLANES_LIMITES[$vigente['pago_renovacion_plan']]['label'] ?? $vigente['pago_renovacion_plan'];
+    respond(['success' => false,
+             'error' => 'Ya tienes una referencia de pago en efectivo vigente por el plan ' . $labelVig
+                      . ' ($' . number_format(floatval($vigente['pago_renovacion_monto']), 2) . '), y sigue siendo pagable en tienda. '
+                      . 'Págala, o espera a que venza el ' . $vigente['pago_renovacion_vencimiento']
+                      . ', antes de cambiar de plan. Si prefieres pagar con tarjeta el plan nuevo, esa vía sí está disponible ahora.']);
+}
+
 if ($vigente) {
     log_api("escuela_generar_pago_renovacion(Efectivo) -> escuela={$esc['id']} folio={$folio} reutilizando referencia vigente {$vigente['pago_renovacion_referencia']}");
     respond([
@@ -119,9 +173,10 @@ if ($vigente) {
 
 $ref = construir_referencia_pago_generico($pdo, $refBase);
 $pdo->prepare(
-    "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_folio = ?, pago_renovacion_monto = ?
-      WHERE id = ?"
-)->execute([$ref, $folio, $total, $esc['id']]);
+    "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_folio = ?, pago_renovacion_monto = ?,
+          pago_renovacion_plan = ?
+        WHERE id = ?"
+)->execute([$ref, $folio, $total, $plan_elegido, $esc['id']]);
 
 // Efectivo — mismo payload probado en generar_referencia_efectivo.php:
 // GenerarReferenciaIndi no lleva 'Id' (eso es del servicio de Tarjeta,

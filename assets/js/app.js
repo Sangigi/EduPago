@@ -1771,7 +1771,12 @@ function App() {
 
             escuela: escuela,
 
-            user: user
+            user: user,
+
+            // Para que la advertencia de documentación pendiente pueda mandar
+            // al admin directo a subirlos, en vez de solo decirle dónde están.
+
+            onIrA: setView
 
           },
 

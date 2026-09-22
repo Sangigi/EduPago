@@ -23,11 +23,17 @@ const PLANES_INFO_MS = {
   pro:      { label: 'Pro',      precio: 50, max_alumnos: null, max_planteles: null },
 };
 
-function MiSuscripcion({ escuela, user }) {
+function MiSuscripcion({ escuela, user, onIrA }) {
   const { useState, useEffect } = React;
   const [generando, setGenerando] = useState(null); // 'TC' | 'Efectivo' | null
   const [resultado, setResultado] = useState(null);  // { metodo, ...datos }
   const [error, setError] = useState(null);
+  // Plan que se va a pagar. Arranca en el que la escuela ya tiene, pero se
+  // puede cambiar: antes solo podías pagar por el plan que elegiste al
+  // registrarte, y subir o bajar requería pedírselo al superadmin.
+  const [planPago, setPlanPago] = useState((escuela?.plan || 'basico').toLowerCase());
+  // Si ya se leyó y aceptó la advertencia de documentación pendiente.
+  const [asumeEspera, setAsumeEspera] = useState(false);
 
   const fmt = n => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
   const planKey = (escuela?.plan || '').toLowerCase();
@@ -44,6 +50,17 @@ function MiSuscripcion({ escuela, user }) {
   // -- no tiene caso mostrarlo como si fuera un vencimiento real. Se muestra
   // en su lugar fecha_fin_prueba y un aviso propio, siempre visible (no solo
   // cuando está por vencer).
+  // Estado de la documentación fiscal (22-sep-2026). `documentacion_estado`
+  // lo recalcula revisar_documento_escuela.php a partir del estado real de
+  // TODOS los documentos del colegio: sin_enviar | en_revision | aprobada |
+  // rechazada. Es lo que decide si el colegio puede cobrar y facturar —
+  // distinto de tener la suscripción pagada, que es lo que esta pantalla
+  // cobra. Confundir las dos cosas es justo lo que la advertencia evita.
+  const docEstado     = escuela?.documentacion_estado || 'sin_enviar';
+  const docsListos    = docEstado === 'aprobada';
+  const docsEnRevision = docEstado === 'en_revision';
+  const docsRechazados = docEstado === 'rechazada';
+
   const enDemo = escuela?.modo === 'demo';
   const finPrueba = escuela?.fecha_fin_prueba ? new Date(escuela.fecha_fin_prueba + 'T00:00:00') : null;
   const diasPrueba = finPrueba ? Math.round((finPrueba - hoy) / 86400000) : null;
@@ -80,7 +97,7 @@ function MiSuscripcion({ escuela, user }) {
       const res = await fetch('api.php?action=escuela_generar_pago_renovacion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ escuela_id: escuela.id, metodo }),
+        body: JSON.stringify({ escuela_id: escuela.id, metodo, plan: planPago }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'No se pudo generar el pago');
@@ -200,18 +217,132 @@ function MiSuscripcion({ escuela, user }) {
               ]
             }, 'h')
           }, 'ch2'),
+          /* ── Selector de plan ── */
+          _jsxDEV('div', {
+            style: { marginBottom: 16 },
+            children: [
+              _jsxDEV('div', {
+                style: { fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8 },
+                children: '¿Con qué plan quieres renovar?'
+              }, 'lbl'),
+              _jsxDEV('div', {
+                style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 10 },
+                children: Object.keys(PLANES_INFO_MS).map(k => {
+                  const p = PLANES_INFO_MS[k];
+                  const sel = planPago === k;
+                  const actual = k === planKey;
+                  return _jsxDEV('button', {
+                    type: 'button',
+                    onClick: () => setPlanPago(k),
+                    style: {
+                      textAlign: 'left', cursor: 'pointer', padding: '12px 14px',
+                      borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font)',
+                      border: '2px solid ' + (sel ? 'var(--accent)' : 'var(--border-glow)'),
+                      background: sel ? 'var(--accent-glow)' : 'var(--bg-surface)',
+                      color: 'var(--ink)'
+                    },
+                    children: [
+                      _jsxDEV('div', {
+                        style: { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13.5 },
+                        children: [
+                          p.label,
+                          actual ? _jsxDEV('span', {
+                            style: {
+                              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20,
+                              background: 'var(--glass-light)', color: 'var(--ink-3)'
+                            },
+                            children: 'actual'
+                          }, 'a') : null
+                        ]
+                      }, 'n'),
+                      _jsxDEV('div', {
+                        style: { fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 18, marginTop: 4 },
+                        children: fmt(p.precio)
+                      }, 'p'),
+                      _jsxDEV('div', {
+                        style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 },
+                        children: (p.max_alumnos ? `Hasta ${p.max_alumnos} alumnos` : 'Alumnos ilimitados')
+                                  + ' · ' + (p.max_planteles ? `${p.max_planteles} plantel` : 'Planteles ilimitados')
+                      }, 'd')
+                    ]
+                  }, k, true);
+                })
+              }, 'grid'),
+              planPago !== planKey ? _jsxDEV('div', {
+                style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 8, lineHeight: 1.5 },
+                children: `Estás eligiendo un plan distinto al actual (${info.label}). El cambio se aplica cuando se confirme el pago, no antes.`
+              }, 'cambio') : null
+            ]
+          }, 'planes'),
+
+          /* ── Advertencia: documentación pendiente ──
+             No bloquea el pago, informa. La suscripción se activa con el pago,
+             pero cobrar y facturar depende de la revisión de documentos, y esa
+             tarda. Callarlo significaría que el colegio pague y descubra
+             después que no puede usar lo que pagó. */
+          (docsListos ? null : _jsxDEV('div', {
+            style: {
+              marginBottom: 16, padding: '13px 15px', lineHeight: 1.55, fontSize: 12.5,
+              background: 'var(--amber-glow)', border: '1px solid var(--amber)',
+              borderRadius: 'var(--radius-sm)', color: 'var(--ink-2)'
+            },
+            children: [
+              _jsxDEV('div', {
+                style: { fontWeight: 800, color: 'var(--amber)', marginBottom: 6, fontSize: 13 },
+                children: docsEnRevision
+                  ? 'Tus documentos están en revisión'
+                  : (docsRechazados ? 'Tus documentos fueron rechazados' : 'Antes de pagar: falta tu documentación')
+              }, 't'),
+              _jsxDEV('div', {
+                children: docsEnRevision
+                  ? 'Ya recibimos tus documentos y los estamos revisando. La revisión tarda entre 48 y 72 horas hábiles. Hasta que termine, tu colegio no puede cobrar ni facturar.'
+                  : (docsRechazados
+                      ? 'Hay al menos un documento rechazado. Revisa cuál y vuelve a subirlo desde Mi cuenta; mientras tanto, tu colegio no puede cobrar ni facturar.'
+                      : 'Tu suscripción se activa en cuanto se confirme el pago, pero para que tu colegio pueda cobrar a las familias y facturar hace falta que subas los documentos fiscales y completes el formulario de datos de pago.')
+              }, 'd1'),
+              _jsxDEV('div', {
+                style: { marginTop: 8 },
+                children: 'Te recomendamos hacer eso primero. La aprobación tarda entre 48 y 72 horas hábiles, y esos días corren contra tu suscripción: si pagas ahora, es muy probable que pierdas varios días pagados sin poder usarlos todavía para cobrar.'
+              }, 'd2'),
+              _jsxDEV('div', {
+                style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' },
+                children: [
+                  (typeof onIrA === 'function' ? _jsxDEV('button', {
+                    className: 'btn btn-primary btn-sm',
+                    onClick: () => onIrA('mi_cuenta'),
+                    children: 'Ir a subir documentos'
+                  }, 'ir') : null),
+                  _jsxDEV('label', {
+                    style: { display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 12 },
+                    children: [
+                      _jsxDEV('input', {
+                        type: 'checkbox',
+                        checked: asumeEspera,
+                        onChange: e => setAsumeEspera(e.target.checked)
+                      }, 'chk'),
+                      'Entiendo y quiero pagar de todos modos'
+                    ]
+                  }, 'lab')
+                ]
+              }, 'acc')
+            ]
+          }, 'advDocs')),
+
           _jsxDEV('div', {
             style: { display: 'flex', gap: 12, flexWrap: 'wrap' },
             children: [
               _jsxDEV('button', {
                 className: 'btn btn-primary',
-                disabled: generando !== null,
+                // Con documentación pendiente, el pago se habilita solo después
+                // de marcar la casilla: obliga a que la advertencia se lea, sin
+                // llegar a prohibir el pago a quien de verdad lo quiere hacer.
+                disabled: generando !== null || (!docsListos && !asumeEspera),
                 onClick: () => generarPago('TC'),
-                children: generando === 'TC' ? 'Generando…' : `Pagar ${fmt(info.precio)} con tarjeta`
+                children: generando === 'TC' ? 'Generando…' : `Pagar ${fmt(PLANES_INFO_MS[planPago]?.precio ?? info.precio)} con tarjeta`
               }, 'btnTC'),
               _jsxDEV('button', {
                 className: 'btn btn-secondary',
-                disabled: generando !== null,
+                disabled: generando !== null || (!docsListos && !asumeEspera),
                 onClick: () => generarPago('Efectivo'),
                 children: generando === 'Efectivo' ? 'Generando…' : 'Pagar en efectivo (tienda)'
               }, 'btnEfv')

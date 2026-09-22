@@ -297,9 +297,20 @@ try {
             $nuevoVencimiento = siguiente_vencimiento_mensual($baseRenov);
 
             $pdo->prepare(
+                // El plan elegido al pagar se aplica AQUÍ, al confirmarse el
+                // cobro — nunca al generarlo (22-sep-2026, ver la nota en
+                // acciones/escuela_generar_pago_renovacion.php). COALESCE:
+                // si el pago no traía plan elegido, la escuela renueva con el
+                // que ya tenía.
+                //
+                // pago_renovacion_plan se limpia junto con el resto de las
+                // columnas del cobro: es parte del pago en curso, y dejarlo
+                // haría que el próximo cobro heredara una intención vieja.
                 "UPDATE escuelas
                     SET fecha_vencimiento_plan = ?, ultimo_recordatorio_plan = NULL,
+                        plan = COALESCE(NULLIF(pago_renovacion_plan, ''), plan),
                         pago_renovacion_referencia = NULL, pago_renovacion_folio = NULL, pago_renovacion_monto = NULL,
+                        pago_renovacion_plan = NULL,
                         modo = 'activa', fecha_fin_prueba = NULL
                   WHERE id = ?"
             )->execute([$nuevoVencimiento, $escRenov['id']]);
