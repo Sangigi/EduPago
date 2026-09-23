@@ -582,7 +582,11 @@ function Usuarios({ user, data }) {
     // aprobación del contador, y con eso lo activa (22-sep-2026).
     provision:    { label: 'Provisión',    icon: 'settings', color: '#f97316', bg: 'rgba(249,115,22,.15)', badge: 'badge-amber' },
     // Cuentas por pagar a proveedores, del lado del dueño del sistema (22-sep-2026).
-    tesoreria:    { label: 'Tesorería',    icon: 'bank',    color: '#0d9488', bg: 'rgba(13,148,136,.15)', badge: 'badge-green' }
+    tesoreria:    { label: 'Tesorería',    icon: 'bank',    color: '#0d9488', bg: 'rgba(13,148,136,.15)', badge: 'badge-green' },
+    // Invita colegios como un distribuidor, pero SIN comisiones (23-sep-2026).
+    // No hizo falta tocar el cálculo de comisiones: esa fila solo nace cuando
+    // quien invita es exactamente 'distribuidor' — ver invitacion_crear.php.
+    promotor:     { label: 'Promotor',     icon: 'globe',   color: '#8b5cf6', bg: 'rgba(139,92,246,.15)', badge: 'badge-purple' }
   };
 
   // Fuente única de los roles que se pintan en las tarjetas, los chips de

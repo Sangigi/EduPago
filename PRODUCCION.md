@@ -604,6 +604,50 @@ Algunas de esas son públicas por diseño y deben quedarse así (`login`, `activ
 
 **La regla para el futuro:** al agregar un rol, su seguridad tiene que venir de estar en un allowlist explícito, nunca de omitirlo en las listas de `requerir_rol()`. Una ausencia no es una prohibición.
 
+### 5.3bg Guía de primer uso, negocio independiente, y los roles `promotor` / provisión
+
+Nueve cambios pedidos el 23-sep-2026. Tres resultaron ser cosas que **ya existían** y conviene dejarlo escrito para que nadie las vuelva a construir:
+
+- **Los 15 días de demo ya estaban.** `config_sistema.demo_dias_default` vale `'15'` desde septiembre, `dias_demo_default()` lo lee, el registro ya decía *"15 días de prueba gratis"* y el correo de bienvenida también. Lo único que faltaba eran los huecos: el paso 1 del formulario, la pantalla final, y el correo de **invitación** (el primer contacto) — los tres ya los mencionan.
+- **El contador ya no podía escribir `escuelas.proveedor_school_id`.** Lo que sí podía capturar era `usuarios.id_externo`, etiquetado literalmente **"ID Escuela"** en su pantalla, que es *"el ID externo que genera Savala"*. Ese era el que había que moverle; ahora es de `provision`.
+- **`provision` ya estaba en el allowlist** de `api.php` para ver documentos, pero el `requerir_rol` dentro de esos archivos no lo incluía: letra muerta, 403 garantizado. Para que un rol de plataforma llegue a una acción hay que tocar **tres capas** — el allowlist, el `requerir_rol` de la acción, y el bypass local de `requerir_escuela_propia` (esos roles tienen `escuela_id` NULL, e `intval(null)` nunca coincide con un id real).
+
+**Negocio independiente (`tipo_persona = 'negocio'`): cobra pero no factura.**
+
+El valor guardado es `'negocio'` y **no** `'negocio_independiente'` por una razón concreta: la columna es `VARCHAR(10)`. Un literal de 21 caracteres se trunca en silencio a `'negocio_in'` cuando MySQL no está en modo estricto —el caso de este hosting— y entonces cada comparación queda falsa **para siempre**, sin rastro en ningún log. La etiqueta larga vive en la UI. Por eso no hizo falta migración.
+
+El candado que cuenta es un `if` explícito en `acciones/generar_cfdi.php`, **no** esconder la sección. Esconderla es cosmético por tres razones verificadas: `requerir_seccion_habilitada(..., ['caja','facturacion'])` usa semántica **OR** (con `caja` encendida no bloquea nada), ese helper arranca con `if ($rol !== 'admin' && $rol !== 'cajero') return;` (un superadmin lo atraviesa), y hay **dos entradas de UI** al mismo endpoint — la vista Facturación y el panel de factura dentro del modal de cobro de `Caja.js`.
+
+Y el riesgo inverso, que casi se nos va: `documentos_requeridos_por_tipo_persona()` en `lib/helpers_pagos.php` le quita `constancia_fiscal` al negocio independiente. Sin eso, el recálculo de `revisar_documento_escuela.php` —que exige **todos** los requeridos aprobados— lo dejaría atorado en `en_revision`, `provision_listar_pendientes.php` nunca lo mostraría, y el colegio **jamás podría cobrar**. Pedirle un documento de más es peor que pedirle uno de menos.
+
+La lista `['fisica','moral']` estaba copiada a mano en 3 archivos PHP y 2 selects. Ahora hay fuente única: `TIPOS_PERSONA`, `tipo_persona_valido()` y `escuela_puede_facturar()` en `lib/helpers_pagos.php`.
+
+**Documento aprobado: ya no se puede reemplazar.**
+
+Esto **revierte a propósito** parte del blindaje del 11-sep, y el comentario en `subir_documento_escuela.php` lo explica. Aquel arreglo resolvía el problema correcto por el lado equivocado: el archivo aprobado ya se había borrado del disco con `@unlink`, sin copia ni versionado, así que cualquier cuenta admin podía destruir evidencia validada. El `SELECT` se movió **arriba** de `guardar_archivo_privado()`; si no, cada intento rechazado dejaría un archivo huérfano en `uploads_privados/`.
+
+**Válvula de escape obligatoria:** contador, provisión y superadmin pueden **rechazar un documento aunque ya esté aprobado** (el backend nunca validó el estado previo). Sin eso, un documento mal aprobado quedaría congelado para siempre y el colegio sin forma de corregirlo. El botón "Rechazar" se muestra para aprobados en `Provision.js` — falta replicarlo en `Contador.js` y `Escuelas.js`, que son las **otras dos** UIs de revisión.
+
+**Rol `promotor`: invita colegios sin comisión.**
+
+No hizo falta tocar nada del cálculo de comisiones, porque **la comisión no es una propiedad del rol: es una fila**. `distribuidor_referidos` solo nace cuando `invitaciones_colegio.distribuidor_id` no es NULL, y esa columna solo se llena cuando el rol de quien invita es exactamente `'distribuidor'` (`invitacion_crear.php`). Un promotor cae en ese `null` y jamás genera un referido. La UI se reusa entera de `PanelInvitaciones.js` con `esSuperAdmin=false`.
+
+**Guía de primer uso.**
+
+`migracion_2026_09_23_guia_primer_uso.sql` agrega `usuarios.guia_vista_en`. Está en la base y **no en `localStorage`** a propósito: esa llave es por **navegador**, así que dos personas del mismo colegio en la misma computadora compartirían el estado y la segunda nunca vería la guía. Es `DATETIME` y no un booleano para poder responder después *"¿este colegio se atoró el primer día?"* sin otra columna.
+
+La migración marca como vistas todas las cuentas actuales, y por eso **no es idempotente**: re-correrla le borraría la guía a quien se registró después. El `#1060` del paso 1 es la señal de que tampoco hay que correr el paso 2.
+
+Los pasos se filtran contra `navItems` —el menú real del usuario— así que a un negocio independiente no se le explica Facturación. Un admin con la guía pendiente aterriza en `mi_cuenta` en vez del dashboard. La guía solo la ven los roles que pasan por el shell: familia, distribuidor, contador, provisión, tesorería y promotor salen antes con su propio panel.
+
+**Bug preexistente corregido de paso:** `escuela_editar_propia.php` hacía un `UPDATE` incondicional de las 4 columnas fiscales y `MiCuenta.js` solo manda 3 — cada "Guardar datos fiscales" **borraba `cp_fiscal`**. Ahora el `SET` es dinámico. Importaba arreglarlo porque la guía empuja a todo mundo por esa pantalla.
+
+**Pendientes conocidos** (documentados, no hechos):
+- `MiCuenta.js` pinta los campos `rfc` y `cp` en el formulario de alta de comercio, pero **no existen** como columnas en `escuela_datos_pago` ni en el `$vals` de `escuela_guardar_datos_pago.php`: se escriben, dicen "guardado" y al recargar desaparecen.
+- El texto del clausulado sigue siendo un placeholder literal (`MiCuenta.js`), y el checkbox que lo acepta es obligatorio y se registra con fecha.
+- `MiSuscripcion.js` dice "48 a 72 horas" y `MiCuenta.js` dice "24-72 horas", y habla de "un superadmin" cuando quien revisa es el contador.
+- `escuela_documentos` **no tiene** `UNIQUE (escuela_id, tipo)`: la unicidad es solo de aplicación (SELECT + INSERT sin transacción), así que dos subidas simultáneas del mismo tipo insertan dos filas y esquivan el guard de "aprobado".
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.

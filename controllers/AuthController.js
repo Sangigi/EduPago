@@ -98,7 +98,7 @@ const AuthController = (() => {
     // de $roles_validos en acciones/crear_usuario.php: el backend es quien
     // manda, así que un rol que falte aquí simplemente no se puede dar de alta
     // desde la interfaz aunque el backend lo acepte.
-    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia','distribuidor','contador','soporte','provision','tesoreria'];
+    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','familia','distribuidor','contador','soporte','provision','tesoreria','promotor'];
     if (user?.rol === 'admin')      return ['cajero','familia'];
     return [];
   }

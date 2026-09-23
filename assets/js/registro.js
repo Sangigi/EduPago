@@ -11,6 +11,13 @@
 // pasa a "Mi suscripción" dentro del sistema, ya con sesión iniciada.
 (function () {
   var cuerpo = document.getElementById('cuerpo');
+  // Días de prueba que reportó el servidor (invitacion_ver -> dias_demo, que
+  // sale de config_sistema.demo_dias_default). Se guarda en el ámbito del
+  // módulo porque lo necesitan tres pantallas distintas y datosColegio NO
+  // debe cargarlo: ese objeto se manda tal cual al backend, y meterle un
+  // campo que no le corresponde es ensuciar el payload.
+  // El 15 es solo un respaldo por si la petición falló.
+  var diasDemoGlobal = 15;
   var token  = new URLSearchParams(location.search).get('t') || '';
 
   // Espejo de PLANES_LIMITES (api.php) SOLO para mostrar el precio antes de
@@ -79,7 +86,12 @@
   function formulario(d) {
     cuerpo.innerHTML =
       '<div class="reg-h">Hola, ' + esc((d.contacto_nombre || '').split(' ')[0]) + '</div>' +
-      '<p class="reg-p">Llena los datos de tu colegio para continuar con tu registro.</p>' +
+      // Se dice desde el PASO 1 que esto es una prueba (23-sep-2026). Antes
+      // solo aparecía en el paso 2, al elegir plan: quien abandonaba en el
+      // primer formulario nunca se enteraba de que no iba a pagar nada, y ese
+      // es justo el momento en que más pesa saberlo.
+      '<p class="reg-p">Llena los datos de tu colegio para continuar con tu registro. ' +
+        'No se te cobra nada: empiezas con <strong>' + ((d.dias_demo || 15)) + ' días de prueba gratis</strong>.</p>' +
       campo('nombre',      'Nombre del colegio',        false, 'text',   'Colegio San Marcos') +
       campo('email',       'Correo institucional',      false, 'email',  'contacto@colegio.mx') +
       campo('telefono',    'Teléfono',                  true,  'tel',    '55 1234 5678') +
@@ -137,6 +149,9 @@
   // calcularlo por su cuenta en invitacion_enviar.php.
   function pantallaPlan(datosColegio, diasDemo) {
     diasDemo = diasDemo || 15;
+    // Se guarda en el ámbito del módulo para que la pantalla final también
+    // pueda decir los días sin volver a preguntárselos al servidor.
+    diasDemoGlobal = diasDemo;
     var opciones = Object.keys(PLANES).map(function (key) {
       var p = PLANES[key];
       return '<div class="reg-plan" data-plan="' + key + '">' +
@@ -218,8 +233,12 @@
       // Ya no se paga durante el registro: la escuela se crea de inmediato
       // en modo de prueba (11-sep-2026, requisito de la junta) y el pago
       // pasa a "Mi suscripción" dentro del sistema, ya con sesión iniciada.
+      // Se repiten los días de prueba aquí (23-sep-2026): es la última
+      // pantalla que ve el colegio antes de irse a su correo, y sin esto lo
+      // último que leía no mencionaba que su cuenta tiene una fecha límite.
       pantalla('&#10003;', 'Tu colegio ya está listo',
-        res.mensaje || 'Revisa tu correo para crear tu contraseña y empezar a usar tu cuenta.', 'ok');
+        (res.mensaje || 'Revisa tu correo para crear tu contraseña y empezar a usar tu cuenta.') +
+        ' Tu prueba gratis de ' + diasDemoGlobal + ' días empieza ahora: puedes usar todo el sistema y configurarlo con calma.', 'ok');
     })
     .catch(function () {
       pantalla('!', 'Sin conexión', 'No pudimos guardar tus datos. Intenta de nuevo.');

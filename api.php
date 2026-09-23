@@ -475,6 +475,14 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'revisar_documento_escuela', 'asignar_id_externo',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
+    // Invita colegios como un distribuidor, pero sin comisiones. La ausencia
+    // de comisión NO se configura aquí: sale de que invitacion_crear.php solo
+    // llena distribuidor_id cuando el rol es exactamente 'distribuidor', y sin
+    // esa columna nunca se crea la fila de distribuidor_referidos.
+    'promotor' => [
+        'invitacion_crear', 'invitaciones_listar', 'invitacion_regenerar',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    ],
     // Cuentas por pagar a proveedores.
     'tesoreria' => [
         'tesoreria_cuentas_por_pagar', 'tesoreria_marcar_pagado',

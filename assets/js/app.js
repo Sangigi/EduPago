@@ -1366,6 +1366,31 @@ function App() {
   // proveedores, del lado del dueño del sistema y no de cada colegio. Mismo
   // patrón autónomo: trae su data con action=tesoreria_cuentas_por_pagar.
 
+  // * PANEL PROMOTOR (23-sep-2026) * Invita colegios como un distribuidor,
+  // pero SIN comisiones. Reusa PanelInvitaciones con esSuperAdmin=false.
+
+  if (user.rol === 'promotor') {
+
+    return _jsxDEV(
+
+      Promotor,
+
+      {
+
+        user: user,
+
+        onLogout: handleLogout
+
+      },
+
+      void 0,
+
+      false
+
+    );
+
+  }
+
   if (user.rol === 'tesoreria') {
 
     return _jsxDEV(

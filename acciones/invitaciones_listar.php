@@ -1,6 +1,6 @@
 <?php
     $rol_actual = $usuario_actual['rol'] ?? '';
-    if (!in_array($rol_actual, ['superadmin', 'admin', 'distribuidor'], true)) {
+    if (!in_array($rol_actual, ['superadmin', 'admin', 'distribuidor', 'promotor'], true)) {
         http_response_code(403);
         respond(['success' => false, 'error' => 'Sin permiso']);
     }

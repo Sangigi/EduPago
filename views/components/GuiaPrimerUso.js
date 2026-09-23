@@ -192,7 +192,7 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
           _hG('div', {
             key: 'a', style: { fontWeight: 800, color: 'var(--amber)', marginBottom: 4 }
           }, 'Sin esto no puedes cobrar'),
-          'Tu colegio no podrá recibir pagos de las familias hasta que subas tus documentos y los aprobemos. La revisión tarda entre 48 y 72 horas hábiles, así que conviene hacerlo hoy y no el día que lo necesites.'
+          'Tu colegio no podrá recibir pagos de las familias hasta que subas tus documentos y los aprobemos. La revisión tarda entre 48 y 72 horas hábiles.'
         ) : null
       ),
 
