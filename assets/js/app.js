@@ -3951,6 +3951,16 @@ function App() {
 
                                           }`,
 
+                                        // Ancla estable para la guía de primer
+                                        // uso (23-sep-2026): así puede ubicar
+                                        // el ítem real del menú y señalarlo,
+                                        // en vez de describirlo con palabras.
+                                        // No se usa para estilos; si se quita,
+                                        // la guía cae a su modo centrado sin
+                                        // resaltado, no truena.
+
+                                        "data-nav": n.id,
+
 
 
                                         onClick:
