@@ -94,7 +94,8 @@ $pdo->prepare(
 $rfc = $campo('rfc');
 $cp  = $campo('cp');
 $tipoPersonaForm = trim($input['tipo_persona'] ?? '');
-if ($tipoPersonaForm !== '' && !in_array($tipoPersonaForm, ['fisica', 'moral'], true)) {
+// Ver tipo_persona_valido() en lib/helpers_pagos.php (fuente única, 23-sep-2026).
+if ($tipoPersonaForm !== '' && !tipo_persona_valido($tipoPersonaForm)) {
     respond(['success' => false, 'error' => 'tipo_persona debe ser fisica o moral']);
 }
 if ($rfc !== null || $cp !== null || $tipoPersonaForm !== '') {

@@ -88,11 +88,13 @@
       // aquí -- determina qué documentos se piden después para poder
       // facturar de verdad, pero no bloquea el alta si aún no se decide.
       '<div class="reg-campo">' +
-        '<label>Tipo de persona <span class="reg-op">(opcional, para facturación)</span></label>' +
+        '<label>Tipo de persona <span class="reg-op">(opcional)</span></label>' +
         '<select id="tipo_persona"><option value="">Sin definir por ahora</option>' +
           '<option value="fisica">Persona física</option>' +
           '<option value="moral">Persona moral</option>' +
+          '<option value="negocio">Negocio independiente (solo cobrar, sin facturar)</option>' +
         '</select>' +
+        '<div class="reg-ayuda">Persona física o moral pueden cobrar y emitir facturas. Un negocio independiente puede cobrar, pero no emitir facturas.</div>' +
       '</div>' +
       campo('rfc',         'RFC',                       true,  'text',   'ABC010203XY1') +
       campo('rvoe',        'RVOE',                      true,  'text') +

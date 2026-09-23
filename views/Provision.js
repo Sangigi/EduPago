@@ -31,6 +31,13 @@ function Provision({ user, onLogout, menuPerfil }) {
   const [borrador, setBorrador]   = useState({});
   const [guardando, setGuardando] = useState(null);
   const [aviso, setAviso]         = useState(null);
+  // Revisión de documentos desde este panel (23-sep-2026). Provisión es quien
+  // hace el trámite con el proveedor, así que es quien descubre que un
+  // documento no sirve para ese trámite aunque el contador ya lo hubiera dado
+  // por bueno. Antes la única salida era pedirle al contador que lo rechazara.
+  const [docsEsc, setDocsEsc]         = useState(null); // { escuela, documentos[] }
+  const [docsCargando, setDocsCargando] = useState(false);
+  const [revisandoDoc, setRevisandoDoc] = useState(null);
 
   const pedir = useCallback(async (accion, payload) => {
     const token = AuthController.getToken ? AuthController.getToken() : '';
@@ -73,6 +80,70 @@ function Provision({ user, onLogout, menuPerfil }) {
       setAviso({ tipo: 'error', txt: esc.nombre + ': ' + e.message });
     }
     setGuardando(null);
+  };
+
+  // Etiquetas legibles. Deben coincidir con MC_TIPOS_DOCUMENTO (MiCuenta.js) y
+  // CT_TIPOS_DOCUMENTO (Contador.js): la misma lista vive hoy en tres vistas.
+  const PR_DOCS = {
+    identificacion_frente:  'Identificación dueño del negocio (Frente)',
+    identificacion_reverso: 'Identificación dueño del negocio (Reverso)',
+    estado_cuenta_bancario: 'Portada del estado de cuenta bancario',
+    comprobante_domicilio:  'Comprobante de domicilio',
+    constancia_fiscal:      'Constancia Fiscal',
+  };
+  const PR_ESTADO_DOC = {
+    pendiente: { label: 'En revisión', color: 'var(--amber)' },
+    aprobado:  { label: 'Aprobado',    color: 'var(--green)' },
+    rechazado: { label: 'Rechazado',   color: 'var(--red)' },
+  };
+
+  const abrirDocs = async (esc) => {
+    setDocsEsc({ escuela: esc, documentos: [] });
+    setDocsCargando(true);
+    try {
+      const j = await pedir('listar_documentos_escuela', { escuela_id: esc.id });
+      setDocsEsc({ escuela: esc, documentos: j.documentos || [] });
+    } catch (e) {
+      setAviso({ tipo: 'error', txt: 'No se pudieron cargar los documentos: ' + e.message });
+      setDocsEsc(null);
+    }
+    setDocsCargando(false);
+  };
+
+  const descargarDoc = async (doc) => {
+    try {
+      const token = AuthController.getToken ? AuthController.getToken() : '';
+      const r = await fetch('api.php?action=descargar_documento_escuela&documento_id=' + doc.id, {
+        headers: { Authorization: token ? 'Bearer ' + token : '' },
+      });
+      if (!r.ok) throw new Error('No se pudo descargar');
+      window.open(URL.createObjectURL(await r.blob()), '_blank');
+    } catch (e) {
+      setAviso({ tipo: 'error', txt: e.message });
+    }
+  };
+
+  const revisarDoc = async (doc, accion) => {
+    let motivo = '';
+    if (accion === 'rechazar') {
+      // El backend exige motivo al rechazar, y ese texto se le manda tal cual
+      // al colegio por correo — es lo único que le dice qué corregir.
+      motivo = (window.prompt('¿Por qué se rechaza "' + (PR_DOCS[doc.tipo] || doc.tipo) + '"?\n\nEste texto se le envía al colegio por correo.') || '').trim();
+      if (!motivo) return;
+    }
+    setRevisandoDoc(doc.id);
+    setAviso(null);
+    try {
+      await pedir('revisar_documento_escuela', { documento_id: doc.id, accion, motivo });
+      setAviso({ tipo: 'ok', txt: (PR_DOCS[doc.tipo] || doc.tipo) + ': ' + (accion === 'aprobar' ? 'aprobado.' : 'rechazado, se le avisó al colegio.') });
+      await abrirDocs(docsEsc.escuela);
+      // Rechazar saca al colegio de la cola (documentacion_estado deja de ser
+      // 'aprobada'), así que la lista de atrás tiene que refrescarse.
+      await cargar(filtro);
+    } catch (e) {
+      setAviso({ tipo: 'error', txt: e.message });
+    }
+    setRevisandoDoc(null);
   };
 
   const visibles = escuelas.filter(e => {
@@ -215,10 +286,86 @@ function Provision({ user, onLogout, menuPerfil }) {
                     className: 'btn btn-primary btn-sm',
                     disabled: guardando === esc.id,
                     onClick: () => guardar(esc)
-                  }, guardando === esc.id ? 'Guardando…' : (esc.tiene_id ? 'Reemplazar' : 'Guardar'))
+                  }, guardando === esc.id ? 'Guardando…' : (esc.tiene_id ? 'Reemplazar' : 'Guardar')),
+                  _hPR('button', {
+                    key: 'docs',
+                    className: 'btn btn-ghost btn-sm',
+                    onClick: () => abrirDocs(esc),
+                    title: 'Ver los documentos que subió este colegio'
+                  }, 'Ver documentos')
                 ))
               )
+          ),
+
+      /* ── Modal de documentos ── */
+      docsEsc ? _hPR('div', {
+        key: 'moddocs',
+        className: 'modal-backdrop',
+        onClick: e => { if (e.target === e.currentTarget) setDocsEsc(null); }
+      },
+        _hPR('div', { className: 'modal modal-lg' },
+          _hPR('div', { key: 'h', className: 'modal-header' },
+            _hPR('div', { key: 't', className: 'modal-title' }, 'Documentos · ' + docsEsc.escuela.nombre),
+            _hPR('button', {
+              key: 'x', className: 'btn btn-ghost btn-sm', onClick: () => setDocsEsc(null)
+            }, 'Cerrar')
+          ),
+          _hPR('div', { key: 'b', className: 'modal-body' },
+            _hPR('div', {
+              key: 'nota',
+              style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 12 }
+            }, 'El contador ya revisó estos documentos. Puedes rechazar alguno si no te sirve para el trámite con el proveedor: al hacerlo, el colegio recibe un correo con el motivo y este colegio sale de la cola hasta que lo corrija.'),
+
+            docsCargando
+              ? _hPR('div', { key: 'l', style: { padding: 24, textAlign: 'center', color: 'var(--ink-3)' } }, 'Cargando…')
+              : (docsEsc.documentos.length === 0
+                  ? _hPR('div', { key: 'v', style: { padding: 24, textAlign: 'center', color: 'var(--ink-3)' } }, 'Este colegio no tiene documentos subidos.')
+                  : _hPR('div', { key: 'lst', style: { display: 'grid', gap: 8 } },
+                      docsEsc.documentos.map(doc => {
+                        const est = PR_ESTADO_DOC[doc.estado] || { label: doc.estado, color: 'var(--ink-3)' };
+                        return _hPR('div', {
+                          key: doc.id,
+                          style: {
+                            padding: 10, border: '1px solid var(--border-glow)',
+                            borderRadius: 'var(--radius-sm)', display: 'flex',
+                            gap: 10, alignItems: 'center', flexWrap: 'wrap'
+                          }
+                        },
+                          _hPR('div', { key: 'i', style: { flex: '1 1 200px', minWidth: 0 } },
+                            _hPR('div', { key: 'n', style: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+                              PR_DOCS[doc.tipo] || doc.tipo),
+                            _hPR('div', { key: 'e', style: { fontSize: 11.5, color: est.color, fontWeight: 700, marginTop: 2 } },
+                              est.label + (doc.motivo_rechazo ? ' — ' + doc.motivo_rechazo : ''))
+                          ),
+                          _hPR('button', {
+                            key: 'd', className: 'btn btn-ghost btn-sm',
+                            onClick: () => descargarDoc(doc)
+                          }, 'Ver'),
+                          // 'Rechazar' se muestra TAMBIÉN para documentos ya
+                          // aprobados, y es deliberado: desde el 23-sep el
+                          // colegio no puede reemplazar un documento aprobado,
+                          // así que rechazarlo es la ÚNICA forma de
+                          // desbloquearlo si se aprobó por error. Sin esto, un
+                          // documento mal aprobado quedaría congelado para
+                          // siempre.
+                          doc.estado !== 'rechazado' ? _hPR('button', {
+                            key: 'r', className: 'btn btn-ghost btn-sm',
+                            style: { color: 'var(--red)' },
+                            disabled: revisandoDoc === doc.id,
+                            onClick: () => revisarDoc(doc, 'rechazar')
+                          }, revisandoDoc === doc.id ? '…' : 'Rechazar') : null,
+                          doc.estado === 'pendiente' ? _hPR('button', {
+                            key: 'a', className: 'btn btn-primary btn-sm',
+                            disabled: revisandoDoc === doc.id,
+                            onClick: () => revisarDoc(doc, 'aprobar')
+                          }, revisandoDoc === doc.id ? '…' : 'Aprobar') : null
+                        );
+                      })
+                    )
+                )
           )
+        )
+      ) : null
     )
   );
 }

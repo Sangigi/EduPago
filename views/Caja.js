@@ -2301,7 +2301,12 @@ function Caja({
               size: 14,
               color: "currentColor"
             }, void 0, false), " Imprimir"]
-          }, void 0, true), !cobroActivo.factura && facturaPanel !== 'form' && /*#__PURE__*/_jsxDEV("button", {
+          // escuela?.tipo_persona !== 'negocio' (23-sep-2026): un NEGOCIO
+          // INDEPENDIENTE cobra pero no factura. Esta es la SEGUNDA entrada de
+          // UI al timbrado — la otra es la vista Facturación, que ya se esconde
+          // del menú en app.js. Sin esta condición, esconder la sección dejaba
+          // este botón vivo y el usuario llegaba hasta el error del backend.
+          }, void 0, true), !cobroActivo.factura && facturaPanel !== 'form' && escuela?.tipo_persona !== 'negocio' && /*#__PURE__*/_jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: abrirFacturar,
             children: [/*#__PURE__*/_jsxDEV(Icon, {

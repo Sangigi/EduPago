@@ -7,7 +7,7 @@
 // revisión de documentos es quien lo asigna). No reemplaza el correo: se
 // agrega como una llave adicional.
 
-requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'contador'], 'No tienes permiso para asignar el ID externo.');
+requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'provision'], 'No tienes permiso para asignar el ID externo.');
 
 $usuario_id = intval($input['usuario_id'] ?? 0);
 $id_externo = trim($input['id_externo'] ?? '');

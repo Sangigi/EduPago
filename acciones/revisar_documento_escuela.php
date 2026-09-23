@@ -9,9 +9,18 @@
 // Los 5 documentos del formulario de alta de comercio de
 // Cobroscontarjeta.com -- los mismos para persona física o moral (el
 // formulario no distingue), ver subir_documento_escuela.php.
-$TIPOS_REQUERIDOS = ['identificacion_frente', 'identificacion_reverso', 'estado_cuenta_bancario', 'comprobante_domicilio', 'constancia_fiscal'];
+// (23-sep-2026) Ya NO es una lista fija: depende del tipo_persona del colegio.
+// documentos_requeridos_por_tipo_persona() en lib/helpers_pagos.php le quita
+// 'constancia_fiscal' al NEGOCIO INDEPENDIENTE, que no factura. Se resuelve
+// más abajo, cuando ya se sabe de qué escuela es el documento.
+//
+// No es cosmético: el recálculo de abajo exige que TODOS los requeridos estén
+// aprobados para poner documentacion_estado='aprobada', y
+// provision_listar_pendientes.php solo lista colegios en ese estado. Pedirle a
+// un negocio independiente una constancia que no tiene lo dejaría atorado en
+// 'en_revision' y, por lo tanto, SIN PODER COBRAR NUNCA.
 
-requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'contador'], 'No tienes permiso para revisar documentos.');
+requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'contador', 'provision'], 'No tienes permiso para revisar documentos.');
 
 $documento_id = intval($input['documento_id'] ?? 0);
 $accion       = trim($input['accion'] ?? ''); // 'aprobar' | 'rechazar'
@@ -38,7 +47,10 @@ $pdo->prepare(
 // ya quedaba en 'aprobada'. Ahora se exige explícitamente que cada uno de
 // los 5 tipos tenga una fila con estado 'aprobado' (subir_documento_escuela.php
 // ya garantiza como máximo una fila por (escuela_id, tipo) gracias al upsert).
-$tiposRequeridos = $TIPOS_REQUERIDOS;
+// El tipo_persona de ESTA escuela decide qué documentos se le exigen.
+$stmtTP = $pdo->prepare("SELECT tipo_persona FROM escuelas WHERE id = ?");
+$stmtTP->execute([$escuela_id]);
+$tiposRequeridos = documentos_requeridos_por_tipo_persona($stmtTP->fetchColumn());
 
 $stmtTodos = $pdo->prepare("SELECT tipo, estado FROM escuela_documentos WHERE escuela_id = ?");
 $stmtTodos->execute([$escuela_id]);

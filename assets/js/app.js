@@ -611,6 +611,27 @@ function App() {
 
   const [view, setView] = useState('dashboard');
 
+  // Guía de primer uso (23-sep-2026). Arranca en false y se enciende en el
+  // login / al restaurar sesión, porque en el primer render `user` todavía es
+  // null y leer user.guia_pendiente ahí tiraría la app entera.
+  const [guiaPendiente, setGuiaPendiente] = useState(false);
+
+  // Se cierra de inmediato en pantalla y DESPUÉS se persiste. Si la petición
+  // falla (o la migración no ha corrido), lo peor que pasa es que la guía
+  // vuelva a salir en el siguiente login — molesto, pero nunca deja al usuario
+  // atrapado detrás de un modal que no se cierra.
+  const cerrarGuia = () => {
+    setGuiaPendiente(false);
+    try {
+      const tk = AuthController.getToken ? AuthController.getToken() : '';
+      fetch('api.php?action=guia_marcar_vista', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': tk ? `Bearer ${tk}` : '' },
+        body: '{}',
+      }).catch(() => {});
+    } catch (_) {}
+  };
+
 
 
   const [theme, setTheme] = useState('light');
@@ -962,7 +983,19 @@ function App() {
     // salir. Va aquí, en el login, y no en el useState de `view`, porque ese
     // inicializador corre una sola vez cuando `user` todavía es null.
 
-    setView(VISTA_INICIAL_POR_ROL[u.rol] || 'dashboard');
+    // La guía de primer uso manda sobre la vista inicial: si nunca la ha
+    // visto, aterriza en "Mi cuenta", que es donde configura el colegio y sube
+    // los documentos. Solo aplica a quien tenga esa sección en su menú (hoy,
+    // el admin): mandar a otro rol a una vista que su menú no incluye se ve
+    // como una pantalla en blanco sin explicación — el mismo problema que
+    // documenta VISTA_INICIAL_POR_ROL.
+    const verGuia = !!u.guia_pendiente;
+    setGuiaPendiente(verGuia);
+    setView(
+      (verGuia && u.rol === 'admin')
+        ? 'mi_cuenta'
+        : (VISTA_INICIAL_POR_ROL[u.rol] || 'dashboard')
+    );
 
 
 
@@ -1762,10 +1795,24 @@ function App() {
   // Secciones que el super admin deshabilitó para esta escuela (ver
   // superadmin_toggle_seccion_escuela.php). Para superadmin sin escuela
   // seleccionada `escuela` es null, así que esto no le afecta a él.
-  const seccionesDeshabilitadas =
-    Array.isArray(escuela?.secciones_deshabilitadas)
-      ? escuela.secciones_deshabilitadas
+  const seccionesDeshabilitadas = (() => {
+    const base = Array.isArray(escuela?.secciones_deshabilitadas)
+      ? [...escuela.secciones_deshabilitadas]
       : [];
+    // NEGOCIO INDEPENDIENTE: cobra pero no factura (23-sep-2026). Se calcula
+    // aquí y NO se persiste en secciones_deshabilitadas, para que el día que el
+    // colegio cambie su tipo de persona a física o moral la sección reaparezca
+    // sola, sin que nadie tenga que acordarse de volver a encenderla.
+    //
+    // Esto es SOLO la capa visual. El candado que cuenta está en
+    // acciones/generar_cfdi.php: esconder el ítem del menú no impide llamar al
+    // endpoint, y Caja.js tiene su propio botón de facturar dentro del modal de
+    // cobro que nunca pasa por esta vista.
+    if (escuela?.tipo_persona === 'negocio' && !base.includes('facturacion')) {
+      base.push('facturacion');
+    }
+    return base;
+  })();
 
   const secciones = [
 
@@ -2890,6 +2937,34 @@ function App() {
 
 
       children: [
+
+        // * GUÍA DE PRIMER USO (23-sep-2026)
+        //
+        // Se monta por encima del shell y solo la primera vez que una cuenta
+        // entra. `guiaPendiente` sale de user.guia_pendiente, que viene del
+        // login (usuarios.guia_vista_en) y NO de localStorage: esa llave es
+        // por NAVEGADOR, así que dos personas del mismo colegio en la misma
+        // computadora compartirían el estado y la segunda nunca vería la guía.
+        // Ver migracion_2026_09_23_guia_primer_uso.sql.
+        //
+        // Solo la ven los roles que pasan por este shell. Familia,
+        // distribuidor, contador, provisión y tesorería salen antes con su
+        // propio panel — correcto, porque la guía describe las secciones de un
+        // colegio, no las de ellos.
+        //
+        // El typeof protege del caso en que index.html todavía no cargue el
+        // archivo (caché vieja): sin él, un ReferenceError tumbaría toda la app.
+        guiaPendiente && typeof GuiaPrimerUso !== 'undefined' ? _jsxDEV(
+          GuiaPrimerUso,
+          {
+            seccionesVisibles: navItems.map(n => n.id),
+            escuela: escuela,
+            onIrA: setView,
+            onCerrar: cerrarGuia
+          },
+          'guia',
+          false
+        ) : null,
 
 
 

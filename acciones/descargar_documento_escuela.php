@@ -15,11 +15,11 @@ $doc = $stmt->fetch();
 if (!$doc) { http_response_code(404); respond(['success' => false, 'error' => 'Documento no encontrado']); }
 
 $rol = $usuario_actual['rol'] ?? '';
-requerir_rol($rol, ['superadmin', 'admin', 'contador'], 'No tienes permiso para descargar este documento.');
+requerir_rol($rol, ['superadmin', 'admin', 'contador', 'provision'], 'No tienes permiso para descargar este documento.');
 // 'contador' revisa documentos de cualquier escuela -- bypass local, ver
 // nota en listar_documentos_escuela.php (no se toca requerir_escuela_propia
 // global, que comparten decenas de acciones no relacionadas).
-if ($rol !== 'contador') {
+if (!in_array($rol, ['contador', 'provision'], true)) {
     requerir_escuela_propia($rol, $doc['escuela_id'], $usuario_actual, 'No tienes permiso sobre este documento.');
 }
 

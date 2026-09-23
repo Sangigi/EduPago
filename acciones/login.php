@@ -26,7 +26,7 @@
         // requisito de la junta) -- no reemplaza el correo, se suma. El
         // campo del formulario sigue siendo uno solo; el usuario escribe lo
         // que tenga a la mano.
-        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id, familia_id FROM usuarios WHERE (email = ? OR id_externo = ?) AND activo = 1");
+        $stmt = $pdo->prepare("SELECT id, nombre, email, password_hash, rol, escuela_id, familia_id, guia_vista_en FROM usuarios WHERE (email = ? OR id_externo = ?) AND activo = 1");
         $stmt->execute([$email, $email]);
         $user = $stmt->fetch();
         $credenciales_ok = false;
@@ -66,6 +66,15 @@
                     'rol'        => $user['rol'],
                     'escuela_id' => $user['escuela_id'],
                     'familia_id' => $user['familia_id'] ? intval($user['familia_id']) : null,
+                    // Guía de primer uso (23-sep-2026): true = nunca la ha
+                    // visto. Se manda como booleano ya resuelto y no como
+                    // fecha, para que el frontend no tenga que conocer el
+                    // formato ni la zona horaria.
+                    //
+                    // Si la migración todavía no corrió, la columna no viene y
+                    // empty() da true: la guía se muestra de más, que es
+                    // molesto pero inofensivo. Nunca al revés.
+                    'guia_pendiente' => empty($user['guia_vista_en']),
                     'token'      => $token
                 ]
             ]);

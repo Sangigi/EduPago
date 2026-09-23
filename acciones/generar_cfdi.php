@@ -64,6 +64,29 @@
             // COBRO -- nunca compara contra la escuela del usuario. Este es
             // el check de pertenencia que faltaba.
             requerir_escuela_propia($rol_cfdi, $al['cobro_escuela_id'], $usuario_actual, 'No tienes permiso para facturar cobros de otra escuela.');
+            // NEGOCIO INDEPENDIENTE: cobra pero NO factura (23-sep-2026).
+            //
+            // Este if tiene que estar aquí, explícito, y no resolverse
+            // escondiendo la sección "Facturación" del menú. Tres razones,
+            // todas verificadas:
+            //   1. requerir_seccion_habilitada(..., ['caja','facturacion']) de
+            //      más abajo usa semántica OR: mientras 'caja' siga encendida,
+            //      apagar 'facturacion' NO bloquea el timbrado.
+            //   2. Ese helper arranca con `if ($rol !== 'admin' && $rol !==
+            //      'cajero') return;` — un superadmin lo atraviesa siempre.
+            //   3. Hay DOS entradas de UI a este endpoint: la vista Facturación
+            //      y el panel de factura dentro del modal de cobro de Caja.js.
+            //      Esconder el ítem del menú deja ese segundo botón vivo.
+            // Sin este candado, "no puede facturar" sería cosmético y cada
+            // intento consumiría timbres reales del PAC.
+            $stmtTipoP = $pdo->prepare("SELECT tipo_persona FROM escuelas WHERE id = ?");
+            $stmtTipoP->execute([$al['cobro_escuela_id']]);
+            $tipoPersonaEsc = $stmtTipoP->fetchColumn();
+            if (!escuela_puede_facturar($tipoPersonaEsc)) {
+                respond(['success' => false,
+                         'error' => 'Este colegio está registrado como Negocio independiente, que puede cobrar pero no emitir facturas. '
+                                  . 'Para facturar hay que cambiar el tipo de persona a física o moral desde Mi cuenta y enviar la constancia de situación fiscal.']);
+            }
             // Candado fiscal de los abonos (21-sep-2026). Este endpoint timbra
             // SIEMPRE con payment_method "PUE" (Pago en Una Exhibición). Un
             // cobro que se está pagando en abonos no puede facturarse así:

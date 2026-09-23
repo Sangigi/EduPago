@@ -453,18 +453,32 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'cargar_datos', 'buscar_global', 'listar_logs', 'listar_cobros',
         'detalle_cobro', 'listar_usuarios', 'listar_gastos',
         'listar_pagos_no_aplicados', 'planteles_de_escuela', 'listar_zonas',
-        'cambiar_password_propio', 'editar_usuario',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
     // Captura el identificador del proveedor tras la aprobación del contador.
+    //
+    // 23-sep-2026: se le suma REVISAR documentos y asignar el ID externo.
+    //   · 'revisar_documento_escuela' — provisión es quien hace el trámite con
+    //     el proveedor, así que es quien descubre que un documento no sirve
+    //     para ese trámite aunque el contador ya lo hubiera dado por bueno.
+    //     Sin esto, la única salida era pedirle al contador que lo rechazara.
+    //   · 'asignar_id_externo' — es el "ID Escuela" que genera Savala. Antes
+    //     lo capturaba el contador (ver views/Contador.js); ahora es trabajo de
+    //     provisión, que es quien lo recibe del proveedor.
+    //
+    // OJO: este allowlist corre ANTES del despacho. Agregar el rol al
+    // requerir_rol de la acción y olvidarlo aquí da un 403 que solo deja
+    // rastro en api_log.txt y se diagnostica mal como problema de frontend.
     'provision' => [
         'provision_listar_pendientes', 'provision_asignar_id',
         'listar_documentos_escuela', 'descargar_documento_escuela',
-        'cambiar_password_propio', 'editar_usuario',
+        'revisar_documento_escuela', 'asignar_id_externo',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
     // Cuentas por pagar a proveedores.
     'tesoreria' => [
         'tesoreria_cuentas_por_pagar', 'tesoreria_marcar_pagado',
-        'listar_gastos', 'cambiar_password_propio', 'editar_usuario',
+        'listar_gastos', 'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
 ];
 // 'editar_usuario' y 'cambiar_password_propio' van en las tres listas porque

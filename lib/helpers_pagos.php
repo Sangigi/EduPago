@@ -870,3 +870,63 @@ function requerir_metodo_pago_habilitado(PDO $pdo, $escuelaId, $metodo, $etiquet
         ]);
     }
 }
+// ════════════════════════════════════════════════════════════════════════
+// TIPO DE PERSONA DEL COLEGIO — fuente única de verdad (23-sep-2026)
+// ════════════════════════════════════════════════════════════════════════
+//
+// Antes la lista ['fisica','moral'] estaba copiada a mano en 3 archivos PHP
+// (escuela_editar_propia.php, escuela_guardar_datos_pago.php,
+// invitacion_enviar.php) y en 2 selects de JS, sin constante compartida:
+// olvidar uno producía un 400 en un flujo distinto al que se probó.
+//
+// 'negocio' = NEGOCIO INDEPENDIENTE. Puede COBRAR pero NO FACTURAR.
+//
+// El valor guardado es 'negocio' y no 'negocio_independiente' por una razón
+// concreta: escuelas.tipo_persona es VARCHAR(10). Un literal de 21 caracteres
+// se trunca en silencio a 'negocio_in' cuando MySQL no está en modo estricto
+// —que es el caso de este hosting— y entonces cada comparación contra
+// 'negocio_independiente' queda falsa PARA SIEMPRE, sin dejar rastro en
+// ningún log. La etiqueta larga vive en la UI; la columna guarda 'negocio'.
+const TIPOS_PERSONA = [
+    'fisica'  => ['label' => 'Persona física',        'factura' => true],
+    'moral'   => ['label' => 'Persona moral',         'factura' => true],
+    'negocio' => ['label' => 'Negocio independiente', 'factura' => false],
+];
+
+function tipo_persona_valido($tipo) {
+    return isset(TIPOS_PERSONA[strtolower(trim((string) $tipo))]);
+}
+
+// ¿Este colegio puede emitir facturas (CFDI)?
+//
+// Un tipo_persona vacío o desconocido se trata como que SÍ puede: es el estado
+// de todos los colegios anteriores a que existiera esta columna, y negarles
+// algo que hoy hacen sería una regresión silenciosa. Solo 'negocio' bloquea.
+function escuela_puede_facturar($tipo_persona) {
+    $t = strtolower(trim((string) $tipo_persona));
+    if ($t === '' || !isset(TIPOS_PERSONA[$t])) return true;
+    return TIPOS_PERSONA[$t]['factura'];
+}
+
+// Documentos que un colegio debe tener APROBADOS para quedar habilitado.
+//
+// Los 5 son del formulario de alta de comercio de Cobroscontarjeta.com, pero
+// solo 4 sirven para COBRAR; 'constancia_fiscal' es puramente fiscal. A un
+// negocio independiente, que no va a facturar, no se le pide.
+//
+// Esto NO es cosmético: revisar_documento_escuela.php exige que TODOS los
+// requeridos estén aprobados para poner documentacion_estado='aprobada', y
+// provision_listar_pendientes.php solo muestra colegios 'aprobada'. Pedirle
+// a un negocio independiente una constancia que no tiene lo dejaría atorado
+// en 'en_revision' y, por lo tanto, SIN PODER COBRAR NUNCA.
+function documentos_requeridos_por_tipo_persona($tipo_persona) {
+    $base = [
+        'identificacion_frente',
+        'identificacion_reverso',
+        'estado_cuenta_bancario',
+        'comprobante_domicilio',
+    ];
+    return escuela_puede_facturar($tipo_persona)
+        ? array_merge($base, ['constancia_fiscal'])
+        : $base;
+}

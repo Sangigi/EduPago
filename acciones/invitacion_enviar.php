@@ -35,7 +35,8 @@
     // facturar de verdad. Opcional aquí (se puede completar después) para no
     // bloquear el alta si el colegio todavía no lo tiene claro.
     $tipo_persona = trim($input['tipo_persona'] ?? '');
-    if ($tipo_persona !== '' && !in_array($tipo_persona, ['fisica', 'moral'], true)) {
+    // Ver tipo_persona_valido() en lib/helpers_pagos.php (fuente única, 23-sep-2026).
+    if ($tipo_persona !== '' && !tipo_persona_valido($tipo_persona)) {
         respond(['success' => false, 'error' => 'tipo_persona debe ser fisica o moral']);
     }
 

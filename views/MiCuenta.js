@@ -274,8 +274,19 @@ function MiCuenta({ escuela, user }) {
                       _jsxDEV('option', { value: '', children: 'Sin definir' }, 'op0'),
                       _jsxDEV('option', { value: 'fisica', children: 'Persona física' }, 'op1'),
                       _jsxDEV('option', { value: 'moral', children: 'Persona moral' }, 'op2'),
+                      // Negocio independiente (23-sep-2026): cobra pero no
+                      // factura. El valor es 'negocio' y no 'negocio_independiente'
+                      // porque escuelas.tipo_persona es VARCHAR(10) — ver la
+                      // nota en TIPOS_PERSONA (lib/helpers_pagos.php).
+                      _jsxDEV('option', { value: 'negocio', children: 'Negocio independiente' }, 'op3'),
                     ]
-                  }, 2)
+                  }, 2),
+                  _jsxDEV('div', {
+                    style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 5, lineHeight: 1.45 },
+                    children: tipoPersona === 'negocio'
+                      ? 'Un negocio independiente puede cobrar a las familias, pero no emitir facturas. Tampoco se te pide la constancia de situación fiscal. Si más adelante necesitas facturar, cambia aquí el tipo de persona y súbela.'
+                      : 'Persona física y moral pueden cobrar y emitir facturas. Si no vas a facturar, elige "Negocio independiente" y te pediremos un documento menos.'
+                  }, 'tp-ayuda')
                 ]
               }, 'tp'),
               _jsxDEV('div', {
@@ -395,7 +406,16 @@ function MiCuenta({ escuela, user }) {
           cargandoDocs ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)' }, children: 'Cargando…' }, 'load') :
             _jsxDEV('div', {
               style: { display: 'flex', flexDirection: 'column', gap: 10 },
-              children: MC_TIPOS_DOCUMENTO.map(t => {
+              // A un NEGOCIO INDEPENDIENTE no se le pide la constancia fiscal
+              // (23-sep-2026): no va a facturar. Tiene que coincidir con
+              // documentos_requeridos_por_tipo_persona() en lib/helpers_pagos.php,
+              // que es lo que de verdad decide si la documentación queda
+              // 'aprobada'. Si esta lista pidiera uno de más, el colegio subiría
+              // un documento que nadie espera; si pidiera uno de menos, se
+              // quedaría esperando sin saber qué le falta.
+              children: MC_TIPOS_DOCUMENTO
+                .filter(t => !(t.tipo === 'constancia_fiscal' && tipoPersona === 'negocio'))
+                .map(t => {
                 const doc = docDe(t.tipo);
                 const info = doc ? (MC_ESTADO_DOC[doc.estado] || MC_ESTADO_DOC.pendiente) : null;
                 const subiendo = subiendoTipo === t.tipo;

@@ -5,7 +5,7 @@
 // los de su propia escuela; superadmin y contador, los de cualquiera.
 
 $rol = $usuario_actual['rol'] ?? '';
-requerir_rol($rol, ['superadmin', 'admin', 'contador'], 'No tienes permiso para ver documentos.');
+requerir_rol($rol, ['superadmin', 'admin', 'contador', 'provision'], 'No tienes permiso para ver documentos.');
 
 $escuela_id = intval($input['escuela_id'] ?? 0);
 if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
@@ -15,7 +15,7 @@ if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido'
 // decenas de acciones no relacionadas (cobros, clientes, gastos...) y eso
 // le daría acceso de facto a todo lo demás. El bypass queda local a este
 // archivo.
-if ($rol !== 'contador') {
+if (!in_array($rol, ['contador', 'provision'], true)) {
     requerir_escuela_propia($rol, $escuela_id, $usuario_actual, 'No tienes permiso sobre esta escuela.');
 }
 
