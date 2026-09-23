@@ -1156,6 +1156,21 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   .pos-cart { max-height: 60vh; max-height: 60dvh; }
 
+  /* Seguro contra el bug del botón "Cobrar" que no aparece (reportado en un
+     OnePlus 15: "no aparece ni bajando hasta el fondo"). La regla base pone
+     .pos-cart en overflow:hidden, así que todo lo que no cabe dentro del tope
+     de altura NO se recorta y ya: queda INALCANZABLE, sin scroll que lo pueda
+     traer. Y el botón es el último hijo de esa columna, así que es siempre lo
+     primero que se pierde.
+     El tope de altura y el scroll interno de .cart-items se quedan como están
+     (son el arreglo documentado más abajo, y siguen siendo lo que evita que el
+     bloque de cobro se vaya al fondo de la página). Esto solo cambia qué pasa
+     cuando aun así no cabe — medido: con el aviso de bloqueo de SPEI visible, o
+     con el escalado de texto de Android por encima del 100%, el bloque fijo se
+     pasa del tope y hoy el botón desaparece sin remedio. Con overflow-y:auto se
+     alcanza deslizando en vez de perderse. */
+  .pos-cart { overflow-y: auto; }
+
   .stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
 }

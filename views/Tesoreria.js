@@ -16,7 +16,9 @@
 
 var _hTS = React.createElement;
 
-function Tesoreria({ user, onLogout }) {
+// menuPerfil llega ya armado desde assets/js/app.js: incluye "Editar mi perfil",
+// "Cambiar contraseña" y "Cerrar sesión" — el camino que esta pantalla no tenía.
+function Tesoreria({ user, onLogout, menuPerfil }) {
   const { useState, useEffect, useCallback } = React;
 
   const hoyISO = new Date().toISOString().slice(0, 10);
@@ -82,7 +84,13 @@ function Tesoreria({ user, onLogout }) {
   const cuentas     = (datos && datos.cuentas) || [];
   const recurrentes = (datos && datos.recurrentes) || [];
 
-  return _hTS('div', { style: { minHeight: '100vh', background: 'var(--bg-main)' } },
+  // minHeight dejaba crecer el div pero NADA lo podía desplazar: esta pantalla
+  // cuelga de #root (altura fija) con html/body en overflow:hidden, así que la
+  // sección "Les toca este mes" —que va después de las cuentas por pagar— era
+  // literalmente inalcanzable. Mismo patrón que views/PortalFamilia.js, que ya
+  // documenta la trampa. maxHeight en dvh para que en móvil el fondo no quede
+  // debajo de la barra del navegador.
+  return _hTS('div', { style: { height: '100vh', maxHeight: '100dvh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--bg-main)' } },
 
     /* ── Barra superior ── */
     _hTS('div', {
@@ -95,7 +103,7 @@ function Tesoreria({ user, onLogout }) {
     },
       _hTS('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)' } }, 'Cuentas por pagar'),
       _hTS('div', { key: 'u', style: { marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-3)' } }, user?.nombre || ''),
-      _hTS('button', { key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión')
+      menuPerfil || _hTS('button', { key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión')
     ),
 
     _hTS('div', { key: 'body', style: { padding: 20, maxWidth: 1100, margin: '0 auto' } },

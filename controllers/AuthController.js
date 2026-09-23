@@ -58,6 +58,19 @@ const AuthController = (() => {
   function isSuperAdmin(user) { return user?.rol === 'superadmin'; }
   function isAdmin(user)      { return user?.rol === 'admin' || isSuperAdmin(user); }
   function isDistribuidor(user) { return user?.rol === 'distribuidor'; }
+  // Espejo EXACTO de rol_alcance_global() en api.php: que roles ven los datos de
+  // CUALQUIER escuela en vez de los de la suya. Es distinto de isSuperAdmin, que
+  // ademas concede permisos de ESCRITURA — soporte es de lectura estricta.
+  //
+  // Existe porque el backend ya resolvio esto y el frontend se quedo atras: el
+  // comentario de api.php sobre rol_alcance_global advierte que agregar un rol de
+  // plataforma "obligara a cazar cada comparacion suelta, y olvidar una dejaba al
+  // rol nuevo viendo una lista vacia sin ningun error visible". Eso es justo lo
+  // que le pasaba a soporte del lado del cliente: cargar_datos le devolvia lo de
+  // todas las escuelas, pero app.js decidia el alcance con isSuperAdmin(), asi
+  // que nunca pedia los datos de la escuela elegida y pintaba todo en ceros.
+  // Al agregar un rol de plataforma nuevo, actualiza ESTA funcion y la de api.php.
+  function alcanceGlobal(user) { return user?.rol === 'superadmin' || user?.rol === 'soporte'; }
 
   const DEMO_USERS = [
     { email:'super@pagalaescuela.mx', pass:'Admin2026!', label:'Super Admin' },
@@ -134,5 +147,5 @@ const AuthController = (() => {
     return res.activa;
   }
 
-  return { login, logout, recuperarPassword, getSession, getToken, isSuperAdmin, isAdmin, isDistribuidor, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela, cerrarSesionesUsuario };
+  return { login, logout, recuperarPassword, getSession, getToken, isSuperAdmin, isAdmin, isDistribuidor, alcanceGlobal, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela, cerrarSesionesUsuario };
 })();

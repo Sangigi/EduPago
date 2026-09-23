@@ -79,6 +79,28 @@
                 respond(['success' => false, 'error' => 'Ese correo ya está registrado por otra cuenta.']);
             }
         }
+        // Roles de PLATAFORMA: no pertenecen a ninguna escuela, su trabajo es
+        // mirar o atender a TODAS. crear_usuario.php ya les forzaba
+        // escuela_id = NULL al dar de alta, pero aquí no había ningún
+        // equivalente: el selector "Escuela asignada" del modal (que hasta
+        // ahora se les mostraba) SÍ grababa esa escuela al editar, y eso
+        // encierra al rol dentro de un colegio y le deja su panel vacío
+        // (sus consultas asumen alcance global). La lista debe ir a la par de
+        // la de crear_usuario.php.
+        //
+        // Se resuelve el rol EFECTIVO: si la petición no trae rol (edición que
+        // solo cambia nombre/correo), el que manda es el que ya tiene la fila.
+        if ($esc_id !== null) {
+            $rol_efectivo = $rol;
+            if ($rol_efectivo === '') {
+                $stmtRolActual = $pdo->prepare("SELECT rol FROM usuarios WHERE id = ?");
+                $stmtRolActual->execute([$id]);
+                $rol_efectivo = (string) $stmtRolActual->fetchColumn();
+            }
+            if (in_array($rol_efectivo, ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria'], true)) {
+                $esc_id = null;
+            }
+        }
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
         if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }

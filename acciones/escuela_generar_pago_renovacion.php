@@ -83,9 +83,29 @@ if ($metodo === 'TC') {
     $ref = construir_referencia_pago_generico($pdo, $refBase);
     $id_pago = str_pad(strval($esc['id']), 9, '0', STR_PAD_LEFT);
 
+    // Los metadatos de EFECTIVO (vencimiento, código de barras, formato de
+    // pago) se limpian en el MISMO UPDATE. Sin esto la fila quedaba mezclada:
+    // referencia de TARJETA con el vencimiento y el código de barras de un
+    // intento de efectivo anterior. Y como el SELECT de idempotencia de más
+    // abajo solo pide "referencia NOT NULL + vencimiento >= hoy" —no sabe de
+    // métodos— daba esa mezcla por vigente y devolvía la referencia de la liga
+    // como si fuera pagable en tienda: 13 dígitos internos en vez de los ~29
+    // envueltos que manda el proveedor.
+    //
+    // No se pierde nada cobrable: la propia línea de abajo ya sobrescribe
+    // pago_renovacion_referencia, que es la ÚNICA llave con la que
+    // consulta_referencia.php y pago_referencia.php encuentran un pago de
+    // tienda. Ese barcode/payformat ya quedaba huérfano; lo único que hacía
+    // de más era engañar.
+    //
+    // La invariante que sostiene todo esto: pago_renovacion_vencimiento solo
+    // es NO NULL cuando la fila guarda una referencia de tienda de verdad,
+    // emitida por el proveedor (se escribe únicamente en el UPDATE final de la
+    // rama de efectivo, junto con la Reference envuelta).
     $pdo->prepare(
         "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_folio = ?, pago_renovacion_monto = ?,
-              pago_renovacion_plan = ?
+              pago_renovacion_plan = ?,
+              pago_renovacion_vencimiento = NULL, pago_renovacion_barcode_url = NULL, pago_renovacion_payformat_url = NULL
             WHERE id = ?"
     )->execute([$ref, $folio, $total, $plan_elegido, $esc['id']]);
 
@@ -172,9 +192,18 @@ if ($vigente) {
 }
 
 $ref = construir_referencia_pago_generico($pdo, $refBase);
+// Misma limpieza que en la rama de TC, y por el mismo motivo: este UPDATE
+// "quema" una referencia INTERNA antes de llamar al proveedor, y si la llamada
+// falla (error de red más abajo, o respuesta sin Reference/BarCode/PayFormat)
+// se hace respond() y se sale sin revertir nada. Sin limpiar el vencimiento,
+// esa fila quedaba con una referencia interna incobrable PERO con un
+// vencimiento viejo todavía futuro, y el siguiente clic la reutilizaba como si
+// fuera una referencia de tienda válida. Mantiene la invariante: el vencimiento
+// solo vuelve a ser NO NULL en el UPDATE final, con la Reference envuelta.
 $pdo->prepare(
     "UPDATE escuelas SET pago_renovacion_referencia = ?, pago_renovacion_folio = ?, pago_renovacion_monto = ?,
-          pago_renovacion_plan = ?
+          pago_renovacion_plan = ?,
+          pago_renovacion_vencimiento = NULL, pago_renovacion_barcode_url = NULL, pago_renovacion_payformat_url = NULL
         WHERE id = ?"
 )->execute([$ref, $folio, $total, $plan_elegido, $esc['id']]);
 

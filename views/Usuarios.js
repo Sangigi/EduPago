@@ -8,6 +8,56 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
 var _Fragment = React.Fragment;
 // views/Usuarios.jsx — Gestión dinámica de usuarios con jerarquía de roles e integración de Portal Familiar FIX: FormModal extraído del render de Usuarios para evitar desmonte/remonte en cada cambio de estado
 
+/* Roles de PLATAFORMA: no pertenecen a ningún colegio, su trabajo es mirar o
+   atender a TODOS. Esta lista va a la par de acciones/crear_usuario.php (que
+   les fuerza escuela_id = NULL al dar de alta) y de acciones/editar_usuario.php.
+   Pedirles una escuela en el formulario era pedir un dato que el alta descarta
+   y que la edición SÍ grababa, encerrando al rol dentro de un colegio y
+   dejándole el panel vacío. NO incluye 'superadmin', que tiene su propia rama.
+   Vive a nivel de módulo, no dentro de Usuarios(), porque UsuariosFormModal es
+   una función de nivel superior y no vería una const declarada allá adentro. */
+const ROLES_SIN_ESCUELA = ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria'];
+
+/* Nota que sustituye al selector de escuela para cada rol sin colegio. Textos
+   tomados de los comentarios de ROL_INFO y de las cabeceras de views/Tesoreria.js
+   y views/Provision.js — antes todos heredaban el texto del contador, que para
+   los demás era simplemente falso. ('distribuidor' no está aquí: tiene su propia
+   rama, porque además elige Zona.) */
+const NOTA_SIN_ESCUELA = {
+  contador:  'Informativa — un contador revisa documentos de CUALQUIER escuela, no pertenece a una sola.',
+  soporte:   'Informativa — soporte consulta CUALQUIER escuela para atender a los colegios. Solo lectura.',
+  provision: 'Informativa — provisión da de alta a los colegios ante el proveedor de pagos, no trabaja para uno solo.',
+  tesoreria: 'Informativa — tesorería lleva las cuentas por pagar de TODOS los colegios, no de uno solo.'
+};
+
+/* Orden jerárquico ÚNICO para las tarjetas de arriba, los chips de filtro y la
+   leyenda de abajo. Antes cada uno de esos tres widgets tenía su propia lista
+   escrita a mano: por eso los roles agregados el 22-sep-2026 (soporte,
+   provisión, tesorería) ya tenían etiqueta en ROL_INFO y se podían crear desde
+   el modal, pero no aparecían por ningún lado después de creados. */
+const ROLES_ORDEN = ['superadmin', 'admin', 'cajero', 'familia', 'distribuidor', 'contador', 'soporte', 'provision', 'tesoreria'];
+
+/* Lo que ve un admin. listar_usuarios.php ya excluye server-side a los roles de
+   plataforma (filtra por su escuela_id, y esos roles la tienen en NULL), así que
+   pintárselos daba tarjetas siempre en 0 y filtros que nunca devuelven nada. */
+const ROLES_DE_COLEGIO = ['admin', 'cajero', 'familia'];
+
+/* Descripciones de la leyenda "Jerarquía de permisos y roles autorizados".
+   En un mapa (y no en un arreglo suelto dentro del render) para que la leyenda
+   no pueda volver a quedarse atrás cuando se agregue un rol: el orden y qué se
+   muestra los decide ROLES_ORDEN / ROLES_DE_COLEGIO, igual que las tarjetas. */
+const ROL_DESC = {
+  superadmin:   'Crea admins, cajeros y familias · Acceso global administrativo completo.',
+  admin:        'Gestiona cajeros y familias asignados a su mismo plantel escolar.',
+  cajero:       'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.',
+  familia:      'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.',
+  distribuidor: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.',
+  contador:     'Revisa documentos fiscales y datos de alta de comercio de cualquier escuela. Sin los demás poderes de superadmin.',
+  soporte:      'Atiende a los colegios: consulta cualquier escuela para diagnosticar. Estrictamente de lectura, no escribe nada.',
+  provision:    'Captura el identificador que el proveedor de pagos asigna al colegio una vez que el contador aprobó sus documentos.',
+  tesoreria:    'Calendario de cuentas por pagar a proveedores, con la vista agregada de todos los colegios.'
+};
+
 /* ─── Componente del modal de formulario — FUERA de Usuarios para evitar re-creación en cada render ─── */
 function UsuariosFormModal({
   titulo,
@@ -240,13 +290,13 @@ function UsuariosFormModal({
                       children: "Informativa — un distribuidor no pertenece a ninguna escuela"
                     }, void 0, false)
                   ]
-                }, void 0, true) : form.rol === 'contador' ? _jsxDEV("div", {
+                }, void 0, true) : ROLES_SIN_ESCUELA.includes(form.rol) ? _jsxDEV("div", {
                   className: "form-group",
                   children: [
                     _jsxDEV("label", { className: "form-label", children: "Escuela asignada (ninguna)" }, void 0, false),
                     _jsxDEV("div", {
                       style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 4 },
-                      children: "Informativa — un contador revisa documentos de CUALQUIER escuela, no pertenece a una sola."
+                      children: NOTA_SIN_ESCUELA[form.rol]
                     }, void 0, false)
                   ]
                 }, void 0, true) : _jsxDEV("div", {
@@ -535,6 +585,11 @@ function Usuarios({ user, data }) {
     tesoreria:    { label: 'Tesorería',    icon: 'bank',    color: '#0d9488', bg: 'rgba(13,148,136,.15)', badge: 'badge-green' }
   };
 
+  // Fuente única de los roles que se pintan en las tarjetas, los chips de
+  // filtro y la leyenda. Todos existen en ROL_INFO, que es lo que evita que la
+  // leyenda reviente (usa ROL_INFO[rol].badge sin optional chaining).
+  const rolesVisibles = esSuper ? ROLES_ORDEN : ROLES_DE_COLEGIO;
+
   // Crea una familia sin salir del modal de "nuevo usuario" — antes había
   // que ir primero a Familias.js, crearla ahí, y volver aquí a vincularla.
   // Devuelve la familia creada para que el selector la seleccione de una vez.
@@ -562,7 +617,7 @@ function Usuarios({ user, data }) {
       return setErrForm('Debes vincular este usuario a una cuenta familiar obligatoriamente.');
     const payload = {
       ...form,
-      escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
+      escuela_id: ROLES_SIN_ESCUELA.includes(form.rol) ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
       familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null,
       zona: form.rol === 'distribuidor' ? form.zona.trim() : '',
       zona_id: form.rol === 'distribuidor' ? (parseInt(form.zona_id) || null) : null
@@ -602,7 +657,7 @@ function Usuarios({ user, data }) {
       return setErrForm('Ingresa tu contraseña actual para guardar estos cambios.');
     const payload = {
       ...form,
-      escuela_id: form.rol === 'distribuidor' ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
+      escuela_id: ROLES_SIN_ESCUELA.includes(form.rol) ? null : (form.escuela_id ? parseInt(form.escuela_id) : null),
       familia_id: form.rol === 'familia' ? parseInt(form.familia_id) : null,
       zona: form.rol === 'distribuidor' ? form.zona.trim() : '',
       zona_id: form.rol === 'distribuidor' ? (parseInt(form.zona_id) || null) : null
@@ -682,14 +737,16 @@ function Usuarios({ user, data }) {
         className: "stats-grid",
         style: { marginBottom: 20 },
         children: [
-          // Un admin nunca puede tener ni ver cuentas superadmin (listar_usuarios.php
-          // ya las excluye server-side) — mostrarle esta tarjeta siempre en 0 solo
-          // confunde, así que se oculta por completo si no eres superadmin.
-          esSuper ? { rol: 'superadmin', count: usuarios.filter(u => u.rol === 'superadmin').length } : null,
-          { rol: 'admin',      count: usuarios.filter(u => u.rol === 'admin').length },
-          { rol: 'cajero',     count: usuarios.filter(u => u.cajero || u.rol === 'cajero').length },
-          { rol: 'familia',    count: usuarios.filter(u => u.rol === 'familia').length },
-          { rol: 'distribuidor', count: usuarios.filter(u => u.rol === 'distribuidor').length },
+          // Un admin nunca puede tener ni ver cuentas superadmin ni de plataforma
+          // (listar_usuarios.php ya las excluye server-side) — mostrarle esas
+          // tarjetas siempre en 0 solo confunde, así que rolesVisibles las quita.
+          // Antes esta lista estaba escrita a mano con 5 roles fijos, y por eso a
+          // un superadmin le faltaban contador/soporte/provisión/tesorería: se
+          // podían crear desde el modal, pero no tenían tarjeta ni filtro.
+          ...rolesVisibles.map(r => ({
+            rol: r,
+            count: usuarios.filter(u => u.rol === r || (r === 'cajero' && u.cajero)).length
+          })),
           { label: 'Total activos', count: usuarios.filter(u => u.activo !== false).length, icon: 'check', color: 'var(--green)', bg: 'var(--green-glow)' }
         ].filter(Boolean).map((s, i) => {
           const info = s.rol ? ROL_INFO[s.rol] : null;
@@ -740,7 +797,7 @@ function Usuarios({ user, data }) {
           _jsxDEV("div", {
             style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' },
             children: [
-              ['todos', ...(esSuper ? ['superadmin'] : []), 'admin', 'cajero', 'familia', 'distribuidor', 'contador'].map(r =>
+              ['todos', ...rolesVisibles].map(r =>
                 _jsxDEV("button", {
                   className: `badge ${filtroRol === r ? ROL_INFO[r]?.badge || 'badge-blue' : 'badge-gray'}`,
                   style: {
@@ -749,7 +806,16 @@ function Usuarios({ user, data }) {
                     background: filtroRol === r ? ROL_INFO[r]?.bg : ''
                   },
                   onClick: () => setFiltroRol(r),
-                  children: r === 'todos' ? 'Todos' : `${ROL_INFO[r]?.icon} ${ROL_INFO[r]?.label}`
+                  // Antes era una plantilla de texto con ROL_INFO[r].icon dentro,
+                  // y como .icon es el NOMBRE del path SVG ('shield', 'globe'…),
+                  // el chip mostraba literalmente "shield Contador". El icono se
+                  // pinta con el componente Icon, igual que en la leyenda y en la
+                  // tabla. (.badge ya es inline-flex con gap, no hace falta estilo.)
+                  children: r === 'todos' ? 'Todos' : [
+                    _jsxDEV(Icon, { name: ROL_INFO[r]?.icon, size: 13, color: "currentColor" }, 'ic', false),
+                    ' ',
+                    ROL_INFO[r]?.label
+                  ]
                 }, r, false)
               ),
               _jsxDEV("div", {
@@ -901,14 +967,12 @@ function Usuarios({ user, data }) {
                 style: { fontSize: 11, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 6, flexBasis: '100%' },
                 children: "Jerarquía de permisos y roles autorizados"
               }, void 0, false),
-              [
-                { rol: 'superadmin', desc: 'Crea admins, cajeros y familias · Acceso global administrativo completo.' },
-                { rol: 'admin',      desc: 'Gestiona cajeros y familias asignados a su mismo plantel escolar.' },
-                { rol: 'cajero',     desc: 'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.' },
-                { rol: 'familia',    desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' },
-                { rol: 'distribuidor', desc: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.' },
-                { rol: 'contador', desc: 'Revisa documentos fiscales y datos de alta de comercio de cualquier escuela. Sin los demás poderes de superadmin.' }
-              ].filter(item => item.rol !== 'superadmin' || user?.rol === 'superadmin').map(item => _jsxDEV("div", {
+              // Mismo origen que las tarjetas y los chips (rolesVisibles): antes
+              // este arreglo estaba escrito a mano con 6 roles y su .filter solo
+              // escondía superadmin, así que al admin le mostraba Distribuidor y
+              // Contador —roles que no puede crear ni ver— y al superadmin le
+              // faltaban soporte, provisión y tesorería.
+              rolesVisibles.map(rol => ({ rol, desc: ROL_DESC[rol] })).map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [
                   _jsxDEV("span", { className: `badge ${ROL_INFO[item.rol].badge}`, style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: ROL_INFO[item.rol].icon, size: 14, color: "currentColor" }, void 0, false), " ", ROL_INFO[item.rol].label] }, void 0, true),

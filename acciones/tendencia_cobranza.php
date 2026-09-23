@@ -8,7 +8,15 @@
         // días que para 1 año, sin mandar cada cobro individual al navegador.
         $escuela_id_tc = intval($input['escuela_id'] ?? $_GET['escuela_id'] ?? 0);
         if (!$escuela_id_tc) respond(['success' => false, 'error' => 'escuela_id requerido']);
-        requerir_escuela_propia($usuario_actual['rol'], $escuela_id_tc, $usuario_actual, 'No tienes permiso para ver la cobranza de esa escuela.');
+        // Los roles de alcance global (superadmin y soporte) consultan la
+        // cobranza de cualquier colegio. requerir_escuela_propia() solo perdona
+        // a superadmin, y NO conviene ampliarlo ahí dentro: ese mismo helper
+        // protege endpoints que SÍ escriben dinero, y soporte es de lectura
+        // estricta. Como este endpoint solo lee, el permiso se resuelve aquí y
+        // únicamente aquí.
+        if (!rol_alcance_global($usuario_actual['rol'] ?? '')) {
+            requerir_escuela_propia($usuario_actual['rol'], $escuela_id_tc, $usuario_actual, 'No tienes permiso para ver la cobranza de esa escuela.');
+        }
         requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id_tc, ['dashboard', 'cobros']);
 
         $desde_tc = trim($input['desde'] ?? $_GET['desde'] ?? '');

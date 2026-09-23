@@ -41,7 +41,11 @@ const CT_CAMPOS_DATOS_PAGO = [
   ['cuenta_cheques', 'Cuenta cheques'], ['id_tipo', 'Tipo de ID'], ['id_numero', 'Número de ID'],
 ];
 
-function Contador({ user, onLogout }) {
+// menuPerfil llega ya armado desde assets/js/app.js: incluye "Editar mi perfil",
+// "Cambiar contraseña" y "Cerrar sesión". Antes esta pantalla solo tenía el botón
+// de salir, así que un contador no tenía ninguna forma de cambiar su propia
+// contraseña pese a que el backend siempre se lo permitió.
+function Contador({ user, onLogout, menuPerfil }) {
   const { useState, useEffect } = React;
   const [escuelas, setEscuelas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -172,13 +176,23 @@ function Contador({ user, onLogout }) {
 
   return _jsxDEV('div', {
     className: 'view-contador',
-    style: { maxWidth: 960, margin: '0 auto', padding: 24 },
+    // Esta pantalla cuelga directamente de #root, que tiene altura fija, y
+    // html/body están en overflow:hidden — o sea que sin un contenedor con
+    // scroll propio, todo lo que pase del alto de la ventana queda
+    // INALCANZABLE (no se llega ni con rueda, ni con barra, ni con gesto).
+    // Con 15 colegios en revisión se perdían los últimos. Mismo patrón que
+    // views/PortalFamilia.js, que ya documenta esta trampa.
+    // maxHeight en dvh: en móvil 100vh se mide contra el viewport grande (barra
+    // del navegador colapsada), así que el fondo del contenedor queda debajo de
+    // esa barra y se vuelve a perder el último tramo. Los navegadores que no
+    // entienden dvh ignoran esa línea y se quedan con el 100vh de arriba.
+    style: { maxWidth: 960, margin: '0 auto', padding: 24, height: '100vh', maxHeight: '100dvh', overflowY: 'auto', overflowX: 'hidden' },
     children: [
       _jsxDEV('div', {
         style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
         children: [
           _jsxDEV('div', { style: { fontSize: 20, fontWeight: 700 }, children: 'Paga la Escuela — Revisión de cuentas' }, 't'),
-          _jsxDEV('button', { className: 'btn btn-secondary btn-sm', onClick: onLogout, children: 'Salir' }, 'salir'),
+          menuPerfil || _jsxDEV('button', { className: 'btn btn-secondary btn-sm', onClick: onLogout, children: 'Salir' }, 'salir'),
         ]
       }, 'topbar'),
       _jsxDEV('div', {
@@ -214,9 +228,18 @@ function Contador({ user, onLogout }) {
           cargando ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)' }, children: 'Cargando…' }, 'load') :
             errLista ? null :
             escuelasFiltradas.length === 0 ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)', padding: '18px 4px' }, children: 'No hay colegios que coincidan con este filtro.' }, 'vacio') :
-            _jsxDEV('table', {
-              className: 'data-table',
-              children: [
+            // .table-wrap es quien lleva overflow-x:auto (assets/css/main.css).
+            // Sin él, en un teléfono las cinco columnas desbordan por la derecha
+            // y —como html/body están en overflow:hidden— la última, que es justo
+            // el botón "Revisar" (la única acción de esta pantalla), no se puede
+            // alcanzar de ninguna forma. Las otras 14 tablas del sistema ya usan
+            // este contenedor.
+            // De paso se quita la clase 'data-table': no existe en main.css, este
+            // era el único archivo del proyecto que la mencionaba.
+            _jsxDEV('div', {
+              className: 'table-wrap',
+              children: _jsxDEV('table', {
+                children: [
                 _jsxDEV('thead', { children: _jsxDEV('tr', { children: [
                   _jsxDEV('th', { children: 'Colegio' }, 1), _jsxDEV('th', { children: 'Clave' }, 2),
                   _jsxDEV('th', { children: 'Persona' }, 3), _jsxDEV('th', { children: 'Estado documentación' }, 4), _jsxDEV('th', { children: '' }, 5)
@@ -235,8 +258,9 @@ function Contador({ user, onLogout }) {
                     }, esc.id, true);
                   })
                 }, 'tbody')
-              ]
-            }, 'tabla')
+                ]
+              }, 'tabla')
+            }, 'tablawrap')
         ]
       }, 'card1'),
 

@@ -71,10 +71,19 @@ function MiSuscripcion({ escuela, user, onIrA }) {
   // recargaba la página o volvía después, la referencia seguía vigente en
   // `escuelas.pago_renovacion_*` (el backend ya la reutiliza en vez de
   // pedirle una nueva al proveedor, ver escuela_generar_pago_renovacion.php)
-  // pero aquí no se leía de ahí, así que parecía que "no existía". TC no
-  // aplica: esa liga no se guarda vencimiento porque es de un solo uso.
+  // pero aquí no se leía de ahí, así que parecía que "no existía".
+  //
+  // El comentario anterior decía que "TC no aplica porque esa liga no guarda
+  // vencimiento", y eso era engañoso: la rama de TC SÍ escribe
+  // pago_renovacion_referencia, y antes tampoco limpiaba el vencimiento, así
+  // que heredaba el de un intento de efectivo previo y esta pantalla pintaba
+  // la referencia de la LIGA como si fuera pagable en tienda. El backend ya
+  // sostiene la invariante (vencimiento no nulo ⇒ referencia de tienda real
+  // emitida por el proveedor); aquí se exige además el código de barras o el
+  // formato de pago, que solo existen cuando el proveedor de verdad respondió.
   useEffect(() => {
     if (!escuela?.pago_renovacion_referencia || !escuela?.pago_renovacion_vencimiento) return;
+    if (!escuela?.pago_renovacion_barcode_url && !escuela?.pago_renovacion_payformat_url) return;
     const vencRef = new Date(escuela.pago_renovacion_vencimiento + 'T00:00:00');
     if (vencRef < hoy) return;
     setResultado({

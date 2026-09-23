@@ -51,7 +51,21 @@ const NAV_ITEMS = [{
 
   // usar porque este filtro de roles nunca dejaba pasar a superadmin.
 
-  roles: ['cajero', 'admin', 'superadmin']
+  //
+
+  // 'soporte' entra aquí porque el botón "Ir al colegio →" de Búsqueda Global
+
+  // lo manda justamente al dashboard, y sin el ítem en su menú aterrizaba en
+
+  // una pantalla que no correspondía a ninguna sección (ningún ítem marcado y
+
+  // sin camino de vuelta). No es ampliarle el alcance: cargar_datos.php ya le
+
+  // devuelve los datos de cualquier colegio por rol_alcance_global(); era el
+
+  // menú el que se los escondía.
+
+  roles: ['cajero', 'admin', 'superadmin', 'soporte']
 
 }, {
 
@@ -758,6 +772,16 @@ function App() {
 
 
 
+      // La vista inicial por rol se aplicaba SOLO en handleLogin, así que el
+      // arreglo del 22-sep cubría la entrada por login pero no la REENTRADA:
+      // cualquier soporte que refrescara la pestaña (F5) o volviera con la
+      // sesión recordada aterrizaba en 'dashboard' —el valor inicial de `view`—
+      // que ni siquiera está en su menú. Se aplica también al restaurar.
+
+      setView(VISTA_INICIAL_POR_ROL[session.rol] || 'dashboard');
+
+
+
       if (session.escuela_id) {
 
         setEscuelaActiva(session.escuela_id);
@@ -824,11 +848,18 @@ function App() {
 
 
 
-  // * Superadmin: * al elegir una escuela se vuelve a consultar cargar_datos * usando escuela_id_ver.
+  // * Alcance global (superadmin y soporte): * al elegir una escuela se vuelve a
+  // * consultar cargar_datos * usando escuela_id_ver.
+  //
+  // Antes esto era isSuperAdmin, así que para soporte NUNCA se disparaba el
+  // refetch: elegía un colegio y seguía viendo la respuesta "sin escuela" de
+  // cargar_datos.php, que para alcance global trae solo lo ligero. Resultado:
+  // todas las tarjetas y tablas en cero para un colegio que sí tiene datos.
+  // alcanceGlobal() es el espejo de rol_alcance_global() del backend.
 
   const esSuperParaFetch =
 
-    user && AuthController.isSuperAdmin(user);
+    user && AuthController.alcanceGlobal(user);
 
 
 
@@ -1165,6 +1196,50 @@ function App() {
 
 
 
+  // Menú de perfil para los paneles AUTÓNOMOS (contador, provisión, tesorería).
+  // Esos tres se saltan el shell, así que se quedaban sin la única vía para
+  // editar su perfil o cambiar su propia contraseña — aunque el backend ya se
+  // lo permite a cualquier usuario autenticado (acciones/cambiar_password_propio.php
+  // no tiene requerir_rol, y editar_usuario.php deja pasar a cualquiera sobre su
+  // propio id). Dependían de que un superadmin se las cambiara.
+  //
+  // Se construye aquí, donde ya vive toda la plomería del shell (el token, el
+  // reflejo del cambio en pantalla), y se le pasa al panel como un prop ya
+  // armado: así cada panel solo lo coloca en su barra superior y no duplica
+  // nada. escuela va en null a propósito — son roles de plataforma, no
+  // pertenecen a ningún colegio, y MenuPerfil ya lo tolera (cae a iniciales y
+  // esconde la edición del logo).
+
+  const menuPerfilPlataforma = _jsxDEV(
+    MenuPerfil,
+    {
+      user: user,
+      escuela: null,
+      onLogout: handleLogout,
+      apiPost: async (accion, cuerpo) => {
+        const res = await fetch('api.php?action=' + accion, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + AuthController.getToken()
+          },
+          body: JSON.stringify(cuerpo)
+        });
+        return res.json();
+      },
+      onActualizado: (tipo, cambios) => {
+        if (tipo === 'cuenta') {
+          const { logo_url, ...cambiosUsuario } = cambios;
+          setUser(prev => prev ? { ...prev, ...cambiosUsuario } : prev);
+        }
+      }
+    },
+    void 0,
+    false
+  );
+
+
+
   // * PORTAL DISTRIBUIDOR * No depende de cargar_datos (asume escuela_id fija en sesion); * Distribuidor.js trae su propia data via action=distribuidor_datos.
 
   if (user.rol === 'distribuidor') {
@@ -1206,7 +1281,9 @@ function App() {
 
         user: user,
 
-        onLogout: handleLogout
+        onLogout: handleLogout,
+
+        menuPerfil: menuPerfilPlataforma
 
       },
 
@@ -1234,7 +1311,9 @@ function App() {
 
         user: user,
 
-        onLogout: handleLogout
+        onLogout: handleLogout,
+
+        menuPerfil: menuPerfilPlataforma
 
       },
 
@@ -1260,7 +1339,9 @@ function App() {
 
         user: user,
 
-        onLogout: handleLogout
+        onLogout: handleLogout,
+
+        menuPerfil: menuPerfilPlataforma
 
       },
 
@@ -1424,6 +1505,16 @@ function App() {
 
 
 
+  // OJO: esSuper gobierna además permisos de ESCRITURA en varios puntos, así que
+  // no se toca. Esta variable es solo "¿qué escuelas ve este usuario?", que es
+  // una pregunta distinta: soporte ve todas, pero no puede escribir en ninguna.
+
+  const alcanceGlobalUI =
+
+    AuthController.alcanceGlobal(user);
+
+
+
 
 
   const escuela =
@@ -1440,7 +1531,7 @@ function App() {
 
   const dataScopeed =
 
-    esSuper && !escuelaActiva
+    alcanceGlobalUI && !escuelaActiva
 
 
 
@@ -3302,9 +3393,11 @@ function App() {
 
 
 
-              // * SELECTOR SUPERADMIN
+              // * SELECTOR DE ESCUELA (alcance global: superadmin y soporte)
+              // Sin esto, soporte no tenía forma de cambiar de colegio a mano:
+              // el selector solo se le mostraba al superadmin.
 
-              esSuper &&
+              alcanceGlobalUI &&
 
                 _jsxDEV(
 

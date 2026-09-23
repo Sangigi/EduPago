@@ -16,7 +16,9 @@
 
 var _hPR = React.createElement;
 
-function Provision({ user, onLogout }) {
+// menuPerfil llega ya armado desde assets/js/app.js: incluye "Editar mi perfil",
+// "Cambiar contraseña" y "Cerrar sesión" — el camino que esta pantalla no tenía.
+function Provision({ user, onLogout, menuPerfil }) {
   const { useState, useEffect, useCallback } = React;
 
   const [escuelas, setEscuelas]   = useState([]);
@@ -88,7 +90,12 @@ function Provision({ user, onLogout }) {
     { id: 'todas',      label: 'Todas' },
   ];
 
-  return _hPR('div', { className: 'app-shell', style: { minHeight: '100vh', background: 'var(--bg-main)' } },
+  // minHeight dejaba crecer el div pero NADA lo podía desplazar: esta pantalla
+  // cuelga de #root (altura fija) con html/body en overflow:hidden, así que todo
+  // lo que pasaba del alto de la ventana quedaba inalcanzable. Mismo patrón que
+  // views/PortalFamilia.js, que ya documenta la trampa. maxHeight en dvh para que
+  // en móvil el fondo no quede debajo de la barra del navegador.
+  return _hPR('div', { className: 'app-shell', style: { height: '100vh', maxHeight: '100dvh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--bg-main)' } },
 
     /* ── Barra superior ── */
     _hPR('div', {
@@ -101,7 +108,7 @@ function Provision({ user, onLogout }) {
     },
       _hPR('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)' } }, 'Provisión de colegios'),
       _hPR('div', { key: 'u', style: { marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-3)' } }, user?.nombre || ''),
-      _hPR('button', {
+      menuPerfil || _hPR('button', {
         key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout
       }, 'Cerrar sesión')
     ),
