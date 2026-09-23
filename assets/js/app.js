@@ -983,19 +983,13 @@ function App() {
     // salir. Va aquí, en el login, y no en el useState de `view`, porque ese
     // inicializador corre una sola vez cuando `user` todavía es null.
 
-    // La guía de primer uso manda sobre la vista inicial: si nunca la ha
-    // visto, aterriza en "Mi cuenta", que es donde configura el colegio y sube
-    // los documentos. Solo aplica a quien tenga esa sección en su menú (hoy,
-    // el admin): mandar a otro rol a una vista que su menú no incluye se ve
-    // como una pantalla en blanco sin explicación — el mismo problema que
-    // documenta VISTA_INICIAL_POR_ROL.
-    const verGuia = !!u.guia_pendiente;
-    setGuiaPendiente(verGuia);
-    setView(
-      (verGuia && u.rol === 'admin')
-        ? 'mi_cuenta'
-        : (VISTA_INICIAL_POR_ROL[u.rol] || 'dashboard')
-    );
+    // La guía de primer uso NAVEGA sola de sección en sección, así que ya no
+    // hace falta forzar aquí una vista inicial distinta: en cuanto se monta,
+    // lleva al usuario al primer paso del recorrido. Antes esto aterrizaba a
+    // la fuerza en 'mi_cuenta' y ahora sería peor que inútil — la guía saltaría
+    // de inmediato a otra sección y el usuario vería un brinco sin motivo.
+    setGuiaPendiente(!!u.guia_pendiente);
+    setView(VISTA_INICIAL_POR_ROL[u.rol] || 'dashboard');
 
 
 
@@ -4904,7 +4898,7 @@ function App() {
 
                   className:
 
-                    "content",
+                    "content content-anim",
 
 
 
@@ -4914,7 +4908,16 @@ function App() {
 
                 },
 
-                void 0,
+                // key = view (23-sep-2026): fuerza a React a remontar este
+                // contenedor en cada cambio de sección, y con eso la animación
+                // de .content-anim vuelve a dispararse. Sin la key, React
+                // reusa el mismo nodo, la animación no se reinicia y el cambio
+                // de sección se siente como un corte seco.
+                //
+                // Lo aprovecha la guía de primer uso, que va navegando sola de
+                // sección en sección, pero aplica a toda la navegación normal.
+
+                view,
 
                 false
 

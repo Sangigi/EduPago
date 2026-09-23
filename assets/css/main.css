@@ -1884,3 +1884,31 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .sk-puntos span   { animation: none; opacity: .6; }
   .sk-envoltura     { animation: none; }
 }
+
+/* ── Transición al cambiar de sección (23-sep-2026) ──────────────────────
+   Un fundido corto con un desplazamiento mínimo hacia arriba. Se dispara
+   sola en cada cambio de vista porque assets/js/app.js le pone key={view}
+   al contenedor .content, y eso hace que React lo remonte.
+
+   Nació para la guía de primer uso, que va llevando al usuario de sección en
+   sección: sin transición, cada salto se siente como un corte seco y cuesta
+   seguir dónde quedaste. Aplica a toda la navegación, no solo a la guía.
+
+   Los 14px de desplazamiento y los 260ms son deliberadamente discretos: lo
+   que se busca es hilar una sección con la siguiente, no llamar la atención
+   sobre la animación misma. */
+@keyframes content-entra {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.content-anim { animation: content-entra .26s cubic-bezier(.22,.61,.36,1) both; }
+
+/* Quien pidió menos movimiento recibe solo el fundido — el desplazamiento es
+   justo lo que molesta con sensibilidad vestibular. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes content-entra {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .content-anim { animation-duration: .14s; }
+}

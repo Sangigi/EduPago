@@ -32,14 +32,19 @@ var _hG = React.createElement;
 
 // Una frase por sección. Cortas a propósito: la guía señala, no enseña.
 // `id` tiene que coincidir con el id de NAV_ITEMS en assets/js/app.js.
+//
+// EL ORDEN IMPORTA. Sigue el camino natural de montar un colegio —primero
+// mirar, luego dar de alta a quién le vas a cobrar, después qué le cobras, y
+// solo entonces cobrar— en vez del orden en que salen en el menú.
+//
+// 'mi_cuenta' va AL FINAL a propósito, no al principio. Arrancar pidiéndole a
+// alguien que llene formularios fiscales y suba documentos, antes de que haya
+// visto para qué sirve el sistema, es la forma más rápida de que lo cierre.
+// Primero se le enseña qué va a poder hacer; el último paso es la llamada a la
+// acción, cuando ya tiene razones para querer hacerlo.
 var GUIA_PASOS = [
-  {
-    id: 'mi_cuenta',
-    titulo: 'Empieza aquí',
-    texto: 'Configura tu colegio y sube tus documentos. Sin esto no puedes cobrar.',
-    clave: true,
-  },
-  { id: 'alumnos',       titulo: 'Tus alumnos',      texto: 'Da de alta a los alumnos y ligarlos a su familia.' },
+  { id: 'dashboard',     titulo: 'Tu panorama',      texto: 'De un vistazo: cuánto entró, qué falta por cobrar y cómo va el mes.' },
+  { id: 'alumnos',       titulo: 'Tus alumnos',      texto: 'Da de alta a los alumnos y líbalos a su familia.' },
   { id: 'familias',      titulo: 'Las familias',     texto: 'Cada familia entra a su portal, ve lo que debe y paga.' },
   { id: 'productos',     titulo: 'Qué vas a cobrar', texto: 'Colegiaturas, inscripciones, uniformes. Los recurrentes se generan solos cada mes.' },
   { id: 'caja',          titulo: 'Cobrar',           texto: 'Tu pantalla del día a día: efectivo, tarjeta, SPEI o pago en tiendas.' },
@@ -50,6 +55,12 @@ var GUIA_PASOS = [
   { id: 'gastos',        titulo: 'Gastos',           texto: 'Registra lo que el colegio paga, para ver el panorama completo.' },
   { id: 'reportes',      titulo: 'Reportes',         texto: 'Cuánto entró, por qué método y quién te debe.' },
   { id: 'miequipo',      titulo: 'Tu equipo',        texto: 'Da de alta cajeros y administradores.' },
+  {
+    id: 'mi_cuenta',
+    titulo: 'Ahora sí: configura tu cuenta',
+    texto: 'Ya viste todo lo que puedes hacer. Falta un paso para empezar: sube tus documentos y llena tus datos de pago.',
+    clave: true,
+  },
 ];
 
 function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
@@ -72,6 +83,19 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
   // React no permiten llamarlos de forma condicional, y un `if (!pasos.length)
   // return null` arriba haría que en ese render se ejecuten menos hooks que en
   // el anterior, lo que rompe la app entera.
+  // LA GUÍA NAVEGA DE VERDAD: en cada paso lleva al usuario a esa sección, en
+  // vez de solo describirla. Se aprende viendo la pantalla real con los datos
+  // reales del colegio, no leyendo un párrafo sobre ella.
+  //
+  // Va en su propio efecto, separado del que mide, por una razón de orden: al
+  // cambiar de sección React remonta .content (lleva key={view}) y el menú
+  // puede reacomodarse. Medir en el MISMO efecto tomaría el rectángulo de
+  // antes del remonte. El efecto de medir corre después y sobre el DOM ya
+  // actualizado.
+  _R.useEffect(function () {
+    if (actual && typeof onIrA === 'function') onIrA(actual.id);
+  }, [actual && actual.id]);
+
   _R.useEffect(function () {
     if (!actual) { setCaja(null); return; }
 
@@ -101,10 +125,19 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
       setCaja({ top: r.top, left: r.left, width: r.width, height: r.height });
     };
 
-    medir();
+    // requestAnimationFrame antes de la primera medición: el paso anterior
+    // acaba de cambiar de sección, React está remontando .content y el
+    // navegador puede no haber reacomodado la página todavía. Medir en ese
+    // instante daría un rectángulo de la maquetación vieja y el foco
+    // aparecería corrido. El menú lateral no se mueve al cambiar de vista, así
+    // que esto es sobre todo un seguro contra cambios de alto en la barra
+    // superior — barato y evita un defecto difícil de reproducir.
+    var raf = window.requestAnimationFrame(medir);
+
     window.addEventListener('resize', medir);
     window.addEventListener('scroll', medir, true);
     return function () {
+      window.cancelAnimationFrame(raf);
       window.removeEventListener('resize', medir);
       window.removeEventListener('scroll', medir, true);
     };
@@ -116,11 +149,10 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
   var docEstado = (escuela && escuela.documentacion_estado) || 'sin_enviar';
   var docsPendientes = docEstado !== 'aprobada';
 
+  // Ya no hace falta un "irYCerrar": la guía navega sola en cada paso, así que
+  // al cerrar el usuario siempre está en la sección de la que se le acaba de
+  // hablar.
   var cerrar = function () { if (typeof onCerrar === 'function') onCerrar(); };
-  var irYCerrar = function () {
-    if (typeof onIrA === 'function') onIrA(actual.id);
-    cerrar();
-  };
 
   var PAD = 6;   // aire alrededor del ítem resaltado
   var ANCHO = 290;
@@ -227,11 +259,14 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
           onClick: function () { setPaso(idx - 1); }
         }, 'Atrás') : null,
 
+        // En el último paso la guía YA navegó a "Mi cuenta", así que el botón
+        // solo cierra: el usuario se queda justo en la pantalla que acaba de
+        // pedírsele que llene, sin un clic extra de por medio.
         _hG('button', {
           key: 'n', className: 'btn btn-primary btn-sm',
           style: { fontSize: 11.5, padding: '4px 12px' },
-          onClick: function () { if (esUltimo) { irYCerrar(); } else { setPaso(idx + 1); } }
-        }, esUltimo ? 'Empezar' : 'Siguiente')
+          onClick: function () { if (esUltimo) { cerrar(); } else { setPaso(idx + 1); } }
+        }, esUltimo ? 'Empezar a configurar' : 'Siguiente')
       )
     )
   ));
