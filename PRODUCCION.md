@@ -572,6 +572,38 @@ El panel mezcla dos fuentes: los gastos `pendiente` (deuda concreta con monto) y
 
 **Pendiente de decidir:** `proveedores` y `gastos` tienen `escuela_id NOT NULL`, así que hoy `tesoreria` ve las cuentas por pagar de **todas las escuelas**. Si lo que quieres llevar ahí son los proveedores de PagaLaEscuela misma (hosting, el propio Cobroscontarjeta.com), hace falta o un renglón de inquilino para la plataforma, o volver `escuela_id` nullable para gastos de plataforma.
 
+### 5.3bf ⚠️ Hueco de autorización: `requerir_rol()` solo protege a quien la llama
+
+**Encontrado el 23-sep-2026 por una revisión adversarial, y confirmado leyendo el código.** Es el hallazgo más serio de esta racha y conviene entenderlo antes de agregar cualquier rol.
+
+`requerir_rol($rol, [lista])` es default-deny **para las acciones que la llaman**. La premisa que llegó a estar escrita en `api.php` —que a un rol le bastaba con *no* aparecer en esas listas para no poder escribir nada— **es falsa**: hay ~25 acciones que escriben en la base y nunca llaman a `requerir_rol()`.
+
+**El caso concreto: `acciones/crear_cobro.php` no tenía ningún control de rol ni de pertenencia.** Sus otros filtros no cubren nada de eso:
+
+- `requerir_seccion_habilitada()` abre con `if ($rol !== 'admin' && $rol !== 'cajero') return;` — es un **no-op** para cualquier otro rol.
+- El chequeo de familia vive dentro de `if ($rol === 'familia')`.
+- El de caja abierta, dentro de `if (in_array($rol, ['cajero','admin']))`.
+- `$escuela_id` sale de `$input` y nunca se compara contra el usuario.
+
+Resultado: cualquier cuenta autenticada con un rol fuera de esas ramas —`contador`, `distribuidor`, y los roles de plataforma nuevos— podía insertar cobros reales y subir el saldo de un alumno en **cualquier** colegio, mandando el `escuela_id` que quisiera. **Esto es anterior a los roles del 22-sep**; esos roles solo lo hicieron más fácil de alcanzar.
+
+**Lo que se arregló:**
+
+1. `crear_cobro.php` ahora llama a `requerir_rol()` y a `requerir_escuela_propia()`. Solo lo consume `views/Caja.js`, que ya estaba restringida a cajero/admin, así que no rompe ningún flujo.
+2. **Allowlist explícito por rol de plataforma en `api.php`, antes del despacho.** `soporte`, `provision` y `tesoreria` solo pueden llamar a las acciones de su lista; todo lo demás responde 403 y queda en `api_log.txt`. Se hizo ahí y no acción por acción porque parchar de a una es frágil: la próxima acción que alguien escriba nacería insegura otra vez.
+
+**Lo que NO se arregló, a propósito:** el mismo hueco sigue abierto para `admin`, `cajero`, `familia`, `contador` y `distribuidor` en las otras ~24 acciones sin `requerir_rol()`. Arreglarlo a ciegas rompería endpoints en producción. La lista se obtiene así:
+
+```bash
+for f in acciones/*.php; do
+  grep -qiE "INSERT INTO|UPDATE |DELETE FROM" "$f" && ! grep -q "requerir_rol" "$f" && basename "$f"
+done
+```
+
+Algunas de esas son públicas por diseño y deben quedarse así (`login`, `activar_cuenta_confirmar`, `recuperar_password_solicitar`, el flujo de invitación). Otras se defienden por dentro sin usar el helper (`editar_usuario` exige ser superadmin/admin o el propio perfil). El resto hay que revisarlas una por una.
+
+**La regla para el futuro:** al agregar un rol, su seguridad tiene que venir de estar en un allowlist explícito, nunca de omitirlo en las listas de `requerir_rol()`. Una ausencia no es una prohibición.
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.

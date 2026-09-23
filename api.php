@@ -320,8 +320,20 @@ function requerir_rol($rol_actual, array $roles_permitidos, $mensaje = 'No tiene
 // nuevo viendo una lista de escuelas vacía sin ningún error visible.
 //
 // 'soporte' entra aquí porque su trabajo es justamente mirar cualquier
-// colegio para responderle a quien llama; lo que NO puede es escribir nada,
-// y eso lo garantiza su ausencia de las listas de requerir_rol().
+// colegio para responderle a quien llama. Lo que NO puede es escribir nada —
+// pero OJO con el porqué:
+//
+// CORREGIDO 23-sep-2026. Aquí decía que eso lo garantizaba "su ausencia de
+// las listas de requerir_rol()". Era FALSO y conviene dejarlo escrito para
+// que nadie vuelva a creerlo: requerir_rol() es default-deny solo para las
+// acciones que LA LLAMAN, y hay ~25 acciones que escriben en la base y nunca
+// la llaman (crear_cobro.php entre ellas). Con esa premisa equivocada,
+// 'soporte' podía insertar cobros reales en cualquier colegio.
+//
+// Lo que de verdad lo garantiza hoy es el allowlist explícito por rol de
+// plataforma que corre ANTES del despacho, al final de este archivo. Si
+// agregas un rol de plataforma, su seguridad viene de estar en ese allowlist,
+// no de omitirlo en las listas de requerir_rol().
 function rol_alcance_global($rol_actual) {
     return in_array($rol_actual, ['superadmin', 'soporte'], true);
 }
@@ -410,6 +422,63 @@ $input = json_decode(file_get_contents('php://input'), true) ?? [];
 if (!preg_match('/^[a-z_]+$/', $action)) {
     respond(['success' => false, 'error' => "Acción no reconocida: {$action}"]);
 }
+// ── CANDADO DE ROLES DE PLATAFORMA (23-sep-2026) ────────────────────────
+//
+// Esto corrige una afirmación FALSA que estuvo escrita en este mismo archivo:
+// que a 'soporte' le bastaba con no aparecer en las listas de requerir_rol()
+// para no poder escribir nada. No es cierto. El default-deny de
+// requerir_rol() solo protege a las acciones que LA LLAMAN, y hay ~25
+// acciones que escriben en la base y nunca la llaman.
+//
+// El caso más grave, verificado: acciones/crear_cobro.php no llama a
+// requerir_rol() en ninguna línea. Sus otros filtros no cubren a un rol de
+// plataforma — requerir_seccion_habilitada() abre con
+// `if ($rol !== 'admin' && $rol !== 'cajero') return;` (no-op), el chequeo de
+// familia vive dentro de `if ($rol === 'familia')`, y el de caja abierta
+// dentro de `if (in_array($rol, ['cajero','admin']))`. Como $escuela_id sale
+// de $input sin comparar contra el usuario, cualquier cuenta de plataforma
+// podía insertar cobros reales en CUALQUIER colegio.
+//
+// En vez de parchar acción por acción (frágil: la próxima acción que alguien
+// escriba nace insegura otra vez), estos tres roles pasan a un allowlist
+// EXPLÍCITO aquí, antes del despacho. Lo que no esté en su lista, se niega.
+//
+// Deliberadamente NO cambia el comportamiento de los roles que ya existían
+// (admin, cajero, familia, contador, distribuidor): ese hueco es anterior a
+// estos roles y arreglarlo a ciegas rompería endpoints en producción. Queda
+// documentado en PRODUCCION.md como trabajo aparte.
+$ACCIONES_POR_ROL_PLATAFORMA = [
+    // Solo lectura. Su trabajo es mirar cualquier colegio para poder atender.
+    'soporte' => [
+        'cargar_datos', 'buscar_global', 'listar_logs', 'listar_cobros',
+        'detalle_cobro', 'listar_usuarios', 'listar_gastos',
+        'listar_pagos_no_aplicados', 'planteles_de_escuela', 'listar_zonas',
+        'cambiar_password_propio', 'editar_usuario',
+    ],
+    // Captura el identificador del proveedor tras la aprobación del contador.
+    'provision' => [
+        'provision_listar_pendientes', 'provision_asignar_id',
+        'listar_documentos_escuela', 'descargar_documento_escuela',
+        'cambiar_password_propio', 'editar_usuario',
+    ],
+    // Cuentas por pagar a proveedores.
+    'tesoreria' => [
+        'tesoreria_cuentas_por_pagar', 'tesoreria_marcar_pagado',
+        'listar_gastos', 'cambiar_password_propio', 'editar_usuario',
+    ],
+];
+// 'editar_usuario' y 'cambiar_password_propio' van en las tres listas porque
+// son de autoservicio: editar_usuario ya se defiende solo por dentro (exige
+// ser superadmin/admin O que la fila sea el propio perfil), así que aquí solo
+// hace falta dejarlo pasar para que puedan cambiar su nombre y su contraseña.
+$rol_plataforma_actual = $usuario_actual['rol'] ?? '';
+if (isset($ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual])
+    && !in_array($action, $ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual], true)) {
+    log_api("BLOQUEADO por allowlist de plataforma -> rol={$rol_plataforma_actual} accion={$action} user_id=" . ($usuario_actual['user_id'] ?? '?'));
+    http_response_code(403);
+    respond(['success' => false, 'error' => 'Tu rol no tiene acceso a esta acción.']);
+}
+
 $accion_file = __DIR__ . '/acciones/' . $action . '.php';
 if (is_file($accion_file)) {
     // Blindaje (10-sep-2026): un error fatal (excepción de PDO sin capturar,

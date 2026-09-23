@@ -9,7 +9,24 @@
         if (!$escuela_id || !$metodo || empty($carrito)) {
             respond(['success' => false, 'error' => 'Faltan datos del cobro']);
         }
-        requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $escuela_id, ['caja']);
+        // requerir_rol + requerir_escuela_propia (23-sep-2026). Esta acción
+        // inserta un cobro REAL y sube el saldo del alumno, y hasta hoy no
+        // tenía NINGÚN control de rol ni de pertenencia. Los filtros que ya
+        // había no cubrían nada de eso:
+        //   · requerir_seccion_habilitada() abre con
+        //     `if ($rol !== 'admin' && $rol !== 'cajero') return;` — no-op
+        //     para cualquier otro rol.
+        //   · el chequeo de familia vive dentro de `if ($rol === 'familia')`.
+        //   · el de caja abierta, dentro de `if (in_array($rol, ['cajero','admin']))`.
+        // Y $escuela_id sale de $input sin compararse nunca contra el usuario.
+        // O sea que cualquier cuenta autenticada con un rol fuera de esas
+        // ramas —contador, distribuidor y los roles de plataforma nuevos—
+        // podía crear deuda financiera en CUALQUIER colegio mandando el
+        // escuela_id que quisiera.
+        $rol_crear_cobro = $usuario_actual['rol'] ?? '';
+        requerir_rol($rol_crear_cobro, ['superadmin', 'admin', 'cajero', 'familia'], 'No tienes permiso para generar cobros.');
+        requerir_escuela_propia($rol_crear_cobro, $escuela_id, $usuario_actual, 'No puedes generar cobros en otro colegio.');
+        requerir_seccion_habilitada($pdo, $rol_crear_cobro, $escuela_id, ['caja']);
         // Validar contra el enum real de la columna `cobros.metodo` — sin esto,
         // un typo o un cliente mal formado inserta basura silenciosa (así se
         // coló el cobro con metodo='' que encontramos en el dump).
