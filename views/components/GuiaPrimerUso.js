@@ -226,6 +226,36 @@ var GUIA_DIBUJOS = {
       _gRect(190, 20, 78, 64, 0.06), _gCirc(229, 42, 12, 0.18), _gRect(206, 62, 46, 5, 0.22), _gRect(212, 72, 34, 7, 0.2, null, 3.5)
     ]);
   },
+  // La misma tarjeta en claro y en oscuro, con el interruptor en medio.
+  tema: function () {
+    return _gLienzo([
+      // Lado claro.
+      _gRect(14, 16, 104, 72, 0.06, null, 8),
+      _gRect(26, 28, 56, 6, 0.3), _gRect(26, 42, 80, 4, 0.14), _gRect(26, 52, 64, 4, 0.14),
+      _gCirc(96, 34, 8, 0.9, _AM),
+      // Lado oscuro: mismo dibujo, invertido con un fondo lleno.
+      _gRect(162, 16, 104, 72, 0.82, 'var(--ink)', 8),
+      _gRect(174, 28, 56, 6, 0.5, 'var(--bg-surface)'),
+      _gRect(174, 42, 80, 4, 0.3, 'var(--bg-surface)'),
+      _gRect(174, 52, 64, 4, 0.3, 'var(--bg-surface)'),
+      _gCirc(244, 34, 8, 0.9, _AC),
+      // Interruptor en medio.
+      _gRect(126, 44, 28, 16, 0.85, _AC, 8),
+      _gCirc(146, 52, 5.5, 1, 'var(--bg-surface)')
+    ]);
+  },
+  // Avatar con su menú desplegado.
+  perfil: function () {
+    return _gLienzo([
+      _gCirc(44, 26, 14, 0.85, _AC),
+      _gRect(66, 18, 74, 6, 0.4), _gRect(66, 30, 50, 4, 0.16),
+      // Menú.
+      _gRect(30, 48, 150, 50, 0.07, null, 7),
+      _gCirc(46, 61, 5, 0.22), _gRect(58, 58, 78, 5, 0.2),
+      _gCirc(46, 76, 5, 0.22), _gRect(58, 73, 62, 5, 0.2),
+      _gCirc(46, 90, 5, 0.85, _AM), _gRect(58, 87, 44, 5, 0.5, _AM)
+    ]);
+  },
   // Lista de documentos con su palomita.
   mi_cuenta: function () {
     return _gLienzo([
@@ -261,6 +291,21 @@ var GUIA_PASOS = [
   { id: 'gastos',        titulo: 'Gastos',           texto: 'Registra lo que el colegio paga, para ver el panorama completo.' },
   { id: 'reportes',      titulo: 'Reportes',         texto: 'Cuánto entró, por qué método y quién te debe.' },
   { id: 'miequipo',      titulo: 'Tu equipo',        texto: 'Da de alta cajeros y administradores.' },
+  // Estos dos NO son secciones del menú: son el botón de tema y el pie del
+  // sidebar. Se anclan con data-nav="tema" y data-nav="perfil" desde
+  // assets/js/app.js. Llevan `siempre: true` porque el filtro de abajo compara
+  // contra los ids de NAV_ITEMS y estos no están ahí — sin esa marca
+  // desaparecerían del recorrido.
+  {
+    id: 'tema', siempre: true,
+    titulo: 'Claro u oscuro',
+    texto: 'Cambia el tema con este botón. Se queda guardado para la próxima vez que entres.',
+  },
+  {
+    id: 'perfil', siempre: true,
+    titulo: 'Tu cuenta personal',
+    texto: 'Aquí cambias tu foto, tu nombre y tu contraseña — y desde aquí cierras sesión.',
+  },
   {
     id: 'mi_cuenta',
     titulo: 'Ahora sí: configura tu cuenta',
@@ -273,8 +318,19 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
   var _R = React;
   var e1 = _R.useState(0);    var paso = e1[0], setPaso = e1[1];
   var e2 = _R.useState(null); var caja = e2[0], setCaja = e2[1];
+  // Alto REAL de la tarjeta. Antes se colocaba restando una constante a ojo
+  // (window.innerHeight - 330), y con el último paso —que además lleva el
+  // aviso ámbar de documentos— la tarjeta crecía más que esa constante y sus
+  // botones quedaban debajo del borde de la pantalla, tapados por la barra de
+  // Windows. Medirla es la única forma de que el tope sea correcto para
+  // cualquier paso, cualquier tema y cualquier tamaño de letra.
+  var e3 = _R.useState(0);    var altoCard = e3[0], setAltoCard = e3[1];
+  var refCard = _R.useRef(null);
 
   var pasos = GUIA_PASOS.filter(function (p) {
+    // `siempre` = no es una sección del menú (el botón de tema, el pie del
+    // sidebar), así que no tiene caso buscarlo en seccionesVisibles.
+    if (p.siempre) return true;
     return !seccionesVisibles || seccionesVisibles.indexOf(p.id) !== -1;
   });
 
@@ -327,6 +383,19 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
     };
   }, [actual && actual.id]);
 
+  // Mide la tarjeta DESPUÉS de pintarla y antes de que el navegador la
+  // muestre. useLayoutEffect y no useEffect: con useEffect el usuario
+  // alcanzaría a ver un cuadro de la tarjeta mal colocada antes de que se
+  // acomode, y eso se percibe como un parpadeo.
+  //
+  // Solo se guarda si cambió más de 1px, para no entrar en un ciclo de
+  // re-render por diferencias de redondeo subpíxel.
+  _R.useLayoutEffect(function () {
+    if (!refCard.current) return;
+    var h = refCard.current.getBoundingClientRect().height;
+    if (h && Math.abs(h - altoCard) > 1) setAltoCard(h);
+  });
+
   if (pasos.length === 0 || !actual) return null;
 
   var esUltimo = idx >= pasos.length - 1;
@@ -344,14 +413,33 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
 
   var PAD = 6;
   var ANCHO = 320;
+  var MARGEN = 14;
+
+  // Alto de referencia: el medido, o una estimación conservadora en el primer
+  // render (antes de poder medir). Se queda corto a propósito — nunca de más,
+  // porque pasarse empujaría la tarjeta hacia arriba sin necesidad.
+  var alto = altoCard || 300;
+
+  // Tope inferior real de la ventana. Todo lo que pase de aquí queda fuera de
+  // la pantalla o detrás de la barra de tareas del sistema.
+  var topeAbajo = window.innerHeight - alto - MARGEN;
 
   var posTarjeta;
   if (caja) {
     var derecha = caja.left + caja.width + PAD + 12;
     var cabeALado = derecha + ANCHO < window.innerWidth - 12;
+
+    // Se intenta alinear la tarjeta con el ítem señalado, pero el clamp contra
+    // topeAbajo manda: con los últimos ítems del menú —que están hasta abajo—
+    // alinearlas dejaría los botones fuera de la pantalla.
+    //
+    // Math.max(MARGEN, ...) va al final y no al principio: si la tarjeta no
+    // cupiera de ninguna forma (ventana muy baja), preferimos que se salga por
+    // ABAJO y no por arriba, porque arriba se pierde el título y aquí abajo al
+    // menos la tarjeta sigue teniendo scroll de página para alcanzarla.
     posTarjeta = cabeALado
-      ? { top: Math.max(12, Math.min(caja.top - 40, window.innerHeight - 330)), left: derecha }
-      : { top: Math.min(caja.top + caja.height + PAD + 10, window.innerHeight - 320),
+      ? { top: Math.max(MARGEN, Math.min(caja.top - 40, topeAbajo)), left: derecha }
+      : { top: Math.max(MARGEN, Math.min(caja.top + caja.height + PAD + 10, topeAbajo)),
           left: Math.max(12, Math.min(caja.left, window.innerWidth - ANCHO - 12)) };
   } else {
     posTarjeta = { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' };
@@ -391,6 +479,7 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
   // ── Tarjeta ──
   hijos.push(_hG('div', {
     key: 'card',
+    ref: refCard,
     style: Object.assign({
       position: 'fixed',
       width: ANCHO,

@@ -4163,6 +4163,14 @@ function App() {
                 "div",
                 {
                   className: "sidebar-footer",
+
+                  // Ancla para la guía de primer uso (23-sep-2026): aquí viven la foto
+
+                  // de perfil, cambiar contraseña y cerrar sesión, que no son secciones
+
+                  // del menú y por eso no salían en el recorrido.
+
+                  "data-nav": "perfil",
                   children: _jsxDEV(
                     MenuPerfil,
                     {
@@ -4795,6 +4803,18 @@ function App() {
                               className:
 
                                 "theme-toggle",
+
+
+
+
+
+                              // Ancla para la guía de primer uso (23-sep-2026).
+
+
+
+
+
+                              "data-nav": "tema",
 
 
 
