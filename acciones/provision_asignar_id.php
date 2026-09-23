@@ -39,7 +39,8 @@ if (!preg_match('/^[A-Za-z0-9_-]+$/', $proveedor_id)) {
 }
 
 $stmtEsc = $pdo->prepare(
-    "SELECT id, nombre, documentacion_estado, proveedor_school_id FROM escuelas WHERE id = ?"
+    // `email` va en el SELECT para el correo de bienvenida de más abajo.
+    "SELECT id, nombre, email, documentacion_estado, proveedor_school_id FROM escuelas WHERE id = ?"
 );
 $stmtEsc->execute([$escuela_id]);
 $esc = $stmtEsc->fetch();
@@ -85,13 +86,80 @@ registrar_log(
     $escuela_id
 );
 
+// ── Correo de bienvenida al colegio ─────────────────────────────────────
+//
+// Este es EL momento en que el colegio queda realmente habilitado: sus
+// documentos ya se aprobaron y el proveedor ya le asignó su identificador.
+// Hasta hoy nadie se lo avisaba, así que el colegio se quedaba esperando sin
+// saber que ya podía operar — y eso, después de 48 a 72 horas de revisión, es
+// justo cuando más falta hace la noticia.
+//
+// Solo en la PRIMERA asignación: si esto es una corrección del identificador,
+// darle la bienvenida otra vez sería confuso.
+//
+// Va DESPUÉS del commit y nunca tumba la petición: enviar_correo() devuelve
+// ['success' => bool, ...] y no lanza excepción, pero la construcción de
+// destinatarios sí puede fallar, y el trabajo ya está guardado — que el SMTP
+// falle no puede deshacer una provisión válida.
+$correo_enviado = false;
+if (!$reemplazo) {
+    try {
+        // Mismos destinatarios que el resto de avisos al colegio (ver
+        // webhook_liga.php): el correo de contacto de la escuela + sus admins
+        // activos. El admin es quien de verdad va a entrar a cobrar.
+        $destinatarios = [];
+        if (!empty($esc['email'])) $destinatarios[] = $esc['email'];
+        $stmtAdm = $pdo->prepare("SELECT email FROM usuarios WHERE escuela_id = ? AND rol = 'admin' AND activo = 1");
+        $stmtAdm->execute([$escuela_id]);
+        foreach ($stmtAdm->fetchAll() as $a) $destinatarios[] = $a['email'];
+        $destinatarios = array_values(array_unique(array_filter($destinatarios)));
+
+        if ($destinatarios) {
+            $nombreEsc = htmlspecialchars($esc['nombre']);
+            $html = "
+                <p>Hola,</p>
+                <p><strong>Ya está todo listo: {$nombreEsc} puede empezar a cobrar y a facturar.</strong></p>
+                <p>Revisamos la documentación que nos enviaron y quedó aprobada. Con eso, su colegio
+                   ya está dado de alta y habilitado en la plataforma de pagos.</p>
+                <p>Desde hoy pueden:</p>
+                <ul>
+                  <li><strong>Cobrar a las familias</strong> por transferencia SPEI, tarjeta, o en efectivo
+                      en tiendas participantes.</li>
+                  <li><strong>Emitir facturas</strong> (CFDI) de los pagos que reciban.</li>
+                  <li>Dar de alta alumnos y conceptos de pago, y que cada familia vea sus adeudos
+                      desde su propio portal.</li>
+                </ul>
+                <p>Si es la primera vez que entran, les recomendamos empezar por dar de alta sus
+                   conceptos de pago y sus alumnos; de ahí en adelante los cobros salen solos.</p>
+                <p>Cualquier duda, respondan este correo y con gusto les ayudamos.</p>
+                <p>Bienvenidos.<br>— Equipo Pagalaescuela</p>
+            ";
+            $rCorreo = enviar_correo($destinatarios, '¡Bienvenidos! Ya pueden cobrar y facturar con Pagalaescuela', $html);
+            $correo_enviado = (bool) ($rCorreo['success'] ?? false);
+            if (!$correo_enviado) {
+                log_api("provision_asignar_id: falló el correo de bienvenida a escuela #{$escuela_id} -> " . ($rCorreo['error'] ?? 'desconocido'));
+            }
+        } else {
+            log_api("provision_asignar_id: escuela #{$escuela_id} sin correo de contacto ni admin activo, no se pudo dar la bienvenida.");
+        }
+    } catch (\Throwable $eCorreo) {
+        log_api("provision_asignar_id: error armando el correo de bienvenida de la escuela #{$escuela_id} -> " . $eCorreo->getMessage());
+    }
+}
+
 respond([
     'success'              => true,
     'escuela_id'           => $escuela_id,
     'proveedor_school_id'  => $proveedor_id,
     'reemplazo'            => $reemplazo,
     'referidos_activados'  => $referidos_activados,
-    'mensaje'              => $referidos_activados
-        ? 'Identificador guardado. El colegio pasó a "activo" en el embudo.'
-        : 'Identificador guardado.',
+    'correo_enviado'       => $correo_enviado,
+    'mensaje'              => ($referidos_activados
+            ? 'Identificador guardado. El colegio pasó a "activo" en el embudo.'
+            : 'Identificador guardado.')
+        . ($reemplazo
+            ? ' (Es un reemplazo: no se mandó correo de bienvenida.)'
+            : ($correo_enviado
+                ? ' Se le avisó al colegio por correo que ya puede cobrar y facturar.'
+                : ' OJO: no se pudo mandar el correo de bienvenida — revisa el log y avísale al colegio a mano.')),
 ]);
