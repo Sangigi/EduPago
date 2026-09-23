@@ -4176,6 +4176,16 @@ function App() {
                     {
                       user: user,
                       escuela: escuela,
+                      // Relanzar la guía a mano. Solo se pasa aquí, en el shell
+                      // del colegio: los paneles de contador/provisión/
+                      // tesorería/promotor montan este mismo MenuPerfil pero no
+                      // tienen guía, y ahí la opción no debe aparecer.
+                      //
+                      // No se toca usuarios.guia_vista_en: la fecha guardada es
+                      // la de la PRIMERA vez, que es el dato que sirve para
+                      // saber si un colegio se atoró al arrancar. Volver a
+                      // verla a propósito no debería borrar ese registro.
+                      onVerGuia: () => setGuiaPendiente(true),
                       onLogout: handleLogout,
                       // Helper mínimo: manda la acción al API con el token de sesión
                       apiPost: async (accion, cuerpo) => {

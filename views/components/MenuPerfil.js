@@ -41,7 +41,10 @@ function AvatarPerfil({ url, iniciales, tam, clase, radio }) {
 // sidebar. Los paneles que lo montan en una barra superior (contador,
 // provisión, tesorería) tienen que pedir esta variante, o el desplegable se
 // sale por arriba del contenedor y queda recortado.
-function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbajo }) {
+// onVerGuia: si el contenedor sabe mostrar la guía de primer uso, aparece la
+// opción "Ver la guía otra vez". Los paneles que no la tienen (contador,
+// provisión, tesorería, promotor) simplemente no pasan esta prop.
+function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbajo, onVerGuia }) {
   const { useState, useEffect, useRef } = React;
   const [abierto, setAbierto] = useState(false);
   const [modal, setModal] = useState(null);      // 'cuenta' | 'password'
@@ -82,6 +85,21 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbaj
     { id: 'password', icono: 'shield',   label: 'Cambiar contraseña' }
   ];
 
+  // "Ver la guía otra vez" (23-sep-2026). La guía de primer uso se muestra una
+  // sola vez y se puede saltar de un clic; sin esta opción, quien la saltó por
+  // accidente no tenía NINGUNA forma de recuperarla.
+  //
+  // Solo aparece si el contenedor sabe mostrarla: este mismo MenuPerfil se
+  // monta también en los paneles de contador, provisión y tesorería, que no
+  // tienen guía. Ahí la opción simplemente no existe, en vez de ser un botón
+  // que no hace nada.
+  //
+  // No abre un modal como las otras dos, así que lleva `accion` en lugar de
+  // ir a setModal(op.id).
+  if (typeof onVerGuia === 'function') {
+    opciones.push({ id: 'guia', icono: 'info', label: 'Ver la guía otra vez', accion: onVerGuia });
+  }
+
   return _hMP('div', { ref: caja, style: { position: 'relative' } },
     _hMP('div', {
       key: 'card',
@@ -115,7 +133,8 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbaj
       opciones.map(op => _hMP('button', {
         key: op.id,
         className: 'menu-perfil-item',
-        onClick: () => { setModal(op.id); setAbierto(false); },
+        // Las opciones con `accion` la ejecutan; las demás abren su modal.
+        onClick: () => { setAbierto(false); if (op.accion) { op.accion(); } else { setModal(op.id); } },
         children: [
           _hMP(Icon, { key: 'i', name: op.icono, size: 15, color: 'currentColor' }),
           _hMP('span', { key: 'l' }, op.label)
