@@ -58,15 +58,99 @@ if (in_array('rechazado', $estados, true)) {
 // El estado ANTERIOR se lee antes de pisarlo: el aviso al equipo de provisión
 // debe salir en la TRANSICIÓN a 'aprobada', no cada vez que se aprueba un
 // documento suelto de una escuela que ya estaba aprobada.
-$stmtPrev = $pdo->prepare("SELECT nombre, documentacion_estado, proveedor_school_id FROM escuelas WHERE id = ?");
+// `email` se incluye para el aviso de rechazo al colegio, más abajo.
+$stmtPrev = $pdo->prepare("SELECT nombre, email, documentacion_estado, proveedor_school_id FROM escuelas WHERE id = ?");
 $stmtPrev->execute([$escuela_id]);
-$escPrev = $stmtPrev->fetch() ?: ['nombre' => '', 'documentacion_estado' => null, 'proveedor_school_id' => null];
+$escPrev = $stmtPrev->fetch() ?: ['nombre' => '', 'email' => null, 'documentacion_estado' => null, 'proveedor_school_id' => null];
 
 $pdo->prepare("UPDATE escuelas SET documentacion_estado = ? WHERE id = ?")->execute([$agregado, $escuela_id]);
 
 registrar_log($pdo, $usuario_actual, 'documento_escuela_revisado',
     "Escuela #$escuela_id: documento #$documento_id $nuevoEstado" . ($motivo ? " ($motivo)" : '') . " -> documentacion_estado=$agregado",
     $escuela_id);
+
+// ── Aviso de RECHAZO al colegio ─────────────────────────────────────────
+//
+// Sin esto, un documento rechazado solo se veía entrando a "Mi cuenta" — el
+// colegio podía pasar días creyendo que seguía en revisión cuando en realidad
+// la pelota estaba de su lado. Y el motivo del rechazo es justamente lo que
+// necesita para corregir.
+//
+// Se dispara cuando ESTA revisión fue un rechazo, y lista TODOS los documentos
+// que están rechazados ahora mismo (no solo el de esta llamada): si hay tres
+// mal, el colegio los necesita los tres en un mismo correo para arreglarlos de
+// una vez, en vez de ir descubriéndolos de uno en uno.
+$aviso_rechazo_enviado = false;
+if ($nuevoEstado === 'rechazado') {
+    try {
+        // Nombres legibles, los mismos que ve el colegio en su pantalla de Mi
+        // cuenta (views/MiCuenta.js). Mandarle 'identificacion_frente' tal cual
+        // sería mandarle el nombre interno de la columna.
+        $ETIQUETAS_DOC = [
+            'identificacion_frente'  => 'Identificación dueño del negocio (Frente)',
+            'identificacion_reverso' => 'Identificación dueño del negocio (Reverso)',
+            'estado_cuenta_bancario' => 'Portada del estado de cuenta bancario',
+            'comprobante_domicilio'  => 'Comprobante de domicilio',
+            'constancia_fiscal'      => 'Constancia Fiscal',
+        ];
+
+        $stmtRech = $pdo->prepare(
+            "SELECT tipo, motivo_rechazo FROM escuela_documentos
+              WHERE escuela_id = ? AND estado = 'rechazado' ORDER BY id"
+        );
+        $stmtRech->execute([$escuela_id]);
+        $rechazados = $stmtRech->fetchAll();
+
+        $destEsc = [];
+        if (!empty($escPrev['email'])) $destEsc[] = $escPrev['email'];
+        $stmtAdmR = $pdo->prepare("SELECT email FROM usuarios WHERE escuela_id = ? AND rol = 'admin' AND activo = 1");
+        $stmtAdmR->execute([$escuela_id]);
+        foreach ($stmtAdmR->fetchAll() as $a) $destEsc[] = $a['email'];
+        $destEsc = array_values(array_unique(array_filter($destEsc)));
+
+        if ($destEsc && $rechazados) {
+            $lista = '';
+            foreach ($rechazados as $r) {
+                $etq = htmlspecialchars($ETIQUETAS_DOC[$r['tipo']] ?? $r['tipo']);
+                $mot = trim((string) $r['motivo_rechazo']);
+                // Sin motivo capturado no se inventa uno: se dice que no se
+                // especificó, que es información honesta y le da al colegio
+                // algo concreto que preguntar.
+                $lista .= '<li><strong>' . $etq . '</strong><br>'
+                        . ($mot !== ''
+                            ? 'Motivo: ' . htmlspecialchars($mot)
+                            : '<em>No se especificó un motivo. Escríbenos y te decimos qué corregir.</em>')
+                        . '</li>';
+            }
+            $nombreEscR = htmlspecialchars($escPrev['nombre'] ?: ('Escuela #' . $escuela_id));
+            $plural = count($rechazados) === 1;
+            $htmlR = "
+                <p>Hola,</p>
+                <p>Revisamos la documentación de <strong>{$nombreEscR}</strong> y "
+                . ($plural
+                    ? 'hay <strong>un documento</strong> que necesitamos que corrijan'
+                    : 'hay <strong>' . count($rechazados) . ' documentos</strong> que necesitamos que corrijan')
+                . ":</p>
+                <ul>{$lista}</ul>
+                <p>Para continuar, vuelvan a subir "
+                . ($plural ? 'ese documento' : 'esos documentos')
+                . " desde <strong>Mi cuenta → Documentos</strong>. No hace falta volver a subir los que ya quedaron aprobados.</p>
+                <p>En cuanto los recibamos los revisamos de nuevo. La revisión tarda entre 48 y 72 horas hábiles.</p>
+                <p>Si algo no queda claro, respondan este correo y les ayudamos.</p>
+                <p>— Equipo Pagalaescuela</p>
+            ";
+            $rR = enviar_correo($destEsc, 'Necesitamos que corrijan ' . ($plural ? 'un documento' : 'unos documentos'), $htmlR);
+            $aviso_rechazo_enviado = (bool) ($rR['success'] ?? false);
+            if (!$aviso_rechazo_enviado) {
+                log_api("revisar_documento_escuela: falló el aviso de rechazo a la escuela #{$escuela_id} -> " . ($rR['error'] ?? 'desconocido'));
+            }
+        } elseif (!$destEsc) {
+            log_api("revisar_documento_escuela: escuela #{$escuela_id} con documento rechazado, pero sin correo de contacto ni admin activo al que avisarle.");
+        }
+    } catch (\Throwable $eR) {
+        log_api("revisar_documento_escuela: error armando el aviso de rechazo de la escuela #{$escuela_id} -> " . $eR->getMessage());
+    }
+}
 
 // ── Aviso al equipo de PROVISIÓN ────────────────────────────────────────
 //
@@ -127,4 +211,5 @@ respond([
     'estado' => $nuevoEstado,
     'documentacion_estado' => $agregado,
     'aviso_provision_enviado' => $aviso_provision_enviado,
+    'aviso_rechazo_enviado'   => $aviso_rechazo_enviado,
 ]);
