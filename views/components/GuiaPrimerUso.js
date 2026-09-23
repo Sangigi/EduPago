@@ -529,7 +529,7 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
           background: 'var(--amber-glow)', border: '1px solid var(--amber)',
           fontSize: 11.5, lineHeight: 1.45, color: 'var(--ink-2)'
         }
-      }, 'La revisión de documentos tarda de 48 a 72 horas. Conviene subirlos hoy.') : null,
+      }, 'La revisión de documentos tarda de 48 a 72 horas.') : null,
 
       _hG('div', {
         key: 'b',
