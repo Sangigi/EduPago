@@ -192,9 +192,21 @@ html, body {
 
 /* ── LAYOUT ── */
 
-#root { height:100vh; }
+/* 100vh en móviles se calcula sobre el viewport MÁS GRANDE posible (barra de
+   direcciones/toolbar colapsada) -- mientras esa barra sigue visible (el caso
+   normal), el alto real disponible es MENOR que 100vh, así que .app queda más
+   alto que la pantalla real. Como .app tiene overflow:hidden, lo que cae fuera
+   de esa franja no se puede alcanzar ni haciendo scroll. (El bug puntual del
+   botón "Cobrar" de Caja recortado en móvil resultó ser otra cosa -- ver el
+   comentario de .payment-methods más abajo -- pero este mismo problema de
+   fondo puede recortar cualquier otro contenido cerca del borde inferior en
+   cualquier pantalla, así que vale la pena corregirlo aquí también.)
+   100dvh (dynamic viewport height) sí se ajusta a la barra visible; se
+   declara después de 100vh para que sea solo un override en navegadores que
+   lo soportan y no rompa nada donde no. */
+#root { height:100vh; height:100dvh; }
 
-.app  { display:flex; height:100vh; overflow:hidden; background:var(--bg-main); }
+.app  { display:flex; height:100vh; height:100dvh; overflow:hidden; background:var(--bg-main); }
 
 
 
@@ -1142,7 +1154,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   }
 
-  .pos-cart { max-height: 60vh; }
+  .pos-cart { max-height: 60vh; max-height: 60dvh; }
 
   .stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
@@ -1156,7 +1168,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   /* El layout deja de reservar espacio para el sidebar */
 
-  .app { display: block; height: 100vh; overflow: hidden; }
+  .app { display: block; height: 100vh; height: 100dvh; overflow: hidden; }
 
 
 
@@ -1198,7 +1210,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   /* El panel principal ocupa todo el ancho: sin esquina redondeada ni margen */
 
-  .main { border-radius:0; border-left:none; border-top:none; margin-top:0; height:100vh; }
+  .main { border-radius:0; border-left:none; border-top:none; margin-top:0; height:100vh; height:100dvh; }
 
   .topbar  { padding: 0 16px; }
 
@@ -1243,7 +1255,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   /* La zona principal ocupa todo el ancho */
 
-  .main { height: 100vh; width: 100%; }
+  .main { height: 100vh; height: 100dvh; width: 100%; }
 
 
 
@@ -1313,8 +1325,13 @@ box-shadow:0 0 0 3px var(--accent-glow);
      toda la lista de conceptos y de artículos del carrito. Con el bug de
      flexbox de cart-items ya corregido (min-height:0 arriba), un tope de
      altura vuelve a ser seguro: solo la lista de artículos hace scroll
-     interno y el botón de cobrar queda siempre visible en pantalla. */
-  .pos-cart { max-height: 56vh; }
+     interno y el botón de cobrar queda siempre visible en pantalla.
+     dvh además de vh por lo mismo que #root/.app arriba: 56vh de un
+     viewport "grande" deja menos alto REAL del que parece en pantallas
+     donde la barra del navegador sigue visible. La causa concreta de que
+     "Cobrar" se recortara era otra (ver .payment-methods abajo), pero de
+     todos modos vale usar el alto real aquí. */
+  .pos-cart { max-height: 56vh; max-height: 62dvh; }
 
   /* Los métodos de pago en UNA sola fila con scroll horizontal (22-sep-2026).
      Esta era la causa real de que el botón "Cobrar" se recortara en celular

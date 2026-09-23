@@ -125,12 +125,16 @@
         num_alumnos: v('num_alumnos'), rfc: v('rfc').toUpperCase(),
         rvoe: v('rvoe'), direccion: v('direccion'), tipo_persona: v('tipo_persona')
       };
-      pantallaPlan(datosColegio);
+      pantallaPlan(datosColegio, d.dias_demo);
     });
   }
 
   // ── Paso 2: elegir plan ──────────────────────────────────────────────
-  function pantallaPlan(datosColegio) {
+  // diasDemo viene de invitacion_ver (con 15 de respaldo si por lo que sea
+  // no llegó) -- se usa solo para el texto de este paso, el backend vuelve a
+  // calcularlo por su cuenta en invitacion_enviar.php.
+  function pantallaPlan(datosColegio, diasDemo) {
+    diasDemo = diasDemo || 15;
     var opciones = Object.keys(PLANES).map(function (key) {
       var p = PLANES[key];
       return '<div class="reg-plan" data-plan="' + key + '">' +
@@ -143,11 +147,24 @@
       '</div>';
     }).join('');
 
+    // No se cobra nada en este paso: la cuenta arranca en modo de prueba de
+    // inmediato (ver assets/js/registro.js arriba y acciones/invitacion_enviar.php).
+    // Antes esta pantalla solo mostraba "Elige tu plan" + precios sin
+    // aclarar eso, así que parecía un cobro inmediato (confuso, reportado
+    // por el cliente) -- el plan elegido aquí NO se cobra ahora, solo define
+    // los límites (alumnos/planteles) que tendrás durante la prueba y el
+    // precio que se cobraría después, si decides activar tu suscripción.
     cuerpo.innerHTML =
       '<div class="reg-h">Elige tu plan</div>' +
-      '<p class="reg-p">Podrás cambiarlo más adelante desde tu panel si tu colegio crece.</p>' +
+      '<p class="reg-p">' +
+        'No se te cobra nada ahora: vas a empezar con <strong>' + diasDemo + ' días de prueba gratis</strong>, ' +
+        'usando todo el sistema sin restricciones de tiempo. El plan que elijas aquí solo define cuántos ' +
+        'alumnos y planteles puedes registrar durante la prueba; podrás cambiarlo después si tu colegio ' +
+        'crece. Cuando quieras, activas tu suscripción de forma definitiva desde "Mi suscripción", ya con ' +
+        'sesión iniciada.' +
+      '</p>' +
       '<div id="planes">' + opciones + '</div>' +
-      '<button class="reg-btn" id="irApagar" disabled>Selecciona un plan para continuar</button>' +
+      '<button class="reg-btn" id="irApagar" disabled>Selecciona un plan para empezar tu prueba</button>' +
       '<button class="reg-btn reg-btn-ghost" id="volver">Volver a mis datos</button>' +
       '<div id="msg"></div>';
 
@@ -161,12 +178,12 @@
         nodo.classList.add('reg-plan-activo');
         planElegido = nodo.getAttribute('data-plan');
         btnPagar.disabled = false;
-        btnPagar.textContent = 'Continuar con ' + PLANES[planElegido].label + ' — ' + fmt(PLANES[planElegido].precio) + '/mes';
+        btnPagar.textContent = 'Empezar prueba gratis con ' + PLANES[planElegido].label;
       });
     });
 
     document.getElementById('volver').addEventListener('click', function () {
-      formulario({ contacto_nombre: '', contacto_email: datosColegio.email });
+      formulario({ contacto_nombre: '', contacto_email: datosColegio.email, dias_demo: diasDemo });
     });
 
     btnPagar.addEventListener('click', function () {

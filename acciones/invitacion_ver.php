@@ -30,8 +30,14 @@
         respond($generico);
     }
 
+    // dias_demo: se manda desde aquí (y no solo en la respuesta final de
+    // invitacion_enviar.php) para que el paso de "elige tu plan" pueda
+    // explicar la prueba gratis ANTES de que el colegio decida -- antes esa
+    // pantalla no mencionaba la prueba para nada, solo mostraba precios,
+    // así que parecía un cobro inmediato (confuso, reportado por el cliente).
     respond([
         'success'         => true,
         'contacto_nombre' => $inv['contacto_nombre'],
-        'contacto_email'  => $inv['contacto_email']
+        'contacto_email'  => $inv['contacto_email'],
+        'dias_demo'       => dias_demo_default($pdo),
     ]);
