@@ -285,7 +285,7 @@ function MiCuenta({ escuela, user }) {
                     style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 5, lineHeight: 1.45 },
                     children: tipoPersona === 'negocio'
                       ? 'Un negocio independiente puede cobrar a las familias, pero no emitir facturas. Tampoco se te pide la constancia de situación fiscal. Si más adelante necesitas facturar, cambia aquí el tipo de persona y súbela.'
-                      : 'Persona física y moral pueden cobrar y emitir facturas. Si no vas a facturar, elige "Negocio independiente" y te pediremos un documento menos.'
+                      : 'Persona física y moral pueden cobrar y emitir facturas. Si no vas a facturar, elige "Negocio independiente".'
                   }, 'tp-ayuda')
                 ]
               }, 'tp'),
