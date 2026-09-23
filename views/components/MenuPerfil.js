@@ -36,7 +36,12 @@ function AvatarPerfil({ url, iniciales, tam, clase, radio }) {
   }, iniciales || '?');
 }
 
-function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost }) {
+// haciaAbajo: el menú se despliega hacia ABAJO en vez de hacia arriba. Por
+// omisión abre hacia arriba, que es lo correcto donde nació — el pie del
+// sidebar. Los paneles que lo montan en una barra superior (contador,
+// provisión, tesorería) tienen que pedir esta variante, o el desplegable se
+// sale por arriba del contenedor y queda recortado.
+function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbajo }) {
   const { useState, useEffect, useRef } = React;
   const [abierto, setAbierto] = useState(false);
   const [modal, setModal] = useState(null);      // 'cuenta' | 'password'
@@ -106,7 +111,7 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost }) {
       ]
     }),
 
-    abierto ? _hMP('div', { key: 'menu', className: 'menu-perfil' },
+    abierto ? _hMP('div', { key: 'menu', className: 'menu-perfil' + (haciaAbajo ? ' menu-perfil-abajo' : '') },
       opciones.map(op => _hMP('button', {
         key: op.id,
         className: 'menu-perfil-item',

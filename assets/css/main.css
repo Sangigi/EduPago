@@ -329,6 +329,21 @@ html, body {
 
 .avatar-cajero { background:linear-gradient(135deg, var(--green), var(--green-dark)) !important; color:#fff !important; }
 
+/* views/components/MenuPerfil.js arma la clase como 'avatar-' + user.rol, así
+   que el nombre real que llega es avatar-superadmin (no avatar-super) y existen
+   uno por cada rol. Sin estas reglas, todos los roles salvo admin y cajero
+   pintaban el avatar sin color de fondo — incluido el superadmin, porque
+   .avatar-super de arriba nunca llega a coincidir. Los colores son los mismos
+   de ROL_INFO en views/Usuarios.js, para que la credencial y la etiqueta del
+   rol se vean como la misma cosa en todo el sistema. */
+.avatar-superadmin   { background:var(--grad-warm) !important; color:#fff !important; }
+.avatar-familia      { background:linear-gradient(135deg, #a855f7, #7e22ce) !important; color:#fff !important; }
+.avatar-distribuidor { background:linear-gradient(135deg, #84cc16, #4d7c0f) !important; color:#fff !important; }
+.avatar-contador     { background:linear-gradient(135deg, #0891b2, #0e7490) !important; color:#fff !important; }
+.avatar-soporte      { background:linear-gradient(135deg, #6366f1, #4338ca) !important; color:#fff !important; }
+.avatar-provision    { background:linear-gradient(135deg, #f97316, #c2410c) !important; color:#fff !important; }
+.avatar-tesoreria    { background:linear-gradient(135deg, #0d9488, #0f766e) !important; color:#fff !important; }
+
 .user-info { flex:1; min-width:0; }
 
 .user-name { font-size:13px; font-weight:600; color:var(--side-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1701,6 +1716,21 @@ box-shadow:0 0 0 3px var(--accent-glow);
   border-radius:var(--radius); box-shadow:var(--shadow-lg);
   padding:6px; animation:slideUp .15s ease;
 }
+/* Variante para cuando el menú cuelga de una BARRA SUPERIOR en vez del pie del
+   sidebar (paneles de contador, provisión y tesorería). La regla de arriba abre
+   hacia ARRIBA con bottom:calc(100% + 8px), que es lo correcto abajo del todo,
+   pero en una barra superior lo empuja fuera del contenedor: como esos paneles
+   ahora tienen su propio overflow para poder hacer scroll, lo que se salía por
+   arriba quedaba recortado y tapado por el contenido.
+   left:auto + right:0 lo alinea contra el borde derecho del disparador (que es
+   donde vive el menú en esas barras), y el min-width evita que quede tan
+   angosto como el botón: la regla base usa left:0;right:0 porque en el sidebar
+   el disparador ocupa todo el ancho. */
+.menu-perfil-abajo {
+  top:calc(100% + 8px); bottom:auto; left:auto; right:0;
+  min-width:220px; animation:fadeIn .15s ease;
+}
+
 .menu-perfil-item {
   width:100%; display:flex; align-items:center; gap:10px;
   padding:9px 11px; border:none; background:transparent; cursor:pointer;

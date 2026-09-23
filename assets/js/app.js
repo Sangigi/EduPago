@@ -1216,6 +1216,10 @@ function App() {
       user: user,
       escuela: null,
       onLogout: handleLogout,
+      // Estos paneles lo montan en su BARRA SUPERIOR, no en el pie de un
+      // sidebar: sin esto el desplegable se abre hacia arriba, se sale del
+      // contenedor y queda recortado detrás del contenido.
+      haciaAbajo: true,
       apiPost: async (accion, cuerpo) => {
         const res = await fetch('api.php?action=' + accion, {
           method: 'POST',
