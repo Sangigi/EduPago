@@ -1912,3 +1912,22 @@ box-shadow:0 0 0 3px var(--accent-glow);
   }
   .content-anim { animation-duration: .14s; }
 }
+
+/* ── Ilustración de la guía de primer uso (23-sep-2026) ──────────────────
+   Cada paso de la guía trae un boceto de cómo se ve esa sección CON datos.
+   La animación se dispara sola en cada paso porque el componente le pone
+   key={actual.id} al contenedor, y eso hace que React lo remonte.
+
+   Existe porque la guía corre en el PRIMER ingreso, cuando el colegio no
+   tiene ni un alumno: llevar al usuario a la sección real le enseñaría una
+   pantalla vacía. El dibujo muestra la forma de la pantalla funcionando. */
+@keyframes guia-ilu-entra {
+  from { opacity: 0; transform: translateY(6px) scale(.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.guia-ilustracion { animation: guia-ilu-entra .3s cubic-bezier(.22,.61,.36,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes guia-ilu-entra { from { opacity: 0; } to { opacity: 1; } }
+  .guia-ilustracion { animation-duration: .15s; }
+}
