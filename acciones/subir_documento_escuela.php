@@ -45,6 +45,23 @@ $stmtExistente = $pdo->prepare("SELECT id, ruta_archivo, estado FROM escuela_doc
 $stmtExistente->execute([$escuela_id, $tipo]);
 $existente = $stmtExistente->fetch();
 
+// ¿Ya estaba completo ANTES de esta subida? Se necesita para el aviso a
+// contador de más abajo: hay que avisar en la TRANSICIÓN de "incompleto" a
+// "completo y listo para revisar", no en cada documento suelto que se sube
+// mientras el colegio todavía va juntando el resto (eso sería spam: son
+// hasta 5 correos por colegio en vez de uno). El tipo_persona decide cuáles
+// de los 5 son obligatorios (ver documentos_requeridos_por_tipo_persona en
+// helpers_pagos.php) -- un negocio independiente no necesita constancia_fiscal.
+$stmtTP2 = $pdo->prepare("SELECT tipo_persona, nombre FROM escuelas WHERE id = ?");
+$stmtTP2->execute([$escuela_id]);
+$escInfo = $stmtTP2->fetch() ?: ['tipo_persona' => null, 'nombre' => ''];
+$tiposRequeridos2 = documentos_requeridos_por_tipo_persona($escInfo['tipo_persona']);
+
+$stmtTiposPrev = $pdo->prepare("SELECT tipo FROM escuela_documentos WHERE escuela_id = ?");
+$stmtTiposPrev->execute([$escuela_id]);
+$tiposPresentesAntes = array_column($stmtTiposPrev->fetchAll(), 'tipo');
+$completoAntes = empty(array_diff($tiposRequeridos2, $tiposPresentesAntes));
+
 // UN DOCUMENTO APROBADO YA NO SE PUEDE REEMPLAZAR (23-sep-2026).
 //
 // Esto REVIERTE a propósito parte del blindaje del 11-sep que describe el
@@ -107,4 +124,54 @@ $pdo->prepare("UPDATE escuelas SET documentacion_estado = 'en_revision' WHERE id
 
 registrar_log($pdo, $usuario_actual, 'documento_escuela_subido', "Escuela #$escuela_id: subió documento '$tipo' (#$documento_id)", $escuela_id);
 
-respond(['success' => true, 'documento_id' => $documento_id, 'tipo' => $tipo]);
+// ── Aviso a CONTADOR: documentación completa y lista para revisar ──────
+//
+// Sin esto, la cola de contador solo se descubre entrando a mirarla -- un
+// colegio puede terminar de subir sus 5 documentos y quedarse esperando
+// días sin que nadie se entere de que ya hay algo que revisar.
+//
+// Se dispara solo cuando ESTA subida es la que completa el set (transición
+// de incompleto a completo): cubre tanto la primera vez que el colegio junta
+// los 5 documentos, como cuando corrige el último documento que le habían
+// rechazado y con eso el set vuelve a quedar completo. No se repite en cada
+// subida suelta mientras el colegio todavía va juntando el resto, ni cada
+// vez que se reemplaza un documento ya aprobado dentro de un set que ya
+// estaba completo.
+$aviso_contador_enviado = false;
+$tiposPresentesDespues = array_unique(array_merge($tiposPresentesAntes, [$tipo]));
+$completoDespues = empty(array_diff($tiposRequeridos2, $tiposPresentesDespues));
+if (!$completoAntes && $completoDespues) {
+    try {
+        // A todas las cuentas de contador activas -- es trabajo de equipo, no
+        // de una persona fija: quien esté disponible lo revisa.
+        $stmtCont = $pdo->prepare("SELECT email FROM usuarios WHERE rol = 'contador' AND activo = 1 AND email IS NOT NULL AND email <> ''");
+        $stmtCont->execute();
+        $destCont = array_values(array_unique(array_filter(array_column($stmtCont->fetchAll(), 'email'))));
+
+        if ($destCont) {
+            $nombreEscC = htmlspecialchars($escInfo['nombre'] ?: ('Escuela #' . $escuela_id));
+            $htmlCont = "
+                <p>Hola,</p>
+                <p><strong>{$nombreEscC} acaba de terminar de subir su documentación</strong> y ya está lista para revisar.</p>
+                <p>Lo encuentras en tu panel, en la lista de colegios pendientes de revisión.</p>
+                <p>— Sistema Pagalaescuela</p>
+            ";
+            $rCont = enviar_correo($destCont, "Documentación lista para revisar: {$escInfo['nombre']}", $htmlCont);
+            $aviso_contador_enviado = (bool) ($rCont['success'] ?? false);
+            if (!$aviso_contador_enviado) {
+                log_api("subir_documento_escuela: falló el aviso a contador por la escuela #{$escuela_id} -> " . ($rCont['error'] ?? 'desconocido'));
+            }
+        } else {
+            // No es un error del flujo: puede que todavía no existan cuentas
+            // de contador. Pero sí hay que poder enterarse, porque significa
+            // que este colegio se queda en la cola sin que nadie lo sepa.
+            log_api("subir_documento_escuela: escuela #{$escuela_id} lista para revisar, pero NO hay ninguna cuenta con rol 'contador' activa que avisar.");
+        }
+    } catch (\Throwable $eCont) {
+        // Nunca tumbar la subida del documento por un problema de correo: el
+        // archivo y la fila ya quedaron guardados, que es lo que importa.
+        log_api("subir_documento_escuela: error armando el aviso a contador de la escuela #{$escuela_id} -> " . $eCont->getMessage());
+    }
+}
+
+respond(['success' => true, 'documento_id' => $documento_id, 'tipo' => $tipo, 'aviso_contador_enviado' => $aviso_contador_enviado]);
