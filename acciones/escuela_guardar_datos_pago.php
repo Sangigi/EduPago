@@ -112,4 +112,47 @@ if ($rfc !== null || $cp !== null || $tipoPersonaForm !== '') {
 
 registrar_log($pdo, $usuario_actual, 'escuela_datos_pago_guardados', "Escuela #$escuela_id: datos de alta de comercio actualizados", $escuela_id);
 
-respond(['success' => true]);
+// ── Aviso a CONTADOR: formulario de alta de comercio completado ────────
+//
+// Es el segundo disparador de la misma cola de contador (el primero es
+// subir_documento_escuela.php, cuando se completan los 5 documentos). Este
+// dispara cuando el colegio manda el FORMULARIO por primera vez -- se usa
+// "primera vez" (`!$existente`, ya leído arriba antes del INSERT) y no
+// "aceptó el clausulado" porque ese checkbox ya está atado 1:1 a la primera
+// vez (ver el comentario de arriba: solo se exige la primera vez). Ediciones
+// posteriores del mismo formulario no reavisan: contador ya sabe que este
+// colegio existe y está en su cola.
+$aviso_contador_form_enviado = false;
+if (!$existente) {
+    try {
+        $stmtCont2 = $pdo->prepare("SELECT email FROM usuarios WHERE rol = 'contador' AND activo = 1 AND email IS NOT NULL AND email <> ''");
+        $stmtCont2->execute();
+        $destCont2 = array_values(array_unique(array_filter(array_column($stmtCont2->fetchAll(), 'email'))));
+
+        if ($destCont2) {
+            $stmtNombreEsc = $pdo->prepare("SELECT nombre FROM escuelas WHERE id = ?");
+            $stmtNombreEsc->execute([$escuela_id]);
+            $nombreEscRaw = $stmtNombreEsc->fetchColumn() ?: ('Escuela #' . $escuela_id);
+            $nombreEscF = htmlspecialchars($nombreEscRaw);
+            $htmlContF = "
+                <p>Hola,</p>
+                <p><strong>{$nombreEscF} acaba de completar su formulario de alta de comercio.</strong></p>
+                <p>Lo encuentras en tu panel, en la lista de colegios pendientes de revisión.</p>
+                <p>— Sistema Pagalaescuela</p>
+            ";
+            $rContF = enviar_correo($destCont2, "Formulario de alta completado: {$nombreEscRaw}", $htmlContF);
+            $aviso_contador_form_enviado = (bool) ($rContF['success'] ?? false);
+            if (!$aviso_contador_form_enviado) {
+                log_api("escuela_guardar_datos_pago: falló el aviso a contador por la escuela #{$escuela_id} -> " . ($rContF['error'] ?? 'desconocido'));
+            }
+        } else {
+            log_api("escuela_guardar_datos_pago: escuela #{$escuela_id} completó su formulario, pero NO hay ninguna cuenta con rol 'contador' activa que avisar.");
+        }
+    } catch (\Throwable $eContF) {
+        // Nunca tumbar el guardado del formulario por un problema de correo:
+        // los datos ya quedaron guardados, que es lo que importa.
+        log_api("escuela_guardar_datos_pago: error armando el aviso a contador de la escuela #{$escuela_id} -> " . $eContF->getMessage());
+    }
+}
+
+respond(['success' => true, 'aviso_contador_enviado' => $aviso_contador_form_enviado]);
