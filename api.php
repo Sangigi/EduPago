@@ -6,6 +6,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/mailer.php';
 require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/helpers_comisiones.php';
 require_once __DIR__ . '/lib/curl_helper.php';
 require_once __DIR__ . '/lib/facturapi.php';
 require_once __DIR__ . '/lib/uploads.php';

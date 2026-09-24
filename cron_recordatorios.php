@@ -30,6 +30,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/mailer.php';
 require_once __DIR__ . '/lib/helpers_pagos.php';
+require_once __DIR__ . '/lib/helpers_comisiones.php';
 
 // Dias de aviso previo antes de aplicar un cargo automatico. Define
 // CAI_DIAS_AVISO en config.php para cambiarlo sin tocar este archivo.
@@ -718,6 +719,29 @@ if ((int) date('j') === 1) {
     }
 }
 
+
+// ── Cierre de comisiones (24-sep-2026) ─────────────────────────────────
+//
+// Congela el devengado de todo mes ya vencido que falte, del más viejo al más
+// nuevo. Se cuelga de ESTE cron —que ya está dado de alta en Hostinger— para
+// no tener que configurar un Cron Job nuevo en hPanel.
+//
+// Como cierra todos los periodos pendientes y no solo el del mes pasado, si el
+// cron se cae una semana el siguiente día se pone al corriente solo.
+//
+// Va envuelto en try/catch: si la migración del libro de comisiones todavía no
+// corrió, el cron de recordatorios —que manda correos de dinero— NO debe
+// fallar por eso.
+try {
+    $resCom = comision_cerrar_pendientes($pdo, null, 'cierre_cron');
+    if (!empty($resCom['cerrados'])) {
+        foreach ($resCom['cerrados'] as $c) {
+            $resumen[] = "Comisiones: mes {$c['periodo']} cerrado, total devengado $" . number_format($c['total'], 2);
+        }
+    }
+} catch (\Throwable $e) {
+    $resumen[] = 'Comisiones: no se pudo cerrar (' . $e->getMessage() . ')';
+}
 $lineaLog = date('Y-m-d H:i:s') . " | Cron recordatorios:\n  " . (empty($resumen) ? '(sin novedades)' : implode("\n  ", $resumen)) . "\n\n";
 file_put_contents(CORREOS_LOG_FILE, $lineaLog, FILE_APPEND);
 echo $lineaLog;
