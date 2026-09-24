@@ -23,7 +23,7 @@
 
 var _hPM = React.createElement;
 
-function Promotor({ user, onLogout }) {
+function Promotor({ user, onLogout, menuPerfil }) {
   return _hPM('div', { style: { minHeight: '100vh', background: 'var(--bg-main)' } },
 
     _hPM('div', {
@@ -36,7 +36,10 @@ function Promotor({ user, onLogout }) {
     },
       _hPM('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)' } }, 'Invitaciones a colegios'),
       _hPM('div', { key: 'u', style: { marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-3)' } }, (user && user.nombre) || ''),
-      _hPM('button', { key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión')
+      // menuPerfil llega ya armado desde app.js (24-sep-2026): trae editar
+      // perfil, cambiar contraseña, cerrar sesión y "Ver la guía otra vez".
+      // El || deja el botón suelto como respaldo si la prop no llegara.
+      menuPerfil || _hPM('button', { key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión')
     ),
 
     _hPM('div', { key: 'body', style: { padding: 20, maxWidth: 1100, margin: '0 auto' } },

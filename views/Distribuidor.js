@@ -782,7 +782,7 @@ function DistDatosPagoView() {
 }
 
 // ── Componente principal ── Reutiliza .app/.sidebar/.main/.topbar/.content del shell (assets/js/app.js + main.css) para heredar automáticamente el drawer responsive de ≤768px (botón hamburguesa + .nav-backdrop).
-function Distribuidor({ user, onLogout }) {
+function Distribuidor({ user, onLogout, menuPerfil }) {
   // Tema del portal, compartido con el resto de la plataforma vía localStorage
   const [temaOscuro, setTemaOscuro] = React.useState(() => {
     try {
@@ -1000,6 +1000,12 @@ function Distribuidor({ user, onLogout }) {
                     className: "btn btn-primary", onClick: () => setShowInvite(true),
                     children: "+ Invitar colegio"
                   }, void 0, false) : null,
+                  // Menú de perfil (24-sep-2026). Este panel solo tenía un
+                  // botón suelto de cerrar sesión en el pie del sidebar: sin
+                  // editar perfil, sin cambiar contraseña y sin la opción de
+                  // volver a ver la guía. Llega ya armado desde app.js con
+                  // haciaAbajo:true, que es lo correcto en una barra superior.
+                  menuPerfil || null,
                 ]
               }, void 0, true),
             ]

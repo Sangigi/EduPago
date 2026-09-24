@@ -12,7 +12,10 @@ function PortalFamilia({
   setData,
   user,
   escuela,
-  onLogout
+  onLogout,
+  // Relanza la guía de primer uso. Este portal no monta MenuPerfil (tiene
+  // cabecera propia), así que el punto de entrada se pinta a mano abajo.
+  onVerGuia
 }) {
   const {
     useState,
@@ -899,6 +902,15 @@ function PortalFamilia({
                   }, void 0, false)
                 ]
               }, void 0, true),
+              // "Ver la guía otra vez" (24-sep-2026). Gateado por typeof: si
+              // la prop no llega, el botón no aparece en vez de tronar.
+              typeof onVerGuia === 'function' ? _jsxDEV("button", {
+                className: "btn-ghost",
+                title: "Ver la guía otra vez",
+                onClick: onVerGuia,
+                style: { color: 'var(--ink-3)' },
+                children: _jsxDEV(Icon, { name: 'info', size: 17, color: "currentColor" }, void 0, false)
+              }, 'verguia', false) : null,
 
               _jsxDEV("button", {
                 className: "btn-ghost",

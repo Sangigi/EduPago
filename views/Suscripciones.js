@@ -40,6 +40,8 @@ function Suscripciones({ data, setData }) {
   const [cargandoInv, setCargandoInv] = useState(true);
   const [resolviendoId, setResolviendoId] = useState(null);
   const [motivoRechazo, setMotivoRechazo] = useState({}); // { [id]: texto }
+  // Página de la tarjeta "Invitaciones sin completar" (24-sep-2026).
+  const [pagInvSusc, setPagInvSusc] = useState(1);
 
   const cargarInvitaciones = async () => {
     setCargandoInv(true);
@@ -225,6 +227,14 @@ function Suscripciones({ data, setData }) {
   // estado — setMotivoRechazo() es asíncrono y llamar a esta función justo
   // después (mismo evento de clic) mandaba el motivo VACÍO, un evento
   // atrás, porque React aún no había aplicado el setState.
+  // SIN USO DESDE EL 24-sep-2026. Esta función llamaba a invitacion_resolver
+  // (aprobar/rechazar) desde la tarjeta "Colegios en proceso de registro", que
+  // se reconvirtió en "Invitaciones sin completar" — un embudo de seguimiento,
+  // sin acciones de aprobación.
+  //
+  // No se borra porque el endpoint del backend sigue existiendo y el flujo de
+  // aprobación manual podría volver a hacer falta. Si se decide que no, esto y
+  // acciones/invitacion_resolver.php se van juntos.
   const resolverInvitacion = async (id, accionResolver, motivoOverride) => {
     setResolviendoId(id);
     try {
@@ -382,7 +392,6 @@ function Suscripciones({ data, setData }) {
   })();
   const maxAltas = Math.max(1, ...altasPorMes.map(m => m.count));
 
-  const invPendientes = invitaciones.filter(i => i.estado === 'enviado' || i.estado === 'pagado');
   const PLAN_LABEL = { basico: 'Básico', avanzado: 'Avanzado', pro: 'Pro' };
 
   const fechaCorta = iso => iso ? new Date(iso.replace(' ', 'T')).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -465,81 +474,129 @@ function Suscripciones({ data, setData }) {
     ]
   }, 'panelMant');
 
-  const panelInvitaciones = (invPendientes.length > 0 || cargandoInv) && _jsxDEV("div", {
+  // ── Invitaciones sin completar ──────────────────────────────────────────
+  //
+  // RECONVERTIDO el 24-sep-2026. Antes esta tarjeta se llamaba "Colegios en
+  // proceso de registro" y decía "solicitudes que ya pagaron su suscripción y
+  // esperan tu revisión". Eso describía el flujo VIEJO, anterior al 11-sep:
+  // el colegio llenaba el formulario, pagaba, y un superadmin lo aprobaba a
+  // mano.
+  //
+  // Ese flujo ya no existe. Hoy acciones/invitacion_enviar.php pone estado
+  // 'enviado' y acto seguido 'aprobada' DENTRO DE LA MISMA PETICIÓN, creando
+  // el colegio de inmediato en modo demo. O sea: 'enviado' pasó de ser una
+  // cola de espera a un estado intermedio que dura milisegundos, y 'pagado'
+  // ya no lo escribe nadie. La tarjeta mostraba filas muertas del flujo viejo
+  // y nunca iba a recibir una nueva.
+  //
+  // Lo que sí sirve con estos mismos datos: EL EMBUDO. A quién invitaste que
+  // nunca se registró. Eso es una lista de seguimiento comercial real.
+  const invSinCompletar = invitaciones.filter(inv => {
+    // Si ya tiene escuela, el colegio existe: esa invitación cumplió su
+    // función y no es seguimiento pendiente.
+    if (inv.escuela_id) return false;
+    // Rechazadas y canceladas son decisiones tomadas, no pendientes.
+    return inv.estado !== 'aprobada' && inv.estado !== 'rechazada' && inv.estado !== 'cancelada';
+  });
+
+  // Vencida = la liga ya expiró, así que ese contacto NO puede registrarse
+  // aunque quiera; hay que regenerársela. Se calcula aquí y no en el backend
+  // para no tocar invitaciones_listar.php.
+  const invVencida = inv => {
+    if (!inv.expira) return false;
+    const t = Date.parse(String(inv.expira).replace(' ', 'T'));
+    return !isNaN(t) && t < Date.now();
+  };
+
+  const INV_POR_PAGINA = 10;
+  const totalPagInvSusc = Math.max(1, Math.ceil(invSinCompletar.length / INV_POR_PAGINA));
+  // Si la lista encoge (se registró alguien), se vuelve a la última página
+  // válida en vez de mostrar una tabla vacía sin explicación.
+  const pagInvSegura = Math.min(pagInvSusc, totalPagInvSusc);
+  const invPagina = invSinCompletar.slice(
+    (pagInvSegura - 1) * INV_POR_PAGINA,
+    pagInvSegura * INV_POR_PAGINA
+  );
+
+  const panelInvitaciones = (invSinCompletar.length > 0 || cargandoInv) && _jsxDEV("div", {
     className: "card",
     style: { marginBottom: 20, padding: 0, overflow: 'hidden' },
     children: [
       _jsxDEV("div", {
-        style: { padding: '16px 20px', borderBottom: '1px solid var(--border-glow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+        style: { padding: '16px 20px', borderBottom: '1px solid var(--border-glow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
         children: [
           _jsxDEV("div", {
             children: [
-              _jsxDEV("div", { style: { fontWeight: 700, fontSize: 15 }, children: "Colegios en proceso de registro" }, void 0, false),
+              _jsxDEV("div", { style: { fontWeight: 700, fontSize: 15 }, children: "Invitaciones sin completar" }, 't'),
               _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
-                children: "Solicitudes que ya pagaron su suscripción y esperan tu revisión antes de activarse." }, void 0, false)
+                children: "Colegios que invitaste y todavía no se registran. Si la liga venció, hay que regenerarla." }, 's')
             ]
-          }, void 0, true),
-          cargandoInv ? _jsxDEV("span", { className: "spinner", style: { width: 16, height: 16 } }, void 0, false) : null
+          }, 'txt', true),
+          _jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', gap: 10 },
+            children: [
+              cargandoInv ? _jsxDEV("span", { className: "spinner", style: { width: 16, height: 16 } }, 'sp', false) : null,
+              // El typeof protege de una caché vieja de index.html donde
+              // Paginacion.js aún no existe: sin él, un ReferenceError tumba
+              // toda la pantalla.
+              typeof Paginacion !== 'undefined' ? _jsxDEV(Paginacion, {
+                pagina: pagInvSegura,
+                totalPaginas: totalPagInvSusc,
+                onCambiar: setPagInvSusc,
+                etiqueta: invSinCompletar.length + ' sin completar'
+              }, 'pag', false) : null
+            ]
+          }, 'der', true)
         ]
       }, 'h', true),
-      invPendientes.length === 0 ? _jsxDEV("div", {
+
+      invSinCompletar.length === 0 ? _jsxDEV("div", {
         style: { padding: '20px', color: 'var(--ink-3)', fontSize: 13 },
-        children: "Sin solicitudes pendientes por ahora."
-      }, void 0, false) : _jsxDEV("div", {
-        children: invPendientes.map(inv => {
+        children: "Todas las invitaciones que mandaste ya se convirtieron en colegios."
+      }, 'vacio', false) : _jsxDEV("div", {
+        children: invPagina.map(inv => {
+          // datos_enviados solo existe si el colegio alcanzó a mandar el
+          // formulario; si abandonó antes, solo se tienen los datos de
+          // contacto con los que se generó la invitación.
           const datos = (() => { try { return JSON.parse(inv.datos_enviados || '{}'); } catch (e) { return {}; } })();
-          const yaPagado = inv.estado === 'pagado';
+          const vencida = invVencida(inv);
+          const lleno = !!inv.datos_enviados;
           return _jsxDEV("div", {
-            style: { padding: '14px 20px', borderBottom: '1px solid var(--border-glow)' },
+            style: { padding: '13px 20px', borderBottom: '1px solid var(--border-glow)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' },
             children: [
-              _jsxDEV("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' },
+              _jsxDEV("div", {
+                style: { minWidth: 0 },
                 children: [
-                  _jsxDEV("div", {
+                  _jsxDEV("div", { style: { fontWeight: 600, fontSize: 14 },
+                    children: datos.nombre || inv.contacto_nombre || '(sin nombre)' }, 'n'),
+                  _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
                     children: [
-                      _jsxDEV("div", { style: { fontWeight: 600, fontSize: 14 }, children: datos.nombre || '(sin nombre)' }, void 0, false),
-                      _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
-                        children: [datos.email || inv.contacto_email, ' · ', inv.contacto_nombre] }, void 0, true),
-                      _jsxDEV("div", { style: { fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-                        children: [
-                          _jsxDEV("span", {
-                            style: { padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                                     background: yaPagado ? 'rgba(73,175,84,.12)' : 'rgba(217,119,6,.12)',
-                                     color: yaPagado ? 'var(--green)' : 'var(--amber, #d97706)' },
-                            children: yaPagado ? 'Pago confirmado' : 'Esperando pago'
-                          }, void 0, false),
-                          inv.plan_elegido ? _jsxDEV("span", { style: { color: 'var(--ink-2)' },
-                            children: (PLAN_LABEL[inv.plan_elegido] || inv.plan_elegido) + ' · $' + Number(inv.monto_suscripcion || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
-                          }, void 0, false) : null
-                        ]
-                      }, void 0, true)
-                    ]
-                  }, void 0, true),
-                  yaPagado ? _jsxDEV("div", { style: { display: 'flex', gap: 8, flexShrink: 0 },
-                    children: [
-                      _jsxDEV("button", {
-                        className: "btn btn-primary btn-sm",
-                        disabled: resolviendoId === inv.id,
-                        onClick: () => resolverInvitacion(inv.id, 'aprobar'),
-                        children: resolviendoId === inv.id ? 'Procesando…' : 'Aprobar y activar'
-                      }, void 0, false),
-                      _jsxDEV("button", {
-                        className: "btn btn-secondary btn-sm",
-                        disabled: resolviendoId === inv.id,
-                        onClick: () => {
-                          const motivo = prompt('¿Por qué se rechaza esta solicitud? (se le puede compartir al colegio)');
-                          if (motivo === null) return;
-                          resolverInvitacion(inv.id, 'rechazar', motivo);
-                        },
-                        children: 'Rechazar'
-                      }, void 0, false)
-                    ]
-                  }, void 0, true) : null
+                      inv.contacto_email || datos.email || '',
+                      inv.creado_por_nombre ? ' · la generó ' + inv.creado_por_nombre : '',
+                      inv.fecha_alta ? ' · ' + fechaCorta(inv.fecha_alta) : ''
+                    ] }, 'e', true)
                 ]
-              }, void 0, true)
+              }, 'izq', true),
+              _jsxDEV("div", {
+                style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+                children: [
+                  // Dos señales distintas y ambas útiles: si llenó el
+                  // formulario (interés real) y si la liga sigue sirviendo.
+                  lleno ? _jsxDEV("span", {
+                    className: "badge badge-blue", style: { fontSize: 11 },
+                    children: "Llenó el formulario"
+                  }, 'lleno', false) : null,
+                  _jsxDEV("span", {
+                    className: "badge " + (vencida ? "badge-red" : "badge-amber"),
+                    style: { fontSize: 11 },
+                    children: vencida ? "Liga vencida" : "Liga vigente"
+                  }, 'est', false)
+                ]
+              }, 'der', true)
             ]
           }, inv.id, true);
         })
-      }, void 0, false)
+      }, 'lista', false)
     ]
   }, void 0, true);
 

@@ -376,6 +376,20 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, rol, onIrA, onCerrar }) {
   var e4 = _R.useState(false); var listo = e4[0], setListo = e4[1];
   var refCard = _R.useRef(null);
 
+  // Congela el scroll del documento mientras la guía está abierta
+  // (24-sep-2026). Sin esto se podía hacer scroll con la rueda o con el
+  // teclado aunque los clics estuvieran bloqueados, y el recuadro de foco se
+  // despegaba del ítem que señalaba.
+  //
+  // Se guarda el overflow previo y se restaura al desmontar, en vez de fijar
+  // 'auto' a ciegas: si alguna otra pantalla ya lo tenía en otro valor,
+  // pisarlo la rompería al cerrar la guía.
+  _R.useEffect(function () {
+    var previo = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return function () { document.body.style.overflow = previo; };
+  }, []);
+
   // Los roles de PLATAFORMA tienen su propio recorrido corto y NO pasan por el
   // filtro de secciones: sus paneles no tienen menú lateral, así que
   // seccionesVisibles no significa nada ahí.
@@ -503,18 +517,33 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, rol, onIrA, onCerrar }) {
     var derecha = caja.left + caja.width + PAD + 12;
     var cabeALado = derecha + ANCHO < window.innerWidth - 12;
 
-    // Se intenta alinear la tarjeta con el ítem señalado, pero el clamp contra
-    // topeAbajo manda: con los últimos ítems del menú —que están hasta abajo—
-    // alinearlas dejaría los botones fuera de la pantalla.
-    //
-    // Math.max(MARGEN, ...) va al final y no al principio: si la tarjeta no
-    // cupiera de ninguna forma (ventana muy baja), preferimos que se salga por
-    // ABAJO y no por arriba, porque arriba se pierde el título y aquí abajo al
-    // menos la tarjeta sigue teniendo scroll de página para alcanzarla.
-    posTarjeta = cabeALado
-      ? { top: Math.max(MARGEN, Math.min(caja.top - 40, topeAbajo)), left: derecha }
-      : { top: Math.max(MARGEN, Math.min(caja.top + caja.height + PAD + 10, topeAbajo)),
-          left: Math.max(12, Math.min(caja.left, window.innerWidth - ANCHO - 12)) };
+    if (ESTRECHO || !cabeALado) {
+      // PANTALLA ANGOSTA (24-sep-2026). Antes la tarjeta se colocaba "debajo"
+      // del ítem y luego el clamp contra topeAbajo la empujaba hacia arriba;
+      // en un teléfono bajo eso la dejaba ENCIMA del ítem, tapando justo la
+      // sección que estaba explicando. Era el bug que se veía en móvil.
+      //
+      // Ahora se ancla al lado CONTRARIO de donde está el ítem, lo que hace
+      // imposible que lo tape:
+      //   · ítem en la mitad de arriba  -> tarjeta abajo
+      //   · ítem en la mitad de abajo   -> tarjeta arriba
+      var centroItem = caja.top + caja.height / 2;
+      var itemArriba = centroItem < window.innerHeight / 2;
+      var izquierda = Math.max(MARGEN, Math.min(caja.left, window.innerWidth - ANCHO - MARGEN));
+      posTarjeta = itemArriba
+        ? { top: Math.max(MARGEN, window.innerHeight - alto - MARGEN), left: izquierda }
+        : { top: MARGEN, left: izquierda };
+    } else {
+      // Pantalla ancha: la tarjeta cabe al costado del ítem, así que se alinea
+      // con él. El clamp contra topeAbajo manda, porque con los últimos ítems
+      // del menú —que están hasta abajo— alinearlas dejaría los botones fuera
+      // de la pantalla.
+      //
+      // Math.max(MARGEN, ...) va al final y no al principio: si la tarjeta no
+      // cupiera de ninguna forma, preferimos que se salga por ABAJO y no por
+      // arriba, porque arriba se pierde el título.
+      posTarjeta = { top: Math.max(MARGEN, Math.min(caja.top - 40, topeAbajo)), left: derecha };
+    }
   } else {
     posTarjeta = { top: '50%', left: '50%', transform: 'translate(-50%,-50%)' };
   }
@@ -522,29 +551,60 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, rol, onIrA, onCerrar }) {
   var hijos = [];
 
   // ── Capa de foco ──
-  // Un recuadro transparente sobre el ítem, con una sombra enorme que oscurece
-  // todo lo demás. El velo es claro (.42) a propósito: con uno oscuro el
-  // sistema de atrás deja de leerse y la guía pierde la mitad de su sentido,
-  // que es enseñar DÓNDE está cada cosa dentro de la pantalla real.
+  //
+  // BLOQUEA LOS CLICS (24-sep-2026, a petición del usuario). Antes la capa
+  // llevaba pointerEvents:'none' para que se pudiera hacer clic en el ítem
+  // resaltado. En la práctica eso dejaba tocar CUALQUIER parte del sistema con
+  // la guía abierta: se podía navegar a otra sección, abrir un modal o hacer
+  // scroll, y la guía quedaba señalando algo que ya no estaba donde decía.
+  //
+  // Ahora la capa intercepta todo. Los únicos puntos vivos son los botones de
+  // la propia tarjeta, que va por encima (zIndex 9001).
+  //
+  // El clic en la capa NO cierra la guía: es de una sola vez y un clic
+  // accidental la perdería. Se sale por "Saltar" o terminándola.
+  var estiloCapa = {
+    position: 'fixed',
+    // inset:0 aunque haya recuadro de foco: la capa tiene que cubrir la
+    // pantalla entera para interceptar, y el hueco iluminado se dibuja con la
+    // sombra del recuadro interior, no recortando esta capa.
+    inset: 0,
+    zIndex: 9000,
+    // Absorbe el clic sin hacer nada. Sin esto, el backdrop dejaría pasar el
+    // evento al elemento de abajo.
+    cursor: 'default'
+  };
+  var tragarClic = function (e) { e.preventDefault(); e.stopPropagation(); };
+
   if (caja) {
     hijos.push(_hG('div', {
-      key: 'foco',
-      style: {
-        position: 'fixed',
-        top: caja.top - PAD, left: caja.left - PAD,
-        width: caja.width + PAD * 2, height: caja.height + PAD * 2,
-        borderRadius: 10,
-        // pointerEvents:'none' para no bloquear el clic sobre el ítem real.
-        pointerEvents: 'none',
-        boxShadow: '0 0 0 9999px rgba(10,12,24,.42), 0 0 0 2px var(--accent)',
-        transition: 'top .2s ease, left .2s ease, width .2s ease, height .2s ease',
-        zIndex: 9000,
-      }
+      key: 'capa',
+      style: estiloCapa,
+      onClick: tragarClic,
+      onMouseDown: tragarClic,
+      // touchstart pasivo NO se puede cancelar; React lo registra como no
+      // pasivo, así que preventDefault sí surte efecto y evita el scroll por
+      // arrastre en móvil.
+      onTouchStart: tragarClic,
+      children: _hG('div', {
+        style: {
+          position: 'fixed',
+          top: caja.top - PAD, left: caja.left - PAD,
+          width: caja.width + PAD * 2, height: caja.height + PAD * 2,
+          borderRadius: 10,
+          pointerEvents: 'none',
+          boxShadow: '0 0 0 9999px rgba(10,12,24,.42), 0 0 0 2px var(--accent)',
+          transition: 'top .2s ease, left .2s ease, width .2s ease, height .2s ease'
+        }
+      })
     }));
   } else {
     hijos.push(_hG('div', {
-      key: 'velo',
-      style: { position: 'fixed', inset: 0, background: 'rgba(10,12,24,.42)', zIndex: 9000 }
+      key: 'capa',
+      style: Object.assign({}, estiloCapa, { background: 'rgba(10,12,24,.42)' }),
+      onClick: tragarClic,
+      onMouseDown: tragarClic,
+      onTouchStart: tragarClic
     }));
   }
 

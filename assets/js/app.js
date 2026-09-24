@@ -1152,6 +1152,21 @@ function App() {
 
   // * PORTAL FAMILIA
 
+
+  // Los paneles de rol de plataforma (familia, distribuidor, contador,
+  // provisión, promotor, tesorería) devuelven su propio árbol y nunca pasan por el shell con
+  // sidebar, así que la guía montada allá abajo jamás les llegaba. Este
+  // envoltorio se la pone encima sin que cada panel tenga que saber nada.
+  //
+  // React.createElement con hijos POSICIONALES y no un arreglo: con arreglo
+  // React exige `key` en cada hijo y avisaría en consola por el panel, que no
+  // la tiene.
+  const guiaPlataforma = (guiaPendiente && typeof GuiaPrimerUso !== 'undefined')
+    ? _jsxDEV(GuiaPrimerUso, { rol: user.rol, escuela: null, onCerrar: cerrarGuia }, 'guia-plat', false)
+    : null;
+  const conGuia = (elemento) => guiaPlataforma
+    ? React.createElement(React.Fragment, null, guiaPlataforma, elemento)
+    : elemento;
   if (user.rol === 'familia') {
 
 
@@ -1178,7 +1193,7 @@ function App() {
 
 
 
-      ? _jsxDEV(
+      ? conGuia(_jsxDEV(
 
           PortalFamilia,
 
@@ -1200,7 +1215,11 @@ function App() {
 
 
 
-            onLogout: handleLogout
+            onLogout: handleLogout,
+
+            // El portal de familia tiene su propia cabecera, sin MenuPerfil:
+            // la opción de volver a ver la guía se pinta ahí a mano.
+            onVerGuia: () => setGuiaPendiente(true)
 
           },
 
@@ -1208,7 +1227,7 @@ function App() {
 
           false
 
-        )
+        ))
 
 
 
@@ -1282,6 +1301,14 @@ function App() {
       // sidebar: sin esto el desplegable se abre hacia arriba, se sale del
       // contenedor y queda recortado detrás del contenido.
       haciaAbajo: true,
+      // "Ver la guía otra vez" también para los roles de plataforma
+      // (24-sep-2026). Antes esta prop solo se pasaba en el pie del sidebar del
+      // shell, así que contador, provisión y tesorería —que nunca pasan por ese
+      // shell— se quedaban sin la opción aunque su guía sí existiera.
+      //
+      // MenuPerfil solo pinta la opción cuando onVerGuia es una función, así
+      // que basta con pasarla aquí.
+      onVerGuia: () => setGuiaPendiente(true),
       apiPost: async (accion, cuerpo) => {
         const res = await fetch('api.php?action=' + accion, {
           method: 'POST',
@@ -1310,7 +1337,7 @@ function App() {
 
   if (user.rol === 'distribuidor') {
 
-    return _jsxDEV(
+    return conGuia(_jsxDEV(
 
       Distribuidor,
 
@@ -1318,9 +1345,11 @@ function App() {
 
         user: user,
 
+        onLogout: handleLogout,
 
-
-        onLogout: handleLogout
+        // Distribuidor no montaba MenuPerfil: solo tenía un botón suelto de
+        // cerrar sesión, sin editar perfil ni cambiar contraseña ni la guía.
+        menuPerfil: menuPerfilPlataforma
 
       },
 
@@ -1328,7 +1357,7 @@ function App() {
 
       false
 
-    );
+    ));
 
   }
 
@@ -1337,21 +1366,6 @@ function App() {
   // CUALQUIER escuela) -- Contador.js trae su propia data via
   // action=contador_listar_escuelas.
 
-
-  // Los paneles de rol de plataforma (contador, provisión, promotor,
-  // tesorería) devuelven su propio árbol y nunca pasan por el shell con
-  // sidebar, así que la guía montada allá abajo jamás les llegaba. Este
-  // envoltorio se la pone encima sin que cada panel tenga que saber nada.
-  //
-  // React.createElement con hijos POSICIONALES y no un arreglo: con arreglo
-  // React exige `key` en cada hijo y avisaría en consola por el panel, que no
-  // la tiene.
-  const guiaPlataforma = (guiaPendiente && typeof GuiaPrimerUso !== 'undefined')
-    ? _jsxDEV(GuiaPrimerUso, { rol: user.rol, escuela: null, onCerrar: cerrarGuia }, 'guia-plat', false)
-    : null;
-  const conGuia = (elemento) => guiaPlataforma
-    ? React.createElement(React.Fragment, null, guiaPlataforma, elemento)
-    : elemento;
   if (user.rol === 'contador') {
 
     return conGuia(_jsxDEV(
@@ -1423,7 +1437,9 @@ function App() {
 
         user: user,
 
-        onLogout: handleLogout
+        onLogout: handleLogout,
+
+        menuPerfil: menuPerfilPlataforma
 
       },
 
@@ -4228,8 +4244,9 @@ function App() {
                       escuela: escuela,
                       // Relanzar la guía a mano. Solo se pasa aquí, en el shell
                       // del colegio: los paneles de contador/provisión/
-                      // tesorería/promotor montan este mismo MenuPerfil pero no
-                      // tienen guía, y ahí la opción no debe aparecer.
+                      // tesorería/promotor montan este mismo MenuPerfil y AHORA
+                      // también tienen guía: la prop se les pasa por separado en
+                      // menuPerfilPlataforma. Esta de aquí es la del shell del colegio.
                       //
                       // No se toca usuarios.guia_vista_en: la fecha guardada es
                       // la de la PRIMERA vez, que es el dato que sirve para
