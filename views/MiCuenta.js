@@ -324,7 +324,7 @@ function MiCuenta({ escuela, user }) {
             children: _jsxDEV('div', {
               children: [
                 _jsxDEV('div', { className: 'card-title', children: 'Datos para procesar pagos reales' }, 't'),
-                _jsxDEV('div', { className: 'card-sub', children: 'Formulario de alta de comercio de Cobroscontarjeta.com. Necesario para que las familias puedan pagarte de verdad.' }, 's'),
+                _jsxDEV('div', { className: 'card-sub', children: 'Formulario de alta de comercio. Necesario para habilitar los pagos de las familias.' }, 's'),
               ]
             }, 'h')
           }, 'ch'),
