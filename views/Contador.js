@@ -31,6 +31,7 @@ const CT_TIPOS_DOCUMENTO = [
   { tipo: 'estado_cuenta_bancario',  label: 'Portada del estado de cuenta bancario' },
   { tipo: 'comprobante_domicilio',   label: 'Comprobante de domicilio' },
   { tipo: 'constancia_fiscal',       label: 'Constancia Fiscal' },
+  { tipo: 'acta_constitutiva',       label: 'Acta constitutiva' },
 ];
 
 // Solo las etiquetas más relevantes de escuela_datos_pago para verificar
@@ -279,7 +280,9 @@ function Contador({ user, onLogout, menuPerfil }) {
                 _jsxDEV('div', { style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8, textTransform: 'uppercase' }, children: 'Documentos' }, 'th1'),
                 _jsxDEV('div', {
                   style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 },
-                  children: CT_TIPOS_DOCUMENTO.map(t => {
+                  // El acta constitutiva solo se pide a persona moral; a los demás no
+                  // se les muestra como "Sin subir" (salvo que ya exista una).
+                  children: CT_TIPOS_DOCUMENTO.filter(t => t.tipo !== 'acta_constitutiva' || (escSel && escSel.tipo_persona === 'moral') || docDe(t.tipo)).map(t => {
                     const doc = docDe(t.tipo);
                     const info = doc ? (CT_ESTADO_DOC[doc.estado] || CT_ESTADO_DOC.pendiente) : null;
                     return _jsxDEV('div', {

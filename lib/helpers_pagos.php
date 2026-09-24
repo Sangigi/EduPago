@@ -926,9 +926,14 @@ function documentos_requeridos_por_tipo_persona($tipo_persona) {
         'estado_cuenta_bancario',
         'comprobante_domicilio',
     ];
-    return escuela_puede_facturar($tipo_persona)
-        ? array_merge($base, ['constancia_fiscal'])
-        : $base;
+    if (escuela_puede_facturar($tipo_persona)) $base[] = 'constancia_fiscal';
+    // El acta constitutiva solo existe para PERSONAS MORALES. Pedírsela a una
+    // persona física o a un negocio independiente los dejaría atorados en
+    // 'en_revision' (mismo problema que se explica arriba). Se compara contra
+    // 'moral' exacto, no contra "factura": un tipo vacío/desconocido (colegios
+    // anteriores a la columna) NO debe empezar a exigirla.
+    if (strtolower(trim((string) $tipo_persona)) === 'moral') $base[] = 'acta_constitutiva';
+    return $base;
 }
 
 

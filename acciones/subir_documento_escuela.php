@@ -11,7 +11,7 @@
 // Los 5 documentos exactos que pide el formulario de alta de comercio de
 // Cobroscontarjeta.com (11-sep-2026) -- reemplazan el catálogo anterior
 // (inventado antes de tener el formulario real del proveedor).
-$TIPOS_DOCUMENTO = ['identificacion_frente', 'identificacion_reverso', 'estado_cuenta_bancario', 'comprobante_domicilio', 'constancia_fiscal'];
+$TIPOS_DOCUMENTO = ['identificacion_frente', 'identificacion_reverso', 'estado_cuenta_bancario', 'comprobante_domicilio', 'constancia_fiscal', 'acta_constitutiva'];
 
 $rol = $usuario_actual['rol'] ?? '';
 requerir_rol($rol, ['superadmin', 'admin'], 'No tienes permiso para subir documentos.');

@@ -33,38 +33,56 @@
         // en distribuidor_comisiones.php, y solo para el distribuidor dueño de
         // la sesión). El superadmin necesita el monto real para poder armar un
         // reporte/exportación con totales, no solo porcentajes. Mismo cálculo
-        // que distribuidor_comisiones.php (cobrado * %), aplicado aquí a TODOS
-        // los referidos activos y vinculados a una escuela real, sin importar
-        // de qué distribuidor sean.
-        $escuelaIdsActivos = array_values(array_unique(array_filter(array_map(
-            fn($r) => $r['estado'] === 'activo' ? $r['escuela_id'] : null, $referidosTodos
-        ))));
-        $cobradoMesPorEscuela = [];
-        $cobradoAnioPorEscuela = [];
-        if ($escuelaIdsActivos) {
-            $in = implode(',', array_fill(0, count($escuelaIdsActivos), '?'));
-            $stmtCob = $pdo->prepare(
-                "SELECT escuela_id,
-                        SUM(CASE WHEN DATE_FORMAT(fecha, '%Y-%m') = ? THEN total ELSE 0 END) AS cobrado_mes,
-                        SUM(CASE WHEN YEAR(fecha) = ? THEN total ELSE 0 END) AS cobrado_anio
-                 FROM cobros
-                 WHERE estado = 'pagado' AND escuela_id IN ($in)
-                 GROUP BY escuela_id"
-            );
-            $stmtCob->execute(array_merge([date('Y-m'), date('Y')], $escuelaIdsActivos));
-            foreach ($stmtCob->fetchAll() as $row) {
-                $eid = intval($row['escuela_id']);
-                $cobradoMesPorEscuela[$eid]  = floatval($row['cobrado_mes']);
-                $cobradoAnioPorEscuela[$eid] = floatval($row['cobrado_anio']);
-            }
+        // que distribuidor_comisiones.php. Desde el 24-sep-2026 ese cálculo ya
+        // no vive aquí: lo hace lib/helpers_comisiones.php, para que el Excel
+        // y la pantalla no puedan decir cosas distintas.
+        // ── Comisiones por referido (export del superadmin) ──────────────
+        //
+        // REESCRITO el 24-sep-2026. Era el TERCERO de tres cálculos duplicados
+        // del mismo número (los otros: distribuidor_comisiones.php y
+        // distribuidor_datos.php). Los tres multiplicaban lo cobrado por el
+        // porcentaje de HOY, así que el Excel podía discrepar de la pantalla.
+        //
+        // Ahora todos piden el número a lib/helpers_comisiones.php.
+        $periodoHoySA = date('Y-m');
+        $vivoSA = comision_calcular_periodo($pdo, $periodoHoySA);
+        $mesPorReferido = [];
+        foreach ($vivoSA as $v) {
+            $rid = $v['referido_id'];
+            if (!isset($mesPorReferido[$rid])) $mesPorReferido[$rid] = ['base' => 0.0, 'comision' => 0.0];
+            $mesPorReferido[$rid]['base']     += $v['base_cobrada'];
+            $mesPorReferido[$rid]['comision'] += $v['comision'];
         }
-        $referidosTodos = array_map(function($r) use ($cobradoMesPorEscuela, $cobradoAnioPorEscuela) {
-            $activoConEscuela = $r['estado'] === 'activo' && $r['escuela_id'];
-            $cobradoMes  = $activoConEscuela ? ($cobradoMesPorEscuela[$r['escuela_id']] ?? 0) : 0;
-            $cobradoAnio = $activoConEscuela ? ($cobradoAnioPorEscuela[$r['escuela_id']] ?? 0) : 0;
-            $r['cobrado_mes']   = round($cobradoMes, 2);
-            $r['comision_mes']  = round($cobradoMes * $r['comision_pct'] / 100, 2);
-            $r['comision_anio'] = round($cobradoAnio * $r['comision_pct'] / 100, 2);
+
+        // Congelado del año, por referido. Si la migración no corrió, queda en
+        // cero y el acumulado muestra solo el mes en curso — menos, pero nunca
+        // inventado.
+        $anioSA = [];
+        try {
+            $csa = $pdo->prepare(
+                "SELECT referido_id, SUM(comision) AS c, SUM(monto_liquidado) AS liq
+                   FROM comision_devengos
+                  WHERE COALESCE(periodo_ajustado, periodo) LIKE ?
+                  GROUP BY referido_id"
+            );
+            $csa->execute([date('Y') . '-%']);
+            foreach ($csa->fetchAll() as $f) {
+                $anioSA[intval($f['referido_id'])] = ['c' => floatval($f['c']), 'liq' => floatval($f['liq'])];
+            }
+        } catch (\PDOException $e) {
+            log_api('superadmin_listar_referidos: sin libro de devengos -> ' . $e->getMessage());
+        }
+
+        $referidosTodos = array_map(function($r) use ($mesPorReferido, $anioSA) {
+            $rid = intval($r['id']);
+            $mes = $mesPorReferido[$rid] ?? ['base' => 0.0, 'comision' => 0.0];
+            $anio = $anioSA[$rid] ?? ['c' => 0.0, 'liq' => 0.0];
+            $r['cobrado_mes']       = round($mes['base'], 2);
+            $r['comision_mes']      = round($mes['comision'], 2);
+            $r['comision_anio']     = round($anio['c'] + $mes['comision'], 2);
+            // Devengado vs pagado: la pregunta que antes no se podía contestar.
+            $r['comision_pagada']   = round($anio['liq'], 2);
+            $r['comision_por_pagar']= round(($anio['c'] - $anio['liq']) + $mes['comision'], 2);
             return $r;
         }, $referidosTodos);
 

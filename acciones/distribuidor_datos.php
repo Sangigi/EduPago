@@ -34,40 +34,46 @@
         $activos_escuela_ids = array_values(array_filter(array_map(
             fn($r) => $r['estado'] === 'activo' ? $r['escuela_id'] : null, $referidos
         )));
+        // ── Tarjetas "Comisión del mes" y "Comisión acumulada" ───────────
+        //
+        // REESCRITO el 24-sep-2026. Antes este bloque multiplicaba lo cobrado
+        // por el porcentaje ACTUAL, igual que hacía distribuidor_comisiones.php
+        // — o sea, era el SEGUNDO de tres cálculos duplicados e independientes
+        // del mismo número. Podían desacordar entre sí: el dashboard decía una
+        // cosa y la pantalla de Comisiones otra.
+        //
+        // Ahora los tres piden el número a lib/helpers_comisiones.php. El mes
+        // en curso se calcula en vivo; el acumulado del año suma lo congelado
+        // (cada mes con SU tasa) más el mes abierto.
         $comision_mes = 0.0;
         $comision_acumulada = 0.0;
         $colegios_facturando = 0;
         if ($activos_escuela_ids) {
-            $in2 = implode(',', array_fill(0, count($activos_escuela_ids), '?'));
-            // Cobrado del mes en curso, por escuela
-            $cmstmt = $pdo->prepare(
-                "SELECT escuela_id, SUM(total) AS cobrado FROM cobros
-                 WHERE estado = 'pagado' AND escuela_id IN ($in2)
-                   AND YEAR(fecha) = YEAR(CURDATE()) AND MONTH(fecha) = MONTH(CURDATE())
-                 GROUP BY escuela_id"
-            );
-            $cmstmt->execute($activos_escuela_ids);
-            $cobrado_mes_por_escuela = [];
-            foreach ($cmstmt->fetchAll() as $row) $cobrado_mes_por_escuela[intval($row['escuela_id'])] = floatval($row['cobrado']);
-            // Cobrado acumulado del año, por escuela
-            $castmt = $pdo->prepare(
-                "SELECT escuela_id, SUM(total) AS cobrado FROM cobros
-                 WHERE estado = 'pagado' AND escuela_id IN ($in2) AND YEAR(fecha) = YEAR(CURDATE())
-                 GROUP BY escuela_id"
-            );
-            $castmt->execute($activos_escuela_ids);
-            $cobrado_anio_por_escuela = [];
-            foreach ($castmt->fetchAll() as $row) $cobrado_anio_por_escuela[intval($row['escuela_id'])] = floatval($row['cobrado']);
-            foreach ($referidos as $r) {
-                if ($r['estado'] !== 'activo' || !$r['escuela_id']) continue;
-                $eid = intval($r['escuela_id']);
-                $pct = floatval($r['comision_pct']) / 100;
-                $cobradoMes = $cobrado_mes_por_escuela[$eid] ?? 0;
-                $cobradoAnio = $cobrado_anio_por_escuela[$eid] ?? 0;
-                if ($cobradoMes > 0) $colegios_facturando++;
-                $comision_mes += $cobradoMes * $pct;
-                $comision_acumulada += $cobradoAnio * $pct;
+            $periodoHoy = date('Y-m');
+            $vivo = comision_calcular_periodo($pdo, $periodoHoy, $dist_id);
+            foreach ($vivo as $r) {
+                $comision_mes += $r['comision'];
+                if ($r['base_cobrada'] > 0) $colegios_facturando++;
             }
+
+            // Lo ya congelado de este año. Se envuelve en try/catch porque la
+            // migración del libro puede no haber corrido todavía: en ese caso
+            // el acumulado queda solo con el mes en curso, que es menos, pero
+            // nunca un número inventado.
+            $congeladoAnio = 0.0;
+            try {
+                $cs = $pdo->prepare(
+                    "SELECT COALESCE(SUM(comision), 0)
+                       FROM comision_devengos
+                      WHERE distribuidor_id = ?
+                        AND COALESCE(periodo_ajustado, periodo) LIKE ?"
+                );
+                $cs->execute([$dist_id, date('Y') . '-%']);
+                $congeladoAnio = floatval($cs->fetchColumn());
+            } catch (\PDOException $e) {
+                log_api('distribuidor_datos: sin libro de devengos -> ' . $e->getMessage());
+            }
+            $comision_acumulada = $congeladoAnio + $comision_mes;
         }
         $colegios = array_map(function($r) use ($alumnos_por_escuela) {
             $eid = $r['escuela_id'] ? intval($r['escuela_id']) : null;

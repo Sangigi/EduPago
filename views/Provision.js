@@ -90,6 +90,7 @@ function Provision({ user, onLogout, menuPerfil }) {
     estado_cuenta_bancario: 'Portada del estado de cuenta bancario',
     comprobante_domicilio:  'Comprobante de domicilio',
     constancia_fiscal:      'Constancia Fiscal',
+    acta_constitutiva:      'Acta constitutiva',
   };
   const PR_ESTADO_DOC = {
     pendiente: { label: 'En revisión', color: 'var(--amber)' },

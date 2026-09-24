@@ -487,6 +487,10 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
     // Cuentas por pagar a proveedores.
     'tesoreria' => [
         'tesoreria_cuentas_por_pagar', 'tesoreria_marcar_pagado',
+        // Pagarle al distribuidor es trabajo de tesorería (24-sep-2026).
+        // OJO: este allowlist corre ANTES del despacho. Si se olvida una
+        // acción aquí, el 403 solo deja rastro en api_log.txt.
+        'comisiones_estado_cuenta', 'comisiones_registrar_pago',
         'listar_gastos', 'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
 ];

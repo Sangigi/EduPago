@@ -648,6 +648,60 @@ Los pasos se filtran contra `navItems` —el menú real del usuario— así que 
 - `MiSuscripcion.js` dice "48 a 72 horas" y `MiCuenta.js` dice "24-72 horas", y habla de "un superadmin" cuando quien revisa es el contador.
 - `escuela_documentos` **no tiene** `UNIQUE (escuela_id, tipo)`: la unicidad es solo de aplicación (SELECT + INSERT sin transacción), así que dos subidas simultáneas del mismo tipo insertan dos filas y esquivan el guard de "aprobado".
 
+### 5.3bh Libro mayor de comisiones de distribuidor (24-sep-2026)
+
+**El bug que resuelve.** `acciones/distribuidor_comisiones.php` calculaba la comisión histórica en vivo: `SUM(cobros pagados del mes) × comision_pct ACTUAL`. No había ningún registro de qué porcentaje regía cuando se devengó cada mes, así que bajar la comisión de 5% a 3% reescribía los 12 meses de golpe — incluidos los ya pagados.
+
+**El modelo.** Dos piezas, mismo patrón que los abonos:
+
+| Tabla | Papel |
+|---|---|
+| `distribuidor_comision_tasas` | Desde cuándo rige cada porcentaje |
+| `comision_devengos` | Lo devengado de cada mes cerrado, con su % congelado dentro |
+| `comision_cierres` | Bitácora; su `UNIQUE(periodo)` impide cerrar dos veces |
+| `comision_liquidaciones` + `_detalle` | Lo que de verdad se pagó |
+
+`distribuidor_referidos.comision_pct` queda degradada a **caché de la tasa de hoy**, igual que `cobros.monto_pagado` respecto a `cobro_abonos`.
+
+**La regla que gobierna todo:** un mes cerrado nunca se reescribe. Si algo cambia después (dinero tardío, un cobro cancelado), se inserta un renglón `tipo='ajuste'` por la diferencia, usando la `comision_pct` **congelada** de ese mes y nunca la de hoy. Ese detalle es lo que cierra la puerta trasera.
+
+**Había TRES cálculos duplicados** del mismo número — `distribuidor_comisiones.php`, `distribuidor_datos.php` y `superadmin_listar_referidos.php` — cada uno con su propia fórmula. Podían desacordar: el dashboard decía una cosa y el Excel otra. Ahora los tres llaman a `comision_calcular_periodo()` en `lib/helpers_comisiones.php`. **Una sola fórmula**, también para el mes abierto y para el cierre.
+
+#### Orden de despliegue — no lo cambies
+
+1. Correr el **PASO 0** de `migracion_2026_09_24_comisiones_devengo.sql` y **leer** lo que devuelve. Puede abortar todo:
+   - Dos referidos sobre el mismo `escuela_id` → hoy ya duplica la comisión en vivo; congelarlo la vuelve deuda escrita.
+   - `@@global.time_zone` distinto de `-06:00` → `cobro_abonos.creado_en` lo sella MySQL, no PHP. Con el reloj en UTC, un pago de las 18:30 del 30-sep se devenga en octubre.
+2. Correr los pasos 1–6.
+3. `php migracion_2026_09_24_comisiones_backfill.php` — **dry-run, no escribe nada**.
+4. Comparar ese listado contra lo que la pantalla muestra **hoy**. Tienen que coincidir.
+5. Solo si cuadra: `--aplicar`.
+6. `git pull`.
+
+#### Tres decisiones que conviene no deshacer
+
+**La migración no mueve ni un peso.** Congela el pasado con la fórmula *vieja* (`base_regla='legacy_total_cobro'`). Si al correr el dry-run los números cambian, la migración está mal — no "calcula mejor".
+
+**La fórmula nueva entra por fecha, no por despliegue.** `COMISION_LEDGER_DESDE = '2026-10-01'`: a partir de ahí la base es el dinero real (abonos por su `creado_en` + cobros pagados sin abono por su `fecha`). Septiembre cierra con la regla vieja aunque el código nuevo ya esté arriba. Si se cambiara la base a media marcha, un mes saltaría de valor sin explicación.
+
+La mitad "cobros pagados sin abono" es **obligatoria**: hay tres caminos que marcan un cobro como pagado sin escribir en `cobro_abonos` (`confirmar_pago.php`, `webhook_spei.php`, `helpers_pagos.php`). Sin ella esos cobros comisionarían cero.
+
+Ojo: las dos reglas dan números **distintos y posiblemente mayores**. Un cobro pendiente con abonos parciales hoy comisiona cero y con la regla nueva comisiona lo abonado. Conviene avisarle al distribuidor antes, no después.
+
+**No se inventaron los pagos ya hechos.** Se buscó en todo el repo (`liquidac|payout|comision_pagada|pago_distribuidor`): no existe ningún registro. Las tablas de liquidación nacen vacías y se capturan a mano con el listado del dry-run. Darlo por pagado automáticamente haría desaparecer una deuda real si algún pago no se hizo.
+
+#### Cuándo se congela
+
+El cron diario que **ya existe** (`cron_recordatorios.php`), a partir del día `COMISION_DIA_CIERRE` (3) del mes siguiente. Esos días de gracia son a propósito: `confirmar_pago.php` no toca `cobros.fecha`, así que un cobro del 28-sep confirmado a mano el 2-oct sigue imputándose a septiembre.
+
+Cierra **todos** los periodos vencidos que falten, así que si el cron se cae una semana, al día siguiente se pone al corriente solo. Se protege con `GET_LOCK('comisiones_cierre', 0)` sin espera, para que el cron y el botón manual no choquen.
+
+#### Estado al 24-sep-2026
+
+Los 4 referidos con colegio (escuelas 19–22) se crearon **todos en septiembre**, así que el dry-run da `$0.00` en junio, julio y agosto — correcto, no es un bug: esos colegios no existían. El primer mes con monto real es septiembre (escuela 19: $50 cobrado → $2.50). **El bug nunca llegó a morder en producción**; se arregló antes.
+
+**Falta:** las pantallas (`Comisiones.js`, `Distribuidor.js`) todavía no muestran el % congelado por mes, la columna "por pagar", el selector de mes ni los botones de cerrar mes y registrar pago. El backend ya está completo.
+
 ### 6. Correo saliente (SMTP) y Cron de recordatorios
 - `config.php` ya apunta a `contacto@pagalaescuela.com` (mail.pagalaescuela.com:465, SSL). Solo falta reemplazar `SMTP_PASS` con la contraseña real de esa cuenta.
 - ⚠️ `config.php` está versionado en este repo con credenciales reales (y ya se filtró dos veces por estar en un repo público — ver los comentarios "ROTADO" en el archivo). Antes de subir la contraseña SMTP real, considera moverlo a `.gitignore` o a variables de entorno.

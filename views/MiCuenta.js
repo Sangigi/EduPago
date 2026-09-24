@@ -28,6 +28,7 @@ const MC_TIPOS_DOCUMENTO = [
   { tipo: 'estado_cuenta_bancario',  label: 'Portada del estado de cuenta bancario' },
   { tipo: 'comprobante_domicilio',   label: 'Comprobante de domicilio' },
   { tipo: 'constancia_fiscal',       label: 'Constancia Fiscal' },
+  { tipo: 'acta_constitutiva',       label: 'Acta constitutiva' },
 ];
 
 const MC_ESTADO_DOC = {
@@ -459,6 +460,9 @@ function MiCuenta({ escuela, user }) {
               // quedaría esperando sin saber qué le falta.
               children: MC_TIPOS_DOCUMENTO
                 .filter(t => !(t.tipo === 'constancia_fiscal' && tipoPersona === 'negocio'))
+                // El acta constitutiva solo se pide a PERSONA MORAL (igual que en
+                // documentos_requeridos_por_tipo_persona()).
+                .filter(t => !(t.tipo === 'acta_constitutiva' && tipoPersona !== 'moral'))
                 .map(t => {
                 const doc = docDe(t.tipo);
                 const info = doc ? (MC_ESTADO_DOC[doc.estado] || MC_ESTADO_DOC.pendiente) : null;

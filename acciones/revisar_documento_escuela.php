@@ -104,6 +104,7 @@ if ($nuevoEstado === 'rechazado') {
             'estado_cuenta_bancario' => 'Portada del estado de cuenta bancario',
             'comprobante_domicilio'  => 'Comprobante de domicilio',
             'constancia_fiscal'      => 'Constancia Fiscal',
+            'acta_constitutiva'      => 'Acta constitutiva',
         ];
 
         $stmtRech = $pdo->prepare(
