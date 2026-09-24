@@ -930,3 +930,51 @@ function documentos_requeridos_por_tipo_persona($tipo_persona) {
         ? array_merge($base, ['constancia_fiscal'])
         : $base;
 }
+
+
+// ── Formulario de alta de comercio: ¿está completo? ──────────────────────
+//
+// Los campos marcados con asterisco (*) en views/MiCuenta.js
+// (MC_GRUPOS_DATOS_PAGO). Si agregas o quitas un obligatorio allá, cámbialo
+// también aquí: esta lista es la que MANDA (la UI solo refleja lo que el
+// servidor responde en `campos_faltantes`).
+//
+// 'cp' no vive en escuela_datos_pago sino en escuelas.cp_fiscal (ver
+// escuela_guardar_datos_pago.php), por eso datos_pago_campos_faltantes() lo
+// espera ya mezclado en $datos bajo la clave 'cp'.
+// 'clausulado' es un pseudo-campo: se considera cubierto cuando ya existe
+// clausulado_aceptado_en.
+const CAMPOS_REQUERIDOS_DATOS_PAGO = [
+    'titular_nombre', 'nombre_comercio', 'titular_correo',
+    'calle_numero', 'colonia', 'cp', 'ciudad', 'estado_direccion', 'pais',
+    'telefono_celular',
+    'id_tipo', 'id_numero', 'id_fecha_expedicion', 'id_vigencia',
+    'banco', 'sucursal_bancaria', 'cuenta_cheques', 'cuenta_clabe',
+];
+
+// Función pura: recibe la fila de escuela_datos_pago (con 'cp' ya mezclado, o
+// [] / null si nunca se guardó) y devuelve las claves que faltan.
+function datos_pago_campos_faltantes($datos): array {
+    $datos = is_array($datos) ? $datos : [];
+    $faltan = [];
+    foreach (CAMPOS_REQUERIDOS_DATOS_PAGO as $campo) {
+        if (trim((string) ($datos[$campo] ?? '')) === '') $faltan[] = $campo;
+    }
+    if (empty($datos['clausulado_aceptado_en'])) $faltan[] = 'clausulado';
+    return $faltan;
+}
+
+// Versión que lee de la base. Devuelve ['completo' => bool, 'faltantes' => [...]].
+// Lo usa subir_documento_escuela.php para bloquear la subida en el servidor.
+function evaluar_formulario_datos_pago(PDO $pdo, int $escuela_id): array {
+    $st = $pdo->prepare("SELECT * FROM escuela_datos_pago WHERE escuela_id = ?");
+    $st->execute([$escuela_id]);
+    $datos = $st->fetch() ?: [];
+
+    $st2 = $pdo->prepare("SELECT cp_fiscal FROM escuelas WHERE id = ?");
+    $st2->execute([$escuela_id]);
+    $datos['cp'] = $st2->fetchColumn();
+
+    $faltantes = datos_pago_campos_faltantes($datos);
+    return ['completo' => empty($faltantes), 'faltantes' => $faltantes];
+}

@@ -23,6 +23,21 @@ if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido'
 if (!in_array($tipo, $TIPOS_DOCUMENTO, true)) respond(['success' => false, 'error' => 'Tipo de documento inválido']);
 requerir_escuela_propia($rol, $escuela_id, $usuario_actual, 'No tienes permiso sobre esta escuela.');
 
+// CANDADO: los documentos solo se pueden subir cuando el formulario de alta de
+// comercio ya está completo Y guardado (campos con asterisco + clausulado
+// aceptado). Se valida contra la BASE, no contra lo que mande el navegador:
+// la UI de Mi cuenta también bloquea los botones, pero eso es solo cortesía --
+// un POST directo a este endpoint debe recibir el mismo rechazo.
+$estadoForm = evaluar_formulario_datos_pago($pdo, $escuela_id);
+if (!$estadoForm['completo']) {
+    respond([
+        'success' => false,
+        'codigo' => 'formulario_incompleto',
+        'error' => 'Primero completa y guarda el formulario de alta de comercio para poder subir documentos.',
+        'campos_faltantes' => $estadoForm['faltantes'],
+    ]);
+}
+
 if (empty($_FILES['archivo'])) respond(['success' => false, 'error' => 'archivo requerido']);
 
 // Blindaje (11-sep-2026, hallado en revisión adversarial): antes cada subida

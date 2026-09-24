@@ -155,4 +155,14 @@ if (!$existente) {
     }
 }
 
-respond(['success' => true, 'aviso_contador_enviado' => $aviso_contador_form_enviado]);
+// Se devuelve el estado del formulario ya con TODO guardado (incluido el cp
+// en `escuelas`), para que Mi cuenta habilite la subida de documentos sin
+// tener que volver a pedir los datos.
+$estadoForm = evaluar_formulario_datos_pago($pdo, $escuela_id);
+
+respond([
+    'success' => true,
+    'aviso_contador_enviado' => $aviso_contador_form_enviado,
+    'formulario_completo' => $estadoForm['completo'],
+    'campos_faltantes' => $estadoForm['faltantes'],
+]);

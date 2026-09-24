@@ -47,4 +47,17 @@ $stmtAdmin = $pdo->prepare("SELECT id, nombre, email, id_externo FROM usuarios W
 $stmtAdmin->execute([$escuela_id]);
 $admin = $stmtAdmin->fetch();
 
-respond(['success' => true, 'datos_pago' => $datos ?: null, 'admin' => $admin ?: null]);
+// ¿El formulario ya está completo y guardado? Es lo que habilita la subida de
+// documentos en Mi cuenta. Se calcula AQUÍ (fuente única, ver
+// CAMPOS_REQUERIDOS_DATOS_PAGO en lib/helpers_pagos.php) y no en el
+// navegador, para que la pantalla y subir_documento_escuela.php nunca
+// discrepen sobre qué significa "completo".
+$faltantes = datos_pago_campos_faltantes($datos);
+
+respond([
+    'success' => true,
+    'datos_pago' => $datos ?: null,
+    'admin' => $admin ?: null,
+    'formulario_completo' => empty($faltantes),
+    'campos_faltantes' => $faltantes,
+]);

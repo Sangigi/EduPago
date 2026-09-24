@@ -112,6 +112,11 @@ const MC_GRUPOS_DATOS_PAGO = [
   },
 ];
 
+// clave del campo -> etiqueta legible, para decirle al admin QUÉ le falta del
+// formulario (el servidor devuelve solo las claves en `campos_faltantes`).
+const MC_ETIQUETAS_CAMPOS = { clausulado: 'Aceptar el clausulado del contrato' };
+MC_GRUPOS_DATOS_PAGO.forEach(g => g.campos.forEach(([key, label]) => { MC_ETIQUETAS_CAMPOS[key] = label; }));
+
 function MiCuenta({ escuela, user }) {
   const { useState, useEffect } = React;
   const [tipoPersona, setTipoPersona]     = useState(escuela?.tipo_persona || '');
@@ -127,6 +132,15 @@ function MiCuenta({ escuela, user }) {
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [msgPago, setMsgPago] = useState(null);
   const [verClausulado, setVerClausulado] = useState(false);
+
+  // Candado de "Selección de documentos": solo se habilita cuando el servidor
+  // confirma que el formulario de alta de comercio está COMPLETO Y GUARDADO
+  // (escuela_obtener_datos_pago / escuela_guardar_datos_pago devuelven
+  // formulario_completo y campos_faltantes). Arranca en false a propósito:
+  // mientras carga, o si algo falla, los documentos quedan bloqueados, nunca
+  // abiertos por error. subir_documento_escuela.php lo vuelve a validar.
+  const [formularioCompleto, setFormularioCompleto] = useState(false);
+  const [camposFaltantes, setCamposFaltantes] = useState([]);
 
   const [documentos, setDocumentos] = useState([]);
   const [cargandoDocs, setCargandoDocs] = useState(true);
@@ -161,6 +175,10 @@ function MiCuenta({ escuela, user }) {
       if (res.success && res.datos_pago) {
         setDatosPago(res.datos_pago);
         setYaAcepto(!!res.datos_pago.clausulado_aceptado_en);
+      }
+      if (res.success) {
+        setFormularioCompleto(!!res.formulario_completo);
+        setCamposFaltantes(res.campos_faltantes || []);
       }
     } catch (e) { /* silencioso */ }
     setCargandoPago(false);
@@ -200,7 +218,14 @@ function MiCuenta({ escuela, user }) {
       });
       if (!res.success) throw new Error(res.error || 'No se pudo guardar');
       setYaAcepto(true);
-      setMsgPago({ ok: true, texto: 'Datos de alta de comercio guardados.' });
+      setFormularioCompleto(!!res.formulario_completo);
+      setCamposFaltantes(res.campos_faltantes || []);
+      setMsgPago({
+        ok: true,
+        texto: res.formulario_completo
+          ? 'Datos de alta de comercio guardados. Ya puedes subir tus documentos.'
+          : 'Datos guardados. Aún faltan campos obligatorios (*) para habilitar la subida de documentos.'
+      });
     } catch (e) {
       setMsgPago({ ok: false, texto: e.message });
     } finally {
@@ -209,7 +234,7 @@ function MiCuenta({ escuela, user }) {
   };
 
   const subirDocumento = async (tipo, archivo) => {
-    if (!archivo) return;
+    if (!archivo || !formularioCompleto) return;
     setSubiendoTipo(tipo);
     setMsgDocs(null);
     try {
@@ -223,7 +248,15 @@ function MiCuenta({ escuela, user }) {
         body: fd,
       });
       const res = await r.json();
-      if (!res.success) throw new Error(res.error || 'No se pudo subir el documento');
+      if (!res.success) {
+        // El servidor es quien manda: si dice que el formulario está
+        // incompleto, la pantalla se re-bloquea con lo que de verdad falta.
+        if (res.codigo === 'formulario_incompleto') {
+          setFormularioCompleto(false);
+          setCamposFaltantes(res.campos_faltantes || []);
+        }
+        throw new Error(res.error || 'No se pudo subir el documento');
+      }
       await cargarDocumentos();
     } catch (e) {
       setMsgDocs({ ok: false, texto: e.message });
@@ -403,6 +436,17 @@ function MiCuenta({ escuela, user }) {
             }, 'h')
           }, 'ch'),
           _jsxDEV('div', { style: { marginBottom: 14 }, children: _jsxDEV('span', { className: 'badge ' + estadoEscuela.clase, children: estadoEscuela.label }, void 0, false) }, 'estado'),
+          !cargandoPago && !formularioCompleto ? _jsxDEV('div', {
+            style: { padding: '12px 14px', background: 'rgba(245,158,11,.12)', borderRadius: 'var(--radius-sm)', marginBottom: 14, fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 },
+            children: [
+              _jsxDEV('strong', { children: 'La subida de documentos está bloqueada. ' }, 'b'),
+              'Completa y guarda el formulario \"Datos para procesar pagos reales\" (campos con *) para habilitarla.',
+              camposFaltantes.length ? _jsxDEV('div', {
+                style: { marginTop: 6, fontSize: 12, color: 'var(--ink-3)' },
+                children: 'Falta: ' + camposFaltantes.map(k => MC_ETIQUETAS_CAMPOS[k] || k).join(', ')
+              }, 'faltan') : null
+            ]
+          }, 'candado') : null,
           cargandoDocs ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)' }, children: 'Cargando…' }, 'load') :
             _jsxDEV('div', {
               style: { display: 'flex', flexDirection: 'column', gap: 10 },
@@ -419,6 +463,7 @@ function MiCuenta({ escuela, user }) {
                 const doc = docDe(t.tipo);
                 const info = doc ? (MC_ESTADO_DOC[doc.estado] || MC_ESTADO_DOC.pendiente) : null;
                 const subiendo = subiendoTipo === t.tipo;
+                const bloqueado = !formularioCompleto;
                 return _jsxDEV('div', {
                   style: {
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -435,12 +480,15 @@ function MiCuenta({ escuela, user }) {
                       ]
                     }, 'info'),
                     _jsxDEV('label', {
-                      className: 'btn btn-secondary btn-sm', style: { cursor: subiendo ? 'not-allowed' : 'pointer', opacity: subiendo ? .6 : 1 },
+                      className: 'btn btn-secondary btn-sm',
+                      title: bloqueado ? 'Completa y guarda el formulario de alta de comercio para habilitar la subida' : undefined,
+                      'aria-disabled': (subiendo || bloqueado) ? 'true' : undefined,
+                      style: { cursor: (subiendo || bloqueado) ? 'not-allowed' : 'pointer', opacity: bloqueado ? .45 : (subiendo ? .6 : 1) },
                       children: [
                         subiendo ? 'Subiendo…' : (doc ? 'Volver a subir' : 'Subir'),
                         _jsxDEV('input', {
                           type: 'file', accept: '.jpg,.jpeg,.png,.pdf', style: { display: 'none' },
-                          disabled: subiendo,
+                          disabled: subiendo || bloqueado,
                           onChange: e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) subirDocumento(t.tipo, f); }
                         }, 'input')
                       ]
