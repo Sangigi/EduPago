@@ -398,7 +398,7 @@ function MiCuenta({ escuela, user }) {
             children: _jsxDEV('div', {
               children: [
                 _jsxDEV('div', { className: 'card-title', children: 'Selección de documentos' }, 't'),
-                _jsxDEV('div', { className: 'card-sub', children: 'JPG, PNG o PDF, peso máximo 10MB. Un superadmin los revisa en 24-72 horas.' }, 's'),
+                _jsxDEV('div', { className: 'card-sub', children: 'JPG, PNG o PDF, peso máximo 10MB. Nuestro equipo revisará la información en un plazo de 24 a 72 horas.' }, 's'),
               ]
             }, 'h')
           }, 'ch'),
