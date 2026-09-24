@@ -222,7 +222,7 @@ function MiSuscripcion({ escuela, user, onIrA }) {
             children: _jsxDEV('div', {
               children: [
                 _jsxDEV('div', { className: 'card-title', children: 'Renovar suscripción' }, 't'),
-                _jsxDEV('div', { className: 'card-sub', children: 'La fecha se extiende sola en cuanto se confirme tu pago — no hace falta avisarle a nadie.' }, 's')
+                _jsxDEV('div', { className: 'card-sub', children: 'La fecha se actualizará automáticamente una vez confirmado tu pago. No necesitas realizar ninguna acción adicional.' }, 's')
               ]
             }, 'h')
           }, 'ch2'),
