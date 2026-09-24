@@ -634,7 +634,32 @@ function App() {
 
 
 
-  const [theme, setTheme] = useState('light');
+  // Tema: se LEE de localStorage al arrancar (23-sep-2026).
+  //
+  // Antes esto era useState('light') a secas y el efecto de abajo tampoco
+  // guardaba nada: al recargar cualquier pantalla de admin/superadmin el tema
+  // volvía a claro, aunque lo acabaras de cambiar. Portal Familia sí lo hacía
+  // bien, y por eso ahí sí se conservaba.
+  //
+  // Misma llave que views/PortalFamilia.js ('edupago_theme') a propósito: la
+  // preferencia de tema es UNA SOLA en todo el sistema, así que cambiarla
+  // desde el portal o desde admin debe dar el mismo resultado.
+  //
+  // Inicializador perezoso (función): si se pasara el valor ya calculado,
+  // localStorage se leería en CADA render en vez de una sola vez.
+  const [theme, setTheme] = useState(() => {
+    try {
+      const guardado = localStorage.getItem('edupago_theme');
+      if (guardado === 'dark' || guardado === 'light') return guardado;
+      // Sin preferencia guardada se sigue la del sistema operativo, igual que
+      // hace el portal de familia en su modo 'auto'.
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+    } catch (_) {
+      // Ventana privada o cookies bloqueadas: localStorage lanza. No es motivo
+      // para tumbar la app, simplemente no se recuerda el tema.
+    }
+    return 'light';
+  });
 
 
 
@@ -659,6 +684,16 @@ function App() {
       theme === 'dark' ? 'dark' : ''
 
     );
+    // Y se GUARDA. Esta línea es la que faltaba: el comentario de
+    // toggleTheme ya afirmaba que "el useEffect lo persiste", pero no era
+    // cierto — nada escribía en localStorage, así que la preferencia se
+    // perdía en cada recarga.
+    try {
+      localStorage.setItem('edupago_theme', theme === 'dark' ? 'dark' : 'light');
+    } catch (_) {
+      // Ventana privada / cookies bloqueadas: el tema se aplica igual en esta
+      // sesión, solo no se recuerda para la próxima.
+    }
 
   }, [theme]);
 
@@ -1302,9 +1337,24 @@ function App() {
   // CUALQUIER escuela) -- Contador.js trae su propia data via
   // action=contador_listar_escuelas.
 
+
+  // Los paneles de rol de plataforma (contador, provisión, promotor,
+  // tesorería) devuelven su propio árbol y nunca pasan por el shell con
+  // sidebar, así que la guía montada allá abajo jamás les llegaba. Este
+  // envoltorio se la pone encima sin que cada panel tenga que saber nada.
+  //
+  // React.createElement con hijos POSICIONALES y no un arreglo: con arreglo
+  // React exige `key` en cada hijo y avisaría en consola por el panel, que no
+  // la tiene.
+  const guiaPlataforma = (guiaPendiente && typeof GuiaPrimerUso !== 'undefined')
+    ? _jsxDEV(GuiaPrimerUso, { rol: user.rol, escuela: null, onCerrar: cerrarGuia }, 'guia-plat', false)
+    : null;
+  const conGuia = (elemento) => guiaPlataforma
+    ? React.createElement(React.Fragment, null, guiaPlataforma, elemento)
+    : elemento;
   if (user.rol === 'contador') {
 
-    return _jsxDEV(
+    return conGuia(_jsxDEV(
 
       Contador,
 
@@ -1322,7 +1372,7 @@ function App() {
 
       false
 
-    );
+    ));
 
   }
 
@@ -1334,7 +1384,7 @@ function App() {
 
   if (user.rol === 'provision') {
 
-    return _jsxDEV(
+    return conGuia(_jsxDEV(
 
       Provision,
 
@@ -1352,7 +1402,7 @@ function App() {
 
       false
 
-    );
+    ));
 
   }
 
@@ -1365,7 +1415,7 @@ function App() {
 
   if (user.rol === 'promotor') {
 
-    return _jsxDEV(
+    return conGuia(_jsxDEV(
 
       Promotor,
 
@@ -1381,13 +1431,13 @@ function App() {
 
       false
 
-    );
+    ));
 
   }
 
   if (user.rol === 'tesoreria') {
 
-    return _jsxDEV(
+    return conGuia(_jsxDEV(
 
       Tesoreria,
 
@@ -1405,7 +1455,7 @@ function App() {
 
       false
 
-    );
+    ));
 
   }
 

@@ -46,6 +46,9 @@ function Cobros({
   // se ha buscado en el servidor -> se usa el fallback local de data.cobros.
   const [paginaBackend, setPaginaBackend] = useState(null);
   const [itemsDetalle, setItemsDetalle] = useState(null); // null = cargando/no pedido; [] = ya cargó y no hay
+  // Desglose de abonos del cobro abierto (24-sep-2026). Mismo ciclo de vida
+  // que itemsDetalle: null = cargando, [] = ya cargó y no hay abonos.
+  const [abonosDetalle, setAbonosDetalle] = useState(null);
   // Depósitos que llegaron por webhook pero no se pudieron aplicar a ningún
   // cobro (monto distinto, referencia desconocida, CLABE reciclada, cargo de
   // tarjeta huérfano). Antes se descartaban sin dejar rastro en BD; ahora se
@@ -78,9 +81,10 @@ function Cobros({
     : { desdeChart: desdeRango, hastaChart: hastaRango };
 
   React.useEffect(() => {
-    if (!detalle) { setItemsDetalle(null); return; }
+    if (!detalle) { setItemsDetalle(null); setAbonosDetalle(null); return; }
     let cancelado = false;
     setItemsDetalle(null);
+    setAbonosDetalle(null);
     (async () => {
       try {
         const params = new URLSearchParams({ action: 'detalle_cobro', cobro_id: detalle.id });
@@ -88,9 +92,12 @@ function Cobros({
           headers: { 'Authorization': 'Bearer ' + token() },
         });
         const json = await res.json();
-        if (!cancelado) setItemsDetalle(json.success ? (json.items || []) : []);
+        if (!cancelado) {
+          setItemsDetalle(json.success ? (json.items || []) : []);
+          setAbonosDetalle(json.success ? (json.abonos || []) : []);
+        }
       } catch (e) {
-        if (!cancelado) setItemsDetalle([]);
+        if (!cancelado) { setItemsDetalle([]); setAbonosDetalle([]); }
       }
     })();
     return () => { cancelado = true; };
@@ -1079,7 +1086,93 @@ function Cobros({
                 },
                 children: fmt(detalle.total)
               }, void 0, false)]
-            }, void 0, true)]
+            }, void 0, true),
+
+            /* ── Desglose de abonos (24-sep-2026) ──
+               Solo aparece cuando el cobro se pagó en más de una exhibición.
+               Con un solo abono el desglose repetiría el total y sería ruido.
+
+               Esto es lo que permite cuadrar el dinero: de dónde vino cada
+               peso, qué día, por qué método y con qué transacción del
+               proveedor — los datos que pide una aclaración. */
+            (abonosDetalle && abonosDetalle.length > 1) ? _jsxDEV("div", {
+              style: { marginTop: 16, paddingTop: 12, borderTop: '1px dashed var(--border-glow)' },
+              children: [
+                _jsxDEV("div", {
+                  style: { fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginBottom: 8 },
+                  children: `Pagado en ${abonosDetalle.length} exhibiciones`
+                }, 'tit'),
+                _jsxDEV("div", {
+                  children: abonosDetalle.map((ab, i) => _jsxDEV("div", {
+                    style: {
+                      display: 'flex', justifyContent: 'space-between', gap: 10,
+                      padding: '7px 0', borderBottom: '1px solid var(--glass-light)',
+                      fontSize: 12.5, alignItems: 'flex-start'
+                    },
+                    children: [
+                      _jsxDEV("div", {
+                        style: { minWidth: 0 },
+                        children: [
+                          _jsxDEV("div", {
+                            style: { color: 'var(--ink-2)' },
+                            children: [
+                              // La fecha viene como 'YYYY-MM-DD HH:MM:SS'; se
+                              // parte en el espacio en vez de usar new Date()
+                              // para no depender de la zona horaria del
+                              // navegador, que desplazaría el día.
+                              String(ab.creado_en || '').split(' ')[0],
+                              ab.metodo ? ' · ' + ab.metodo : '',
+                              ab.origen ? ' · ' + ab.origen : ''
+                            ]
+                          }, 'f'),
+                          // Identificadores del proveedor: lo que se cita en
+                          // una aclaración. Si no hay ninguno (abono manual
+                          // desde Caja), no se pinta la línea vacía.
+                          (ab.transaccion_proveedor || ab.auth_code || ab.referencia || ab.clabe) ? _jsxDEV("div", {
+                            style: {
+                              fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--mono)',
+                              marginTop: 2, wordBreak: 'break-all'
+                            },
+                            children: [
+                              ab.transaccion_proveedor ? 'Tx ' + ab.transaccion_proveedor : '',
+                              ab.auth_code ? (ab.transaccion_proveedor ? ' · ' : '') + 'Auth ' + ab.auth_code : '',
+                              (ab.referencia || ab.clabe) ? ' · ' + (ab.referencia || ab.clabe) : ''
+                            ]
+                          }, 'ids') : null
+                        ]
+                      }, 'izq'),
+                      _jsxDEV("span", {
+                        style: { fontFamily: 'var(--mono)', fontWeight: 600, whiteSpace: 'nowrap' },
+                        children: fmt(ab.monto)
+                      }, 'monto')
+                    ]
+                  }, ab.id || i, true))
+                }, 'lista'),
+                // Lo que falta por cubrir. Se calcula desde los abonos y no
+                // desde cobros.monto_pagado a propósito: el libro mayor es la
+                // fuente de verdad y esa columna es solo una caché.
+                (() => {
+                  const sumado = abonosDetalle.reduce((s, a) => s + parseFloat(a.monto || 0), 0);
+                  const resta = parseFloat(detalle.total || 0) - sumado;
+                  return _jsxDEV("div", {
+                    style: {
+                      display: 'flex', justifyContent: 'space-between',
+                      paddingTop: 9, fontSize: 12.5, fontWeight: 700
+                    },
+                    children: [
+                      _jsxDEV("span", { children: resta > 0.005 ? 'Falta por pagar' : 'Cubierto' }, 'l'),
+                      _jsxDEV("span", {
+                        style: {
+                          fontFamily: 'var(--mono)',
+                          color: resta > 0.005 ? 'var(--amber)' : 'var(--green)'
+                        },
+                        children: fmt(resta > 0.005 ? resta : sumado)
+                      }, 'v')
+                    ]
+                  }, 'resta', true);
+                })()
+              ]
+            }, 'abonos', true) : null]
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
           className: "modal-footer",

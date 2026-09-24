@@ -289,6 +289,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
   const [detalleId, setDetalleId] = useState(null);
   const [resolviendo, setResolviendo] = useState(null);
   const [busqueda, setBusqueda] = useState('');
+  const [paginaInv, setPaginaInv] = useState(1);
   const [regenerando, setRegenerando] = useState(null);
   const [ligaRegenerada, setLigaRegenerada] = useState(null); // { liga, expira_horas }
   const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — cuando el correo de bienvenida falla
@@ -358,6 +359,19 @@ function PanelInvitaciones({ esSuperAdmin }) {
     });
   }, [invitaciones, busqueda, esSuperAdmin]);
 
+
+  // Paginación de invitaciones (24-sep-2026): 25 por página, el mismo tamaño
+  // que ya usan Cobros, Alumnos, Gastos y Logs. Antes la lista se pintaba
+  // entera y con decenas de invitaciones la tarjeta se volvía inmanejable.
+  const INVITACIONES_POR_PAGINA = 25;
+  const totalPaginasInv = Math.max(1, Math.ceil(lista.length / INVITACIONES_POR_PAGINA));
+  // Si la búsqueda encoge la lista, se vuelve a la última página válida en vez
+  // de mostrar una tabla vacía sin explicación.
+  const paginaInvSegura = Math.min(paginaInv, totalPaginasInv);
+  const listaPagina = lista.slice(
+    (paginaInvSegura - 1) * INVITACIONES_POR_PAGINA,
+    paginaInvSegura * INVITACIONES_POR_PAGINA
+  );
   const detalle = detalleId ? invitaciones.find(function (inv) { return inv.id === detalleId; }) : null;
 
   return _hPI('div', { className: 'card', style: { marginTop: 20 } },
@@ -366,8 +380,18 @@ function PanelInvitaciones({ esSuperAdmin }) {
         _hPI('div', { className: 'card-title' }, 'Invitaciones a colegios'),
         _hPI('div', { className: 'card-sub' }, 'Genera un enlace para que un colegio se dé de alta llenando sus propios datos.')
       ),
-      _hPI('button', { key: 'b', className: 'btn btn-primary btn-sm', onClick: function () { setModalAbierto(true); } },
-        '+ Generar invitación')
+      _hPI('div', { key: 'b', style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
+        // Paginación arriba a la derecha, junto al botón de generar.
+        typeof Paginacion !== 'undefined' ? _hPI(Paginacion, {
+          key: 'pag',
+          pagina: paginaInvSegura,
+          totalPaginas: totalPaginasInv,
+          onCambiar: setPaginaInv,
+          etiqueta: lista.length + ' invitaciones'
+        }) : null,
+        _hPI('button', { key: 'gen', className: 'btn btn-primary btn-sm', onClick: function () { setModalAbierto(true); } },
+          '+ Generar invitación')
+      )
     ),
     (esSuperAdmin && invitaciones.length > 0) ? _hPI('input', {
       key: 'buscar', className: 'form-input', style: { marginBottom: 12, maxWidth: 280 },
@@ -393,7 +417,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
                 )
               ),
               _hPI('tbody', {},
-                lista.map(function (inv) {
+                listaPagina.map(function (inv) {
                   const info = _ESTADO_INV[inv.estado] || { label: inv.estado, clase: 'badge-gray' };
                   return _hPI('tr', { key: inv.id },
                     _hPI('td', {}, inv.contacto_nombre),

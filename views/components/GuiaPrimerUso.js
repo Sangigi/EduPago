@@ -314,7 +314,50 @@ var GUIA_PASOS = [
   },
 ];
 
-function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
+
+// ── Guías de los roles de PLATAFORMA ───────────────────────────────────
+//
+// GUIA_PASOS de arriba describe las secciones de un COLEGIO (alumnos, caja,
+// facturación…). A contador, provisión, tesorería, distribuidor y promotor no
+// les sirve de nada: sus paneles no tienen ese menú y ninguna de esas
+// secciones existe para ellos.
+//
+// Estos recorridos son cortos a propósito — dos o tres pasos. Sus paneles son
+// de una sola pantalla, así que no hay mucho que recorrer: lo que hace falta es
+// decir para qué sirve y dónde está el límite de lo que pueden hacer.
+//
+// No llevan `id` de sección, así que no se anclan a ningún ítem del menú y la
+// tarjeta sale centrada — que es lo correcto en un panel sin sidebar.
+var GUIA_PASOS_POR_ROL = {
+  contador: [
+    { id: '_c1', titulo: 'Revisas documentos', texto: 'Aquí llegan los colegios que ya subieron su documentación. Los apruebas o los rechazas con un motivo.' },
+    { id: '_c2', titulo: 'El motivo se le manda al colegio', texto: 'Cuando rechazas, lo que escribas le llega por correo. Es lo único que tienen para saber qué corregir.' },
+    { id: '_c3', titulo: 'El ID Escuela ya no es tuyo', texto: 'Ese identificador lo captura el equipo de provisión cuando el proveedor se lo entrega.' },
+  ],
+  provision: [
+    { id: '_p1', titulo: 'Tu cola de trabajo', texto: 'Los colegios con documentación aprobada que esperan su ID del proveedor aparecen aquí.' },
+    { id: '_p2', titulo: 'También puedes revisar documentos', texto: 'Si un documento no te sirve para el trámite, recházalo aunque el contador ya lo hubiera aprobado.' },
+    { id: '_p3', titulo: 'Captura el ID y listo', texto: 'Al guardarlo, el colegio recibe un correo avisando que ya puede cobrar y facturar.' },
+  ],
+  tesoreria: [
+    { id: '_t1', titulo: 'Cuentas por pagar', texto: 'Todo lo que hay que pagarle a proveedores, de todos los colegios, ordenado por fecha de vencimiento.' },
+    { id: '_t2', titulo: 'Marca lo pagado', texto: 'Al marcarlo queda con su fecha, para que no se pague dos veces ni se pierda de vista.' },
+  ],
+  distribuidor: [
+    { id: '_d1', titulo: 'Invita colegios', texto: 'Genera una liga, mándasela al colegio y ellos se registran solos con sus propios datos.' },
+    { id: '_d2', titulo: 'Sigue tus referidos', texto: 'Cada colegio que entre con tu liga queda ligado a ti, con su estado y su comisión.' },
+  ],
+  promotor: [
+    { id: '_m1', titulo: 'Invita colegios', texto: 'Genera una liga, mándasela al colegio y ellos se registran solos. Aquí ves el avance de cada una.' },
+    { id: '_m2', titulo: 'Sin comisiones', texto: 'Tu cuenta genera invitaciones, pero no acumula comisión por los colegios que entren.' },
+  ],
+  familia: [
+    { id: '_f1', titulo: 'Lo que debes', texto: 'Aquí ves cada cobro de tus hijos: qué es, cuánto y para cuándo.' },
+    { id: '_f2', titulo: 'Paga como te acomode', texto: 'Tarjeta, transferencia o referencia para pagar en tiendas. El colegio lo ve al instante.' },
+    { id: '_f3', titulo: 'Guarda tus comprobantes', texto: 'Cada pago deja su recibo, y su factura si la pediste.' },
+  ],
+};
+function GuiaPrimerUso({ seccionesVisibles, escuela, rol, onIrA, onCerrar }) {
   var _R = React;
   var e1 = _R.useState(0);    var paso = e1[0], setPaso = e1[1];
   var e2 = _R.useState(null); var caja = e2[0], setCaja = e2[1];
@@ -325,9 +368,19 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
   // Windows. Medirla es la única forma de que el tope sea correcto para
   // cualquier paso, cualquier tema y cualquier tamaño de letra.
   var e3 = _R.useState(0);    var altoCard = e3[0], setAltoCard = e3[1];
+  // `listo` evita el parpadeo del primer paso (24-sep-2026): hasta que no se
+  // ha medido el ítem del menú Y el alto real de la tarjeta, la tarjeta se
+  // pinta invisible. Como las dos mediciones ocurren en useLayoutEffect (antes
+  // del pintado), el usuario nunca llega a ver ese fotograma; sin esto la
+  // tarjeta aparecía centrada, parpadeaba y saltaba a su sitio.
+  var e4 = _R.useState(false); var listo = e4[0], setListo = e4[1];
   var refCard = _R.useRef(null);
 
-  var pasos = GUIA_PASOS.filter(function (p) {
+  // Los roles de PLATAFORMA tienen su propio recorrido corto y NO pasan por el
+  // filtro de secciones: sus paneles no tienen menú lateral, así que
+  // seccionesVisibles no significa nada ahí.
+  var pasosRol = GUIA_PASOS_POR_ROL[rol];
+  var pasos = pasosRol ? pasosRol : GUIA_PASOS.filter(function (p) {
     // `siempre` = no es una sección del menú (el botón de tema, el pie del
     // sidebar), así que no tiene caso buscarlo en seccionesVisibles.
     if (p.siempre) return true;
@@ -344,7 +397,7 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
   // permiten llamarlos de forma condicional, y un `if (!pasos.length) return`
   // arriba haría que ese render ejecute menos hooks que el anterior, lo que
   // rompe la aplicación entera.
-  _R.useEffect(function () {
+  _R.useLayoutEffect(function () {
     if (!actual) { setCaja(null); return; }
 
     var medir = function () {
@@ -373,6 +426,14 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
       setCaja({ top: r.top, left: r.left, width: r.width, height: r.height });
     };
 
+    // Primera medición SÍNCRONA, dentro del useLayoutEffect y antes de que el
+    // navegador pinte (24-sep-2026). Antes la única medición inicial iba
+    // dentro del requestAnimationFrame, que por definición corre DESPUÉS de un
+    // fotograma ya pintado: ese fotograma mostraba la tarjeta centrada y el
+    // siguiente la movía a su sitio. Eso era el parpadeo del primer paso.
+    medir();
+    // El rAF se queda como segunda pasada: cubre los reacomodos que solo se
+    // conocen ya pintado (alto real de la barra superior, fuentes cargando).
     var raf = window.requestAnimationFrame(medir);
     window.addEventListener('resize', medir);
     window.addEventListener('scroll', medir, true);
@@ -394,6 +455,10 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
     if (!refCard.current) return;
     var h = refCard.current.getBoundingClientRect().height;
     if (h && Math.abs(h - altoCard) > 1) setAltoCard(h);
+    // Con el alto ya medido la posición final es correcta: recién aquí se deja
+    // ver la tarjeta. Como esto es useLayoutEffect, el cambio entra en el mismo
+    // fotograma y el usuario nunca ve el estado invisible.
+    if (h && !listo) setListo(true);
   });
 
   if (pasos.length === 0 || !actual) return null;
@@ -407,13 +472,22 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
   // Al terminar sí se lleva al usuario a "Mi cuenta": es el único paso donde
   // la sección real vale más que el dibujo, porque ahí SÍ hay algo que hacer.
   var terminar = function () {
-    if (typeof onIrA === 'function') onIrA('mi_cuenta');
+    // Solo el recorrido del COLEGIO termina llevando a Mi cuenta. Los roles de
+    // plataforma no tienen esa sección: mandarlos ahí los dejaría en una vista
+    // que su panel no incluye, o sea una pantalla en blanco.
+    if (!pasosRol && typeof onIrA === 'function') onIrA('mi_cuenta');
     cerrar();
   };
 
   var PAD = 6;
-  var ANCHO = 320;
   var MARGEN = 14;
+
+  // RESPONSIVE (24-sep-2026). En móvil el sidebar está fuera de pantalla, así
+  // que `caja` es null y la tarjeta se centra. Con 320px fijos se salía o
+  // quedaba apretada contra los bordes en pantallas de 360px: ahora nunca pasa
+  // del ancho disponible menos los dos márgenes.
+  var ESTRECHO = window.innerWidth < 560;
+  var ANCHO = Math.min(320, window.innerWidth - MARGEN * 2);
 
   // Alto de referencia: el medido, o una estimación conservadora en el primer
   // render (antes de poder medir). Se queda corto a propósito — nunca de más,
@@ -488,6 +562,11 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, onIrA, onCerrar }) {
       border: '1px solid var(--border-glow)',
       borderRadius: 14,
       boxShadow: '0 16px 44px rgba(0,0,0,.28)',
+      // Invisible hasta que la posición final está calculada. Ver `listo`.
+      // visibility y no display:none: la tarjeta tiene que estar en el layout
+      // para poder medir su alto — con display:none mediría 0 y nunca saldría
+      // del estado invisible.
+      visibility: listo ? 'visible' : 'hidden',
       overflow: 'hidden',
       zIndex: 9001,
     }, posTarjeta)

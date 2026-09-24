@@ -226,6 +226,58 @@ function MiSuscripcion({ escuela, user, onIrA }) {
               ]
             }, 'h')
           }, 'ch2'),
+          /* ── Advertencia: documentación pendiente ──
+             No bloquea el pago, informa. La suscripción se activa con el pago,
+             pero cobrar y facturar depende de la revisión de documentos, y esa
+             tarda. Callarlo significaría que el colegio pague y descubra
+             después que no puede usar lo que pagó. */
+          (docsListos ? null : _jsxDEV('div', {
+            style: {
+              marginBottom: 16, padding: '13px 15px', lineHeight: 1.55, fontSize: 12.5,
+              background: 'var(--amber-glow)', border: '1px solid var(--amber)',
+              borderRadius: 'var(--radius-sm)', color: 'var(--ink-2)'
+            },
+            children: [
+              _jsxDEV('div', {
+                style: { fontWeight: 800, color: 'var(--amber)', marginBottom: 6, fontSize: 13 },
+                children: docsEnRevision
+                  ? 'Tus documentos están en revisión'
+                  : (docsRechazados ? 'Tus documentos fueron rechazados' : 'Antes de pagar: falta tu documentación')
+              }, 't'),
+              _jsxDEV('div', {
+                children: docsEnRevision
+                  ? 'Ya recibimos tus documentos y los estamos revisando. La revisión tarda entre 48 y 72 horas hábiles. Hasta que termine, tu colegio no puede cobrar ni facturar.'
+                  : (docsRechazados
+                      ? 'Hay al menos un documento rechazado. Revisa cuál y vuelve a subirlo desde Mi cuenta; mientras tanto, tu colegio no puede cobrar ni facturar.'
+                      : 'Tu suscripción se activa en cuanto se confirme el pago, pero para que tu colegio pueda cobrar a las familias y facturar hace falta que subas los documentos fiscales y completes el formulario de datos de pago.')
+              }, 'd1'),
+              _jsxDEV('div', {
+                style: { marginTop: 8 },
+                children: 'Te recomendamos hacer eso primero. La aprobación tarda entre 48 y 72 horas hábiles, y esos días corren contra tu suscripción: si pagas ahora, es muy probable que pierdas varios días pagados sin poder usarlos todavía para cobrar.'
+              }, 'd2'),
+              _jsxDEV('div', {
+                style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' },
+                children: [
+                  (typeof onIrA === 'function' ? _jsxDEV('button', {
+                    className: 'btn btn-primary btn-sm',
+                    onClick: () => onIrA('mi_cuenta'),
+                    children: 'Ir a subir documentos'
+                  }, 'ir') : null),
+                  _jsxDEV('label', {
+                    style: { display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 12 },
+                    children: [
+                      _jsxDEV('input', {
+                        type: 'checkbox',
+                        checked: asumeEspera,
+                        onChange: e => setAsumeEspera(e.target.checked)
+                      }, 'chk'),
+                      'Entiendo y quiero pagar de todos modos'
+                    ]
+                  }, 'lab')
+                ]
+              }, 'acc')
+            ]
+          }, 'advDocs')),
           /* ── Selector de plan ── */
           _jsxDEV('div', {
             style: { marginBottom: 16 },
@@ -283,59 +335,6 @@ function MiSuscripcion({ escuela, user, onIrA }) {
               }, 'cambio') : null
             ]
           }, 'planes'),
-
-          /* ── Advertencia: documentación pendiente ──
-             No bloquea el pago, informa. La suscripción se activa con el pago,
-             pero cobrar y facturar depende de la revisión de documentos, y esa
-             tarda. Callarlo significaría que el colegio pague y descubra
-             después que no puede usar lo que pagó. */
-          (docsListos ? null : _jsxDEV('div', {
-            style: {
-              marginBottom: 16, padding: '13px 15px', lineHeight: 1.55, fontSize: 12.5,
-              background: 'var(--amber-glow)', border: '1px solid var(--amber)',
-              borderRadius: 'var(--radius-sm)', color: 'var(--ink-2)'
-            },
-            children: [
-              _jsxDEV('div', {
-                style: { fontWeight: 800, color: 'var(--amber)', marginBottom: 6, fontSize: 13 },
-                children: docsEnRevision
-                  ? 'Tus documentos están en revisión'
-                  : (docsRechazados ? 'Tus documentos fueron rechazados' : 'Antes de pagar: falta tu documentación')
-              }, 't'),
-              _jsxDEV('div', {
-                children: docsEnRevision
-                  ? 'Ya recibimos tus documentos y los estamos revisando. La revisión tarda entre 48 y 72 horas hábiles. Hasta que termine, tu colegio no puede cobrar ni facturar.'
-                  : (docsRechazados
-                      ? 'Hay al menos un documento rechazado. Revisa cuál y vuelve a subirlo desde Mi cuenta; mientras tanto, tu colegio no puede cobrar ni facturar.'
-                      : 'Tu suscripción se activa en cuanto se confirme el pago, pero para que tu colegio pueda cobrar a las familias y facturar hace falta que subas los documentos fiscales y completes el formulario de datos de pago.')
-              }, 'd1'),
-              _jsxDEV('div', {
-                style: { marginTop: 8 },
-                children: 'Te recomendamos hacer eso primero. La aprobación tarda entre 48 y 72 horas hábiles, y esos días corren contra tu suscripción: si pagas ahora, es muy probable que pierdas varios días pagados sin poder usarlos todavía para cobrar.'
-              }, 'd2'),
-              _jsxDEV('div', {
-                style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' },
-                children: [
-                  (typeof onIrA === 'function' ? _jsxDEV('button', {
-                    className: 'btn btn-primary btn-sm',
-                    onClick: () => onIrA('mi_cuenta'),
-                    children: 'Ir a subir documentos'
-                  }, 'ir') : null),
-                  _jsxDEV('label', {
-                    style: { display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 12 },
-                    children: [
-                      _jsxDEV('input', {
-                        type: 'checkbox',
-                        checked: asumeEspera,
-                        onChange: e => setAsumeEspera(e.target.checked)
-                      }, 'chk'),
-                      'Entiendo y quiero pagar de todos modos'
-                    ]
-                  }, 'lab')
-                ]
-              }, 'acc')
-            ]
-          }, 'advDocs')),
 
           _jsxDEV('div', {
             style: { display: 'flex', gap: 12, flexWrap: 'wrap' },

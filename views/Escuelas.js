@@ -51,6 +51,11 @@ function Escuelas({
   const [qEsc, setQEsc] = useState('');
   const [filtroPlanEsc, setFiltroPlanEsc] = useState('');
   const [filtroEstadoEsc, setFiltroEstadoEsc] = useState('');
+  // Paginación de "Escuelas registradas" (24-sep-2026). Antes la lista crecía
+  // sin límite: con 40 colegios la pantalla era un scroll interminable.
+  // 8 por página = 4 columnas × 2 filas en escritorio.
+  const ESCUELAS_POR_PAGINA = 8;
+  const [paginaEsc, setPaginaEsc] = useState(1);
   const [form, setForm] = useState(EMPTY);
   const [escuelaPltId, setEscuelaPltId] = useState(null); // escuela cuyo modal de planteles está abierto
   const [plantelesPanel, setPlantelesPanel] = useState(null); // null = cargando/no pedido aún; [] = ya cargó y no hay
@@ -350,6 +355,27 @@ function Escuelas({
       cobrado: pagados
     };
   };
+
+  // Lista de colegios ya filtrada. Se calcula UNA vez aquí en vez de encadenar
+  // los filtros dentro del JSX, porque ahora hace falta conocer el total para
+  // saber cuántas páginas hay.
+  const escuelasFiltradas = (data.escuelas || []).filter(esc => !esc.es_plantel).filter(esc => {
+    const texto = qEsc.trim().toLowerCase();
+    if (texto && !esc.nombre.toLowerCase().includes(texto) && !(esc.clave || '').toLowerCase().includes(texto)) return false;
+    if (filtroPlanEsc && (esc.plan || '').toLowerCase() !== filtroPlanEsc) return false;
+    if (filtroEstadoEsc === 'activa' && !esc.activa) return false;
+    if (filtroEstadoEsc === 'inactiva' && esc.activa) return false;
+    return true;
+  });
+  const totalPaginasEsc = Math.max(1, Math.ceil(escuelasFiltradas.length / ESCUELAS_POR_PAGINA));
+  // Si el filtro reduce la lista y la página actual ya no existe, se vuelve a
+  // la última válida. Sin esto, buscar algo estando en la página 5 mostraba una
+  // rejilla vacía sin explicación.
+  const paginaEscSegura = Math.min(paginaEsc, totalPaginasEsc);
+  const escuelasPagina = escuelasFiltradas.slice(
+    (paginaEscSegura - 1) * ESCUELAS_POR_PAGINA,
+    paginaEscSegura * ESCUELAS_POR_PAGINA
+  );
   const PLANES = {
     basico: 'Básico',
     avanzado: 'Avanzado',
@@ -671,15 +697,29 @@ function Escuelas({
           },
           children: [data.escuelas.filter(e => e.activa).length, " activas"]
         }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-        className: "btn btn-primary",
-        onClick: () => {
-          setForm(EMPTY);
-          setErrorEsc('');
-          setModal('form');
-        },
-        children: "+ Alta escuela"
-      }, void 0, false)]
+      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+        children: [
+          // Paginación arriba a la derecha (24-sep-2026). El typeof protege de
+          // una caché vieja de index.html donde Paginacion.js aún no existe:
+          // sin él, un ReferenceError tumbaría toda la pantalla.
+          typeof Paginacion !== 'undefined' ? /*#__PURE__*/_jsxDEV(Paginacion, {
+            pagina: paginaEscSegura,
+            totalPaginas: totalPaginasEsc,
+            onCambiar: setPaginaEsc,
+            etiqueta: escuelasFiltradas.length + ' colegios'
+          }, 'pag-esc', false) : null,
+          /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-primary",
+            onClick: () => {
+              setForm(EMPTY);
+              setErrorEsc('');
+              setModal('form');
+            },
+            children: "+ Alta escuela"
+          }, 'alta', false)
+        ]
+      }, void 0, true)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
       style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
       children: [/*#__PURE__*/_jsxDEV("input", {
@@ -709,17 +749,14 @@ function Escuelas({
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
       style: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+        // 4 columnas en escritorio (24-sep-2026): con 8 por página quedan
+        // exactamente 4 × 2. minmax(0,1fr) y no 1fr a secas — con 1fr una
+        // tarjeta de contenido ancho puede desbordar su columna en vez de
+        // encogerse, y la rejilla se sale del contenedor.
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
         gap: 18
       },
-      children: data.escuelas.filter(esc => !esc.es_plantel).filter(esc => {
-        const texto = qEsc.trim().toLowerCase();
-        if (texto && !esc.nombre.toLowerCase().includes(texto) && !(esc.clave || '').toLowerCase().includes(texto)) return false;
-        if (filtroPlanEsc && (esc.plan || '').toLowerCase() !== filtroPlanEsc) return false;
-        if (filtroEstadoEsc === 'activa' && !esc.activa) return false;
-        if (filtroEstadoEsc === 'inactiva' && esc.activa) return false;
-        return true;
-      }).map(esc => {
+      children: escuelasPagina.map(esc => {
         const m = metricasEscuela(esc.id);
         return /*#__PURE__*/_jsxDEV("div", {
           className: "card",

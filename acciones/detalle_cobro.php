@@ -23,4 +23,30 @@
         } catch (\PDOException $e) {
             $items = [];
         }
-        respond(['success' => true, 'items' => $items]);
+        // Desglose de ABONOS del cobro (24-sep-2026).
+        //
+        // Sin esto, un cobro pagado en varias exhibiciones solo mostraba el
+        // total y el estado: no había forma de saber de dónde vino cada peso
+        // —qué día, por qué método, con qué transacción del proveedor— y eso
+        // es justo lo que hace falta para cuadrar el dinero o levantar una
+        // aclaración.
+        //
+        // cobro_abonos es el libro mayor (la fuente de verdad); cobros.monto_pagado
+        // es la columna cacheada que se recalcula desde aquí. Ver lib/helpers_pagos.php.
+        try {
+            $stmtAb = $pdo->prepare(
+                "SELECT id, monto, metodo, referencia, clabe, transaccion_proveedor,
+                        auth_code, origen, notas, creado_en
+                   FROM cobro_abonos
+                  WHERE cobro_id = ?
+                  ORDER BY creado_en, id"
+            );
+            $stmtAb->execute([$cobro_id_det]);
+            $abonos = $stmtAb->fetchAll();
+        } catch (\PDOException $e) {
+            // Si la migración de abonos no ha corrido, la tabla no existe. No
+            // es motivo para romper el detalle: se devuelve vacío y la vista
+            // simplemente no pinta la sección.
+            $abonos = [];
+        }
+        respond(['success' => true, 'items' => $items, 'abonos' => $abonos]);
