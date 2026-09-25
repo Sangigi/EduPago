@@ -245,7 +245,8 @@ try {
     if (!$cobro) {
         $refBuscarEsc = $referencia_reconstruida ?? $reference;
         $stmtEsc = $pdo->prepare(
-            "SELECT id, nombre, email, plan, fecha_vencimiento_plan, pago_renovacion_monto, modo, fecha_fin_prueba
+            "SELECT id, nombre, email, plan, fecha_vencimiento_plan, pago_renovacion_monto,
+                    pago_renovacion_folio, pago_renovacion_plan, modo, fecha_fin_prueba
                FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1"
         );
         $stmtEsc->execute([$refBuscarEsc]);
@@ -295,6 +296,23 @@ try {
                 if (!$baseRenov || strtotime($baseRenov) < strtotime(date('Y-m-d'))) $baseRenov = date('Y-m-d');
             }
             $nuevoVencimiento = siguiente_vencimiento_mensual($baseRenov);
+
+            // Se guarda el pago en el historial ANTES del UPDATE de abajo, que
+            // es justo el que pone en NULL monto, referencia y folio. Si se
+            // hiciera después, ya no habría nada que guardar — ese era el
+            // motivo de que no existiera historial de suscripción.
+            registrar_pago_suscripcion($pdo, [
+                'escuela_id'  => $escRenov['id'],
+                'origen'      => 'renovacion',
+                'metodo'      => 'TC',
+                'plan'        => ($escRenov['pago_renovacion_plan'] ?: $escRenov['plan']),
+                'monto'       => $escRenov['pago_renovacion_monto'],
+                'referencia'  => $refBuscarEsc,
+                'folio'       => $escRenov['pago_renovacion_folio'],
+                'auth_code'   => isset($auth) ? $auth : null,
+                'cubre_desde' => $baseRenov,
+                'cubre_hasta' => $nuevoVencimiento,
+            ]);
 
             $pdo->prepare(
                 // El plan elegido al pagar se aplica AQUÍ, al confirmarse el

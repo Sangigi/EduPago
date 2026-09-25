@@ -378,7 +378,8 @@ try {
     if (!$cobro) {
         // FOR UPDATE: mismo motivo que la rama de cobros_agrupados de arriba.
         $stmtEsc = $pdo->prepare(
-            "SELECT id, nombre, fecha_vencimiento_plan, pago_renovacion_monto, modo, fecha_fin_prueba
+            "SELECT id, nombre, plan, fecha_vencimiento_plan, pago_renovacion_monto,
+                    pago_renovacion_folio, pago_renovacion_plan, modo, fecha_fin_prueba
                FROM escuelas WHERE pago_renovacion_referencia = ? LIMIT 1 FOR UPDATE"
         );
         $stmtEsc->execute([$referencia]);
@@ -414,6 +415,21 @@ try {
             }
             $nuevoVencimiento = siguiente_vencimiento_mensual($baseRenov);
             $autorizacionEsc = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
+
+            // Igual que en webhook_liga.php: el historial se escribe ANTES del
+            // UPDATE, que es el que pone monto/referencia/folio en NULL.
+            registrar_pago_suscripcion($pdo, [
+                'escuela_id'  => $escRenov['id'],
+                'origen'      => 'renovacion',
+                'metodo'      => 'Efectivo',
+                'plan'        => ($escRenov['pago_renovacion_plan'] ?: $escRenov['plan']),
+                'monto'       => $escRenov['pago_renovacion_monto'],
+                'referencia'  => $referencia,
+                'folio'       => $escRenov['pago_renovacion_folio'],
+                'auth_code'   => $autorizacionEsc,
+                'cubre_desde' => $baseRenov,
+                'cubre_hasta' => $nuevoVencimiento,
+            ]);
 
             $pdo->prepare(
                 // El plan elegido al pagar se aplica AQUÍ, al confirmarse —

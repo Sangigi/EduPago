@@ -1006,3 +1006,81 @@ function evaluar_formulario_datos_pago(PDO $pdo, int $escuela_id): array {
     $faltantes = datos_pago_campos_faltantes($datos);
     return ['completo' => empty($faltantes), 'faltantes' => $faltantes];
 }
+
+/**
+ * Registra un pago de suscripción en el historial (25-sep-2026).
+ *
+ * POR QUÉ HACE FALTA. Los pagos de renovación vivían en columnas de
+ * `escuelas` (pago_renovacion_referencia, _folio, _monto) que el propio
+ * webhook pone en NULL al confirmar el cobro. O sea: el monto y la referencia
+ * se borraban justo al pagarse, y no quedaba forma de contestar "¿qué pagué
+ * en marzo?". Esta función es la que guarda esa evidencia, en una tabla que
+ * solo crece.
+ *
+ * NUNCA LANZA. Se llama desde webhooks y desde el confirmado de un pago: si
+ * fallara el registro histórico y eso tumbara la transacción, se perdería la
+ * renovación entera por no poder anotarla. Un fallo aquí queda en el log y el
+ * flujo sigue.
+ *
+ * IDEMPOTENTE. `idem_key` lleva UNIQUE en la base. Los webhooks del proveedor
+ * reintentan, y sin esto un reintento crearía una segunda fila del mismo pago
+ * — el colegio vería un cobro duplicado que nunca existió. El INSERT IGNORE
+ * hace que el segundo intento no haga nada en vez de reventar.
+ *
+ * @param array $d  escuela_id, origen ('registro'|'renovacion'|'manual'),
+ *                  metodo, plan, monto, referencia, folio, auth_code,
+ *                  cubre_desde, cubre_hasta, registrado_por, pagado_en
+ * @return bool     true si quedó registrado (o ya estaba)
+ */
+function registrar_pago_suscripcion(PDO $pdo, array $d) {
+    try {
+        $escuela_id = intval($d['escuela_id'] ?? 0);
+        $origen     = trim((string) ($d['origen'] ?? ''));
+        if (!$escuela_id || $origen === '') return false;
+
+        // La llave se arma con lo que el proveedor garantiza único por
+        // operación: la referencia, o el código de autorización si no hay
+        // referencia. Para el caso 'manual' (el superadmin mueve la fecha sin
+        // cobro) no hay ninguno de los dos, así que se usa la fecha + quién lo
+        // hizo: eso permite dos movimientos manuales el mismo día por personas
+        // distintas, pero no duplicar el mismo doble clic.
+        $semilla = trim((string) ($d['referencia'] ?? ''));
+        if ($semilla === '') $semilla = trim((string) ($d['auth_code'] ?? ''));
+        if ($semilla === '') $semilla = date('Y-m-d') . ':' . intval($d['registrado_por'] ?? 0);
+        $idem = mb_substr($origen . ':' . $escuela_id . ':' . $semilla, 0, 120);
+
+        $sql = "INSERT IGNORE INTO suscripcion_pagos
+                  (escuela_id, origen, metodo, plan, monto, referencia, folio, auth_code,
+                   cubre_desde, cubre_hasta, registrado_por, pagado_en, idem_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $st = $pdo->prepare($sql);
+        $st->execute([
+            $escuela_id,
+            $origen,
+            ($d['metodo'] ?? null) ?: null,
+            ($d['plan'] ?? null) ?: null,
+            // monto NULL a propósito cuando es 'manual': no hubo cobro, y un 0
+            // se leería como "pagó cero" en vez de "no aplica".
+            isset($d['monto']) && $d['monto'] !== null && $d['monto'] !== '' ? floatval($d['monto']) : null,
+            ($d['referencia'] ?? null) ?: null,
+            ($d['folio'] ?? null) ?: null,
+            ($d['auth_code'] ?? null) ?: null,
+            ($d['cubre_desde'] ?? null) ?: null,
+            ($d['cubre_hasta'] ?? null) ?: null,
+            isset($d['registrado_por']) && $d['registrado_por'] ? intval($d['registrado_por']) : null,
+            ($d['pagado_en'] ?? null) ?: date('Y-m-d H:i:s'),
+            $idem,
+        ]);
+        return true;
+    } catch (\Throwable $e) {
+        // Igual que registrar_log más arriba: este archivo también corre desde
+        // cron_recordatorios.php, que no carga lib/curl_helper.php, así que
+        // log_api() no existe aquí.
+        file_put_contents(
+            defined('API_LOG_FILE') ? API_LOG_FILE : (__DIR__ . '/../api_log.txt'),
+            date('Y-m-d H:i:s') . " | registrar_pago_suscripcion fallo (¿falta migrar suscripcion_pagos?): " . $e->getMessage() . PHP_EOL,
+            FILE_APPEND
+        );
+        return false;
+    }
+}

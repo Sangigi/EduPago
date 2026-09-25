@@ -217,18 +217,6 @@ function Facturacion({
     }
   };
   const filtrar = lista => !q ? lista : lista.filter(c => c.cliente.toLowerCase().includes(q.toLowerCase()) || c.folio.toLowerCase().includes(q.toLowerCase()));
-  const tabStyle = active => ({
-    padding: '8px 18px',
-    borderRadius: 'var(--radius-sm)',
-    fontSize: 13,
-    cursor: 'pointer',
-    fontWeight: active ? 600 : 400,
-    border: 'none',
-    background: 'transparent',
-    color: active ? 'var(--accent)' : 'var(--ink-3)',
-    borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-    transition: 'all .15s'
-  });
   return /*#__PURE__*/_jsxDEV("div", {
     // Cabecera con el patrón del resto del sistema (25-sep-2026).
     //
@@ -242,27 +230,31 @@ function Facturacion({
     // Gastos y el resto, y los dos contadores pasan a stats-grid/stat-card.
     // Así heredan tema, hover, y los ajustes de móvil del CSS.
     children: [
+    // Encabezado compacto, SIN tarjeta propia (25-sep-2026).
+    //
+    // Primero lo puse como `card`, pero una tarjeta que solo contiene un
+    // título deja su relleno vacío por los cuatro lados y suma una caja más
+    // antes de llegar al contenido: título + resumen + pestañas eran tres
+    // bloques separados antes de la primera fila útil.
+    //
+    // views/Cobros.js ni siquiera pone título —el nombre de la sección ya está
+    // en la navegación—, así que aquí se queda solo una línea con el icono y
+    // el subtítulo, que sí aporta algo.
     /*#__PURE__*/_jsxDEV("div", {
-      className: "card",
-      style: { marginBottom: 20 },
-      children: /*#__PURE__*/_jsxDEV("div", {
-        className: "card-header",
-        children: /*#__PURE__*/_jsxDEV("div", {
-          style: { display: 'flex', alignItems: 'center', gap: 14 },
+      style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
+      children: [
+        /*#__PURE__*/_jsxDEV(Icon, { name: "facturacion2", size: 26, color: "var(--ink-4)" }, 'ic', false),
+        /*#__PURE__*/_jsxDEV("div", {
           children: [
-            /*#__PURE__*/_jsxDEV(Icon, { name: "facturacion2", size: 30, color: "var(--ink-4)" }, 'ic', false),
-            /*#__PURE__*/_jsxDEV("div", {
-              children: [
-                /*#__PURE__*/_jsxDEV("div", { className: "card-title", children: "Facturación" }, 't', false),
-                /*#__PURE__*/_jsxDEV("div", { className: "card-sub", children: "Genera y administra tus comprobantes fiscales" }, 's', false)
-              ]
-            }, 'tx', true)
+            /*#__PURE__*/_jsxDEV("div", { style: { fontWeight: 700, fontSize: 15, color: 'var(--ink)' }, children: "Facturación" }, 't', false),
+            /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 1 }, children: "Genera y administra tus comprobantes fiscales" }, 's', false)
           ]
-        }, 'h', true)
-      }, void 0, false)
+        }, 'tx', true)
+      ]
     }, void 0, false),
     /*#__PURE__*/_jsxDEV("div", {
       className: "stats-grid",
+      style: { marginBottom: 14 },
       children: [
         { label: 'Emitidas',    val: emitidas.length,       meta: 'Con folio fiscal' },
         { label: 'Sin factura', val: pendientesFact.length, meta: 'Cobros pagados sin CFDI', alerta: pendientesFact.length > 0 }
@@ -281,23 +273,26 @@ function Facturacion({
         ]
       }, i, true))
     }, void 0, false),
+    // Pestañas con las clases de botón del sistema, como en views/Comisiones.js
+    // (25-sep-2026).
+    //
+    // Antes eran botones con esquinas redondeadas Y ADEMÁS una barra de 2px
+    // debajo del activo: las dos formas se peleaban —una raya recta colgando
+    // de una pastilla redonda— y encima el contenedor llevaba su propia línea
+    // inferior, así que había tres bordes distintos en la misma franja.
+    // Ahora el activo simplemente se llena, que es como se ve en el resto.
     /*#__PURE__*/_jsxDEV("div", {
-      style: {
-        display: 'flex',
-        gap: 4,
-        marginBottom: 20,
-        borderBottom: '1px solid var(--border-glow)'
-      },
-      children: [/*#__PURE__*/_jsxDEV("button", {
-        style: tabStyle(tab === 'pendientes'),
-        onClick: () => setTab('pendientes'),
-        children: ["Por facturar (", pendientesFact.length, ")"]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
-        style: tabStyle(tab === 'emitidas'),
-        onClick: () => setTab('emitidas'),
-        children: ["Emitidas (", emitidas.length, ")"]
-      }, void 0, true)]
-    }, void 0, true), tab === 'pendientes' && /*#__PURE__*/_jsxDEV("div", {
+      style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
+      children: [
+        { id: 'pendientes', label: 'Por facturar', n: pendientesFact.length },
+        { id: 'emitidas',   label: 'Emitidas',     n: emitidas.length }
+      ].map(t => /*#__PURE__*/_jsxDEV("button", {
+        className: 'btn btn-sm ' + (tab === t.id ? 'btn-primary' : 'btn-secondary'),
+        onClick: () => setTab(t.id),
+        children: [t.label, ' (', t.n, ')']
+      }, t.id, true))
+    }, void 0, false),
+    tab === 'pendientes' && /*#__PURE__*/_jsxDEV("div", {
       className: "card",
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "card-header",
