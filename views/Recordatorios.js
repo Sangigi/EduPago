@@ -29,6 +29,7 @@ function Recordatorios({ data, setData, escuela }) {
   const [seleccion, setSeleccion] = useState([]);
   const [copiado, setCopiado] = useState(null);
   const [enLote, setEnLote] = useState(false);
+  const [enviandoId, setEnviandoId] = useState(null);
 
   // Medianoche local de hoy (no new Date() a secas): compara dia calendario
   // contra dia calendario, sin la hora del momento metiendo ruido.
@@ -202,6 +203,59 @@ function Recordatorios({ data, setData, escuela }) {
   // una pestana en blanco.
   const registrarAlAbrir = (cobro, canal) => {
     if (!yaRecordadoHoy(cobro.id)) registrarRecordatorio(cobro, canal);
+  };
+
+  // El boton "Correo" manda el correo DESDE EL SISTEMA (25-sep-2026).
+  //
+  // Antes era un enlace mailto:, que no manda nada: abre el cliente de correo
+  // del equipo con el texto ya escrito y el usuario todavia tiene que darle
+  // enviar. En un equipo sin cliente de correo configurado no pasaba nada
+  // visible — y aun asi se registraba el recordatorio como hecho, o sea que
+  // el historial afirmaba que se aviso cuando no se habia avisado.
+  //
+  // Ahora lo manda acciones/enviar_recordatorio_correo.php con el mismo
+  // mailer que ya usa el cron todas las noches. El destinatario y el texto
+  // los arma el BACKEND desde la base: esta pantalla solo manda el cobro_id.
+  // Y el recordatorio se registra unicamente si el correo salio de verdad,
+  // asi que el historial deja de mentir.
+  const enviarPorCorreo = async cobro => {
+    if (enviandoId) return;
+    setEnviandoId(cobro.id);
+    try {
+      const res = await fetch('api.php?action=enviar_recordatorio_correo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + AuthController.getToken()
+        },
+        body: JSON.stringify({ cobro_id: cobro.id })
+      });
+      const json = await res.json();
+      if (!json || json.success === false) {
+        alert((json && json.error) || 'No se pudo mandar el correo.');
+        return;
+      }
+      // Refleja el recordatorio en la pantalla sin recargar todo.
+      if (!yaRecordadoHoy(cobro.id)) {
+        setData(prev => ({
+          ...prev,
+          recordatorios: [...(prev.recordatorios || []), {
+            id: AppModel.nextId(prev.recordatorios || []),
+            cobro_id: cobro.id,
+            cliente: cobro.cliente,
+            escuela_id: cobro.escuela_id || (escuela ? escuela.id : null),
+            fecha: hoyStr,
+            canal: 'email'
+          }]
+        }));
+      }
+      setCopiado('Correo enviado a ' + json.destino);
+      setTimeout(() => setCopiado(null), 3000);
+    } catch (e) {
+      alert('No se pudo mandar el correo: ' + e.message);
+    } finally {
+      setEnviandoId(null);
+    }
   };
 
   // ── Filtro, busqueda y orden ──────────────────────────────────
@@ -501,16 +555,16 @@ function Recordatorios({ data, setData, escuela }) {
                         ]
                       }, 'wa', true) : null,
 
-                      ct.email ? _jsxDEV("a", {
+                      // Boton, ya no enlace mailto: lo manda el sistema.
+                      // Ver enviarPorCorreo mas arriba.
+                      ct.email ? _jsxDEV("button", {
                         className: "btn btn-secondary btn-sm",
-                        href: 'mailto:' + ct.email
-                              + '?subject=' + encodeURIComponent('Recordatorio de pago' + (c.folio ? ' \u00b7 ' + c.folio : ''))
-                              + '&body=' + encodeURIComponent(mensajeDe(c)),
-                        style: { textDecoration: 'none' },
-                        onClick: () => registrarAlAbrir(c, 'email'),
+                        disabled: enviandoId === c.id,
+                        onClick: () => enviarPorCorreo(c),
+                        title: 'Mandar el recordatorio a ' + ct.email,
                         children: [
                           _jsxDEV(Icon, { name: 'emails', size: 13, color: 'currentColor' }, 'i', false),
-                          ' Correo'
+                          enviandoId === c.id ? ' Enviando\u2026' : ' Correo'
                         ]
                       }, 'em', true) : null,
 
