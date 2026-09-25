@@ -255,6 +255,79 @@ $acciones_publicas = ['login', 'invitacion_ver', 'invitacion_enviar', 'invitacio
 if (!in_array($action, $acciones_publicas)) {
     $usuario_actual = verificar_token_auth();
 }
+
+// ── CANDADO POR SUSCRIPCIÓN VENCIDA (25-sep-2026) ────────────────────────
+//
+// Hasta hoy el vencimiento NO SE VALIDABA EN NINGÚN LADO: `fecha_vencimiento_plan`
+// y `fecha_fin_prueba` solo se escribían y se mostraban. Un colegio cuya
+// suscripción caducó —o cuya prueba terminó— seguía usando el sistema
+// completo, indefinidamente y gratis.
+//
+// QUÉ SE BLOQUEA. Solo al personal del colegio: 'admin' y 'cajero'. Son ellos
+// quienes contratan. Los roles de plataforma no tienen escuela_id, así que ni
+// entran a este bloque.
+//
+// QUÉ NO SE BLOQUEA, Y POR QUÉ IMPORTA. La lista blanca de abajo deja pasar
+// justo el camino para PAGAR. Bloquear también eso sería el peor error
+// posible: dejar al cliente encerrado fuera de la pantalla donde nos daría su
+// dinero. cargar_datos entra porque sin él la aplicación no monta y el admin
+// vería una pantalla en blanco en vez del aviso de que debe renovar.
+//
+// PERIODO DE GRACIA. Cortar a medianoche del día del vencimiento genera una
+// llamada enojada por cada colegio que pague con un día de retraso. Con
+// SUSCRIPCION_DIAS_GRACIA el corte llega después, y el aviso de vencimiento
+// (cron_recordatorios.php) ya salió días antes.
+if (!defined('SUSCRIPCION_DIAS_GRACIA')) define('SUSCRIPCION_DIAS_GRACIA', 5);
+
+$ACCIONES_PERMITIDAS_VENCIDO = [
+    // Sin esto la SPA no arranca y no hay dónde enseñar el aviso.
+    'cargar_datos',
+    // El camino para pagar y volver a la normalidad.
+    'escuela_generar_pago_renovacion', 'suscripcion_pagos_listar',
+    'escuela_obtener_datos_pago',
+    // Cuenta propia: que pueda entrar, cambiar su contraseña y salir.
+    'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+];
+
+if (isset($usuario_actual) && $usuario_actual && !empty($usuario_actual['escuela_id'])
+    && in_array($usuario_actual['rol'] ?? '', ['admin', 'cajero'], true)
+    && !in_array($action, $ACCIONES_PERMITIDAS_VENCIDO, true)) {
+    try {
+        $stVen = $pdo->prepare("SELECT modo, fecha_vencimiento_plan, fecha_fin_prueba FROM escuelas WHERE id = ?");
+        $stVen->execute([intval($usuario_actual['escuela_id'])]);
+        $escVen = $stVen->fetch();
+        if ($escVen) {
+            $enDemoVen = ($escVen['modo'] ?? 'activa') === 'demo';
+            // En demo manda fecha_fin_prueba; fecha_vencimiento_plan es solo un
+            // marcador de la creación mientras la escuela está en prueba (ver
+            // la nota de views/MiSuscripcion.js).
+            $limite = $enDemoVen ? ($escVen['fecha_fin_prueba'] ?? null)
+                                 : ($escVen['fecha_vencimiento_plan'] ?? null);
+            if ($limite) {
+                $tsCorte = strtotime($limite . ' +' . SUSCRIPCION_DIAS_GRACIA . ' days');
+                if ($tsCorte !== false && $tsCorte < strtotime(date('Y-m-d'))) {
+                    log_api("SUSCRIPCION VENCIDA -> escuela_id={$usuario_actual['escuela_id']} rol={$usuario_actual['rol']} accion={$action} limite={$limite}");
+                    http_response_code(402); // Payment Required
+                    echo json_encode([
+                        'success' => false,
+                        'codigo'  => $enDemoVen ? 'prueba_terminada' : 'suscripcion_vencida',
+                        'limite'  => $limite,
+                        'error'   => $enDemoVen
+                            ? 'Tu periodo de prueba terminó. Activa tu suscripción para seguir usando el sistema.'
+                            : 'Tu suscripción venció. Renuévala para volver a usar el sistema.',
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+            }
+        }
+    } catch (\Throwable $eVen) {
+        // NUNCA dejar a nadie fuera por un fallo del propio candado: si la
+        // consulta falla, se deja pasar y queda registrado. Un colegio usando
+        // el sistema un día de más es mucho menos grave que un cliente al
+        // corriente que no puede entrar.
+        log_api("candado de suscripcion: no se pudo evaluar, se deja pasar -> " . $eVen->getMessage());
+    }
+}
 // JSON_PRETTY_PRINT se quitó el 25-sep-2026. Servía para leer las respuestas a
 // mano, pero lo pagaba el usuario en CADA petición: con sangría de 4 espacios
 // por nivel, una respuesta de cargar_datos viaja ~78% más grande. Y hasta hoy
