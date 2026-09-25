@@ -30,7 +30,7 @@ if (!$documento_id) respond(['success' => false, 'error' => 'documento_id requer
 if (!in_array($accion, ['aprobar', 'rechazar'], true)) respond(['success' => false, 'error' => 'accion debe ser aprobar o rechazar']);
 if ($accion === 'rechazar' && $motivo === '') respond(['success' => false, 'error' => 'Indica el motivo del rechazo.']);
 
-$stmt = $pdo->prepare("SELECT escuela_id FROM escuela_documentos WHERE id = ?");
+$stmt = $pdo->prepare("SELECT escuela_id, estado FROM escuela_documentos WHERE id = ?");
 $stmt->execute([$documento_id]);
 $doc = $stmt->fetch();
 if (!$doc) respond(['success' => false, 'error' => 'Documento no encontrado']);
@@ -50,7 +50,8 @@ $pdo->prepare(
 // El tipo_persona de ESTA escuela decide qué documentos se le exigen.
 $stmtTP = $pdo->prepare("SELECT tipo_persona FROM escuelas WHERE id = ?");
 $stmtTP->execute([$escuela_id]);
-$tiposRequeridos = documentos_requeridos_por_tipo_persona($stmtTP->fetchColumn());
+$tipoPersonaEsc = $stmtTP->fetchColumn();
+$tiposRequeridos = documentos_requeridos_por_tipo_persona($tipoPersonaEsc);
 
 $stmtTodos = $pdo->prepare("SELECT tipo, estado FROM escuela_documentos WHERE escuela_id = ?");
 $stmtTodos->execute([$escuela_id]);
@@ -83,24 +84,46 @@ registrar_log($pdo, $usuario_actual, 'documento_escuela_revisado',
 
 // ── Aviso de RECHAZO al colegio ─────────────────────────────────────────
 //
-// Sin esto, un documento rechazado solo se veía entrando a "Mi cuenta" — el
-// colegio podía pasar días creyendo que seguía en revisión cuando en realidad
-// la pelota estaba de su lado. Y el motivo del rechazo es justamente lo que
-// necesita para corregir.
+// EL CORREO SALE UNA SOLA VEZ, AL TERMINAR DE REVISAR (25-sep-2026).
 //
-// Se dispara cuando ESTA revisión fue un rechazo, y lista TODOS los documentos
-// que están rechazados ahora mismo (no solo el de esta llamada): si hay tres
-// mal, el colegio los necesita los tres en un mismo correo para arreglarlos de
-// una vez, en vez de ir descubriéndolos de uno en uno.
+// La intención original era mandar UN correo con todos los rechazos juntos,
+// pero disparaba en CADA rechazo. Rechazar tres documentos seguidos mandaba
+// tres correos: el primero con un documento, el segundo con dos, el tercero
+// con tres. El colegio recibía la misma lista creciendo, y el último correo
+// hacía inútiles a los anteriores.
+//
+// Ahora la condición no es "esta acción fue un rechazo", sino "la revisión de
+// este colegio quedó COMPLETA y hay algo rechazado": ya no queda ningún
+// documento en 'pendiente'. Ese es justo el momento en que la pelota vuelve
+// entera a la cancha del colegio.
+//
+// Importa que la condición NO dependa de que la última acción sea un rechazo:
+// si se rechaza el primer documento y se aprueban los cuatro restantes, la
+// última acción es una aprobación — y con la condición vieja el aviso nunca
+// habría salido.
+//
+// El tercer término evita reenviar lo mismo: si quien revisa toca un documento
+// que YA estaba revisado y no lo rechaza (p.ej. reaprueba uno aprobado)
+// mientras hay un rechazo viejo pendiente de corregir, no se vuelve a avisar.
+//
+// Contrapartida asumida: si quien revisa rechaza uno y abandona la revisión
+// dejando otros en 'pendiente', el correo no sale todavía. Se deja rastro en
+// el log para que se pueda ver, y el colegio igual ve el estado en Mi cuenta.
 $aviso_rechazo_enviado = false;
-if ($nuevoEstado === 'rechazado') {
+$quedanPendientes = in_array('pendiente', $estados, true);
+$hayRechazados    = in_array('rechazado', $estados, true);
+$eraPendiente     = ($doc['estado'] ?? '') === 'pendiente';
+if ($hayRechazados && $quedanPendientes) {
+    log_api("revisar_documento_escuela: escuela #{$escuela_id} tiene documentos rechazados pero la revisión no ha terminado (quedan pendientes); el aviso al colegio se mandará al revisar el último.");
+}
+if ($hayRechazados && !$quedanPendientes && ($nuevoEstado === 'rechazado' || $eraPendiente)) {
     try {
         // Nombres legibles, los mismos que ve el colegio en su pantalla de Mi
         // cuenta (views/MiCuenta.js). Mandarle 'identificacion_frente' tal cual
         // sería mandarle el nombre interno de la columna.
         $ETIQUETAS_DOC = [
-            'identificacion_frente'  => 'Identificación dueño del negocio (Frente)',
-            'identificacion_reverso' => 'Identificación dueño del negocio (Reverso)',
+            'identificacion_frente'  => 'Identificación del ' . etiqueta_titular_identificacion($tipoPersonaEsc) . ' (Frente)',
+            'identificacion_reverso' => 'Identificación del ' . etiqueta_titular_identificacion($tipoPersonaEsc) . ' (Reverso)',
             'estado_cuenta_bancario' => 'Portada del estado de cuenta bancario',
             'comprobante_domicilio'  => 'Comprobante de domicilio',
             'constancia_fiscal'      => 'Constancia Fiscal',

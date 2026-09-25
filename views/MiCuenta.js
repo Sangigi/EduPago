@@ -22,14 +22,32 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : React.createElement(type,p,ch);
 };
 
-const MC_TIPOS_DOCUMENTO = [
-  { tipo: 'identificacion_frente',   label: 'Identificación dueño del negocio (Frente)' },
-  { tipo: 'identificacion_reverso',  label: 'Identificación dueño del negocio (Reverso)' },
-  { tipo: 'estado_cuenta_bancario',  label: 'Portada del estado de cuenta bancario' },
-  { tipo: 'comprobante_domicilio',   label: 'Comprobante de domicilio' },
-  { tipo: 'constancia_fiscal',       label: 'Constancia Fiscal' },
-  { tipo: 'acta_constitutiva',       label: 'Acta constitutiva' },
-];
+// Cómo llamar a la persona cuya identificación se pide (25-sep-2026).
+//
+// Antes decía siempre "dueño del negocio", que solo es correcto para un
+// negocio independiente. En una persona MORAL quien firma el alta de comercio
+// es el representante legal —que muchas veces no es dueño de nada— y pedirle
+// "identificación del dueño" confunde justo a quien está juntando los papeles.
+// Espejo de etiqueta_titular_identificacion() en lib/helpers_pagos.php, que
+// es la que usa el correo de rechazo.
+function mcTitularDoc(tipoPersona) {
+  const t = String(tipoPersona || '').toLowerCase();
+  if (t === 'moral')   return 'representante legal';
+  if (t === 'negocio') return 'dueño del negocio';
+  return 'titular';
+}
+
+function mcTiposDocumento(tipoPersona) {
+  const quien = mcTitularDoc(tipoPersona);
+  return [
+    { tipo: 'identificacion_frente',   label: 'Identificación del ' + quien + ' (Frente)' },
+    { tipo: 'identificacion_reverso',  label: 'Identificación del ' + quien + ' (Reverso)' },
+    { tipo: 'estado_cuenta_bancario',  label: 'Portada del estado de cuenta bancario' },
+    { tipo: 'comprobante_domicilio',   label: 'Comprobante de domicilio' },
+    { tipo: 'constancia_fiscal',       label: 'Constancia Fiscal' },
+    { tipo: 'acta_constitutiva',       label: 'Acta constitutiva' },
+  ];
+}
 
 const MC_ESTADO_DOC = {
   pendiente: { label: 'En revisión', clase: 'badge-amber' },
@@ -458,7 +476,7 @@ function MiCuenta({ escuela, user }) {
               // 'aprobada'. Si esta lista pidiera uno de más, el colegio subiría
               // un documento que nadie espera; si pidiera uno de menos, se
               // quedaría esperando sin saber qué le falta.
-              children: MC_TIPOS_DOCUMENTO
+              children: mcTiposDocumento(tipoPersona)
                 .filter(t => !(t.tipo === 'constancia_fiscal' && tipoPersona === 'negocio'))
                 // El acta constitutiva solo se pide a PERSONA MORAL (igual que en
                 // documentos_requeridos_por_tipo_persona()).

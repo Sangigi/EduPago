@@ -908,6 +908,25 @@ function escuela_puede_facturar($tipo_persona) {
     return TIPOS_PERSONA[$t]['factura'];
 }
 
+/**
+ * Cómo llamar a la persona cuya identificación se pide, según el tipo de
+ * persona del colegio (25-sep-2026).
+ *
+ * Antes la etiqueta decía siempre "dueño del negocio", que solo es correcto
+ * para un negocio independiente. En una PERSONA MORAL quien firma el alta de
+ * comercio es el REPRESENTANTE LEGAL — que muchas veces no es dueño de nada —
+ * y pedirle "identificación del dueño" confunde a quien está juntando los
+ * papeles, que es justo a quien hay que dejarle claro qué subir.
+ */
+function etiqueta_titular_identificacion($tipo_persona) {
+    $t = strtolower(trim((string) $tipo_persona));
+    if ($t === 'moral')   return 'representante legal';
+    if ($t === 'negocio') return 'dueño del negocio';
+    // 'fisica' y el caso en que todavía no eligieron tipo: el titular es la
+    // propia persona, y "titular" funciona para ambos sin mentir.
+    return 'titular';
+}
+
 // Documentos que un colegio debe tener APROBADOS para quedar habilitado.
 //
 // Los 5 son del formulario de alta de comercio de Cobroscontarjeta.com, pero
