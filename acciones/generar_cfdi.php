@@ -41,6 +41,12 @@
         // para no bloquear el timbrado por un campo que Facturapi solo exige
         // cuando SÍ envías el complemento.
         $iedu_complement = null;
+        // Por defecto PUE: una factura SIN cobro asociado (emitida a mano,
+        // sin cobro_id) no tiene abonos que seguir, así que se mantiene el
+        // comportamiento de siempre. Sin esta línea la variable quedaría
+        // indefinida en ese camino y el ternario del payload caería a PPD,
+        // timbrando "99 Por definir" en una factura que sí se pagó.
+        $cobroCubierto = true;
         if ($cobro_id) {
             $stmtAl = $pdo->prepare(
                 "SELECT c.nombre AS alumno_nombre, c.curp, c.nivel_educativo_sat,
@@ -87,24 +93,27 @@
                          'error' => 'Este colegio está registrado como Negocio independiente, que puede cobrar pero no emitir facturas. '
                                   . 'Para facturar hay que cambiar el tipo de persona a física o moral desde Mi cuenta y enviar la constancia de situación fiscal.']);
             }
-            // Candado fiscal de los abonos (21-sep-2026). Este endpoint timbra
-            // SIEMPRE con payment_method "PUE" (Pago en Una Exhibición). Un
-            // cobro que se está pagando en abonos no puede facturarse así:
-            // el SAT exige emitirlo como PPD (con forma de pago "99 Por
-            // definir") y además un CFDI de pago —complemento de recepción de
-            // pagos— por cada abono recibido, ligado al UUID de la factura.
-            // Eso todavía no está implementado, así que en vez de timbrar un
-            // comprobante fiscalmente incorrecto, se bloquea con una
-            // explicación. Se factura cuando el cobro quede cubierto.
+            // ── PUE o PPD, según lo que de verdad se haya cobrado ─────────
+            //
+            // Hasta el 25-sep-2026 este endpoint se NEGABA a facturar un cobro
+            // con abonos, porque solo sabía timbrar PUE. Ahora decide:
+            //
+            //   · Cobro CUBIERTO  -> PUE, con la forma de pago real.
+            //   · Cobro NO cubierto (abonos o nada pagado) -> PPD, con forma
+            //     de pago "99 Por definir", más un CFDI de pago por cada abono
+            //     (acciones/generar_complemento_pago.php).
+            //
+            // El caso "nada pagado" también entra en PPD, y es un cambio
+            // respecto de antes: facturar como PUE algo que nadie ha pagado le
+            // dice al SAT que se cobró en una exhibición: es falso igual que
+            // hacerlo con un pago parcial. El candado viejo solo miraba
+            // `pagado > 0`, así que ese caso se colaba.
             $pagadoParcial = floatval($al['cobro_monto_pagado'] ?? 0);
             $totalCobro    = floatval($al['cobro_total'] ?? 0);
-            if ($pagadoParcial > 0.004 && $pagadoParcial + 0.004 < $totalCobro) {
-                $restante = number_format($totalCobro - $pagadoParcial, 2);
-                respond([
-                    'success' => false,
-                    'error'   => "Este cobro se está pagando en abonos (faltan \${$restante}). No se puede facturar hasta que quede cubierto: un pago en parcialidades requiere CFDI tipo PPD con complemento de pagos, que aún no está habilitado.",
-                ]);
-            }
+            // Los 0.004 son el margen de siempre contra el redondeo de
+            // DECIMAL(12,2): sin él, un cobro cubierto al centavo podría
+            // parecer incompleto por una diferencia de milésimas.
+            $cobroCubierto = $totalCobro > 0 && ($pagadoParcial + 0.004) >= $totalCobro;
             if ($al['cobro_ya_facturado']) {
                 respond(['success' => false, 'error' => 'Este cobro ya fue facturado.']);
             }
@@ -206,14 +215,17 @@
             ],
             "items" => [$item_producto],
             "use"          => $uso,
-            "payment_form" => $forma_pago_sat,
-            // PUE = Pago en Una Exhibición. Es correcto MIENTRAS el sistema
-            // solo permita pagar un cobro completo de un golpe. Si algún día
-            // se aceptan abonos parciales sobre un mismo cobro, ese caso NO
-            // puede facturarse como PUE: requiere emitir la factura como PPD
-            // (con forma de pago "99 Por definir") y además un CFDI de pago
-            // (complemento de recepción de pagos) por cada abono recibido.
-            "payment_method" => "PUE"
+            // PUE (Pago en Una Exhibición) solo si el cobro YA está cubierto.
+            // Si no, PPD (Pago en Parcialidades o Diferido) con forma de pago
+            // "99 Por definir", que es lo que exige el SAT — y después un CFDI
+            // de pago por cada abono (acciones/generar_complemento_pago.php).
+            //
+            // Las dos claves van juntas a propósito: "99" SOLO es válido con
+            // PPD, y una forma de pago concreta (01, 03, 04...) con PPD es
+            // justo lo que el PAC rechaza. Cambiar una sin la otra rompe el
+            // timbrado, así que se calculan en el mismo sitio.
+            "payment_form"   => $cobroCubierto ? $forma_pago_sat : '99',
+            "payment_method" => $cobroCubierto ? 'PUE' : 'PPD'
         ];
         // 2. Ejecutamos la petición cURL a Facturapi
         $res = facturapi_request('invoices', 'POST', $payload_facturapi);
