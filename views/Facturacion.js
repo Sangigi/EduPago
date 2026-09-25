@@ -230,45 +230,88 @@ function Facturacion({
   const pgPend = usePaginacion(pendFiltrados, 25);
   const pgEmit = usePaginacion(emitFiltradas, 25);
   return /*#__PURE__*/_jsxDEV("div", {
-    // Cabecera con el patrón del resto del sistema (25-sep-2026).
-    //
-    // Antes era una franja con degradado azul-índigo escrito a mano
-    // (#1e3a8a -> #312e81) y texto blanco sobre ella. Esos dos azules no
-    // existen en la paleta del proyecto y el degradado no reaccionaba al
-    // tema: en modo claro quedaba un bloque oscuro en medio de una pantalla
-    // clara, que es justo lo que descolocaba respecto de las demás vistas.
-    //
-    // Ahora usa card + card-header + card-title + card-sub como Cobros,
-    // Gastos y el resto, y los dos contadores pasan a stats-grid/stat-card.
-    // Así heredan tema, hover, y los ajustes de móvil del CSS.
     children: [
-    // Encabezado compacto, SIN tarjeta propia (25-sep-2026).
+    // ── Franja de cabecera ───────────────────────────────────────────────
     //
-    // Primero lo puse como `card`, pero una tarjeta que solo contiene un
-    // título deja su relleno vacío por los cuatro lados y suma una caja más
-    // antes de llegar al contenido: título + resumen + pestañas eran tres
-    // bloques separados antes de la primera fila útil.
+    // Historia corta, porque tuvo dos intentos fallidos y conviene no repetirlos:
     //
-    // views/Cobros.js ni siquiera pone título —el nombre de la sección ya está
-    // en la navegación—, así que aquí se queda solo una línea con el icono y
-    // el subtítulo, que sí aporta algo.
+    //   1. Original: franja con degradado azul-índigo a mano (#1e3a8a ->
+    //      #312e81) y texto blanco. La ESTRUCTURA era buena —título a la
+    //      izquierda, cifras a la derecha, todo en una sola banda— pero esos
+    //      azules no existen en la paleta y no reaccionaban al tema: en modo
+    //      claro quedaba un bloque oscuro en medio de una pantalla clara.
+    //   2. Segundo intento: quitar la franja y dejar una línea de texto suelta
+    //      con las cifras en stats-grid. Peor: .stats-grid estira dos tarjetas
+    //      a todo el ancho (dos números chicos en dos cajas enormes) y sin la
+    //      banda la pantalla perdía toda jerarquía.
+    //
+    // Esto conserva la estructura del original y cambia SOLO los colores por
+    // tokens del tema. Las cifras se quedan: sí dicen algo que las pestañas no
+    // —"cuánto llevas emitido" frente a "qué pestaña estoy viendo"— y a la
+    // derecha aprovechan el ancho que antes quedaba vacío.
     /*#__PURE__*/_jsxDEV("div", {
-      style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
+      className: "card",
+      style: {
+        marginBottom: 14,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 16
+      },
       children: [
-        /*#__PURE__*/_jsxDEV(Icon, { name: "facturacion2", size: 26, color: "var(--ink-4)" }, 'ic', false),
         /*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 },
           children: [
-            /*#__PURE__*/_jsxDEV("div", { style: { fontWeight: 700, fontSize: 15, color: 'var(--ink)' }, children: "Facturación" }, 't', false),
-            /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 1 }, children: "Genera y administra tus comprobantes fiscales" }, 's', false)
+            // Cuadro con el acento de marca en vez del icono suelto: le da
+            // peso a la franja sin recurrir a un fondo de color inventado.
+            /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                width: 46, height: 46, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 'var(--radius)',
+                background: 'var(--accent-glow, var(--glass-light))'
+              },
+              children: /*#__PURE__*/_jsxDEV(Icon, { name: "facturacion2", size: 24, color: "var(--accent)" }, 'ic', false)
+            }, 'box', false),
+            /*#__PURE__*/_jsxDEV("div", {
+              style: { minWidth: 0 },
+              children: [
+                /*#__PURE__*/_jsxDEV("div", { style: { fontWeight: 700, fontSize: 16, color: 'var(--ink)' }, children: "Facturación" }, 't', false),
+                /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }, children: "Genera y administra tus comprobantes fiscales" }, 's', false)
+              ]
+            }, 'tx', true)
           ]
-        }, 'tx', true)
+        }, 'izq', true),
+        /*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', gap: 10, flexWrap: 'wrap' },
+          children: [
+            { label: 'Emitidas',    val: emitidas.length,       alerta: false },
+            { label: 'Sin factura', val: pendientesFact.length, alerta: pendientesFact.length > 0 }
+          ].map((s, i) => /*#__PURE__*/_jsxDEV("div", {
+            style: {
+              minWidth: 96, textAlign: 'center',
+              padding: '8px 14px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--glass-light)',
+              border: '1px solid var(--border-glow)'
+            },
+            children: [
+              /*#__PURE__*/_jsxDEV("div", {
+                style: {
+                  fontSize: 20, fontWeight: 800, fontFamily: 'var(--mono)',
+                  // Ámbar solo cuando de verdad hay algo sin facturar. Antes
+                  // este número estaba SIEMPRE en #fbbf24, avisara o no.
+                  color: s.alerta ? 'var(--amber)' : 'var(--ink)'
+                },
+                children: s.val
+              }, 'v', false),
+              /*#__PURE__*/_jsxDEV("div", {
+                style: { fontSize: 10, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '.4px', marginTop: 2 },
+                children: s.label
+              }, 'l', false)
+            ]
+          }, i, true))
+        }, 'der', false)
       ]
-    }, void 0, false),
-    // Aquí había dos stat-card con "Emitidas" y "Sin factura". Se quitaron
-    // (25-sep-2026) porque decían EXACTAMENTE lo mismo que las pestañas de
-    // abajo —"Por facturar (120)" / "Emitidas (2)"—, y además .stats-grid las
-    // estira a todo el ancho: dos números chicos en dos cajas enormes, que es
-    // el hueco que se veía arriba. El dato ya estaba; sobraba el marco.
+    }, void 0, true),
     // Pestañas con las clases de botón del sistema, como en views/Comisiones.js
     // (25-sep-2026).
     //

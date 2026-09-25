@@ -35,6 +35,57 @@ function MiSuscripcion({ escuela, user, onIrA, planes }) {
   // Si ya se leyó y aceptó la advertencia de documentación pendiente.
   const [asumeEspera, setAsumeEspera] = useState(false);
 
+  // ── Historial de pagos de la suscripción (25-sep-2026) ─────────────────
+  //
+  // Antes no había forma de ver esto, y no era una pantalla que faltara sino
+  // el DATO: los pagos de renovación vivían en columnas de `escuelas` que el
+  // propio webhook ponía en NULL al confirmar el cobro. O sea que el monto y
+  // la referencia se borraban justo al pagarse. Ver
+  // migraciones/migracion_2026_09_25_suscripcion_pagos.sql.
+  const [historial, setHistorial] = useState([]);
+  const [histCargando, setHistCargando] = useState(true);
+  const [histAviso, setHistAviso] = useState(null);
+
+  useEffect(() => {
+    if (!escuela?.id) { setHistCargando(false); return; }
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch('api.php?action=suscripcion_pagos_listar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (AuthController.getToken() || '')
+          },
+          body: JSON.stringify({ escuela_id: escuela.id }),
+        });
+        const json = await res.json();
+        if (!vivo) return;
+        if (json && json.success) {
+          setHistorial(json.pagos || []);
+          // El backend manda `aviso` cuando la tabla todavía no existe (falta
+          // correr la migración): se enseña tal cual en vez de fingir que el
+          // colegio nunca pagó nada.
+          if (json.aviso) setHistAviso(json.aviso);
+        }
+      } catch (e) {
+        // Sin red, la tarjeta se queda vacía; no vale la pena un error rojo
+        // por un historial que es informativo.
+      } finally {
+        if (vivo) setHistCargando(false);
+      }
+    })();
+    // Evita el setState sobre un componente ya desmontado si el admin cambia
+    // de sección antes de que responda.
+    return () => { vivo = false; };
+  }, [escuela?.id]);
+
+  const MS_ORIGEN = {
+    registro:   'Alta',
+    renovacion: 'Renovación',
+    manual:     'Ajuste manual',
+  };
+
   const fmt = n => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
   const planKey = (escuela?.plan || '').toLowerCase();
   // La tabla de planes viene del SERVIDOR (cargar_datos -> planes, que sale
@@ -385,7 +436,87 @@ function MiSuscripcion({ escuela, user, onIrA, planes }) {
             ]
           }, 'okEfv') : null
         ]
-      }, 'card2')
+      }, 'card2'),
+
+      // ── Historial de tu suscripción ──────────────────────────────────
+      _jsxDEV('div', {
+        className: 'card', style: { marginTop: 20 },
+        children: [
+          _jsxDEV('div', {
+            className: 'card-header',
+            children: _jsxDEV('div', {
+              children: [
+                _jsxDEV('div', { className: 'card-title', children: 'Historial de tu suscripción' }, 't'),
+                _jsxDEV('div', { className: 'card-sub', children: 'Cada pago de tu mensualidad, con su referencia. Guárdalo para cualquier aclaración.' }, 's')
+              ]
+            }, 'h')
+          }, 'ch'),
+
+          histAviso ? _jsxDEV('div', {
+            style: { padding: '10px 14px', marginBottom: 12, fontSize: 12.5, borderRadius: 'var(--radius-sm)', background: 'var(--glass-light)', color: 'var(--ink-3)' },
+            children: histAviso
+          }, 'av') : null,
+
+          histCargando
+            ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)', padding: '12px 2px' }, children: 'Cargando…' }, 'load')
+            : (historial.length === 0
+                ? _jsxDEV('div', {
+                    className: 'empty-state',
+                    children: [
+                      _jsxDEV('div', { className: 'empty-icon', children: _jsxDEV(Icon, { name: 'history', size: 34, color: 'currentColor' }, 'ic') }, 'i'),
+                      _jsxDEV('div', {
+                        className: 'empty-text',
+                        // Se dice desde cuándo se guarda, para que no parezca
+                        // que se perdieron los pagos anteriores: sencillamente
+                        // no existían como dato (ver la migración).
+                        children: 'Todavía no hay pagos registrados. Aquí aparecerán a partir de tu próxima renovación.'
+                      }, 't')
+                    ]
+                  }, 'vacio')
+                : _jsxDEV('div', {
+                    className: 'table-wrap',
+                    children: _jsxDEV('table', {
+                      children: [
+                        _jsxDEV('thead', {
+                          children: _jsxDEV('tr', {
+                            children: [
+                              _jsxDEV('th', { children: 'Fecha' }, 'a'),
+                              _jsxDEV('th', { children: 'Concepto' }, 'b'),
+                              _jsxDEV('th', { children: 'Método' }, 'c'),
+                              _jsxDEV('th', { children: 'Cubre hasta' }, 'd'),
+                              _jsxDEV('th', { children: 'Referencia' }, 'e'),
+                              _jsxDEV('th', { style: { textAlign: 'right' }, children: 'Monto' }, 'f')
+                            ]
+                          }, 'tr')
+                        }, 'th'),
+                        _jsxDEV('tbody', {
+                          children: historial.map(p => _jsxDEV('tr', {
+                            children: [
+                              _jsxDEV('td', { style: { whiteSpace: 'nowrap' }, children: String(p.pagado_en || '').slice(0, 10) }, 'a'),
+                              _jsxDEV('td', {
+                                children: (MS_ORIGEN[p.origen] || p.origen)
+                                  + (p.plan ? ' · ' + (TABLA_PLANES[p.plan] ? TABLA_PLANES[p.plan].label : p.plan) : '')
+                              }, 'b'),
+                              _jsxDEV('td', { children: p.metodo || '—' }, 'c'),
+                              _jsxDEV('td', { style: { whiteSpace: 'nowrap' }, children: p.cubre_hasta || '—' }, 'd'),
+                              _jsxDEV('td', {
+                                style: { fontFamily: 'var(--mono)', fontSize: 11.5, wordBreak: 'break-all' },
+                                children: p.referencia || p.auth_code || '—'
+                              }, 'e'),
+                              _jsxDEV('td', {
+                                style: { textAlign: 'right', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' },
+                                // monto NULL = renovación manual, sin cobro. Un
+                                // "$0.00" ahí diría que pagó cero, que es falso.
+                                children: p.monto === null ? 'Sin cobro' : fmt(p.monto)
+                              }, 'f')
+                            ]
+                          }, p.id))
+                        }, 'tb')
+                      ]
+                    }, 'tbl')
+                  }, 'tabla'))
+        ]
+      }, 'card3')
     ]
   }, 'root');
 }
