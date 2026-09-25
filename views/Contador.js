@@ -140,7 +140,16 @@ function Contador({ user, onLogout, menuPerfil }) {
     });
     if (!res.ok) { alert('No se pudo descargar el documento.'); return; }
     const blob = await res.blob();
-    window.open(URL.createObjectURL(blob), '_blank');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    // Liberar el object URL (25-sep-2026). Antes no se hacía nunca: cada
+    // documento visto dejaba su Blob (hasta 10 MB, ver UPLOADS_MAX_BYTES_DOCUMENTO)
+    // retenido en la pestaña hasta cerrarla. Revisar 20 colegios de 6 documentos
+    // acumulaba cientos de MB en un panel que, por ser SPA, nunca recarga — y el
+    // navegador se iba poniendo lento durante la jornada. Los 60 s son el mismo
+    // plazo que ya usaba views/components/Comprobantes.js: hay que darle tiempo a
+    // la pestaña nueva a consumir la URL antes de invalidarla.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   const guardarIdExterno = async () => {

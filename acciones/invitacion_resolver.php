@@ -112,6 +112,9 @@
                 intval($inv['distribuidor_id']), $escuela_nueva,
                 $d['nombre'] ?? '', $d['num_alumnos'] ?? null
             ]);
+            // Vigencia inicial, en la misma transacción. Ver la nota en
+            // lib/helpers_comisiones.php: sin esto el colegio devenga $0.
+            comision_sembrar_vigencia_inicial($pdo, intval($pdo->lastInsertId()), intval($usuario_actual["user_id"] ?? 0) ?: null);
         }
 
         $usuario_creado = false;

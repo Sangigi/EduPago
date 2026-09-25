@@ -720,7 +720,20 @@
 
 
 
-<script src="assets/js/intro-splash.js"></script>
+<!-- defer en los 62 scripts (25-sep-2026).
+     Antes ninguno lo tenía: el navegador tenía que descargar, parsear y
+     EJECUTAR 1.37 MB de JS en orden ANTES de pintar un solo pixel. Con
+     defer se descargan en paralelo mientras se parsea el HTML y se
+     ejecutan al final, EN EL MISMO ORDEN del documento — que es lo que
+     este proyecto necesita, porque los componentes se registran como
+     globales y dependen del orden (ver la nota sobre var/const en
+     CLAUDE.md).
+
+     Es seguro porque no hay NI UN script inline en este archivo: la CSP
+     del .htaccess prohíbe unsafe-inline, así que no existe código que
+     pudiera correr antes de los deferidos y encontrarse sin sus globales.
+     Tampoco hay ningún addEventListener(DOMContentLoaded) en el repo. -->
+<script defer src="assets/js/intro-splash.js?v=1790350432"></script>
 
 
 
@@ -728,15 +741,15 @@
 
 
 
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script defer src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 
 
 
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script defer src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
 
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 
 
@@ -748,7 +761,7 @@
 
 
 
-<script src="assets/js/demo_api.js?v=1787360000"></script>
+<script defer src="assets/js/demo_api.js?v=1787360000"></script>
 
 
 
@@ -760,7 +773,7 @@
 
 
 
-<script src="assets/js/spei_poller.js?v=1787360000"></script>
+<script defer src="assets/js/spei_poller.js?v=1787360000"></script>
 
 
 
@@ -772,14 +785,14 @@
 
 
 
-<script src="models/AppModel.js?v=1789100000"></script>
+<script defer src="models/AppModel.js?v=1789100000"></script>
 
 
 
 <!-- Cliente HTTP compartido: fetch + header de auth + logout en 401 -->
-<script src="assets/js/ApiClient.js?v=1787360000"></script>
-<script src="assets/js/CSVExport.js?v=1787360000"></script>
-<script src="assets/js/ExcelExport.js?v=1787380000"></script>
+<script defer src="assets/js/ApiClient.js?v=1787360000"></script>
+<script defer src="assets/js/CSVExport.js?v=1787360000"></script>
+<script defer src="assets/js/ExcelExport.js?v=1787380000"></script>
 
 
 
@@ -794,25 +807,25 @@
 
 
 
-<script src="controllers/AuthController.js?v=1790198476"></script>
+<script defer src="controllers/AuthController.js?v=1790198476"></script>
 
 
 
-<script src="controllers/CobroController.js?v=1789200019"></script>
+<script defer src="controllers/CobroController.js?v=1789200019"></script>
 
 
 
-<script src="controllers/ProductosController.js?v=1787360000"></script>
-<script src="controllers/ProveedoresController.js?v=1789100000"></script>
-<script src="controllers/GastosController.js?v=1789100000"></script>
+<script defer src="controllers/ProductosController.js?v=1787360000"></script>
+<script defer src="controllers/ProveedoresController.js?v=1789100000"></script>
+<script defer src="controllers/GastosController.js?v=1789100000"></script>
 
 
 
-<script src="controllers/ClienteController.js?v=1787360000"></script>
+<script defer src="controllers/ClienteController.js?v=1787360000"></script>
 
 
 
-<script src="controllers/CajaController.js?v=1787360000"></script>
+<script defer src="controllers/CajaController.js?v=1787360000"></script>
 
 
 
@@ -824,41 +837,41 @@
 
 
 
-<script src="views/components/Icons.js?v=1787360000"></script>
+<script defer src="views/components/Icons.js?v=1787360000"></script>
 
 
 
-<script src="views/components/Cargando.js?v=1787360000"></script>
+<script defer src="views/components/Cargando.js?v=1787360000"></script>
 
 
 
-<script src="views/components/Badge.js?v=1787360000"></script>
+<script defer src="views/components/Badge.js?v=1787360000"></script>
 
 
 
-<script src="views/components/Charts.js?v=1787360000"></script>
+<script defer src="views/components/Charts.js?v=1787360000"></script>
 
 
 
-<script src="views/components/BuscadorEtiquetas.js?v=1787360000"></script>
+<script defer src="views/components/BuscadorEtiquetas.js?v=1787360000"></script>
 
 
 
-<script src="views/components/MenuPerfil.js?v=1790264342"></script>
-<script src="views/components/GuiaPrimerUso.js?v=1790264342"></script>
+<script defer src="views/components/MenuPerfil.js?v=1790264342"></script>
+<script defer src="views/components/GuiaPrimerUso.js?v=1790264342"></script>
 
 
 
-<script src="views/components/FichaTecnica.js?v=1789100000"></script>
+<script defer src="views/components/FichaTecnica.js?v=1789100000"></script>
 
 
 
-<script src="views/components/Paginador.js?v=1787360000"></script>
+<script defer src="views/components/Paginador.js?v=1787360000"></script>
 
 
 
-<script src="views/components/Paginacion.js?v=1790263443"></script>
-<script src="views/components/PanelInvitaciones.js?v=1790263443"></script>
+<script defer src="views/components/Paginacion.js?v=1790263443"></script>
+<script defer src="views/components/PanelInvitaciones.js?v=1790263443"></script>
 
 
 
@@ -866,15 +879,15 @@
 
 
 
-<script src="views/components/EmojiPicker.js?v=1787360000"></script>
+<script defer src="views/components/EmojiPicker.js?v=1787360000"></script>
 
 
 
-<script src="views/components/ConfirmModal.js?v=1787290000"></script>
+<script defer src="views/components/ConfirmModal.js?v=1787290000"></script>
 
 
 
-<script src="views/hooks/usePaginaActual.js?v=1787290000"></script>
+<script defer src="views/hooks/usePaginaActual.js?v=1787290000"></script>
 
 
 
@@ -886,91 +899,91 @@
 
 
 
-<script src="views/Login.js?v=1787370000"></script>
+<script defer src="views/Login.js?v=1787370000"></script>
 
-<script src="views/Dashboard.js?v=1789200006"></script>
+<script defer src="views/Dashboard.js?v=1789200006"></script>
 
-<script src="views/components/CodigoBarras.js?v=1789100000"></script>
-
-
-
-<script src="views/components/Comprobantes.js?v=1789200018"></script>
-<script src="views/MiSuscripcion.js?v=1790263443"></script>
-<script src="views/MiCuenta.js?v=1790284815"></script>
-<script src="views/Contador.js?v=1790284815"></script>
-<script src="views/Provision.js?v=1790284815"></script>
-<script src="views/Tesoreria.js?v=1790140000"></script>
-<script src="views/Promotor.js?v=1790264342"></script>
+<script defer src="views/components/CodigoBarras.js?v=1789100000"></script>
 
 
 
-<script src="views/Caja.js?v=1790198231"></script>
+<script defer src="views/components/Comprobantes.js?v=1789200018"></script>
+<script defer src="views/MiSuscripcion.js?v=1790263443"></script>
+<script defer src="views/MiCuenta.js?v=1790284815"></script>
+<script defer src="views/Contador.js?v=1790350432"></script>
+<script defer src="views/Provision.js?v=1790350432"></script>
+<script defer src="views/Tesoreria.js?v=1790140000"></script>
+<script defer src="views/Promotor.js?v=1790264342"></script>
 
 
 
-<script src="views/CorteCaja.js?v=1789100000"></script>
+<script defer src="views/Caja.js?v=1790198231"></script>
 
 
 
-<script src="views/Cobros.js?v=1790263443"></script>
-<script src="views/Gastos.js?v=1789100000"></script>
+<script defer src="views/CorteCaja.js?v=1789100000"></script>
 
 
 
-<script src="views/Alumnos.js?v=1789200008"></script>
+<script defer src="views/Cobros.js?v=1790263443"></script>
+<script defer src="views/Gastos.js?v=1789100000"></script>
 
 
 
-<script src="views/Familias.js?v=1789200010"></script>
+<script defer src="views/Alumnos.js?v=1789200008"></script>
 
 
 
-<script src="views/Productos.js?v=1787360000"></script>
-<script src="views/Proveedores.js?v=1789100000"></script>
+<script defer src="views/Familias.js?v=1789200010"></script>
 
 
 
-<script src="views/Facturacion.js?v=1787360000"></script>
+<script defer src="views/Productos.js?v=1787360000"></script>
+<script defer src="views/Proveedores.js?v=1789100000"></script>
 
 
 
-<script src="views/Reportes.js?v=1789200011"></script>
+<script defer src="views/Facturacion.js?v=1787360000"></script>
 
 
 
-<script src="views/Recordatorios.js?v=1787360000"></script>
+<script defer src="views/Reportes.js?v=1789200011"></script>
 
 
 
-<script src="views/Escuelas.js?v=1790263443"></script>
+<script defer src="views/Recordatorios.js?v=1787360000"></script>
 
 
 
-<script src="views/Usuarios.js?v=1790198476"></script>
+<script defer src="views/Escuelas.js?v=1790350432"></script>
 
 
 
-<script src="views/Comisiones.js?v=1787390000"></script>
+<script defer src="views/Usuarios.js?v=1790198476"></script>
 
 
 
-<script src="views/SuperReportes.js?v=1789200011"></script>
+<script defer src="views/Comisiones.js?v=1787390000"></script>
 
 
 
-<script src="views/Suscripciones.js?v=1790264342"></script>
+<script defer src="views/SuperReportes.js?v=1789200011"></script>
 
 
 
-<script src="views/Logs.js?v=1787360000"></script>
-
-<script src="views/BusquedaGlobal.js?v=1787360000"></script>
+<script defer src="views/Suscripciones.js?v=1790264342"></script>
 
 
 
-<script src="views/PortalFamilia.js?v=1790264342"></script>
+<script defer src="views/Logs.js?v=1787360000"></script>
 
-<script src="views/Distribuidor.js?v=1790264342"></script>
+<script defer src="views/BusquedaGlobal.js?v=1787360000"></script>
+
+
+
+<script defer src="views/PortalFamilia.js?v=1790264342"></script>
+
+<script defer src="views/Distribuidor.js?v=1790264342"></script>
 
 
 
@@ -982,7 +995,7 @@
 
 
 
-<script src="assets/js/app.js?v=1790264342"></script>
+<script defer src="assets/js/app.js?v=1790264342"></script>
 
 
 

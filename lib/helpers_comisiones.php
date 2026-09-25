@@ -76,6 +76,45 @@ function comision_tramos_en_periodo(PDO $pdo, $referido_id, $periodo) {
             'hasta'        => $hasta,
         ];
     }
+
+    // ── RED DE SEGURIDAD (25-sep-2026, hallada en revisión adversarial) ──
+    //
+    // Sin tramos, el foreach de comision_calcular_periodo() no itera ni una
+    // vez y NO se emite renglón: el referido devenga $0.00 EN SILENCIO. Y en
+    // cuanto el cron cierra el mes, ese cero queda congelado — el invariante
+    // que protege el pasado es justo lo que impide corregirlo después.
+    //
+    // Eso le pasaba a TODO referido creado después de la migración: la siembra
+    // de vigencias vivía solo en el PASO 6 del .sql, que corre una sola vez, y
+    // ninguno de los cuatro caminos que dan de alta un referido la escribía.
+    //
+    // Ahora se cae a la columna cacheada distribuidor_referidos.comision_pct,
+    // que es la que la pantalla ya muestra. El fallo queda A FAVOR del
+    // distribuidor y no en su contra, y el panel deja de decir "5.00%" junto a
+    // "$0.00" — que era la parte silenciosa del problema.
+    //
+    // Los cuatro caminos de alta también siembran la vigencia ahora, así que
+    // esto no debería dispararse nunca. Es el cinturón además del tirante: un
+    // quinto camino que alguien agregue mañana no puede volver a perder
+    // dinero sin avisar.
+    if (!$tramos) {
+        $r = comision_rango_periodo($periodo);
+        $cache = $pdo->prepare("SELECT comision_pct FROM distribuidor_referidos WHERE id = ?");
+        $cache->execute([intval($referido_id)]);
+        $pctCache = $cache->fetchColumn();
+        if ($pctCache !== false) {
+            log_api("comision: referido #$referido_id sin vigencia en $periodo, se usa el cache ($pctCache%). Revisa distribuidor_comision_tasas.");
+            $tramos[] = [
+                // tasa_id NULL: no hay vigencia real detrás. En MySQL varios
+                // NULL no chocan en el UNIQUE uq_devengo, así que esto NO
+                // impide que después se registre la vigencia de verdad.
+                'tasa_id'      => null,
+                'comision_pct' => floatval($pctCache),
+                'desde'        => $r[0],
+                'hasta'        => $r[1],
+            ];
+        }
+    }
     return $tramos;
 }
 
@@ -390,4 +429,62 @@ function comision_recalcular_liquidado(PDO $pdo, $devengo_id) {
                     FROM comision_liquidacion_detalle WHERE devengo_id = ?)
           WHERE id = ?"
     )->execute([intval($devengo_id), intval($devengo_id)]);
+}
+
+
+// Siembra la vigencia INICIAL de un referido recién creado.
+//
+// Se extrae como función propia justamente porque hay CUATRO caminos que dan
+// de alta (o activan) un referido, y la revisión adversarial encontró que
+// ninguno sembraba la vigencia:
+//   · acciones/invitacion_enviar.php        (registro público, sin sesión)
+//   · acciones/invitacion_resolver.php      (aprobación manual)
+//   · acciones/distribuidor_invitar_colegio.php
+//   · acciones/superadmin_editar_referido.php  (al asignarle escuela_id a un
+//                                               prospecto que no la tenía)
+// Con una función compartida, un quinto camino que alguien agregue mañana
+// tiene un solo lugar al que llamar.
+//
+// Es IDEMPOTENTE: si el referido ya tiene vigencia, no hace nada. Así se puede
+// llamar sin miedo desde un flujo que quizá ya la sembró.
+//
+// NUNCA lanza. Un fallo aquí no puede tumbar el alta de un colegio: el motor
+// tiene su propia red de seguridad (ver comision_tramos_en_periodo) y esto
+// queda anotado en api_log.txt.
+function comision_sembrar_vigencia_inicial(PDO $pdo, $referido_id, $registrado_por = null) {
+    $referido_id = intval($referido_id);
+    if (!$referido_id) return false;
+    try {
+        $chk = $pdo->prepare("SELECT id FROM distribuidor_comision_tasas WHERE referido_id = ? LIMIT 1");
+        $chk->execute([$referido_id]);
+        if ($chk->fetch()) return false;   // ya tiene, no se toca
+
+        $ref = $pdo->prepare("SELECT distribuidor_id, escuela_id, comision_pct, fecha_alta FROM distribuidor_referidos WHERE id = ?");
+        $ref->execute([$referido_id]);
+        $r = $ref->fetch();
+        if (!$r) return false;
+
+        // vigente_desde = la fecha de alta del referido, no CURDATE(): si el
+        // referido se creó el 3 y esto corre el 20, el dinero de los días 3 al
+        // 19 tiene que quedar cubierto igual.
+        $desde = $r['fecha_alta'] ?: date('Y-m-d');
+
+        $pdo->prepare(
+            "INSERT INTO distribuidor_comision_tasas
+               (referido_id, distribuidor_id, escuela_id, comision_pct,
+                vigente_desde, vigente_hasta, origen, motivo, registrado_por)
+             VALUES (?,?,?,?,?,NULL,'alta_referido',?,?)"
+        )->execute([
+            $referido_id, intval($r['distribuidor_id']), $r['escuela_id'] ?: null,
+            floatval($r['comision_pct']), $desde,
+            'Vigencia inicial sembrada al dar de alta el referido',
+            $registrado_por ? intval($registrado_por) : null,
+        ]);
+        return true;
+    } catch (\PDOException $e) {
+        // La migración del libro puede no haber corrido todavía. Que el alta
+        // del colegio siga funcionando es más importante que sembrar esto.
+        log_api('comision_sembrar_vigencia_inicial (referido ' . $referido_id . '): ' . $e->getMessage());
+        return false;
+    }
 }

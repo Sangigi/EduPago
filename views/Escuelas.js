@@ -570,6 +570,9 @@ function Escuelas({
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+    // Ver la nota en views/Contador.js: sin esto el Blob queda retenido en la
+    // pestaña hasta cerrarla.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   const tkn = () => AuthController.getToken();

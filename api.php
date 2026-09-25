@@ -266,8 +266,14 @@ $acciones_publicas = ['login', 'invitacion_ver', 'invitacion_enviar', 'invitacio
 if (!in_array($action, $acciones_publicas)) {
     $usuario_actual = verificar_token_auth();
 }
+// JSON_PRETTY_PRINT se quitó el 25-sep-2026. Servía para leer las respuestas a
+// mano, pero lo pagaba el usuario en CADA petición: con sangría de 4 espacios
+// por nivel, una respuesta de cargar_datos viaja ~78% más grande. Y hasta hoy
+// el .htaccess no comprimía nada, así que ese relleno viajaba tal cual por la
+// red. Para depurar a mano no hace falta: el navegador ya formatea el JSON en
+// su pestaña de Red.
 function respond($data) {
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
 }
 // Valida un email opcional (puede venir vacío) antes de guardarlo en BD. Sin

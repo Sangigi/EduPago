@@ -13,6 +13,10 @@
         );
         $stmt->execute([$dist_id, $nombre_colegio, $num_alumnos, $notas]);
         $nuevo_id = intval($pdo->lastInsertId());
+        // Vigencia inicial del porcentaje (25-sep-2026). Este alta nace como
+        // prospecto sin escuela, así que todavía no devenga nada; se siembra
+        // igual para que el día que se le asigne colegio ya la tenga.
+        comision_sembrar_vigencia_inicial($pdo, $nuevo_id, $dist_id);
         registrar_log($pdo, $usuario_actual, 'colegio_referido', "Distribuidor invitó a '$nombre_colegio'", null);
         respond(['success' => true, 'referido' => [
             'id' => $nuevo_id, 'escuela_id' => null, 'nombre' => $nombre_colegio,

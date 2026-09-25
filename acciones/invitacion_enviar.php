@@ -170,6 +170,11 @@
                     (distribuidor_id, escuela_id, nombre_colegio, num_alumnos, estado, comision_pct, fecha_alta)
                  VALUES (?, ?, ?, ?, 'activo', 5.00, CURDATE())"
             )->execute([intval($inv['distribuidor_id']), $escuela_nueva, $nombre, $num_alumnos]);
+            // Vigencia inicial del porcentaje, en la MISMA transacción
+            // (25-sep-2026). Sin esto el referido devengaba $0 en silencio y
+            // ese cero se congelaba al cerrar el mes. Aquí NO hay sesión —
+            // es el registro público— así que registrado_por va NULL.
+            comision_sembrar_vigencia_inicial($pdo, intval($pdo->lastInsertId()), null);
         }
 
         $pdo->prepare(

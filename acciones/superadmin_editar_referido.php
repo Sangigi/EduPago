@@ -44,6 +44,16 @@
         if (array_key_exists('escuela_id', $input)) {
             $escIdRef = intval($input['escuela_id'] ?? 0) ?: null;
             $sets[] = 'escuela_id = ?'; $vals[] = $escIdRef;
+        // CUARTO camino de alta (25-sep-2026): asignarle colegio a un prospecto.
+        //
+        // No crea la fila de distribuidor_referidos, pero sí es el momento en
+        // que ese referido EMPIEZA A DEVENGAR — comision_calcular_periodo()
+        // filtra por `escuela_id IS NOT NULL`. Si no tiene vigencia, devenga
+        // $0 en silencio, igual que los otros tres caminos.
+        //
+        // Se siembra DESPUÉS del UPDATE, más abajo, cuando escuela_id ya está
+        // escrito: comision_sembrar_vigencia_inicial() lo copia de la fila.
+        $sembrarPorEscuela = $escIdRef !== null;
         }
         if (array_key_exists('num_alumnos', $input)) {
             $sets[] = 'num_alumnos = ?'; $vals[] = intval($input['num_alumnos'] ?? 0) ?: null;
@@ -59,6 +69,11 @@
         if (!empty($sets)) {
             $vals[] = $idRef;
             $pdo->prepare("UPDATE distribuidor_referidos SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
+        }
+        // Siembra de la vigencia si este UPDATE acaba de darle colegio a un
+        // prospecto. Es idempotente: si ya tenía vigencia, no hace nada.
+        if (!empty($sembrarPorEscuela)) {
+            comision_sembrar_vigencia_inicial($pdo, $idRef, intval($usuario_actual['user_id'] ?? 0) ?: null);
         }
 
         // El log decía solo "Referido #N actualizado": ni el valor viejo ni el

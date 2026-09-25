@@ -118,7 +118,11 @@ function Provision({ user, onLogout, menuPerfil }) {
         headers: { Authorization: token ? 'Bearer ' + token : '' },
       });
       if (!r.ok) throw new Error('No se pudo descargar');
-      window.open(URL.createObjectURL(await r.blob()), '_blank');
+      const url = URL.createObjectURL(await r.blob());
+      window.open(url, '_blank');
+      // Ver la nota en views/Contador.js: sin esto el Blob queda retenido en la
+      // pestaña hasta cerrarla y el panel se degrada con el uso.
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
       setAviso({ tipo: 'error', txt: e.message });
     }
