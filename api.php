@@ -523,6 +523,22 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'detalle_cobro', 'listar_usuarios', 'listar_gastos',
         'listar_pagos_no_aplicados', 'planteles_de_escuela', 'listar_zonas',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+        // Para poder aclarar con el cliente AL MOMENTO (25-sep-2026). Sin
+        // estas tres, soporte tenía que pedirle al superadmin que mirara por
+        // él justo las tres preguntas más frecuentes: "¿qué pagué de mi
+        // suscripción?", "¿en qué va mi documentación?" y "¿qué datos de
+        // cobro tengo registrados?".
+        //
+        // Las tres son de SOLO LECTURA y validan por dentro. Ojo con el
+        // patrón de tres capas: poner el rol en el requerir_rol de la acción
+        // NO basta, porque este allowlist corre ANTES del despacho.
+        //
+        // 'descargar_documento_escuela' NO se agrega a propósito: soporte
+        // necesita el ESTADO de un documento, no ver el INE escaneado del
+        // representante legal. listar_documentos_escuela le da el estado sin
+        // exponer el archivo.
+        'suscripcion_pagos_listar', 'listar_documentos_escuela',
+        'escuela_obtener_datos_pago',
     ],
     // Captura el identificador del proveedor tras la aprobación del contador.
     //
