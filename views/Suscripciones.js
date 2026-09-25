@@ -795,7 +795,7 @@ function Suscripciones({ data, setData }) {
                     style: { fontSize: 12.5, whiteSpace: 'nowrap', color: excedidoPlanteles ? 'var(--red)' : 'var(--ink-3)' },
                     children: info.max_planteles === null
                       ? `${numPlanteles} (sin límite)`
-                      : [numPlanteles, " / ", info.max_planteles, excedidoPlanteles && ' ⚠']
+                      : [numPlanteles, " / ", info.max_planteles, excedidoPlanteles && ' (excede el plan)']
                   }, void 0, false)
                 }, void 0, false),
                 /*#__PURE__*/_jsxDEV("td", {

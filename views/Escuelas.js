@@ -408,6 +408,10 @@ function Escuelas({
   const [poolData,    setPoolData]    = useState(null);   // { pool, totales }
   const [poolLoading, setPoolLoading] = useState(false);
   const [poolImportTxt, setPoolImportTxt] = useState('');
+  // { tipo: 'ok' | 'error' | 'aviso' | 'info', txt: string } o '' cuando no hay nada.
+  // Antes era un string que empezaba con un emoji, y el color del mensaje se
+  // decidia con startsWith('2705'). Ahora el tipo es explicito y el icono es
+  // uno de los SVG del sistema (views/components/Icons.js).
   const [poolImportMsg, setPoolImportMsg] = useState('');
 
   // ── Secciones habilitadas por escuela ──────────────────────────────────────
@@ -596,19 +600,19 @@ function Escuelas({
 
   // Envía una lista ya parseada de CLABEs al backend e informa el resultado
   const _importarLista = async clabes => {
-    if (!clabes.length) { setPoolImportMsg('⚠ No se encontraron CLABEs válidas (deben ser 18 dígitos)'); return; }
+    if (!clabes.length) { setPoolImportMsg({ tipo: 'aviso', txt: 'No se encontraron CLABEs válidas (deben ser 18 dígitos)' }); return; }
     setPoolLoading(true);
     try {
       const res = await apiPost('importar_clabes', { escuela_id: poolEscId, clabes });
       if (res.success) {
-        setPoolImportMsg(`✅ ${res.insertadas} importadas, ${res.duplicadas} duplicadas ignoradas`);
+        setPoolImportMsg({ tipo: 'ok', txt: `${res.insertadas} importadas, ${res.duplicadas} duplicadas ignoradas` });
         setPoolImportTxt('');
         const res2 = await apiPost('listar_clabes_pool', { escuela_id: poolEscId });
         if (res2.success) setPoolData(res2);
       } else {
-        setPoolImportMsg('❌ ' + res.error);
+        setPoolImportMsg({ tipo: 'error', txt: res.error });
       }
-    } catch(e) { setPoolImportMsg('❌ Error de red'); }
+    } catch(e) { setPoolImportMsg({ tipo: 'error', txt: 'Error de red' }); }
     setPoolLoading(false);
   };
 
@@ -636,10 +640,10 @@ function Escuelas({
     const file = input.files && input.files[0];
     if (!file) return;
     setPoolLoading(true);
-    setPoolImportMsg('Cargando el lector de hojas de cálculo…');
+    setPoolImportMsg({ tipo: 'info', txt: 'Cargando el lector de hojas de cálculo…' });
     const listo = await ExcelExport.asegurarLectorXLSX();
     if (!listo) {
-      setPoolImportMsg('❌ No se pudo cargar el lector de Excel. Revisa tu conexión e intenta de nuevo.');
+      setPoolImportMsg({ tipo: 'error', txt: 'No se pudo cargar el lector de Excel. Revisa tu conexión e intenta de nuevo.' });
       setPoolLoading(false);
       input.value = '';
       return;
@@ -658,13 +662,13 @@ function Escuelas({
         input.value = ''; // permitir re-subir el mismo archivo
         await _importarLista(clabes);
       } catch (err) {
-        setPoolImportMsg('❌ No se pudo leer el archivo: ' + err.message);
+        setPoolImportMsg({ tipo: 'error', txt: 'No se pudo leer el archivo: ' + err.message });
         setPoolLoading(false);
         input.value = '';
       }
     };
     reader.onerror = () => {
-      setPoolImportMsg('❌ Error al leer el archivo');
+      setPoolImportMsg({ tipo: 'error', txt: 'Error al leer el archivo' });
       setPoolLoading(false);
       input.value = '';
     };
@@ -1600,7 +1604,27 @@ function Escuelas({
                     style: { display: 'none' }
                   }, void 0, false),
                   /*#__PURE__*/_jsxDEV("div", {style:{fontSize:11,color:'var(--ink-3)',marginBottom:8}, children:"El archivo puede tener las CLABEs en cualquier columna o fila; el sistema las detecta automáticamente (18 dígitos)."}, void 0, false),
-                  poolImportMsg && /*#__PURE__*/_jsxDEV("div", {style:{fontSize:12,marginBottom:8,color: poolImportMsg.startsWith('✅') ? 'var(--green)':'var(--red)'}, children: poolImportMsg}, void 0, false),
+                  // Icono SVG del sistema (Icons.js) en vez del emoji que
+                  // antes venía pegado al texto. El color y el icono salen del
+                  // `tipo`, no de mirar con qué carácter empieza la cadena.
+                  poolImportMsg ? /*#__PURE__*/_jsxDEV("div", {
+                    style: {
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      fontSize: 12, marginBottom: 8,
+                      color: poolImportMsg.tipo === 'ok'    ? 'var(--green)'
+                           : poolImportMsg.tipo === 'aviso' ? 'var(--amber)'
+                           : poolImportMsg.tipo === 'info'  ? 'var(--ink-3)'
+                           :                                  'var(--red)'
+                    },
+                    children: [
+                      poolImportMsg.tipo === 'info' ? null : /*#__PURE__*/_jsxDEV(Icon, {
+                        name: poolImportMsg.tipo === 'ok' ? 'check'
+                            : poolImportMsg.tipo === 'aviso' ? 'warning' : 'close',
+                        size: 14, color: 'currentColor'
+                      }, 'ic', false),
+                      /*#__PURE__*/_jsxDEV("span", { children: poolImportMsg.txt }, 'tx', false)
+                    ]
+                  }, void 0, true) : null,
                   /*#__PURE__*/_jsxDEV("button", {
                     className:"btn btn-primary btn-sm",
                     onClick: importarClabes,

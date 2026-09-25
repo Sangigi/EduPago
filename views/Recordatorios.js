@@ -455,7 +455,17 @@ function Recordatorios({ data, setData, escuela }) {
                 className: "card",
                 style: {
                   padding: 0, marginBottom: 0, overflow: 'hidden',
-                  borderLeft: '4px solid ' + colorUrgencia(c.urgencia),
+                  // Sin la barra de 4px de color a la izquierda (25-sep-2026).
+                  //
+                  // Marcaba la urgencia, pero eso YA lo dice la fila con
+                  // palabras y con el mismo color: labelUrgencia() más abajo
+                  // pinta "Vencido hace N días" en rojo. La barra repetía ese
+                  // dato en una forma más ruidosa, y con varias tarjetas
+                  // seguidas llenaba la pantalla de rayas rojas que dejaban de
+                  // significar nada.
+                  //
+                  // El `outline` de selección sí se queda: eso no está dicho en
+                  // ningún otro lado.
                   outline: sel ? '2px solid var(--violet)' : 'none'
                 },
                 children: [

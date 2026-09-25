@@ -788,7 +788,7 @@ function Dashboard({
 
             ? `${plantelesEscuela.length} planteles (sin límite)`
 
-            : `${plantelesEscuela.length} / ${info.max_planteles} plantel(es)${excedidoPlt ? ' ⚠' : ''}`
+            : `${plantelesEscuela.length} / ${info.max_planteles} plantel(es)${excedidoPlt ? ' (excede el plan)' : ''}`
 
         }, void 0, false), (excedido || excedidoPlt) && _jsxDEV("span", {
 
