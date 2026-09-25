@@ -1026,37 +1026,49 @@ function App() {
 
     // * Iniciar polling SPEI.
 
-    SpeiPoller.iniciar({
+    // No arranca para los roles de plataforma (25-sep-2026): no tienen cobros
+    // propios, así que cada ciclo de 8 s solo generaba peticiones que el
+    // backend rechaza. El riesgo se volvió CONCRETO al dejar de pedirles
+    // cargar_datos: sin datos del servidor, `data` se queda con el estado
+    // inicial de AppModel, que sí trae cobros SPEI 'pendiente' de demostración
+    // (models/AppModel.js) — el poller los habría intentado verificar en bucle.
+    //
+    // No se pierde ningún pago por esto: el poller es comodidad de interfaz, y
+    // la fuente de verdad del SPEI es el webhook (webhooks/webhook_spei.php
+    // hace el UPDATE a 'pagado' del lado del servidor).
+    if (!ROLES_SIN_CARGAR_DATOS.includes(u.rol)) {
+      SpeiPoller.iniciar({
 
 
 
-      getData: () => dataRef.current,
+        getData: () => dataRef.current,
 
 
 
-      setData: setData,
+        setData: setData,
 
 
 
-      onConfirm: (cobro, json) => {
+        onConfirm: (cobro, json) => {
 
 
 
-        console.log(
+          console.log(
 
-          '[SpeiPoller] Pago confirmado silenciosamente:',
+            '[SpeiPoller] Pago confirmado silenciosamente:',
 
-          cobro.cliente
+            cobro.cliente
 
-        );
-
-
-
-      }
+          );
 
 
 
-    });
+        }
+
+
+
+      });
+    }
 
 
 

@@ -26,6 +26,63 @@ if (!in_array($rol, ['contador', 'provision'], true)) {
 $rutaAbs = rtrim(UPLOADS_PRIVADOS_DIR_ABS, '/\\') . '/' . $doc['ruta_archivo'];
 if (!is_file($rutaAbs)) { http_response_code(404); respond(['success' => false, 'error' => 'El archivo ya no existe en el servidor.']); }
 
+// ── Validadores para poder responder 304 (25-sep-2026) ───────────────────
+//
+// Antes no se mandaba ni ETag ni Last-Modified, y el Cache-Control decía
+// 'no-cache, must-revalidate'. Sin validador, "revalidar" es imposible: la
+// única salida era retransmitir el archivo COMPLETO en cada clic. Quien
+// revisa abre la constancia de un colegio, la cierra, la vuelve a abrir —
+// y pagaba los 10 MB otra vez. Se ve en la pestaña Red: una sesión de
+// revisión de unos pocos documentos movía ~13 MB.
+//
+// Se usa 'no-cache' A PROPÓSITO, y NO 'max-age'. El documento_id SOBREVIVE a
+// una re-subida: subir_documento_escuela.php hace UPDATE sobre la misma fila
+// en vez de insertar otra, así que la MISMA URL puede pasar a apuntar a un
+// archivo distinto. Con max-age, el contador podría seguir viendo la versión
+// vieja después de que el colegio sube la corregida — inaceptable en una
+// pantalla de revisión, donde la decisión se toma sobre lo que se ve.
+//
+// 'no-cache' obliga a preguntar siempre, pero con ETag la respuesta es un 304
+// vacío en vez de 10 MB. Se conserva la corrección y se ahorra la transferencia.
+$mtime  = filemtime($rutaAbs);
+$tamano = filesize($rutaAbs);
+$etag   = '"' . md5($doc['ruta_archivo'] . '|' . $mtime . '|' . $tamano) . '"';
+
+// api.php:157 dejó 'Pragma: no-cache'. Es de HTTP/1.0 y header() no lo pisa
+// (solo reemplaza cabeceras del MISMO nombre), pero algunos navegadores lo
+// tratan como no-store y tirarían la copia guardada, que es justo lo que
+// queremos conservar para que el 304 sirva de algo.
+header_remove('Pragma');
+header('Cache-Control: private, no-cache');
+header('ETag: ' . $etag);
+header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
+
+// If-None-Match puede venir con prefijo débil (W/") o como lista separada por
+// comas; basta con que alguno coincida.
+$noMatch = trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '');
+$coincide = false;
+if ($noMatch !== '') {
+    foreach (explode(',', $noMatch) as $candidato) {
+        $candidato = trim($candidato);
+        if (stripos($candidato, 'W/') === 0) $candidato = substr($candidato, 2);
+        if ($candidato === '*' || $candidato === $etag) { $coincide = true; break; }
+    }
+} else {
+    // Solo se mira la fecha si el cliente no mandó ETag: el ETag es más
+    // preciso y manda cuando están los dos.
+    $desde = trim($_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? '');
+    if ($desde !== '') {
+        $ts = @strtotime($desde);
+        if ($ts !== false && $ts >= $mtime) $coincide = true;
+    }
+}
+if ($coincide) {
+    // Un 304 no lleva cuerpo ni Content-Length: solo le dice al navegador que
+    // la copia que ya tiene sigue siendo válida.
+    http_response_code(304);
+    exit;
+}
+
 // Se transmite con readfile() en vez de file_get_contents()+echo (25-sep-2026).
 //
 // El patrón anterior metía el archivo ENTERO en una variable de PHP (hasta
@@ -43,8 +100,7 @@ if (!is_file($rutaAbs)) { http_response_code(404); respond(['success' => false, 
 header_remove('Content-Type');
 header('Content-Type: ' . ($doc['mime_real'] ?: 'application/octet-stream'));
 header('Content-Disposition: inline; filename="' . basename($doc['nombre_original'] ?: $doc['ruta_archivo']) . '"');
-header('Content-Length: ' . filesize($rutaAbs));
-header('Cache-Control: no-cache, must-revalidate');
+header('Content-Length: ' . $tamano);
 log_api("descargar_documento_escuela -> id={$documento_id} escuela={$doc['escuela_id']}");
 
 // Si el servidor trae output_buffering activo desde php.ini (no lo fijamos
