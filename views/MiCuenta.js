@@ -93,7 +93,13 @@ const MC_GRUPOS_DATOS_PAGO = [
     titulo: 'Datos del representante legal',
     campos: [
       ['rep_legal_nombre', 'Nombre completo', false],
-      ['rep_legal_escritura', 'Número y fecha de escritura', false],
+      // Separados el 25-sep-2026: antes era UN campo de texto libre para dos
+      // datos, y cada quien inventaba su formato ("12345 del 03/05/2019",
+      // "Esc. 12345, 3 de mayo de 2019"...). Va a un trámite formal, así que
+      // la fecha conviene que sea una fecha de verdad. La columna vieja de
+      // texto libre se eliminó en la misma migración: no quedan huérfanas.
+      ['rep_legal_escritura_numero', 'Número de escritura', false],
+      ['rep_legal_escritura_fecha', 'Fecha de la escritura', false, 'date'],
       ['rep_legal_notaria_numero', 'Notaria número', false],
       ['rep_legal_notario_nombre', 'Nombre del notario', false],
       ['rep_legal_ciudad', 'Ciudad', false],
@@ -103,7 +109,8 @@ const MC_GRUPOS_DATOS_PAGO = [
     titulo: 'Datos de la empresa',
     soloMoral: true,
     campos: [
-      ['empresa_escritura', 'Número de escritura y fecha', false],
+      ['empresa_escritura_numero', 'Número de escritura', false],
+      ['empresa_escritura_fecha', 'Fecha de la escritura', false, 'date'],
       ['empresa_folio_rpc', 'Folio del registro público del comercio', false],
       ['empresa_ciudad', 'Ciudad', false],
       ['empresa_notario_nombre', 'Nombre del notario', false],
@@ -455,6 +462,29 @@ function MiCuenta({ escuela, user }) {
             }, 'h')
           }, 'ch'),
           _jsxDEV('div', { style: { marginBottom: 14 }, children: _jsxDEV('span', { className: 'badge ' + estadoEscuela.clase, children: estadoEscuela.label }, void 0, false) }, 'estado'),
+          // Aviso de "ya quedó, ahora espera" (25-sep-2026).
+          //
+          // Cuando el colegio termina de subir sus documentos, la pantalla solo
+          // cambiaba una insignia a "En revisión" y se quedaba callada. Nadie le
+          // decía qué sigue, cuánto tarda, ni que le vamos a avisar — así que la
+          // duda razonable era "¿ya quedó? ¿tengo que hacer algo más?".
+          escuela?.documentacion_estado === 'en_revision' ? _jsxDEV('div', {
+            style: {
+              padding: '12px 14px', background: 'var(--green-glow, rgba(34,197,94,.12))',
+              borderRadius: 'var(--radius-sm)', marginBottom: 14, fontSize: 13,
+              color: 'var(--ink-2)', lineHeight: 1.55,
+            },
+            children: [
+              _jsxDEV('strong', { children: 'Ya recibimos tus documentos. ' }, 'b'),
+              'Nuestro equipo los está revisando; el plazo normal es de 24 a 72 horas hábiles.',
+              _jsxDEV('div', { style: { marginTop: 6 }, children:
+                'No necesitas hacer nada más. Te avisaremos por correo en cuanto haya resultado, y también puedes volver a esta pantalla cuando quieras para ver el estado de cada documento.'
+              }, 'd1'),
+              _jsxDEV('div', { style: { marginTop: 6, fontSize: 12, color: 'var(--ink-3)' }, children:
+                'Si rechazamos alguno, aquí verás el motivo y podrás subir la versión corregida.'
+              }, 'd2'),
+            ]
+          }, 'enrevision') : null,
           !cargandoPago && !formularioCompleto ? _jsxDEV('div', {
             style: { padding: '12px 14px', background: 'rgba(245,158,11,.12)', borderRadius: 'var(--radius-sm)', marginBottom: 14, fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 },
             children: [

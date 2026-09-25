@@ -168,7 +168,8 @@
                 ]);
             }
         } catch (\PDOException $e) {
-            file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | cobro_items no disponible (¿falta migrar tabla?): " . $e->getMessage() . "\n", FILE_APPEND);
+            // Ver la nota en acciones/cargar_datos.php: __DIR__ aqui es acciones/.
+            log_api("crear_cobro: cobro_items no disponible (¿falta migrar tabla?): " . $e->getMessage());
         }
         // Obtener nombre del cliente y recalcular su saldo_pendiente
         $cliente_nombre = 'Cliente general';

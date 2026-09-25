@@ -773,7 +773,11 @@ function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela
             $_SERVER['REMOTE_ADDR'] ?? null,
         ]);
     } catch (\PDOException $e) {
-        file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | registrar_log falló (¿falta migrar logs_sistema?): " . $e->getMessage() . "\n", FILE_APPEND);
+        // __DIR__ aqui es lib/, asi que esto escribia en lib/api_log.txt. No se
+        // puede usar log_api(): este archivo tambien corre desde
+        // cron_recordatorios.php, que no carga lib/curl_helper.php. Mismo
+        // patron defensivo que lib/db.php.
+        file_put_contents(defined('API_LOG_FILE') ? API_LOG_FILE : (__DIR__ . '/../api_log.txt'), date('Y-m-d H:i:s') . " | registrar_log fallo (¿falta migrar logs_sistema?): " . $e->getMessage() . PHP_EOL, FILE_APPEND);
     }
 }
 

@@ -373,7 +373,10 @@
             $stmt->execute([$escuela_id_ver]);
             $recordatorios = $stmt->fetchAll();
         } catch (\PDOException $e) {
-            file_put_contents(__DIR__ . '/api_log.txt', date('Y-m-d H:i:s') . " | recordatorios no disponible (¿falta migrar tabla?): " . $e->getMessage() . "\n", FILE_APPEND);
+            // log_api y no file_put_contents(__DIR__...): __DIR__ aqui es acciones/,
+            // asi que esto escribia en acciones/api_log.txt — un archivo aparte que
+            // nadie mira. log_api() usa API_LOG_FILE (config.php), el log de verdad.
+            log_api("cargar_datos: recordatorios no disponible (¿falta migrar tabla?): " . $e->getMessage());
         }
         respond([
             'success'           => true,
