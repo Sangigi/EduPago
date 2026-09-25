@@ -119,3 +119,63 @@ function planes_para_frontend() {
 // ejecución (depende del interruptor de arriba) y const no admite llamadas
 // a función.
 if (!defined('PLANES_LIMITES')) define('PLANES_LIMITES', planes_tabla());
+
+// ── ¿Está vencida la suscripción de un colegio? ──────────────────────────
+//
+// UNA sola implementación de la regla, a propósito. El candado de api.php y
+// la pantalla del navegador tienen que coincidir exactamente: si cada uno
+// calculara su propia fecha de corte, habría un rango de días en el que la
+// interfaz deja entrar y el backend contesta 402 en cada sección — que es
+// justo el síntoma que reportó el usuario el 25-sep-2026.
+//
+// Por eso cargar_datos manda el resultado de esta función al navegador, en
+// vez de mandar las fechas y que el JavaScript repita la aritmética.
+
+// Cortar a medianoche del día del vencimiento genera una llamada enojada por
+// cada colegio que pague con un día de retraso. El aviso de vencimiento
+// (cron_recordatorios.php) ya salió días antes.
+if (!defined('SUSCRIPCION_DIAS_GRACIA')) define('SUSCRIPCION_DIAS_GRACIA', 5);
+
+/**
+ * @return array{vencida:bool, en_demo:bool, limite:?string, corte:?string, dias_gracia:int}
+ */
+function suscripcion_estado(PDO $pdo, $escuela_id) {
+    $base = ['vencida' => false, 'en_demo' => false, 'limite' => null,
+             'corte' => null, 'dias_gracia' => SUSCRIPCION_DIAS_GRACIA];
+    $escuela_id = intval($escuela_id);
+    if (!$escuela_id) return $base;
+
+    try {
+        $st = $pdo->prepare("SELECT modo, fecha_vencimiento_plan, fecha_fin_prueba FROM escuelas WHERE id = ?");
+        $st->execute([$escuela_id]);
+        $esc = $st->fetch();
+        if (!$esc) return $base;
+
+        $base['en_demo'] = ($esc['modo'] ?? 'activa') === 'demo';
+        // En demo manda fecha_fin_prueba: fecha_vencimiento_plan es solo un
+        // marcador de la creación mientras la escuela está en prueba (ver la
+        // nota de views/MiSuscripcion.js).
+        $base['limite'] = $base['en_demo']
+            ? ($esc['fecha_fin_prueba'] ?: null)
+            : ($esc['fecha_vencimiento_plan'] ?: null);
+
+        if ($base['limite']) {
+            $ts = strtotime($base['limite'] . ' +' . SUSCRIPCION_DIAS_GRACIA . ' days');
+            if ($ts !== false) {
+                $base['corte']   = date('Y-m-d', $ts);
+                $base['vencida'] = $ts < strtotime(date('Y-m-d'));
+            }
+        }
+    } catch (\Throwable $e) {
+        // NUNCA dejar a nadie fuera por un fallo del propio candado: si esto
+        // falla se devuelve "no vencida" y queda registrado. Un colegio usando
+        // el sistema un día de más es mucho menos grave que un cliente al
+        // corriente que no puede entrar.
+        file_put_contents(
+            defined('API_LOG_FILE') ? API_LOG_FILE : (__DIR__ . '/../api_log.txt'),
+            date('Y-m-d H:i:s') . " | suscripcion_estado fallo, se deja pasar: " . $e->getMessage() . PHP_EOL,
+            FILE_APPEND
+        );
+    }
+    return $base;
+}

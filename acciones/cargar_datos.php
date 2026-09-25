@@ -119,6 +119,10 @@
                 // Tabla de planes desde lib/planes.php: las pantallas ya no
                 // llevan su propia copia de los precios (ver ese archivo).
                 'planes'           => planes_tabla(),
+                // El MISMO resultado que usa el candado de api.php, para que la
+                // pantalla de bloqueo no repita la aritmetica de la fecha de
+                // corte y acabe discrepando. Ver suscripcion_estado().
+                'suscripcion'      => suscripcion_estado($pdo, $escuela_id_ver),
                 'escuelas'         => $escuelas,
                 'resumen_escuelas' => $resumen_escuelas,
                 'clientes'         => [],
@@ -383,6 +387,8 @@
             // Tabla de planes desde lib/planes.php: las pantallas ya no
             // llevan su propia copia de los precios (ver ese archivo).
             'planes'            => planes_tabla(),
+            // Ver la nota de la otra respuesta de este archivo.
+            'suscripcion'       => suscripcion_estado($pdo, $escuela_id_ver),
             'escuelas'          => $escuelas,
             'resumen_escuelas'  => $resumen_escuelas,
             'clientes'          => $clientes,

@@ -795,6 +795,10 @@ function App() {
           // que este cambio venia a eliminar: superadmin mostraba los tres
           // planes a 50 aunque el servidor dijera 50/55/60.
           planes: json.planes || null,
+          // El estado de la suscripcion (vencida / en prueba / hasta cuando).
+          // Igual que `planes`, sin esta linea el filtro de arriba lo tiraria y
+          // la pantalla de bloqueo nunca se enteraria.
+          suscripcion: json.suscripcion || null,
         };
 
         return datosApi;
@@ -1499,6 +1503,71 @@ function App() {
 
 
   // * Mientras llegan los datos.
+
+  // ── Suscripción vencida: una sola pantalla, no un error por sección ────
+  //
+  // El candado vive en api.php, pero sin esto la interfaz dejaba navegar a
+  // todas las secciones y cada una reventaba por su cuenta con un 402: el
+  // usuario veía "error" en Caja, "error" en Alumnos, "error" en Cobros, sin
+  // que nadie le dijera POR QUÉ ni qué hacer. Se corta aquí, una vez, con el
+  // camino a pagar a la vista.
+  //
+  // `data.suscripcion` lo calcula suscripcion_estado() en el servidor y viaja
+  // en cargar_datos. No se recalcula aquí a propósito: si el navegador hiciera
+  // su propia cuenta de los días de gracia, habría un rango de fechas en el
+  // que esta pantalla NO aparece y el backend igual contesta 402 — que es
+  // exactamente el síntoma que se está arreglando.
+  var _sus = data && data.suscripcion;
+  if (_sus && _sus.vencida && (user.rol === 'admin' || user.rol === 'cajero') && view !== 'mi_suscripcion') {
+    return _jsxDEV('div', {
+      style: {
+        minHeight: '100vh', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', padding: 24, background: 'var(--bg-main)'
+      },
+      children: _jsxDEV('div', {
+        className: 'card',
+        style: { maxWidth: 460, textAlign: 'center' },
+        children: [
+          _jsxDEV('div', {
+            style: {
+              width: 56, height: 56, margin: '0 auto 14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 'var(--radius)', background: 'var(--amber-glow, var(--glass-light))'
+            },
+            children: _jsxDEV(Icon, { name: 'warning', size: 28, color: 'var(--amber)' }, 'i', false)
+          }, 'ico', false),
+          _jsxDEV('div', {
+            style: { fontWeight: 700, fontSize: 17, color: 'var(--ink)', marginBottom: 6 },
+            children: _sus.en_demo ? 'Tu periodo de prueba terminó' : 'Tu suscripción venció'
+          }, 't', false),
+          _jsxDEV('div', {
+            style: { fontSize: 13.5, color: 'var(--ink-3)', lineHeight: 1.55, marginBottom: 16 },
+            children: _sus.en_demo
+              ? 'Activa tu suscripción para seguir usando el sistema. Tus datos siguen aquí, intactos.'
+              : 'Renuévala para volver a usar el sistema. Tus datos siguen aquí, intactos.'
+          }, 's', false),
+          _sus.limite ? _jsxDEV('div', {
+            style: { fontSize: 12, color: 'var(--ink-4)', marginBottom: 16, fontFamily: 'var(--mono)' },
+            children: (_sus.en_demo ? 'Terminó el ' : 'Venció el ') + _sus.limite
+          }, 'f', false) : null,
+          _jsxDEV('button', {
+            className: 'btn btn-primary',
+            // Manda a la ÚNICA sección que sigue funcionando. Es el motivo por
+            // el que 'mi_suscripcion' está excluida del guard de arriba: dejar
+            // al cliente encerrado fuera de la pantalla donde nos paga sería
+            // el peor final posible.
+            onClick: function () { setView('mi_suscripcion'); },
+            children: _sus.en_demo ? 'Activar mi suscripción' : 'Renovar mi suscripción'
+          }, 'b', false),
+          _jsxDEV('div', { style: { marginTop: 12 },
+            children: _jsxDEV('button', {
+              className: 'btn btn-ghost btn-sm', onClick: handleLogout, children: 'Cerrar sesión'
+            }, 'lo', false)
+          }, 'wrap', false)
+        ]
+      }, 'card', true)
+    }, 'bloqueo', false);
+  }
 
   if (!data) {
 
