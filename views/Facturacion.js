@@ -230,103 +230,58 @@ function Facturacion({
     transition: 'all .15s'
   });
   return /*#__PURE__*/_jsxDEV("div", {
-    children: [/*#__PURE__*/_jsxDEV("div", {
-      style: {
-        marginBottom: 20,
-        padding: '16px 20px',
-        background: 'linear-gradient(135deg,#1e3a8a 0%,#312e81 100%)',
-        borderRadius: 'var(--radius-lg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 12
-      },
-      children: [/*#__PURE__*/_jsxDEV("div", {
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14
-        },
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          style: {
-            display: "flex",
-            justifyContent: "center"
-          },
-          children: /*#__PURE__*/_jsxDEV(Icon, {
-            name: "facturacion2",
-            size: 36,
-            color: "var(--ink-4)"
-          }, void 0, false)
-        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontWeight: 700,
-              fontSize: 15,
-              color: '#fff'
-            },
-            children: "Facturación"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 12,
-              color: 'rgba(255,255,255,.6)',
-              marginTop: 2
-            },
-            children: "Genera y administra tus comprobantes fiscales"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-        style: {
-          display: 'flex',
-          gap: 8
-        },
-        children: [/*#__PURE__*/_jsxDEV("div", {
-          style: {
-            textAlign: 'center',
-            padding: '8px 16px',
-            background: 'rgba(255,255,255,.1)',
-            borderRadius: 'var(--radius-sm)'
-          },
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 18,
-              fontWeight: 700,
-              color: '#fff'
-            },
-            children: emitidas.length
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 10,
-              color: 'rgba(255,255,255,.6)',
-              textTransform: 'uppercase'
-            },
-            children: "Emitidas"
-          }, void 0, false)]
-        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-          style: {
-            textAlign: 'center',
-            padding: '8px 16px',
-            background: 'rgba(255,255,255,.1)',
-            borderRadius: 'var(--radius-sm)'
-          },
-          children: [/*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 18,
-              fontWeight: 700,
-              color: '#fbbf24'
-            },
-            children: pendientesFact.length
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 10,
-              color: 'rgba(255,255,255,.6)',
-              textTransform: 'uppercase'
-            },
-            children: "Sin factura"
-          }, void 0, false)]
-        }, void 0, true)]
-      }, void 0, true)]
-    }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+    // Cabecera con el patrón del resto del sistema (25-sep-2026).
+    //
+    // Antes era una franja con degradado azul-índigo escrito a mano
+    // (#1e3a8a -> #312e81) y texto blanco sobre ella. Esos dos azules no
+    // existen en la paleta del proyecto y el degradado no reaccionaba al
+    // tema: en modo claro quedaba un bloque oscuro en medio de una pantalla
+    // clara, que es justo lo que descolocaba respecto de las demás vistas.
+    //
+    // Ahora usa card + card-header + card-title + card-sub como Cobros,
+    // Gastos y el resto, y los dos contadores pasan a stats-grid/stat-card.
+    // Así heredan tema, hover, y los ajustes de móvil del CSS.
+    children: [
+    /*#__PURE__*/_jsxDEV("div", {
+      className: "card",
+      style: { marginBottom: 20 },
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "card-header",
+        children: /*#__PURE__*/_jsxDEV("div", {
+          style: { display: 'flex', alignItems: 'center', gap: 14 },
+          children: [
+            /*#__PURE__*/_jsxDEV(Icon, { name: "facturacion2", size: 30, color: "var(--ink-4)" }, 'ic', false),
+            /*#__PURE__*/_jsxDEV("div", {
+              children: [
+                /*#__PURE__*/_jsxDEV("div", { className: "card-title", children: "Facturación" }, 't', false),
+                /*#__PURE__*/_jsxDEV("div", { className: "card-sub", children: "Genera y administra tus comprobantes fiscales" }, 's', false)
+              ]
+            }, 'tx', true)
+          ]
+        }, 'h', true)
+      }, void 0, false)
+    }, void 0, false),
+    /*#__PURE__*/_jsxDEV("div", {
+      className: "stats-grid",
+      children: [
+        { label: 'Emitidas',    val: emitidas.length,       meta: 'Con folio fiscal' },
+        { label: 'Sin factura', val: pendientesFact.length, meta: 'Cobros pagados sin CFDI', alerta: pendientesFact.length > 0 }
+      ].map((s, i) => /*#__PURE__*/_jsxDEV("div", {
+        className: "stat-card",
+        children: [
+          /*#__PURE__*/_jsxDEV("div", {
+            className: "stat-value",
+            // El ámbar solo cuando de verdad hay algo sin facturar; antes el
+            // número estaba SIEMPRE en #fbbf24, avisara o no.
+            style: s.alerta ? { color: 'var(--amber)' } : undefined,
+            children: s.val
+          }, 'v', false),
+          /*#__PURE__*/_jsxDEV("div", { className: "stat-label", children: s.label }, 'l', false),
+          /*#__PURE__*/_jsxDEV("div", { className: "stat-meta",  children: s.meta  }, 'm', false)
+        ]
+      }, i, true))
+    }, void 0, false),
+    /*#__PURE__*/_jsxDEV("div", {
       style: {
         display: 'flex',
         gap: 4,
@@ -949,7 +904,10 @@ function Facturacion({
               children: [/*#__PURE__*/_jsxDEV("span", {
                 className: "spinner",
                 style: {
-                  borderTopColor: '#fff',
+                  // currentColor y no '#fff': el spinner sigue al color del
+                  // botón, así no hay que acordarse de cambiarlo si el botón
+                  // primario deja de ser de texto blanco.
+                  borderTopColor: 'currentColor',
                   marginRight: 8
                 }
               }, void 0, false), "Generando…"]
@@ -1000,13 +958,17 @@ function Facturacion({
             style: {
               padding: '12px 16px',
               marginBottom: 16,
-              background: 'linear-gradient(135deg,#1e3a8a,#312e81)',
+              // Mismo criterio que la cabecera: fondo del tema en vez de un
+              // degradado azul fijo que en modo claro queda como un bloque
+              // oscuro suelto dentro de un modal claro.
+              background: 'var(--glass-light)',
+              border: '1px solid var(--border-glow)',
               borderRadius: 'var(--radius)'
             },
             children: [/*#__PURE__*/_jsxDEV("div", {
               style: {
                 fontSize: 10,
-                color: 'rgba(255,255,255,.5)',
+                color: 'var(--ink-3)',
                 marginBottom: 4,
                 textTransform: 'uppercase',
                 letterSpacing: '.5px'
@@ -1017,7 +979,7 @@ function Facturacion({
                 fontFamily: 'var(--mono)',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#fff',
+                color: 'var(--ink)',
                 letterSpacing: .5,
                 wordBreak: 'break-all'
               },
@@ -1033,14 +995,14 @@ function Facturacion({
                 children: [/*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontSize: 10,
-                    color: 'rgba(255,255,255,.4)'
+                    color: 'var(--ink-4)'
                   },
                   children: "Serie / Folio"
                 }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontSize: 12,
-                    color: 'rgba(255,255,255,.85)'
+                    color: 'var(--ink-2)'
                   },
                   children: [cfdiVisor.serie || 'A', "-", cfdiVisor.folio]
                 }, void 0, true)]
@@ -1048,14 +1010,14 @@ function Facturacion({
                 children: [/*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontSize: 10,
-                    color: 'rgba(255,255,255,.4)'
+                    color: 'var(--ink-4)'
                   },
                   children: "Fecha timbrado"
                 }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontSize: 12,
-                    color: 'rgba(255,255,255,.85)'
+                    color: 'var(--ink-2)'
                   },
                   children: cfdiVisor.fecha_timbrado
                 }, void 0, false)]
