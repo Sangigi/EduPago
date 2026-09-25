@@ -110,5 +110,38 @@ const ExcelExport = (() => {
     URL.revokeObjectURL(url);
   }
 
-  return { descargar };
+  // ── Lector de hojas de cálculo (SheetJS), bajo demanda ──────────────────
+  //
+  // Hasta el 25-sep-2026, xlsx.full.min.js (~430 KB desde cdnjs) se cargaba
+  // desde index.html en CADA carga de página y para TODOS los roles. Lo usa
+  // UNA sola función en todo el sistema: la importación de CLABEs desde hoja
+  // de cálculo de views/Escuelas.js, que solo alcanzan superadmin y admin, y
+  // solo cuando eligen un archivo.
+  //
+  // Este módulo, pese a llamarse ExcelExport, NO necesita la librería: genera
+  // el .xls como tabla HTML con estilos inline (ver el comentario de arriba).
+  // Vive aquí porque es el módulo de Excel del proyecto y carga antes que
+  // Escuelas.js, no porque haya una dependencia entre los dos.
+  let _promesaXLSX = null;
+  function asegurarLectorXLSX() {
+    if (typeof XLSX !== 'undefined') return Promise.resolve(true);
+    // Si ya hay una carga en vuelo, reutilizarla: dos clics seguidos en el
+    // botón de importar no deben bajar la librería dos veces.
+    if (_promesaXLSX) return _promesaXLSX;
+    _promesaXLSX = new Promise(resolve => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = () => resolve(typeof XLSX !== 'undefined');
+      s.onerror = () => {
+        // Soltar la promesa para que un reintento vuelva a pedirla: si falló
+        // por un corte de red, el siguiente intento debe poder funcionar.
+        _promesaXLSX = null;
+        resolve(false);
+      };
+      document.head.appendChild(s);
+    });
+    return _promesaXLSX;
+  }
+
+  return { descargar, asegurarLectorXLSX };
 })();

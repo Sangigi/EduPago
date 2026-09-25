@@ -623,16 +623,27 @@ function Escuelas({
     await _importarLista(clabes);
   };
 
-  // Importar desde archivo Excel (.xlsx, .xls) o CSV usando SheetJS
-  const manejarArchivoExcel = e => {
-    const file = e.target.files && e.target.files[0];
+  // Importar desde archivo Excel (.xlsx, .xls) o CSV usando SheetJS.
+  //
+  // La librería se pide AQUÍ, no desde index.html (25-sep-2026): son ~430 KB
+  // de cdnjs que antes pagaban TODOS los roles en CADA carga de página, para
+  // una función que solo existe en esta pantalla y que solo alcanzan
+  // superadmin y admin. Ver asegurarLectorXLSX() en assets/js/ExcelExport.js.
+  const manejarArchivoExcel = async e => {
+    // Guardar la referencia al <input> ANTES del await: una vez que se cede el
+    // hilo no conviene seguir dependiendo de que el evento siga intacto.
+    const input = e.target;
+    const file = input.files && input.files[0];
     if (!file) return;
-    if (typeof XLSX === 'undefined') {
+    setPoolLoading(true);
+    setPoolImportMsg('Cargando el lector de hojas de cálculo…');
+    const listo = await ExcelExport.asegurarLectorXLSX();
+    if (!listo) {
       setPoolImportMsg('❌ No se pudo cargar el lector de Excel. Revisa tu conexión e intenta de nuevo.');
-      e.target.value = '';
+      setPoolLoading(false);
+      input.value = '';
       return;
     }
-    setPoolLoading(true);
     setPoolImportMsg('');
     const reader = new FileReader();
     reader.onload = async ev => {
@@ -644,18 +655,18 @@ function Escuelas({
         // Junta TODAS las celdas de TODAS las columnas y filas, y extrae secuencias de 18 dígitos
         const textoCompleto = filas.flat().join(' ');
         const clabes = (textoCompleto.match(/\d{18}/g) || []);
-        e.target.value = ''; // permitir re-subir el mismo archivo
+        input.value = ''; // permitir re-subir el mismo archivo
         await _importarLista(clabes);
       } catch (err) {
         setPoolImportMsg('❌ No se pudo leer el archivo: ' + err.message);
         setPoolLoading(false);
-        e.target.value = '';
+        input.value = '';
       }
     };
     reader.onerror = () => {
       setPoolImportMsg('❌ Error al leer el archivo');
       setPoolLoading(false);
-      e.target.value = '';
+      input.value = '';
     };
     reader.readAsArrayBuffer(file);
   };

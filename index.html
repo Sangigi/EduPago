@@ -23,6 +23,11 @@
 
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- La hoja de estilos viene de fonts.googleapis.com pero los archivos .woff2
+     viven en fonts.gstatic.com, que es OTRO host: sin este preconnect el
+     navegador no abre esa conexión (DNS + TCP + TLS) hasta que termina de
+     leer el CSS, y hasta entonces no hay texto con la tipografía final. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
 
 
@@ -733,7 +738,7 @@
      del .htaccess prohíbe unsafe-inline, así que no existe código que
      pudiera correr antes de los deferidos y encontrarse sin sus globales.
      Tampoco hay ningún addEventListener(DOMContentLoaded) en el repo. -->
-<script defer src="assets/js/intro-splash.js?v=1790350432"></script>
+<script defer src="assets/js/intro-splash.js?v=1790351208"></script>
 
 
 
@@ -749,7 +754,12 @@
 
 
 
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- xlsx.full.min.js (SheetJS, ~430 KB) ya NO se carga aquí (25-sep-2026).
+     Lo usaban dos líneas de views/Escuelas.js —importar CLABEs desde una hoja
+     de cálculo—, pero lo pagaba TODO el sistema en CADA carga de página.
+     Ahora se pide bajo demanda, al elegir el archivo: ver asegurarLectorXLSX()
+     en assets/js/ExcelExport.js. Ojo: ExcelExport NO depende de esta librería,
+     genera el .xls como tabla HTML. -->
 
 
 
@@ -792,7 +802,7 @@
 <!-- Cliente HTTP compartido: fetch + header de auth + logout en 401 -->
 <script defer src="assets/js/ApiClient.js?v=1787360000"></script>
 <script defer src="assets/js/CSVExport.js?v=1787360000"></script>
-<script defer src="assets/js/ExcelExport.js?v=1787380000"></script>
+<script defer src="assets/js/ExcelExport.js?v=1790351208"></script>
 
 
 
@@ -955,7 +965,7 @@
 
 
 
-<script defer src="views/Escuelas.js?v=1790350859"></script>
+<script defer src="views/Escuelas.js?v=1790351208"></script>
 
 
 
