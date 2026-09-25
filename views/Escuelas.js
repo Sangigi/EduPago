@@ -562,18 +562,13 @@ function Escuelas({
     setRevisandoDoc(null);
   };
 
-  const descargarDocumentoEsc = async doc => {
-    const res = await fetch('api.php?action=descargar_documento_escuela&documento_id=' + doc.id, {
-      headers: { Authorization: 'Bearer ' + tkn() },
-    });
-    if (!res.ok) { alert('No se pudo descargar el documento.'); return; }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    // Ver la nota en views/Contador.js: sin esto el Blob queda retenido en la
-    // pestaña hasta cerrarla.
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  };
+  // Ver abrirDocumentoPrivado en views/components/Comprobantes.js.
+  const descargarDocumentoEsc = doc =>
+    abrirDocumentoPrivado(
+      'api.php?action=descargar_documento_escuela&documento_id=' + doc.id,
+      tkn(),
+      doc.nombre_original
+    );
 
   const tkn = () => AuthController.getToken();
   const apiPost = async (action, body) => {

@@ -34,6 +34,11 @@ var _jsxDEV = function(type, props, key, _s, _src, _self) {
 // aterrizar en una sección que su propio menú no incluye se ve como una
 // pantalla en blanco, sin ningún mensaje de error que lo explique.
 const VISTA_INICIAL_POR_ROL = { soporte: 'busqueda_global' };
+// Roles de plataforma cuyos paneles traen su propia información y NUNCA leen
+// `data` (sus ramas de render devuelven antes del guard `if (!data)`). Pedir
+// cargar_datos para ellos era trabajo de servidor tirado a la basura en cada
+// carga de página. Ver el efecto de restauración de sesión.
+const ROLES_SIN_CARGAR_DATOS = ['contador', 'provision', 'distribuidor', 'promotor', 'tesoreria'];
 
 const NAV_ITEMS = [{
 
@@ -846,25 +851,24 @@ function App() {
 
 
 
-      cargarDatosDesdeAPI(
-
-        session.token,
-
-        session.escuela_id
-
-      ).then(loaded => {
-
-
-
-        setData(loaded);
-
-
-
-        dataRef.current = loaded;
-
-
-
-      });
+      // Los roles de plataforma NO piden cargar_datos (25-sep-2026).
+      //
+      // Cada uno de estos paneles trae su propia información con su propia
+      // acción (contador_listar_escuelas, provision_listar_pendientes,
+      // tesoreria_cuentas_por_pagar...) y ninguno recibe `data` como prop: sus
+      // ramas de render devuelven ANTES del guard `if (!data)` de más abajo.
+      // Aun así, hasta hoy TODOS pagaban cargar_datos en CADA recarga —la
+      // petición más cara del arranque, ~18 consultas y el payload más grande
+      // del sistema— solo para tirar el resultado a la basura.
+      if (!ROLES_SIN_CARGAR_DATOS.includes(session.rol)) {
+        cargarDatosDesdeAPI(
+          session.token,
+          session.escuela_id
+        ).then(loaded => {
+          setData(loaded);
+          dataRef.current = loaded;
+        });
+      }
 
 
 
@@ -989,25 +993,15 @@ function App() {
 
     // * Cargar datos frescos de la DB.
 
-    cargarDatosDesdeAPI(
-
-      u.token,
-
-      u.escuela_id
-
-    ).then(loaded => {
-
-
-
-      setData(loaded);
-
-
-
-      dataRef.current = loaded;
-
-
-
-    });
+    if (!ROLES_SIN_CARGAR_DATOS.includes(u.rol)) {
+      cargarDatosDesdeAPI(
+        u.token,
+        u.escuela_id
+      ).then(loaded => {
+        setData(loaded);
+        dataRef.current = loaded;
+      });
+    }
 
 
 

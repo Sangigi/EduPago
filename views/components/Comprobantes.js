@@ -105,6 +105,67 @@ function abrirDocumentoImprimible(html) {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
 }
 
+// Abre un documento privado de la API en una pestaña nueva, sin que el
+// bloqueador de pop-ups lo mate en silencio. (25-sep-2026)
+//
+// EL PROBLEMA QUE RESUELVE. Estos documentos no se pueden enlazar directo
+// porque la API exige la cabecera Authorization, así que hay que bajarlos con
+// fetch() y abrirlos como blob:. Pero eso mete dos await entre el clic y el
+// window.open, y para entonces el navegador ya da por gastada la "activación
+// transitoria" del usuario — porque window.open() la CONSUME. Con un solo
+// clic y una respuesta rápida a veces alcanzaba (de ahí el "a veces sí abre").
+// Al pulsar varios documentos seguidos, el primero que respondía se llevaba la
+// activación y el navegador bloqueaba el resto EN SILENCIO: window.open()
+// devuelve null cuando lo bloquean, y ninguno de los tres paneles lo miraba.
+//
+// LA SOLUCIÓN. Pedir la pestaña SÍNCRONA, dentro del gesto, y navegarla cuando
+// llega el blob. Si aun así la bloquean, se cae a una descarga con <a download>,
+// que ningún bloqueador toca — antes de eso el botón simplemente no hacía nada.
+//
+// Devuelve true si el documento llegó a mostrarse o descargarse.
+async function abrirDocumentoPrivado(url, token, nombreSugerido, avisar) {
+  const aviso = typeof avisar === 'function' ? avisar : (m) => alert(m);
+
+  // Paso 1: la pestaña se pide AQUÍ, antes de cualquier await: es lo único que
+  //    corre todavía dentro de la activación del clic.
+  let ventana = null;
+  try { ventana = window.open('', '_blank'); } catch (e) { ventana = null; }
+
+  let blobUrl = null;
+  try {
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + (token || '') } });
+    if (!res.ok) throw new Error('No se pudo descargar el documento.');
+    blobUrl = URL.createObjectURL(await res.blob());
+  } catch (e) {
+    // Si la descarga falla, cerrar la pestaña en blanco que ya abrimos: dejarla
+    // colgada sería peor que el fallo original.
+    if (ventana) { try { ventana.close(); } catch (e2) {} }
+    aviso(e.message || 'No se pudo descargar el documento.');
+    return false;
+  }
+
+  if (ventana) {
+    ventana.location = blobUrl;
+  } else {
+    // Un <a download> sintético no consume activación transitoria y el
+    // bloqueador de pop-ups no lo toca, así que el usuario se queda con el
+    // archivo aunque tenga los pop-ups cerrados.
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = nombreSugerido || 'documento';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    aviso('Tu navegador bloqueó la ventana emergente, así que el documento se descargó. Si prefieres verlo en una pestaña, permite las ventanas emergentes de este sitio.');
+  }
+
+  // Mismo plazo que abrirDocumentoImprimible: hay que darle tiempo a la pestaña
+  // (o a la descarga) a consumir la URL antes de invalidarla. Sin este revoke
+  // el Blob queda retenido y el panel se degrada a lo largo de la jornada.
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  return true;
+}
+
 const _CSS_COMPROBANTE = `
   * { box-sizing: border-box; }
   body { margin: 0; padding: 24px; background: #eef0f5; font-family: 'Segoe UI', Arial, sans-serif; color: #1e2430; }

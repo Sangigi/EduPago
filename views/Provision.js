@@ -111,22 +111,16 @@ function Provision({ user, onLogout, menuPerfil }) {
     setDocsCargando(false);
   };
 
-  const descargarDoc = async (doc) => {
-    try {
-      const token = AuthController.getToken ? AuthController.getToken() : '';
-      const r = await fetch('api.php?action=descargar_documento_escuela&documento_id=' + doc.id, {
-        headers: { Authorization: token ? 'Bearer ' + token : '' },
-      });
-      if (!r.ok) throw new Error('No se pudo descargar');
-      const url = URL.createObjectURL(await r.blob());
-      window.open(url, '_blank');
-      // Ver la nota en views/Contador.js: sin esto el Blob queda retenido en la
-      // pestaña hasta cerrarla y el panel se degrada con el uso.
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (e) {
-      setAviso({ tipo: 'error', txt: e.message });
-    }
-  };
+  // Ver abrirDocumentoPrivado en views/components/Comprobantes.js: abre la
+  // pestaña dentro del gesto del clic para que el bloqueador de pop-ups no la
+  // mate, avisa si aun así la bloquea, y libera el blob.
+  const descargarDoc = (doc) =>
+    abrirDocumentoPrivado(
+      'api.php?action=descargar_documento_escuela&documento_id=' + doc.id,
+      AuthController.getToken ? AuthController.getToken() : '',
+      doc.nombre_original,
+      (m) => setAviso({ tipo: 'error', txt: m })
+    );
 
   const revisarDoc = async (doc, accion) => {
     let motivo = '';

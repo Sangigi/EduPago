@@ -134,23 +134,16 @@ function Contador({ user, onLogout, menuPerfil }) {
     }
   };
 
-  const descargarDocumento = async (doc) => {
-    const res = await fetch('api.php?action=descargar_documento_escuela&documento_id=' + doc.id, {
-      headers: { Authorization: 'Bearer ' + tkn() },
-    });
-    if (!res.ok) { alert('No se pudo descargar el documento.'); return; }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    // Liberar el object URL (25-sep-2026). Antes no se hacía nunca: cada
-    // documento visto dejaba su Blob (hasta 10 MB, ver UPLOADS_MAX_BYTES_DOCUMENTO)
-    // retenido en la pestaña hasta cerrarla. Revisar 20 colegios de 6 documentos
-    // acumulaba cientos de MB en un panel que, por ser SPA, nunca recarga — y el
-    // navegador se iba poniendo lento durante la jornada. Los 60 s son el mismo
-    // plazo que ya usaba views/components/Comprobantes.js: hay que darle tiempo a
-    // la pestaña nueva a consumir la URL antes de invalidarla.
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  };
+  // Toda la mecánica (pestaña abierta dentro del gesto, aviso si el navegador
+  // la bloquea, caída a descarga y liberación del blob) vive en
+  // abrirDocumentoPrivado, en views/components/Comprobantes.js — compartida
+  // con Provisión y con Escuelas para no mantener tres copias.
+  const descargarDocumento = (doc) =>
+    abrirDocumentoPrivado(
+      'api.php?action=descargar_documento_escuela&documento_id=' + doc.id,
+      tkn(),
+      doc.nombre_original
+    );
 
   const guardarIdExterno = async () => {
     if (!adminEsc || !idExterno.trim()) return;
