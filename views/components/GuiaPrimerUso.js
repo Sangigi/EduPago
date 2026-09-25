@@ -264,6 +264,216 @@ var GUIA_DIBUJOS = {
       _gRect(12, 54, 256, 20, 0.05), _gRect(24, 60, 112, 7, 0.22), _gCirc(250, 64, 7, 0.85, _AM),
       _gRect(12, 78, 256, 20, 0.05), _gRect(24, 84, 76, 7, 0.22), _gCirc(250, 88, 7, 0.12)
     ]);
+  },
+
+  // ── Bienvenida ─────────────────────────────────────────────────────────
+  // No señala nada: es la portada del recorrido. Un colegio con su techo, y
+  // debajo la línea de acento que usa toda la marca.
+  _bienvenida: function () {
+    return _gLienzo([
+      _hG('polyline', {
+        key: 'techo', fill: 'none', stroke: _AC, strokeWidth: 3,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.9,
+        points: '96,44 140,18 184,44'
+      }),
+      _gRect(104, 44, 72, 42, 0.10),
+      _gRect(116, 56, 16, 16, 0.26),
+      _gRect(148, 56, 16, 16, 0.26),
+      _gRect(132, 74, 16, 12, 0.5, _AC),
+      _gCirc(70, 78, 5, 0.18), _gCirc(210, 78, 5, 0.18),
+      _gRect(52, 94, 176, 4, 0.7, _AC, 2)
+    ]);
+  },
+
+  // ── CONTADOR ───────────────────────────────────────────────────────────
+  // Cola de colegios esperando revisión: dos pendientes y uno resuelto.
+  _c1: function () {
+    return _gLienzo([
+      _gRect(12, 8, 256, 26, 0.05), _gRect(24, 16, 96, 7, 0.22), _gCirc(248, 21, 7, 0.85, _AM),
+      _gRect(12, 39, 256, 26, 0.05), _gRect(24, 47, 118, 7, 0.22), _gCirc(248, 52, 7, 0.85, _AM),
+      _gRect(12, 70, 256, 26, 0.05), _gRect(24, 78, 80, 7, 0.22), _gCirc(248, 83, 7, 0.85, _VE)
+    ]);
+  },
+  // Un documento rechazado y el motivo saliendo hacia un sobre.
+  _c2: function () {
+    return _gLienzo([
+      _gRect(14, 14, 104, 76, 0.07),
+      _gRect(26, 26, 64, 5, 0.2), _gRect(26, 38, 78, 5, 0.14), _gRect(26, 50, 52, 5, 0.14),
+      _gRect(26, 66, 66, 12, 0.55, _AM),
+      _hG('polyline', {
+        key: 'fl', fill: 'none', stroke: _AC, strokeWidth: 2.4,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.85,
+        points: '128,52 166,52'
+      }),
+      _hG('polyline', {
+        key: 'pt', fill: 'none', stroke: _AC, strokeWidth: 2.4,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.85,
+        points: '158,45 166,52 158,59'
+      }),
+      _gRect(180, 32, 86, 56, 0.1),
+      _hG('polyline', {
+        key: 'sobre', fill: 'none', stroke: 'currentColor', strokeWidth: 2.2,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.5,
+        points: '180,36 223,64 266,36'
+      })
+    ]);
+  },
+  // El campo de ID, apagado: ya no le toca a este rol.
+  _c3: function () {
+    return _gLienzo([
+      _gRect(40, 30, 200, 44, 0.05),
+      _gRect(56, 42, 60, 5, 0.14),
+      _gRect(56, 54, 120, 10, 0.10),
+      _hG('line', {
+        key: 'tach', stroke: 'currentColor', strokeWidth: 2.4, strokeLinecap: 'round',
+        opacity: 0.45, x1: 52, y1: 76, x2: 228, y2: 26
+      })
+    ]);
+  },
+
+  // ── PROVISIÓN ──────────────────────────────────────────────────────────
+  // Cola: aprobados por contador, esperando su ID.
+  _p1: function () {
+    return _gLienzo([
+      _gRect(12, 8, 256, 26, 0.05), _gRect(24, 16, 90, 7, 0.22), _gCirc(232, 21, 7, 0.85, _VE), _gRect(244, 17, 14, 8, 0.12),
+      _gRect(12, 39, 256, 26, 0.05), _gRect(24, 47, 112, 7, 0.22), _gCirc(232, 52, 7, 0.85, _VE), _gRect(244, 48, 14, 8, 0.12),
+      _gRect(12, 70, 256, 26, 0.05), _gRect(24, 78, 72, 7, 0.22), _gCirc(232, 83, 7, 0.85, _VE), _gRect(244, 79, 14, 8, 0.12)
+    ]);
+  },
+  // Un documento con el sello de rechazo por encima de una palomita previa.
+  _p2: function () {
+    return _gLienzo([
+      _gRect(90, 10, 100, 84, 0.07),
+      _gRect(104, 24, 56, 5, 0.2), _gRect(104, 36, 72, 5, 0.14), _gRect(104, 48, 48, 5, 0.14),
+      _gCirc(120, 76, 9, 0.28, _VE),
+      _gCirc(160, 76, 9, 0.9, _AM),
+      // Dos líneas y no un polyline con "M": `points` solo acepta pares de
+      // coordenadas, los comandos de path (M, L...) ahí no valen y el aspa
+      // habría salido como una sola diagonal.
+      _hG('line', {
+        key: 'x1', stroke: 'var(--bg-surface)', strokeWidth: 2.2, strokeLinecap: 'round',
+        opacity: 0.95, x1: 156, y1: 72, x2: 164, y2: 80
+      }),
+      _hG('line', {
+        key: 'x2', stroke: 'var(--bg-surface)', strokeWidth: 2.2, strokeLinecap: 'round',
+        opacity: 0.95, x1: 164, y1: 72, x2: 156, y2: 80
+      })
+    ]);
+  },
+  // El ID capturado y el aviso que sale al colegio.
+  _p3: function () {
+    return _gLienzo([
+      _gRect(24, 28, 150, 48, 0.05),
+      _gRect(38, 38, 54, 5, 0.14),
+      _gRect(38, 50, 112, 12, 0.6, _AC),
+      _gCirc(214, 52, 20, 0.12),
+      _hG('polyline', {
+        key: 'ok', fill: 'none', stroke: _VE, strokeWidth: 3,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.95,
+        points: '205,52 212,59 225,44'
+      })
+    ]);
+  },
+
+  // ── TESORERÍA ──────────────────────────────────────────────────────────
+  // Cuentas por pagar ordenadas por vencimiento: la primera urge.
+  _t1: function () {
+    return _gLienzo([
+      _gRect(12, 8, 256, 26, 0.05), _gRect(24, 16, 84, 7, 0.22), _gRect(214, 15, 44, 9, 0.75, _AM),
+      _gRect(12, 39, 256, 26, 0.05), _gRect(24, 47, 106, 7, 0.22), _gRect(214, 46, 44, 9, 0.28),
+      _gRect(12, 70, 256, 26, 0.05), _gRect(24, 78, 68, 7, 0.22), _gRect(214, 77, 44, 9, 0.28)
+    ]);
+  },
+  // Marcado como pagado: palomita y la fecha que queda registrada.
+  _t2: function () {
+    return _gLienzo([
+      _gRect(28, 30, 224, 44, 0.06),
+      _gRect(44, 40, 88, 6, 0.2), _gRect(44, 54, 56, 5, 0.12),
+      _gCirc(216, 52, 15, 0.9, _VE),
+      _hG('polyline', {
+        key: 'ok', fill: 'none', stroke: 'var(--bg-surface)', strokeWidth: 2.6,
+        strokeLinecap: 'round', strokeLinejoin: 'round',
+        points: '209,52 214,57 224,46'
+      })
+    ]);
+  },
+
+  // ── DISTRIBUIDOR / PROMOTOR ────────────────────────────────────────────
+  // Una liga que sale hacia un colegio.
+  _d1: function () {
+    return _gLienzo([
+      _gRect(16, 40, 120, 24, 0.10),
+      _gRect(28, 48, 84, 8, 0.5, _AC),
+      _hG('polyline', {
+        key: 'fl', fill: 'none', stroke: _AC, strokeWidth: 2.4,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.85,
+        points: '146,52 184,52'
+      }),
+      _hG('polyline', {
+        key: 'pt', fill: 'none', stroke: _AC, strokeWidth: 2.4,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.85,
+        points: '176,45 184,52 176,59'
+      }),
+      _hG('polyline', {
+        key: 'techo', fill: 'none', stroke: 'currentColor', strokeWidth: 2.6,
+        strokeLinecap: 'round', strokeLinejoin: 'round', opacity: 0.45,
+        points: '200,44 232,24 264,44'
+      }),
+      _gRect(208, 44, 48, 34, 0.10)
+    ]);
+  },
+  // Referidos con su comisión.
+  _d2: function () {
+    return _gLienzo([
+      _gFila(10, 108, true), _gRect(216, 13, 44, 9, 0.75, _AC),
+      _gFila(42, 92), _gRect(216, 45, 44, 9, 0.28),
+      _gFila(74, 124), _gRect(216, 77, 44, 9, 0.28)
+    ]);
+  },
+  // Mismo dibujo de liga para el promotor: hace lo mismo.
+  _m1: function () { return GUIA_DIBUJOS._d1(); },
+  // Referidos SIN la columna de comisión: ese es justo el punto del paso.
+  _m2: function () {
+    return _gLienzo([
+      _gFila(10, 108, true), _gRect(216, 13, 44, 9, 0.08),
+      _gFila(42, 92), _gRect(216, 45, 44, 9, 0.08),
+      _gFila(74, 124), _gRect(216, 77, 44, 9, 0.08),
+      _hG('line', {
+        key: 'tach', stroke: 'currentColor', strokeWidth: 2.4, strokeLinecap: 'round',
+        opacity: 0.5, x1: 210, y1: 92, x2: 266, y2: 8
+      })
+    ]);
+  },
+
+  // ── FAMILIA ────────────────────────────────────────────────────────────
+  // Lo que se debe, por hijo.
+  _f1: function () {
+    return _gLienzo([
+      _gRect(12, 8, 256, 26, 0.05), _gRect(24, 16, 76, 7, 0.22), _gRect(206, 14, 52, 10, 0.75, _AC),
+      _gRect(12, 39, 256, 26, 0.05), _gRect(24, 47, 96, 7, 0.22), _gRect(206, 45, 52, 10, 0.28),
+      _gRect(12, 70, 256, 26, 0.05), _gRect(24, 78, 64, 7, 0.22), _gRect(206, 76, 52, 10, 0.28)
+    ]);
+  },
+  // Tres formas de pagar.
+  _f2: function () {
+    return _gLienzo([
+      _gRect(16, 26, 72, 52, 0.10), _gRect(26, 38, 40, 6, 0.3), _gRect(26, 56, 52, 10, 0.75, _AC),
+      _gRect(104, 26, 72, 52, 0.10), _gRect(114, 38, 44, 6, 0.3), _gRect(114, 56, 34, 10, 0.24),
+      _gRect(192, 26, 72, 52, 0.10), _gRect(202, 38, 36, 6, 0.3), _gRect(202, 56, 46, 10, 0.24)
+    ]);
+  },
+  // Comprobantes guardados, uno con su factura.
+  _f3: function () {
+    return _gLienzo([
+      _gRect(30, 14, 96, 76, 0.07), _gRect(44, 28, 56, 5, 0.2), _gRect(44, 40, 68, 5, 0.14), _gRect(44, 52, 44, 5, 0.14),
+      _gRect(154, 14, 96, 76, 0.07), _gRect(168, 28, 56, 5, 0.2), _gRect(168, 40, 68, 5, 0.14),
+      _gCirc(226, 74, 11, 0.9, _VE),
+      _hG('polyline', {
+        key: 'ok', fill: 'none', stroke: 'var(--bg-surface)', strokeWidth: 2.4,
+        strokeLinecap: 'round', strokeLinejoin: 'round',
+        points: '220,74 225,79 233,68'
+      })
+    ]);
   }
 };
 
@@ -393,13 +603,26 @@ function GuiaPrimerUso({ seccionesVisibles, escuela, rol, onIrA, onCerrar }) {
   // Los roles de PLATAFORMA tienen su propio recorrido corto y NO pasan por el
   // filtro de secciones: sus paneles no tienen menú lateral, así que
   // seccionesVisibles no significa nada ahí.
+  // La bienvenida abre el recorrido para TODOS los roles (25-sep-2026).
+  //
+  // Su id no existe como data-nav en ningún lado, y eso es a propósito: el
+  // efecto de medición no encuentra ancla, cae solo al modo centrado y la
+  // tarjeta queda en medio de la pantalla. No hace falta ningún caso especial.
+  //
+  // Va aquí y no dentro de cada arreglo de GUIA_PASOS_POR_ROL para no repetir
+  // el mismo paso siete veces y que se desincronicen con el tiempo.
+  var PASO_BIENVENIDA = {
+    id: '_bienvenida',
+    titulo: 'Bienvenido a Paga la Escuela',
+    texto: 'En menos de un minuto te mostramos dónde está cada cosa. Puedes salirte cuando quieras, y volver a ver esta guía desde tu menú de perfil.'
+  };
   var pasosRol = GUIA_PASOS_POR_ROL[rol];
-  var pasos = pasosRol ? pasosRol : GUIA_PASOS.filter(function (p) {
+  var pasos = [PASO_BIENVENIDA].concat(pasosRol ? pasosRol : GUIA_PASOS.filter(function (p) {
     // `siempre` = no es una sección del menú (el botón de tema, el pie del
     // sidebar), así que no tiene caso buscarlo en seccionesVisibles.
     if (p.siempre) return true;
     return !seccionesVisibles || seccionesVisibles.indexOf(p.id) !== -1;
-  });
+  }));
 
   var idx = Math.min(paso, Math.max(pasos.length - 1, 0));
   var actual = pasos[idx];
