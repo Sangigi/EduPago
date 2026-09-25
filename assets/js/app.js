@@ -230,6 +230,14 @@ const NAV_ITEMS = [{
 
 }, {
 
+  id: 'soporte_escuela',
+  label: 'Ficha de colegio',
+  icon: 'escuelas',
+  section: 'superadmin',
+  // Solo soporte y superadmin: es una vista de SOLO LECTURA pensada para
+  // atender al cliente por telefono, no para operar el colegio.
+  roles: ['superadmin', 'soporte']
+}, {
   id: 'busqueda_global',
 
   label: 'Búsqueda Global',
@@ -367,6 +375,7 @@ const TITLES = {
   logs: 'Logs del Sistema',
 
   busqueda_global: 'Búsqueda Global',
+  soporte_escuela: 'Ficha de colegio',
 
   superreportes: 'Métricas Globales',
 
@@ -2658,6 +2667,13 @@ function App() {
 
 
 
+      // Ficha de colegio para soporte (25-sep-2026). Recibe `data` completo
+      // porque soporte tiene alcance global (rol_alcance_global en api.php) y
+      // por tanto data.escuelas ya trae todos los colegios: la pantalla elige
+      // uno y pide SOLO lo que no viene en cargar_datos (suscripción,
+      // documentos, datos de comercio).
+      case 'soporte_escuela':
+        return _jsxDEV(SoporteEscuela, { data: data }, void 0, false);
       case 'busqueda_global':
 
 
