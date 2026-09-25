@@ -790,6 +790,11 @@ function App() {
           proveedores: json.proveedores || [],
           cobros: json.cobros || [],
           recordatorios: json.recordatorios || [],
+          // Tabla de planes (lib/planes.php). Sin esta linea el filtro de arriba
+          // la descartaba y las pantallas caian a su copia local, que es lo
+          // que este cambio venia a eliminar: superadmin mostraba los tres
+          // planes a 50 aunque el servidor dijera 50/55/60.
+          planes: json.planes || null,
         };
 
         return datosApi;

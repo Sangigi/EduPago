@@ -757,10 +757,10 @@ function Suscripciones({ data, setData }) {
                           color: diasMostrar < 0 ? 'var(--red)' : diasMostrar <= 7 ? '#e0a930' : 'var(--ink-2)',
                         },
                         children: (enDemo ? 'Prueba · ' : '') + (diasMostrar < 0
-                          ? (enDemo ? `termino hace ${Math.abs(diasMostrar)} dia(s)` : `Venció hace ${Math.abs(diasMostrar)} día(s)`)
+                          ? (enDemo ? `termino hace ${Math.abs(diasMostrar)} día(s)` : `Venció hace ${Math.abs(diasMostrar)} día(s)`)
                           : diasMostrar === 0
                             ? (enDemo ? 'termina hoy' : 'Vence hoy')
-                            : (enDemo ? `termina en ${diasMostrar} dia(s)` : `Vence en ${diasMostrar} día(s)`))
+                            : (enDemo ? `termina en ${diasMostrar} día(s)` : `Vence en ${diasMostrar} día(s)`))
                       }, void 0, false),
                       /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--mono)' }, children: (enDemo ? finPrueba : esc.fecha_vencimiento_plan) }, void 0, false),
                       /*#__PURE__*/_jsxDEV("button", {

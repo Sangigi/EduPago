@@ -1,0 +1,47 @@
+-- migracion_2026_09_25_modo_default_demo.sql
+--
+-- CAMBIA EL VALOR POR DEFECTO DE escuelas.modo: 'activa' -> 'demo'
+--
+-- EL PROBLEMA
+--
+-- `modo` se creó con DEFAULT 'activa'. Solo UN camino del sistema lo pone en
+-- 'demo' explícitamente (acciones/invitacion_enviar.php), así que cualquier
+-- colegio creado por otra vía —por ejemplo acciones/crear_escuela.php, que no
+-- toca la columna— nacía diciendo "soy un cliente que paga".
+--
+-- Eso no es cosmético. cron_recordatorios.php selecciona con
+-- `WHERE ... AND modo <> 'demo'` para decidir a quién mandarle el aviso de
+-- vencimiento. Un colegio en prueba con modo='activa' recibe un correo
+-- pidiéndole que pague una suscripción que nunca contrató, con un monto y una
+-- fecha reales. Pasó el 25-sep-2026 con un colegio en periodo de prueba.
+--
+-- LA REGLA QUE SE ADOPTA
+--
+--   Se es cliente que paga POR HABER PAGADO, no por omisión.
+--
+-- Ya existe el camino que lo hace automático: cuando un pago se confirma,
+-- webhooks/webhook_liga.php y webhooks/pago_referencia.php hacen
+-- `SET modo = 'activa', fecha_fin_prueba = NULL`. Y el superadmin siempre
+-- puede moverlo a mano con superadmin_toggle_modo_demo.
+--
+-- Con este cambio el fallo se va al lado seguro: un colegio que SÍ paga pero
+-- quedó marcado como prueba se ve como "Prueba" en el panel de superadmin —
+-- visible, a un clic de corregirse. Al revés, un colegio en prueba marcado
+-- como activo le manda en silencio un cobro equivocado a un cliente real.
+--
+-- QUÉ NO HACE
+--
+-- NO toca ninguna fila existente. Un DEFAULT solo aplica a INSERT que omitan
+-- la columna. Los colegios que hoy tengan modo='activa' se quedan como están,
+-- a propósito: entre ellos están los que de verdad pagan, y no hay forma
+-- segura de distinguirlos automáticamente. Para revisarlos:
+--
+--   SELECT id, nombre, modo, fecha_fin_prueba, fecha_vencimiento_plan
+--     FROM escuelas WHERE es_plantel = 0 AND modo = 'activa' ORDER BY id;
+--
+-- y corregir los que toque desde el toggle del panel de superadmin.
+--
+-- IDEMPOTENTE: ALTER ... ALTER COLUMN ... SET DEFAULT se puede correr varias
+-- veces sin error. No usa information_schema (Hostinger no da permiso, #1044).
+
+ALTER TABLE escuelas ALTER COLUMN modo SET DEFAULT 'demo';

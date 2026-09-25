@@ -36,10 +36,10 @@
 --
 -- Los webhooks del proveedor REINTENTAN. Sin protección, un reintento crearía
 -- una segunda fila del mismo pago y el colegio vería cobros duplicados que
--- nunca existieron. La llave `idem` la arma quien inserta (ver
+-- nunca existieron. La llave `idem_key` la arma quien inserta (ver
 -- registrar_pago_suscripcion en lib/helpers_pagos.php) con la referencia o el
 -- código de autorización del proveedor, que son únicos por operación. El
--- UNIQUE la hace cumplir en la base, no solo en el código: aunque dos
+-- El UNIQUE la hace cumplir en la base, no solo en el código: aunque dos
 -- reintentos lleguen a la vez, solo uno gana.
 --
 -- Esta migración es IDEMPOTENTE: se puede correr varias veces sin romper nada.
@@ -77,7 +77,16 @@ CREATE TABLE IF NOT EXISTS suscripcion_pagos (
   pagado_en        DATETIME NOT NULL,
   creado_en        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  -- Ver la nota de IDEMPOTENCIA de arriba.
+  -- Llave de idempotencia. La arma quien inserta (registrar_pago_suscripcion
+  -- en lib/helpers_pagos.php) a partir de la referencia o del codigo de
+  -- autorizacion del proveedor, que son unicos por operacion. Ejemplos:
+  --   'renovacion:12:0000020000021857468002'
+  --   'registro:12:579699'
+  --   'manual:12:2026-09-25:1'
+  -- Es NOT NULL a proposito: si se dejara nula, MySQL permitiria multiples
+  -- filas nulas en un UNIQUE y la proteccion contra reintentos no serviria.
+  idem_key         VARCHAR(120) NOT NULL,
+
   UNIQUE KEY uq_suscpago_idem (idem_key),
   KEY idx_suscpago_escuela (escuela_id, pagado_en)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
