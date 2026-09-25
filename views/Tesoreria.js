@@ -135,36 +135,33 @@ function Tesoreria({ user, onLogout, menuPerfil }) {
         )
       ),
 
-      /* ── Totales ── */
-      datos ? _hTS('div', {
-        key: 'tot',
-        style: { display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }
-      },
-        _hTS('div', {
-          key: 'a',
-          className: 'card',
-          style: { padding: 14, flex: '1 1 180px' }
-        },
-          _hTS('div', { key: 'l', style: { fontSize: 11.5, color: 'var(--ink-3)' } }, 'Total pendiente'),
-          _hTS('div', {
-            key: 'v',
-            style: { fontSize: 22, fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--ink)', overflowWrap: 'anywhere' }
-          }, dinero(datos.total_pendiente))
+      /* ── Totales ──
+       *
+       * Con las clases compartidas (stats-grid / stat-card / stat-value) en vez
+       * de tarjetas con estilos a mano: es la misma fila de cifras que usan el
+       * panel de superadmin y el de distribuidor, así que ahora se ve igual en
+       * todos lados y hereda los ajustes de tema y de móvil del CSS.
+       */
+      datos ? _hTS('div', { key: 'tot', className: 'stats-grid' },
+        _hTS('div', { key: 'a', className: 'stat-card' },
+          _hTS('div', { key: 'v', className: 'stat-value', style: { fontFamily: 'var(--mono)', overflowWrap: 'anywhere' } }, dinero(datos.total_pendiente)),
+          _hTS('div', { key: 'l', className: 'stat-label' }, 'Total pendiente'),
+          _hTS('div', { key: 'm', className: 'stat-meta' }, cuentas.length + ' cuenta(s) por pagar')
         ),
-        _hTS('div', {
-          key: 'b',
-          className: 'card',
-          style: { padding: 14, flex: '1 1 180px' }
-        },
-          _hTS('div', { key: 'l', style: { fontSize: 11.5, color: 'var(--ink-3)' } }, 'Vencido'),
+        _hTS('div', { key: 'b', className: 'stat-card' },
           _hTS('div', {
-            key: 'v',
-            style: {
-              fontSize: 22, fontWeight: 800, fontFamily: 'var(--mono)',
-              color: Number(datos.total_vencido) > 0 ? 'var(--red)' : 'var(--ink)',
-              overflowWrap: 'anywhere'
-            }
-          }, dinero(datos.total_vencido))
+            key: 'v', className: 'stat-value',
+            // El vencido en rojo solo cuando de verdad hay vencido: pintarlo
+            // siempre de rojo acostumbra al ojo y deja de avisar.
+            style: { fontFamily: 'var(--mono)', overflowWrap: 'anywhere', color: Number(datos.total_vencido) > 0 ? 'var(--red)' : undefined }
+          }, dinero(datos.total_vencido)),
+          _hTS('div', { key: 'l', className: 'stat-label' }, 'Vencido'),
+          _hTS('div', { key: 'm', className: 'stat-meta' }, Number(datos.total_vencido) > 0 ? 'Ya pasó su fecha de pago' : 'Nada vencido')
+        ),
+        _hTS('div', { key: 'c', className: 'stat-card' },
+          _hTS('div', { key: 'v', className: 'stat-value' }, recurrentes.length),
+          _hTS('div', { key: 'l', className: 'stat-label' }, 'Sin gasto capturado'),
+          _hTS('div', { key: 'm', className: 'stat-meta' }, 'Proveedores con día de pago fijo')
         )
       ) : null,
 
@@ -268,8 +265,12 @@ function Tesoreria({ user, onLogout, menuPerfil }) {
 
       (!cargando && !error && cuentas.length === 0 && recurrentes.length === 0) ? _hTS('div', {
         key: 'vacio',
-        style: { padding: 40, textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }
-      }, 'Nada por pagar en este mes.') : null
+        className: 'empty-state'
+      },
+        _hTS('div', { key: 'i', className: 'empty-icon' },
+          _hTS(Icon, { key: 'ic', name: 'check', size: 34, color: 'currentColor' })),
+        _hTS('div', { key: 't', className: 'empty-text' }, 'Nada por pagar en este mes.')
+      ) : null
     )
   );
 }

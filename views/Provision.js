@@ -268,7 +268,8 @@ function Provision({ user, onLogout, menuPerfil }) {
                 key: 'vacio',
                 className: 'empty-state'
               },
-                _hPR('div', { key: 'i', className: 'empty-icon' }, filtro === 'pendientes' ? '✅' : '🔍'),
+                _hPR('div', { key: 'i', className: 'empty-icon' },
+                  _hPR(Icon, { key: 'ic', name: filtro === 'pendientes' ? 'check' : 'search', size: 34, color: 'currentColor' })),
                 _hPR('div', { key: 't', className: 'empty-text' },
                   filtro === 'pendientes'
                     ? 'No hay colegios esperando provisión. Todo al corriente.'

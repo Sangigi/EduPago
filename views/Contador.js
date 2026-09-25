@@ -198,6 +198,26 @@ function Contador({ user, onLogout, menuPerfil }) {
           menuPerfil || _jsxDEV('button', { className: 'btn btn-secondary btn-sm', onClick: onLogout, children: 'Salir' }, 'salir'),
         ]
       }, 'topbar'),
+      // Resumen (25-sep-2026). Aquí SÍ son cifras globales: el filtro de
+      // esta pantalla es de cliente (CT_FILTROS[].test sobre `escuelas`),
+      // así que `escuelas` ya trae todos los colegios y contar aquí no
+      // inventa nada. En Provision.js es al revés y por eso allá las
+      // etiquetas dicen "en esta vista".
+      _jsxDEV('div', {
+        className: 'stats-grid',
+        children: [
+          { label: 'Pendientes de revisar', val: escuelas.filter(e => e.documentacion_estado === 'en_revision' || e.documentacion_estado === 'rechazada').length, meta: 'Esperan tu decisión' },
+          { label: 'Aprobadas',             val: escuelas.filter(e => e.documentacion_estado === 'aprobada').length, meta: 'Listas para provisión' },
+          { label: 'Sin documentos',        val: escuelas.filter(e => e.documentacion_estado === 'sin_enviar').length, meta: 'El colegio no ha subido nada' },
+        ].map((s, i) => _jsxDEV('div', {
+          className: 'stat-card',
+          children: [
+            _jsxDEV('div', { className: 'stat-value', children: s.val }, 'v'),
+            _jsxDEV('div', { className: 'stat-label', children: s.label }, 'l'),
+            _jsxDEV('div', { className: 'stat-meta',  children: s.meta  }, 'm'),
+          ]
+        }, i, true))
+      }, 'stats'),
       _jsxDEV('div', {
         className: 'card',
         children: [
@@ -230,7 +250,15 @@ function Contador({ user, onLogout, menuPerfil }) {
           errLista ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--red)', marginBottom: 12 }, children: errLista }, 'errlista') : null,
           cargando ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)' }, children: 'Cargando…' }, 'load') :
             errLista ? null :
-            escuelasFiltradas.length === 0 ? _jsxDEV('div', { style: { fontSize: 13, color: 'var(--ink-3)', padding: '18px 4px' }, children: 'No hay colegios que coincidan con este filtro.' }, 'vacio') :
+            escuelasFiltradas.length === 0 ? _jsxDEV('div', {
+              className: 'empty-state',
+              children: [
+                _jsxDEV('div', { className: 'empty-icon', children: _jsxDEV(Icon, { name: filtro === 'pendientes' ? 'check' : 'search', size: 34, color: 'currentColor' }, 'ic', false) }, 'i', false),
+                _jsxDEV('div', { className: 'empty-text', children: filtro === 'pendientes'
+                  ? 'Nada pendiente de revisar. Todo al corriente.'
+                  : 'No hay colegios que coincidan con este filtro.' }, 't'),
+              ]
+            }, 'vacio', true) :
             // .table-wrap es quien lleva overflow-x:auto (assets/css/main.css).
             // Sin él, en un teléfono las cinco columnas desbordan por la derecha
             // y —como html/body están en overflow:hidden— la última, que es justo
