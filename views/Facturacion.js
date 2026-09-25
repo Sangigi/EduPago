@@ -217,6 +217,18 @@ function Facturacion({
     }
   };
   const filtrar = lista => !q ? lista : lista.filter(c => c.cliente.toLowerCase().includes(q.toLowerCase()) || c.folio.toLowerCase().includes(q.toLowerCase()));
+  // Paginación de las dos listas (25-sep-2026). Con 120 cobros por facturar la
+  // tabla se volvía un scroll interminable y no había forma de llegar al final
+  // sin rodar. Se usa el hook que ya existe (views/components/Paginador.js),
+  // el mismo que usan las demás listas locales del sistema.
+  //
+  // Se paginan las listas YA FILTRADAS: paginar antes de filtrar daría páginas
+  // con huecos —una página de 25 que muestra 3 porque el resto no pasó el
+  // filtro— y el contador de páginas mentiría.
+  const pendFiltrados = filtrar(pendientesFact);
+  const emitFiltradas = filtrar(emitidas);
+  const pgPend = usePaginacion(pendFiltrados, 25);
+  const pgEmit = usePaginacion(emitFiltradas, 25);
   return /*#__PURE__*/_jsxDEV("div", {
     // Cabecera con el patrón del resto del sistema (25-sep-2026).
     //
@@ -252,27 +264,11 @@ function Facturacion({
         }, 'tx', true)
       ]
     }, void 0, false),
-    /*#__PURE__*/_jsxDEV("div", {
-      className: "stats-grid",
-      style: { marginBottom: 14 },
-      children: [
-        { label: 'Emitidas',    val: emitidas.length,       meta: 'Con folio fiscal' },
-        { label: 'Sin factura', val: pendientesFact.length, meta: 'Cobros pagados sin CFDI', alerta: pendientesFact.length > 0 }
-      ].map((s, i) => /*#__PURE__*/_jsxDEV("div", {
-        className: "stat-card",
-        children: [
-          /*#__PURE__*/_jsxDEV("div", {
-            className: "stat-value",
-            // El ámbar solo cuando de verdad hay algo sin facturar; antes el
-            // número estaba SIEMPRE en #fbbf24, avisara o no.
-            style: s.alerta ? { color: 'var(--amber)' } : undefined,
-            children: s.val
-          }, 'v', false),
-          /*#__PURE__*/_jsxDEV("div", { className: "stat-label", children: s.label }, 'l', false),
-          /*#__PURE__*/_jsxDEV("div", { className: "stat-meta",  children: s.meta  }, 'm', false)
-        ]
-      }, i, true))
-    }, void 0, false),
+    // Aquí había dos stat-card con "Emitidas" y "Sin factura". Se quitaron
+    // (25-sep-2026) porque decían EXACTAMENTE lo mismo que las pestañas de
+    // abajo —"Por facturar (120)" / "Emitidas (2)"—, y además .stats-grid las
+    // estira a todo el ancho: dos números chicos en dos cajas enormes, que es
+    // el hueco que se veía arriba. El dato ya estaba; sobraba el marco.
     // Pestañas con las clases de botón del sistema, como en views/Comisiones.js
     // (25-sep-2026).
     //
@@ -296,7 +292,7 @@ function Facturacion({
       className: "card",
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "card-header",
-        children: /*#__PURE__*/_jsxDEV("div", {
+        children: [/*#__PURE__*/_jsxDEV("div", {
           children: [/*#__PURE__*/_jsxDEV("div", {
             className: "card-title",
             children: "Cobros sin factura"
@@ -304,7 +300,14 @@ function Facturacion({
             className: "card-sub",
             children: [pendientesFact.length, " cobros pagados sin CFDI"]
           }, void 0, true)]
-        }, void 0, true)
+        }, void 0, true),
+        typeof Paginacion !== 'undefined' ? /*#__PURE__*/_jsxDEV(Paginacion, {
+          pagina: pgPend.n,
+          totalPaginas: pgPend.totalPaginas,
+          onCambiar: pgPend.ir,
+          etiqueta: pgPend.total + ' cobros'
+        }, 'pag', false) : null
+      ]
       }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
         className: "search-bar",
         style: {
@@ -342,7 +345,7 @@ function Facturacion({
               }, void 0, false)]
             }, void 0, true)
           }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
-            children: [filtrar(pendientesFact).length === 0 && /*#__PURE__*/_jsxDEV("tr", {
+            children: [pgPend.total === 0 && /*#__PURE__*/_jsxDEV("tr", {
               children: /*#__PURE__*/_jsxDEV("td", {
                 colSpan: 6,
                 children: /*#__PURE__*/_jsxDEV("div", {
@@ -360,7 +363,7 @@ function Facturacion({
                   }, void 0, false)]
                 }, void 0, true)
               }, void 0, false)
-            }, void 0, false), filtrar(pendientesFact).map(c => /*#__PURE__*/_jsxDEV("tr", {
+            }, void 0, false), pgPend.pagina.map(c => /*#__PURE__*/_jsxDEV("tr", {
               children: [/*#__PURE__*/_jsxDEV("td", {
                 children: /*#__PURE__*/_jsxDEV("span", {
                   style: {
@@ -413,7 +416,13 @@ function Facturacion({
         }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
           className: "card-sub",
           children: [emitidas.length, " facturas generadas"]
-        }, void 0, true)]
+        }, void 0, true),
+        typeof Paginacion !== 'undefined' ? /*#__PURE__*/_jsxDEV(Paginacion, {
+          pagina: pgEmit.n,
+          totalPaginas: pgEmit.totalPaginas,
+          onCambiar: pgEmit.ir,
+          etiqueta: pgEmit.total + ' facturas'
+        }, 'pag', false) : null]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
         className: "table-wrap",
         children: /*#__PURE__*/_jsxDEV("table", {
@@ -445,7 +454,7 @@ function Facturacion({
                   }, void 0, false)
                 }, void 0, false)
               }, void 0, false)
-            }, void 0, false), emitidas.map(c => /*#__PURE__*/_jsxDEV("tr", {
+            }, void 0, false), pgEmit.pagina.map(c => /*#__PURE__*/_jsxDEV("tr", {
               children: [/*#__PURE__*/_jsxDEV("td", {
                 children: /*#__PURE__*/_jsxDEV("span", {
                   style: {

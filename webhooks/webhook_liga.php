@@ -178,7 +178,7 @@ try {
     if (!$cobro) {
         $refBuscar = $referencia_reconstruida ?? $reference;
         $stmtInv = $pdo->prepare(
-            "SELECT id, monto_suscripcion, estado, pago_auth_code
+            "SELECT id, escuela_id, plan_elegido, monto_suscripcion, estado, pago_auth_code
                FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1"
         );
         $stmtInv->execute([$refBuscar]);
@@ -224,6 +224,21 @@ try {
                 ]);
                 responder_liga(false, 'El monto pagado no coincide con el plan elegido');
             }
+
+            // Primera mensualidad al historial. El colegio YA existe en este
+            // punto: acciones/invitacion_enviar.php lo crea al recibir el
+            // formulario y deja invitaciones_colegio.escuela_id apuntando a él,
+            // y solo después se cobra. Si aun así viniera sin escuela_id, la
+            // función descarta la fila sola en vez de fallar.
+            registrar_pago_suscripcion($pdo, [
+                'escuela_id' => $inv['escuela_id'],
+                'origen'     => 'registro',
+                'metodo'     => 'TC',
+                'plan'       => $inv['plan_elegido'],
+                'monto'      => $inv['monto_suscripcion'],
+                'referencia' => $refBuscar,
+                'auth_code'  => $auth ?: $foliocpagos,
+            ]);
 
             $pdo->prepare(
                 "UPDATE invitaciones_colegio

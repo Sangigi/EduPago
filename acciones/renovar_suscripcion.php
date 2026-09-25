@@ -17,5 +17,20 @@
         $nuevo_vencimiento = siguiente_vencimiento_mensual($base);
         $pdo->prepare("UPDATE escuelas SET fecha_vencimiento_plan = ?, ultimo_recordatorio_plan = NULL WHERE id = ?")
             ->execute([$nuevo_vencimiento, $id]);
+        // Queda en el historial aunque NO haya habido cobro (25-sep-2026).
+        //
+        // Este camino solo mueve la fecha de vencimiento a mano. Si no se
+        // registrara, el colegio vería un salto inexplicable: su suscripción
+        // se extendió un mes y no hay nada que lo explique. Con monto NULL
+        // —no 0, que se leería como "pagó cero"— la fila dice exactamente lo
+        // que pasó: se renovó sin cobro de por medio, y quién lo hizo.
+        registrar_pago_suscripcion($pdo, [
+            'escuela_id'     => $id,
+            'origen'         => 'manual',
+            'monto'          => null,
+            'cubre_desde'    => $base,
+            'cubre_hasta'    => $nuevo_vencimiento,
+            'registrado_por' => $usuario_actual['user_id'] ?? null,
+        ]);
         registrar_log($pdo, $usuario_actual, 'suscripcion_renovada', "Colegio '{$esc['nombre']}' #$id: vencimiento → $nuevo_vencimiento", $id);
         respond(['success' => true, 'id' => $id, 'fecha_vencimiento_plan' => $nuevo_vencimiento]);

@@ -460,7 +460,7 @@ try {
     if (!$cobro) {
         // FOR UPDATE: mismo motivo que la rama de cobros_agrupados de arriba.
         $stmtInv = $pdo->prepare(
-            "SELECT id, monto_suscripcion, estado, pago_auth_code
+            "SELECT id, escuela_id, plan_elegido, monto_suscripcion, estado, pago_auth_code
                FROM invitaciones_colegio WHERE pago_referencia = ? LIMIT 1 FOR UPDATE"
         );
         $stmtInv->execute([$referencia]);
@@ -512,6 +512,18 @@ try {
                 responder_pago(30, 'Monto inválido', '', $transaccion);
             }
             $autorizacionInv = str_pad(strval(rand(0, 99999999)), 8, '0', STR_PAD_LEFT);
+
+            // Primera mensualidad al historial (ver la nota gemela en
+            // webhooks/webhook_liga.php).
+            registrar_pago_suscripcion($pdo, [
+                'escuela_id' => $inv['escuela_id'],
+                'origen'     => 'registro',
+                'metodo'     => 'Efectivo',
+                'plan'       => $inv['plan_elegido'],
+                'monto'      => $inv['monto_suscripcion'],
+                'referencia' => $referencia,
+                'auth_code'  => $autorizacionInv,
+            ]);
 
             $pdo->prepare(
                 "UPDATE invitaciones_colegio SET estado = 'pagado', pago_auth_code = ?, pagado_en = NOW() WHERE id = ?"
