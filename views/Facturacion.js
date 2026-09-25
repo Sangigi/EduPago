@@ -16,6 +16,53 @@ function Facturacion({
     useState
   } = React;
   const [tab, setTab] = useState('pendientes');
+  // ── Complementos de pago pendientes (25-sep-2026) ──────────────────────
+  //
+  // Un cobro pagado en abonos se factura como PPD, y cada abono necesita su
+  // propio CFDI de pago. Sin esta lista el pendiente no avisa: la factura
+  // queda colgada para el SAT y nadie se entera hasta que el contador del
+  // colegio reclama.
+  const [complementos, setComplementos] = useState([]);
+  const [compAviso, setCompAviso] = useState(null);
+  const [emitiendoComp, setEmitiendoComp] = useState(null);
+
+  const cargarComplementos = React.useCallback(() => {
+    if (!escuela?.id) return;
+    fetch('api.php?action=abonos_sin_complemento_listar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (AuthController.getToken() || '') },
+      body: JSON.stringify({ escuela_id: escuela.id }),
+    }).then(r => r.json()).then(j => {
+      if (!j || !j.success) return;
+      setComplementos(j.abonos || []);
+      if (j.aviso) setCompAviso(j.aviso);
+    }).catch(() => {});
+  }, [escuela?.id]);
+
+  React.useEffect(() => { cargarComplementos(); }, [cargarComplementos]);
+
+  const emitirComplemento = async ab => {
+    if (emitiendoComp) return;
+    setEmitiendoComp(ab.id);
+    try {
+      const res = await fetch('api.php?action=generar_complemento_pago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (AuthController.getToken() || '') },
+        body: JSON.stringify({ abono_id: ab.id }),
+      });
+      const j = await res.json();
+      if (!j || !j.success) { alert((j && j.error) || 'No se pudo emitir el complemento.'); return; }
+      alert('Complemento emitido.\nFolio fiscal: ' + j.uuid + '\nParcialidad ' + j.parcialidad + ', saldo restante $' + Number(j.saldo_restante).toFixed(2));
+      // Se recarga la lista en vez de quitar la fila a mano: así el conteo de
+      // la pestaña y la tabla no pueden quedar desincronizados.
+      cargarComplementos();
+    } catch (e) {
+      alert('No se pudo emitir el complemento: ' + e.message);
+    } finally {
+      setEmitiendoComp(null);
+    }
+  };
+
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
   const [cobroSel, setCobroSel] = useState(null);
@@ -324,7 +371,8 @@ function Facturacion({
       style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
       children: [
         { id: 'pendientes', label: 'Por facturar', n: pendientesFact.length },
-        { id: 'emitidas',   label: 'Emitidas',     n: emitidas.length }
+        { id: 'emitidas',   label: 'Emitidas',     n: emitidas.length },
+        { id: 'complementos', label: 'Complementos pendientes', n: complementos.length }
       ].map(t => /*#__PURE__*/_jsxDEV("button", {
         className: 'btn btn-sm ' + (tab === t.id ? 'btn-primary' : 'btn-secondary'),
         onClick: () => setTab(t.id),
@@ -449,7 +497,71 @@ function Facturacion({
           }, void 0, true)]
         }, void 0, true)
       }, void 0, false)]
-    }, void 0, true), tab === 'emitidas' && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true),
+    tab === 'complementos' && /*#__PURE__*/_jsxDEV("div", {
+      className: "card",
+      children: [
+        /*#__PURE__*/_jsxDEV("div", {
+          className: "card-header",
+          children: /*#__PURE__*/_jsxDEV("div", {
+            children: [
+              /*#__PURE__*/_jsxDEV("div", { className: "card-title", children: "Complementos de pago pendientes" }, 't', false),
+              /*#__PURE__*/_jsxDEV("div", { className: "card-sub", children: "Abonos de facturas PPD que todavía no tienen su CFDI de pago. Mientras falten, el SAT no registra esos cobros." }, 's', false)
+            ]
+          }, 'h', true)
+        }, 'ch', false),
+        compAviso ? /*#__PURE__*/_jsxDEV("div", {
+          style: { fontSize: 12.5, color: 'var(--ink-3)', padding: '10px 0' },
+          children: compAviso
+        }, 'av', false) : null,
+        complementos.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+          className: "empty-state",
+          children: [
+            /*#__PURE__*/_jsxDEV("div", { className: "empty-icon", children: /*#__PURE__*/_jsxDEV(Icon, { name: "check", size: 34, color: "currentColor" }, 'i', false) }, 'ic', false),
+            /*#__PURE__*/_jsxDEV("div", { className: "empty-text", children: "Todo al corriente. Ninguna factura PPD tiene pagos sin registrar." }, 't', false)
+          ]
+        }, 'vacio', true) : /*#__PURE__*/_jsxDEV("div", {
+          className: "table-wrap",
+          children: /*#__PURE__*/_jsxDEV("table", {
+            children: [
+              /*#__PURE__*/_jsxDEV("thead", {
+                children: /*#__PURE__*/_jsxDEV("tr", {
+                  children: [
+                    /*#__PURE__*/_jsxDEV("th", { children: "Fecha" }, 'a', false),
+                    /*#__PURE__*/_jsxDEV("th", { children: "Cobro" }, 'b', false),
+                    /*#__PURE__*/_jsxDEV("th", { children: "Alumno" }, 'c', false),
+                    /*#__PURE__*/_jsxDEV("th", { children: "Método" }, 'd', false),
+                    /*#__PURE__*/_jsxDEV("th", { style: { textAlign: 'right' }, children: "Abono" }, 'e', false),
+                    /*#__PURE__*/_jsxDEV("th", {}, 'f', false)
+                  ]
+                }, 'tr', true)
+              }, 'th', false),
+              /*#__PURE__*/_jsxDEV("tbody", {
+                children: complementos.map(ab => /*#__PURE__*/_jsxDEV("tr", {
+                  children: [
+                    /*#__PURE__*/_jsxDEV("td", { style: { whiteSpace: 'nowrap' }, children: String(ab.creado_en || '').slice(0, 10) }, 'a', false),
+                    /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 11.5 }, children: ab.cobro_folio }, 'b', false),
+                    /*#__PURE__*/_jsxDEV("td", { children: ab.cliente }, 'c', false),
+                    /*#__PURE__*/_jsxDEV("td", { children: ab.metodo || '—' }, 'd', false),
+                    /*#__PURE__*/_jsxDEV("td", { style: { textAlign: 'right', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }, children: '$' + Number(ab.monto).toFixed(2) }, 'e', false),
+                    /*#__PURE__*/_jsxDEV("td", {
+                      style: { textAlign: 'right' },
+                      children: /*#__PURE__*/_jsxDEV("button", {
+                        className: "btn btn-primary btn-sm",
+                        disabled: emitiendoComp === ab.id,
+                        onClick: () => emitirComplemento(ab),
+                        children: emitiendoComp === ab.id ? 'Emitiendo…' : 'Emitir complemento'
+                      }, 'btn', false)
+                    }, 'f', false)
+                  ]
+                }, ab.id, true))
+              }, 'tb', false)
+            ]
+          }, 'tbl', true)
+        }, 'tabla', false)
+      ]
+    }, void 0, true),
+    tab === 'emitidas' && /*#__PURE__*/_jsxDEV("div", {
       className: "card",
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "card-header",
