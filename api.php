@@ -10,25 +10,14 @@ require_once __DIR__ . '/lib/helpers_comisiones.php';
 require_once __DIR__ . '/lib/curl_helper.php';
 require_once __DIR__ . '/lib/facturapi.php';
 require_once __DIR__ . '/lib/uploads.php';
-// ── Planes de suscripción — fuente única de verdad (mensual + IVA) ──
-// Solo existen 3 planes reales: básico, avanzado, pro.
-// max_alumnos / max_planteles = null significa "sin límite"
-// PRECIOS DE PRUEBA (10-sep-2026) -- bajados al mínimo que acepta
-// Cobroscontarjeta.com ($50.00) para poder probar el cobro de suscripciones
-// (registro, renovación) con dinero real sin gastar de más. ¡Revertir a los
-// precios reales (999 / 1500 / 3000) antes de dar de alta colegios de verdad!
-const PLANES_LIMITES = [
-    'basico'   => ['precio' => 50.00,  'max_alumnos' => 400, 'max_planteles' => 1,    'label' => 'Básico'],
-    'avanzado' => ['precio' => 55.00, 'max_alumnos' => 800, 'max_planteles' => 1,    'label' => 'Avanzado'],
-    'pro'      => ['precio' => 60.00, 'max_alumnos' => null, 'max_planteles' => null, 'label' => 'Pro'],
-];
-// Plan de respaldo si `escuelas.plan` trae un valor no reconocido (typo,
-// dato viejo tipo 'free' que ya no existe como plan real, etc.) — se usa el
-// más restrictivo, NUNCA "sin límite".
-const PLAN_FALLBACK = 'basico';
-function limitesDelPlan($nombrePlan) {
-    return PLANES_LIMITES[$nombrePlan] ?? PLANES_LIMITES[PLAN_FALLBACK];
-}
+// ── Planes de suscripción ───────────────────────────────────────────────
+// La tabla (precios, límites, etiquetas) vivía AQUÍ y estaba copiada a mano
+// en cron_recordatorios.php, views/MiSuscripcion.js y assets/js/registro.js.
+// Las copias se desincronizaron —el cron acabó con los tres planes a $50 y
+// el correo real decía $3,000— así que ahora hay una sola fuente:
+// lib/planes.php. Sigue exponiendo PLANES_LIMITES, PLAN_FALLBACK y
+// limitesDelPlan() con la misma forma de siempre.
+require_once __DIR__ . '/lib/planes.php';
 // ── Secciones del menú que el super admin puede habilitar/deshabilitar por
 // colegio — fuente única de verdad (debe reflejar el mismo listado de ids
 // que NAV_ITEMS en assets/js/app.js para las secciones de admin/cajero).

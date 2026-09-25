@@ -22,6 +22,16 @@ const PLANES_INFO = {
 const PLAN_INFO_FALLBACK = 'basico';
 
 function Suscripciones({ data, setData }) {
+  // La tabla de planes viene del SERVIDOR (cargar_datos -> planes, que sale
+  // de lib/planes.php). PLANES_INFO de arriba queda SOLO como respaldo y
+  // como origen del `color`, que es presentacion y no existe en el backend.
+  // Antes esta copia era la fuente y estaba desincronizada: tenia los tres
+  // planes a $50 mientras api.php decia 50/55/60.
+  const _planesSrv = (data && data.planes && Object.keys(data.planes).length) ? data.planes : PLANES_INFO;
+  const TABLA_PLANES = {};
+  Object.keys(_planesSrv).forEach(function (k) {
+    TABLA_PLANES[k] = Object.assign({}, PLANES_INFO[k] || {}, _planesSrv[k]);
+  });
   const { useState, useEffect } = React;
   const [cambiandoPlanId, setCambiandoPlanId] = useState(null);
   const [renovandoId, setRenovandoId] = useState(null);
@@ -356,8 +366,8 @@ function Suscripciones({ data, setData }) {
 
   const filas = principales.map(esc => {
     const planKey = (esc.plan || '').toLowerCase();
-    const info = PLANES_INFO[planKey] || PLANES_INFO[PLAN_INFO_FALLBACK];
-    const planReconocido = !!PLANES_INFO[planKey];
+    const info = TABLA_PLANES[planKey] || TABLA_PLANES[PLAN_INFO_FALLBACK];
+    const planReconocido = !!TABLA_PLANES[planKey];
     const numPlanteles = (data.escuelas || []).filter(e => e.es_plantel && e.escuela_padre_id === esc.id).length;
     const idsGrupo = [esc.id, ...(data.escuelas || []).filter(e => e.es_plantel && e.escuela_padre_id === esc.id).map(e => e.id)];
     const totalAlumnos = idsGrupo.reduce((a, id) => a + (resumen[id]?.total_alumnos || 0), 0);
@@ -710,7 +720,7 @@ function Suscripciones({ data, setData }) {
                     style: { fontSize: 12, fontWeight: 600, color: info.color, padding: '4px 8px', width: 'auto' },
                     title: planReconocido ? undefined : `Valor de plan no reconocido: "${esc.plan}" — se aplicaron límites de ${info.label} por seguridad`,
                     onChange: e => cambiarPlan(esc.id, e.target.value),
-                    children: Object.entries(PLANES_INFO).map(([k, v]) => /*#__PURE__*/_jsxDEV("option", {
+                    children: Object.entries(TABLA_PLANES).map(([k, v]) => /*#__PURE__*/_jsxDEV("option", {
                       value: k,
                       children: v.label
                     }, k, false))

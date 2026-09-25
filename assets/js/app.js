@@ -2003,6 +2003,9 @@ function App() {
           {
 
             escuela: escuela,
+            // Precios desde el servidor (lib/planes.php via cargar_datos):
+            // la pantalla ya no lleva su propia copia.
+            planes: (data && data.planes) || null,
 
             user: user,
 

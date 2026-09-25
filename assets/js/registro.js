@@ -68,6 +68,16 @@
           (d && d.error) || 'Esta liga no es válida o ya venció. Pide una nueva a tu asesor.');
         return;
       }
+      // Precios desde el SERVIDOR (invitacion_ver -> planes, de lib/planes.php).
+      // La tabla PLANES de arriba queda solo como respaldo: era una copia a
+      // mano y el sistema llego a tener CINCO copias con tres juegos de
+      // precios distintos, asi que un colegio podia ver aqui un precio y
+      // recibir otro por correo.
+      if (d.planes && Object.keys(d.planes).length) {
+        Object.keys(d.planes).forEach(function (k) {
+          PLANES[k] = Object.assign({}, PLANES[k] || {}, d.planes[k]);
+        });
+      }
       formulario(d);
     })
     .catch(function () {

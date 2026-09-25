@@ -116,6 +116,9 @@
             // Superadmin/soporte sin escuela seleccionada: solo lo liviano.
             respond([
                 'success'          => true,
+                // Tabla de planes desde lib/planes.php: las pantallas ya no
+                // llevan su propia copia de los precios (ver ese archivo).
+                'planes'           => planes_tabla(),
                 'escuelas'         => $escuelas,
                 'resumen_escuelas' => $resumen_escuelas,
                 'clientes'         => [],
@@ -374,6 +377,9 @@
         }
         respond([
             'success'           => true,
+            // Tabla de planes desde lib/planes.php: las pantallas ya no
+            // llevan su propia copia de los precios (ver ese archivo).
+            'planes'            => planes_tabla(),
             'escuelas'          => $escuelas,
             'resumen_escuelas'  => $resumen_escuelas,
             'clientes'          => $clientes,

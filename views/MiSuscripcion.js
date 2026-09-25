@@ -23,7 +23,7 @@ const PLANES_INFO_MS = {
   pro:      { label: 'Pro',      precio: 60, max_alumnos: null, max_planteles: null },
 };
 
-function MiSuscripcion({ escuela, user, onIrA }) {
+function MiSuscripcion({ escuela, user, onIrA, planes }) {
   const { useState, useEffect } = React;
   const [generando, setGenerando] = useState(null); // 'TC' | 'Efectivo' | null
   const [resultado, setResultado] = useState(null);  // { metodo, ...datos }
@@ -37,7 +37,13 @@ function MiSuscripcion({ escuela, user, onIrA }) {
 
   const fmt = n => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
   const planKey = (escuela?.plan || '').toLowerCase();
-  const info = PLANES_INFO_MS[planKey] || PLANES_INFO_MS.basico;
+  // La tabla de planes viene del SERVIDOR (cargar_datos -> planes, que sale
+  // de lib/planes.php). PLANES_INFO_MS queda solo como respaldo por si la
+  // respuesta no la trae: antes era la fuente, y se desincronizo del resto
+  // del sistema — esta pantalla llego a mostrar $50 mientras el correo de
+  // vencimiento del mismo colegio decia $3,000.
+  const TABLA_PLANES = (planes && Object.keys(planes).length) ? planes : PLANES_INFO_MS;
+  const info = TABLA_PLANES[planKey] || TABLA_PLANES.basico;
 
   const hoy = new Date(new Date().toDateString());
   const vencimiento = escuela?.fecha_vencimiento_plan ? new Date(escuela.fecha_vencimiento_plan + 'T00:00:00') : null;
@@ -288,8 +294,8 @@ function MiSuscripcion({ escuela, user, onIrA }) {
               }, 'lbl'),
               _jsxDEV('div', {
                 style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 10 },
-                children: Object.keys(PLANES_INFO_MS).map(k => {
-                  const p = PLANES_INFO_MS[k];
+                children: Object.keys(TABLA_PLANES).map(k => {
+                  const p = TABLA_PLANES[k];
                   const sel = planPago === k;
                   const actual = k === planKey;
                   return _jsxDEV('button', {
@@ -346,7 +352,7 @@ function MiSuscripcion({ escuela, user, onIrA }) {
                 // llegar a prohibir el pago a quien de verdad lo quiere hacer.
                 disabled: generando !== null || (!docsListos && !asumeEspera),
                 onClick: () => generarPago('TC'),
-                children: generando === 'TC' ? 'Generando…' : `Pagar ${fmt(PLANES_INFO_MS[planPago]?.precio ?? info.precio)} con tarjeta`
+                children: generando === 'TC' ? 'Generando…' : `Pagar ${fmt(TABLA_PLANES[planPago]?.precio ?? info.precio)} con tarjeta`
               }, 'btnTC'),
               _jsxDEV('button', {
                 className: 'btn btn-secondary',

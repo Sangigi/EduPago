@@ -36,15 +36,16 @@ require_once __DIR__ . '/lib/helpers_comisiones.php';
 // CAI_DIAS_AVISO en config.php para cambiarlo sin tocar este archivo.
 if (!defined('CAI_DIAS_AVISO')) define('CAI_DIAS_AVISO', 3);
 
-// Debe reflejar PLANES_LIMITES en api.php — la única fuente de verdad real
-// (límites/permisos) es el backend; aquí solo se usa para el texto del correo.
-// PRECIOS DE PRUEBA (10-sep-2026) -- ver el mismo aviso en PLANES_LIMITES
-// (api.php). ¡Revertir a 999/1500/3000 antes de dar de alta colegios reales!
-$PLAN_INFO = [
-    'basico'   => ['precio' => 50.00,  'label' => 'Básico'],
-    'avanzado' => ['precio' => 50.00, 'label' => 'Avanzado'],
-    'pro'      => ['precio' => 50.00, 'label' => 'Pro'],
-];
+// Planes: una sola fuente, lib/planes.php.
+//
+// Aquí había una COPIA a mano de la tabla, con el comentario "debe reflejar
+// PLANES_LIMITES en api.php". No lo reflejaba: al 25-sep-2026 esta copia
+// tenía los TRES planes a $50.00 mientras api.php decía 50/55/60, y el correo
+// que de verdad recibió un colegio decía $3,000.00. Este archivo es el que
+// manda los correos de vencimiento, así que su copia desincronizada era la
+// que le llegaba al cliente con el monto equivocado.
+require_once __DIR__ . '/lib/planes.php';
+$PLAN_INFO = planes_tabla();
 
 $hoyStr = date('Y-m-d');
 $hoyTs  = strtotime($hoyStr);

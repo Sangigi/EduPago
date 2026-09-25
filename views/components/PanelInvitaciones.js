@@ -23,6 +23,24 @@ async function _apiPostInv(action, body) {
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AuthController.getToken() },
     body: JSON.stringify(body || {}),
   });
+  // Sesión vencida o cerrada: volver al login (25-sep-2026).
+  //
+  // Antes esto no hacía falta AQUÍ porque el arranque de app.js llamaba
+  // cargar_datos para todos los roles, y era ahí donde se detectaba el 401
+  // (assets/js/app.js, dentro de cargarDatosDesdeAPI: logout + reload).
+  // Al dejar de pedir cargar_datos para los roles de plataforma, promotor y
+  // distribuidor se quedaron SIN ningún detector de 401: cargar() hacía
+  // `if (res.success)` sin else, se tragaba el error en silencio, y la
+  // pantalla pintaba "Aún no has generado ninguna invitación" —una afirmación
+  // falsa sobre sus datos— sin avisar ni devolverlos al login. Cada F5
+  // repetía lo mismo.
+  //
+  // Mismo tratamiento que assets/js/ApiClient.js y views/Distribuidor.js.
+  if (res.status === 401) {
+    AuthController.logout();
+    window.location.reload();
+    return { success: false, error: 'Sesión expirada. Inicia sesión de nuevo.' };
+  }
   return res.json();
 }
 

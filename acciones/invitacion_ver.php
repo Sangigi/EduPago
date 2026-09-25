@@ -40,4 +40,7 @@
         'contacto_nombre' => $inv['contacto_nombre'],
         'contacto_email'  => $inv['contacto_email'],
         'dias_demo'       => dias_demo_default($pdo),
+        // Precios desde lib/planes.php. registro.js mostraba su propia copia
+        // y podia anunciar un precio distinto al que el backend cobra.
+        'planes'          => planes_tabla(),
     ]);
