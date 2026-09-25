@@ -1,0 +1,8 @@
+# Los logs NUNCA se sirven por web. Contienen referencias de pago, folios,
+# montos, correos de tutores y, en los webhooks, el cuerpo crudo que manda el
+# proveedor.
+#
+# El .htaccess de la raíz ya bloquea *.txt y cascadea hasta aquí, pero este
+# archivo lo deja explícito: si alguien algún día afloja la regla de arriba,
+# esta carpeta sigue cerrada. Y sirve de recordatorio de qué es este directorio.
+Require all denied

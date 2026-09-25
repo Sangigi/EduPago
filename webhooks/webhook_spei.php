@@ -26,7 +26,7 @@ $raw = file_get_contents('php://input');
 
 if (API_LOG_ENABLED) {
     file_put_contents(
-        __DIR__ . '/webhook_log.txt',
+        __DIR__ . '/../logs/webhook_log.txt',
         "\n[{$ts}] ══ WEBHOOK SPEI ══\nRAW:\n{$raw}\n" . str_repeat('─', 60) . "\n",
         FILE_APPEND
     );

@@ -46,7 +46,7 @@ header('Content-Type: application/json; charset=UTF-8');
 $raw = file_get_contents('php://input');
 
 file_put_contents(
-    __DIR__ . '/debug_webhook_docusign.txt',
+    __DIR__ . '/../logs/debug_webhook_docusign.txt',
     "\n============================\n" . date('Y-m-d H:i:s') . "\n" . $raw . "\n============================\n",
     FILE_APPEND
 );

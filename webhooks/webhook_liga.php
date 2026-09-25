@@ -38,7 +38,7 @@ if (!ip_permitida_pago_sin_token()) {
 $raw = file_get_contents('php://input');
 
 file_put_contents(
-    __DIR__ . '/debug_webhook.txt',
+    __DIR__ . '/../logs/debug_webhook.txt',
     "\n============================\n" .
     date('Y-m-d H:i:s') . "\n" .
     "METHOD: " . ($_SERVER['REQUEST_METHOD'] ?? 'N/A') . "\n" .
@@ -53,7 +53,7 @@ file_put_contents(
 
 if (API_LOG_ENABLED) {
     file_put_contents(
-        __DIR__ . '/webhook_log.txt',
+        __DIR__ . '/../logs/webhook_log.txt',
         "\n[{$ts}] ══ WEBHOOK LIGA/CAI ══\nRAW:\n{$raw}\n" . str_repeat('─', 60) . "\n",
         FILE_APPEND
     );
