@@ -374,13 +374,29 @@ function Suscripciones({ data, setData }) {
     const pctAlumnos = info.max_alumnos ? Math.min(100, Math.round(totalAlumnos / info.max_alumnos * 100)) : null;
     const excedido = info.max_alumnos !== null && totalAlumnos > info.max_alumnos;
     const excedidoPlanteles = info.max_planteles !== null && numPlanteles > info.max_planteles;
+    // Prueba vs suscripcion pagada (25-sep-2026).
+    //
+    // Esta pantalla mostraba TODO colegio como si pagara: plan, precio y
+    // "Vence en N dias". Un colegio en periodo de prueba se veia identico a
+    // uno con suscripcion activa, y se confundia con un plan real pagado.
+    // El dato ya estaba en la respuesta (escuelas.modo / fecha_fin_prueba);
+    // simplemente no se miraba.
+    const enDemo = (esc.modo || 'activa') === 'demo';
+    const finPrueba = esc.fecha_fin_prueba || null;
+    const diasPrueba = finPrueba
+      ? Math.round((new Date(finPrueba + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000)
+      : null;
     const diasVencimiento = esc.fecha_vencimiento_plan
       ? Math.round((new Date(esc.fecha_vencimiento_plan + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000)
       : null;
-    return { esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento };
+    return { esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento, enDemo, finPrueba, diasPrueba, diasMostrar: enDemo ? diasPrueba : diasVencimiento };
   });
 
-  const ingresoMensualEstimado = filas.reduce((a, f) => a + f.info.precio, 0);
+  // Solo cuentan los colegios que DE VERDAD pagan: sumar los que estan en
+  // prueba inflaba el ingreso estimado con dinero que nadie ha cobrado.
+  const filasQuePagan = filas.filter(f => !f.enDemo);
+  const filasEnPrueba = filas.filter(f => f.enDemo);
+  const ingresoMensualEstimado = filasQuePagan.reduce((a, f) => a + f.info.precio, 0);
   const excedidos = filas.filter(f => f.excedido || f.excedidoPlanteles);
 
   // Tendencia de altas por mes (usa fecha_alta, que ya viene en cada escuela;
@@ -635,19 +651,19 @@ function Suscripciones({ data, setData }) {
       children: [{
         label: 'Ingreso mensual estimado',
         val: fmt(ingresoMensualEstimado) + ' + IVA',
-        meta: `${filas.length} colegios`
+        meta: `${filasQuePagan.length} colegio(s) pagando` + (filasEnPrueba.length ? ` · ${filasEnPrueba.length} en prueba` : '')
       }, {
         label: 'Plan Básico',
         val: filas.filter(f => f.planKey === 'basico').length,
-        meta: '$50 + IVA c/u (precio de prueba)'
+        meta: fmt(TABLA_PLANES.basico ? TABLA_PLANES.basico.precio : 0) + ' + IVA c/u'
       }, {
         label: 'Plan Avanzado',
         val: filas.filter(f => f.planKey === 'avanzado').length,
-        meta: '$50 + IVA c/u (precio de prueba)'
+        meta: fmt(TABLA_PLANES.avanzado ? TABLA_PLANES.avanzado.precio : 0) + ' + IVA c/u'
       }, {
         label: 'Plan Pro',
         val: filas.filter(f => f.planKey === 'pro').length,
-        meta: '$50 + IVA c/u (precio de prueba)'
+        meta: fmt(TABLA_PLANES.pro ? TABLA_PLANES.pro.precio : 0) + ' + IVA c/u'
       }].map((s, i) => /*#__PURE__*/_jsxDEV("div", {
         className: "stat-card",
         children: [/*#__PURE__*/_jsxDEV("div", { className: "stat-label", children: s.label }, void 0, false),
@@ -703,7 +719,7 @@ function Suscripciones({ data, setData }) {
           }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
             children: filas.length === 0 ? /*#__PURE__*/_jsxDEV("tr", {
               children: /*#__PURE__*/_jsxDEV("td", { colSpan: 6, className: "empty-text", children: "Sin colegios registrados." }, void 0, false)
-            }, void 0, false) : filas.map(({ esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento }) => /*#__PURE__*/_jsxDEV("tr", {
+            }, void 0, false) : filas.map(({ esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento, enDemo, finPrueba, diasMostrar }) => /*#__PURE__*/_jsxDEV("tr", {
               children: [
                 /*#__PURE__*/_jsxDEV("td", {
                   children: /*#__PURE__*/_jsxDEV("div", {
@@ -726,23 +742,27 @@ function Suscripciones({ data, setData }) {
                     }, k, false))
                   }, void 0, false)
                 }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 12.5 }, children: fmt(info.precio) + ' + IVA' }, void 0, false),
+                /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 12.5 }, children: enDemo
+                  // Un colegio en prueba no debe (todavia) nada: mostrar el precio
+                  // del plan aqui lo hacia parecer un cobro pendiente.
+                  ? /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--ink-4)' }, children: 'Prueba — sin cobro' }, void 0, false)
+                  : fmt(info.precio) + ' + IVA' }, void 0, false),
                 /*#__PURE__*/_jsxDEV("td", {
-                  children: !esc.fecha_vencimiento_plan ? /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-4)' }, children: "Sin definir" }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
+                  children: !(enDemo ? finPrueba : esc.fecha_vencimiento_plan) ? /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-4)' }, children: "Sin definir" }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
                     style: { display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' },
                     children: [
                       /*#__PURE__*/_jsxDEV("span", {
                         style: {
                           fontSize: 12, whiteSpace: 'nowrap', fontWeight: 600,
-                          color: diasVencimiento < 0 ? 'var(--red)' : diasVencimiento <= 7 ? '#e0a930' : 'var(--ink-2)',
+                          color: diasMostrar < 0 ? 'var(--red)' : diasMostrar <= 7 ? '#e0a930' : 'var(--ink-2)',
                         },
-                        children: diasVencimiento < 0
-                          ? `Venció hace ${Math.abs(diasVencimiento)} día(s)`
-                          : diasVencimiento === 0
-                            ? 'Vence hoy'
-                            : `Vence en ${diasVencimiento} día(s)`
+                        children: (enDemo ? 'Prueba · ' : '') + (diasMostrar < 0
+                          ? (enDemo ? `termino hace ${Math.abs(diasMostrar)} dia(s)` : `Venció hace ${Math.abs(diasMostrar)} día(s)`)
+                          : diasMostrar === 0
+                            ? (enDemo ? 'termina hoy' : 'Vence hoy')
+                            : (enDemo ? `termina en ${diasMostrar} dia(s)` : `Vence en ${diasMostrar} día(s)`))
                       }, void 0, false),
-                      /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--mono)' }, children: esc.fecha_vencimiento_plan }, void 0, false),
+                      /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--mono)' }, children: (enDemo ? finPrueba : esc.fecha_vencimiento_plan) }, void 0, false),
                       /*#__PURE__*/_jsxDEV("button", {
                         className: "btn btn-ghost btn-sm",
                         disabled: renovandoId === esc.id,
