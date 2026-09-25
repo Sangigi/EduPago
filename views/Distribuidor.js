@@ -880,7 +880,6 @@ function Distribuidor({ user, onLogout, menuPerfil }) {
   const totalEmbudo = DIST_ORDEN_EMBUDO.reduce((a, k) => a + (embudo[k] || 0), 0) || 1;
   const zona = (info.distribuidor && info.distribuidor.zona) || 'Sin zona asignada';
   const nombreDist = (info.distribuidor && info.distribuidor.nombre) || user.nombre || 'Distribuidor';
-  const iniciales = nombreDist.split(' ').filter(Boolean).slice(0, 2).map(s => s[0].toUpperCase()).join('');
   const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const secciones = ['Principal', 'Configuración'];
@@ -941,25 +940,22 @@ function Distribuidor({ user, onLogout, menuPerfil }) {
             }, sec, true))
           }, void 0, false),
 
+          // El identificador del usuario vive SOLO aquí (25-sep-2026).
+          //
+          // Antes estaba dos veces: esta tarjeta estática con avatar, nombre y
+          // "Distribuidor certificado", más el MenuPerfil completo en la barra
+          // superior. El mismo nombre y el mismo rol, repetidos en dos esquinas
+          // de la misma pantalla.
+          //
+          // Se queda el del pie del sidebar, que es donde lo tienen admin y
+          // superadmin — así el sistema se comporta igual en todos los paneles.
+          // MenuPerfil ya trae avatar, nombre, rol y el menú con editar perfil,
+          // contraseña, tema, volver a ver la guía y salir, así que el botón
+          // suelto de cerrar sesión que había aquí tampoco hace falta.
           _jsxDEV("div", {
             className: "sidebar-footer",
-            children: _jsxDEV("div", {
-              className: "user-card",
-              children: [
-                _jsxDEV("div", { className: "avatar", style: { background: 'var(--grad-warm)', color: '#fff' }, children: iniciales || 'D' }, void 0, false),
-                _jsxDEV("div", {
-                  className: "user-info",
-                  children: [
-                    _jsxDEV("div", { className: "user-name", children: nombreDist }, void 0, false),
-                    _jsxDEV("div", { className: "user-role", children: "Distribuidor certificado" }, void 0, false),
-                  ]
-                }, void 0, true),
-                _jsxDEV("button", {
-                  className: "logout-btn", onClick: onLogout, title: "Cerrar sesión",
-                  children: _jsxDEV(Icon, { name: "logout", size: 17, color: "currentColor" }, void 0, false)
-                }, void 0, false),
-              ]
-            }, void 0, true)
+            "data-nav": "perfil",
+            children: menuPerfil || null
           }, void 0, false),
         ]
       }, void 0, true),
@@ -1000,12 +996,8 @@ function Distribuidor({ user, onLogout, menuPerfil }) {
                     className: "btn btn-primary", onClick: () => setShowInvite(true),
                     children: "+ Invitar colegio"
                   }, void 0, false) : null,
-                  // Menú de perfil (24-sep-2026). Este panel solo tenía un
-                  // botón suelto de cerrar sesión en el pie del sidebar: sin
-                  // editar perfil, sin cambiar contraseña y sin la opción de
-                  // volver a ver la guía. Llega ya armado desde app.js con
-                  // haciaAbajo:true, que es lo correcto en una barra superior.
-                  menuPerfil || null,
+                  // El MenuPerfil se movió al pie del sidebar (ver la nota de
+                  // arriba): aquí duplicaba nombre y rol.
                 ]
               }, void 0, true),
             ]

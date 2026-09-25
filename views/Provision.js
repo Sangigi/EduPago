@@ -199,6 +199,27 @@ function Provision({ user, onLogout, menuPerfil }) {
         'el colegio pasa a ', _hPR('b', { key: 'b' }, 'activo'), ' en el embudo comercial.'
       ),
 
+      /* ── Resumen ──
+       *
+       * Las cifras salen de lo que YA está cargado, no de un conteo global:
+       * `cargar(filtro)` pide al servidor solo el subconjunto del filtro
+       * activo, así que sumar aquí "todos los colegios" sería inventar. Por
+       * eso la etiqueta dice "en esta vista" — una cifra que miente es peor
+       * que no tenerla, sobre todo en la pantalla donde se decide qué falta.
+       */
+      _hPR('div', { key: 'stats', className: 'stats-grid' },
+        [
+          { label: 'Colegios en esta vista', val: escuelas.length, meta: FILTROS.filter(f => f.id === filtro).map(f => f.label)[0] || '' },
+          { label: 'Con ID del proveedor',   val: escuelas.filter(e => (e.proveedor_school_id || '').trim()).length, meta: 'Ya provisionados' },
+          { label: 'Sin ID todavía',         val: escuelas.filter(e => !(e.proveedor_school_id || '').trim()).length, meta: 'Esperan tu captura' },
+        ].map(function (s, i) {
+          return _hPR('div', { key: i, className: 'stat-card' },
+            _hPR('div', { key: 'v', className: 'stat-value' }, s.val),
+            _hPR('div', { key: 'l', className: 'stat-label' }, s.label),
+            _hPR('div', { key: 'm', className: 'stat-meta' }, s.meta)
+          );
+        })
+      ),
       /* ── Filtros + búsqueda ── */
       _hPR('div', {
         key: 'ctr',
@@ -245,10 +266,14 @@ function Provision({ user, onLogout, menuPerfil }) {
         : (visibles.length === 0
             ? _hPR('div', {
                 key: 'vacio',
-                style: { padding: 40, textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }
-              }, filtro === 'pendientes'
-                   ? 'No hay colegios esperando provisión. Todo al corriente.'
-                   : 'Ningún colegio coincide.')
+                className: 'empty-state'
+              },
+                _hPR('div', { key: 'i', className: 'empty-icon' }, filtro === 'pendientes' ? '✅' : '🔍'),
+                _hPR('div', { key: 't', className: 'empty-text' },
+                  filtro === 'pendientes'
+                    ? 'No hay colegios esperando provisión. Todo al corriente.'
+                    : 'Ningún colegio coincide.')
+              )
             : _hPR('div', { key: 'lista', style: { display: 'grid', gap: 10 } },
                 visibles.map(esc => _hPR('div', {
                   key: esc.id,

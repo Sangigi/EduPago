@@ -1360,7 +1360,15 @@ function App() {
 
         // Distribuidor no montaba MenuPerfil: solo tenía un botón suelto de
         // cerrar sesión, sin editar perfil ni cambiar contraseña ni la guía.
-        menuPerfil: menuPerfilPlataforma
+        // Distribuidor lo monta en el PIE DEL SIDEBAR, como admin y superadmin
+        // (25-sep-2026): antes lo tenía en la barra superior Y además una
+        // tarjeta estática con nombre y rol en el pie, o sea el mismo dato dos
+        // veces en la misma pantalla.
+        //
+        // cloneElement en vez de rearmar el componente: solo cambia la
+        // dirección de apertura. En un pie de sidebar el desplegable tiene que
+        // abrir hacia ARRIBA, o se sale de la ventana por abajo.
+        menuPerfil: React.cloneElement(menuPerfilPlataforma, { haciaAbajo: false })
 
       },
 
