@@ -83,7 +83,22 @@ function Facturacion({
     nivel_educativo: '',
     rvoe: ''
   });
-  const cobrosEscuela = data.cobros.filter(c => c.estado === 'pagado');
+  // Antes el filtro era solo `c.estado === 'pagado'`, y eso dejaba FUERA de
+  // Facturación todo cobro abonado parcialmente: un cobro con abonos se queda
+  // en 'pendiente' hasta quedar cubierto (lib/helpers_pagos.php solo lo pasa a
+  // 'pagado' cuando $cubierto; no existe un estado 'parcial'). El avance vive
+  // en la columna cacheada cobros.monto_pagado y en el ledger cobro_abonos.
+  //
+  // Fiscalmente esos cobros SÍ deben facturarse, y el backend ya sabe hacerlo
+  // solo: acciones/generar_cfdi.php emite PPD con forma de pago '99' cuando el
+  // cobro no está cubierto, y PUE cuando sí. Ese camino ya existía pero era
+  // inalcanzable desde la interfaz, porque el único botón de "Generar CFDI" se
+  // pinta a partir de esta lista.
+  //
+  // El criterio de "tiene avance" es el mismo que ya usa views/Cobros.js para
+  // su indicador de "Abonado X de Y".
+  const cobrosEscuela = data.cobros.filter(c =>
+    c.estado === 'pagado' || Number(c.monto_pagado || 0) > 0);
   const pendientesFact = cobrosEscuela.filter(c => !c.factura_cfdi);
   const emitidas = cobrosEscuela.filter(c => c.factura_cfdi);
   const USO_CFDI = {
@@ -389,7 +404,9 @@ function Facturacion({
             children: "Cobros sin factura"
           }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
             className: "card-sub",
-            children: [pendientesFact.length, " cobros pagados sin CFDI"]
+            // "pagados" ya no describe la lista: ahora también entran los
+            // cobros con abonos parciales, que se facturan como PPD.
+            children: [pendientesFact.length, " cobros por facturar"]
           }, void 0, true)]
         }, void 0, true),
         typeof Paginacion !== 'undefined' ? /*#__PURE__*/_jsxDEV(Paginacion, {

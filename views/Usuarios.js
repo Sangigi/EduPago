@@ -8,57 +8,79 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
 var _Fragment = React.Fragment;
 // views/Usuarios.jsx — Gestión dinámica de usuarios con jerarquía de roles e integración de Portal Familiar FIX: FormModal extraído del render de Usuarios para evitar desmonte/remonte en cada cambio de estado
 
-/* Roles de PLATAFORMA: no pertenecen a ningún colegio, su trabajo es mirar o
-   atender a TODOS. Esta lista va a la par de acciones/crear_usuario.php (que
-   les fuerza escuela_id = NULL al dar de alta) y de acciones/editar_usuario.php.
-   Pedirles una escuela en el formulario era pedir un dato que el alta descarta
-   y que la edición SÍ grababa, encerrando al rol dentro de un colegio y
-   dejándole el panel vacío. NO incluye 'superadmin', que tiene su propia rama.
-   Vive a nivel de módulo, no dentro de Usuarios(), porque UsuariosFormModal es
-   una función de nivel superior y no vería una const declarada allá adentro. */
-const ROLES_SIN_ESCUELA = ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'];
+/* ═══ TABLA ÚNICA DE ROLES ═══
+   Todo lo que la pantalla necesita saber de un rol vive AQUÍ, en una sola
+   entrada. Antes esto estaba repartido en cinco listas escritas a mano (orden,
+   descripciones, notas del formulario, roles sin escuela, roles de colegio) y
+   cada rol nuevo había que acordarse de agregarlo a todas. Falló tres veces
+   seguidas: soporte, provisión y tesorería aparecieron en el modal pero sin
+   tarjeta ni filtro ni leyenda, y promotor además se coló en el guard de
+   escuela_id, que le grababa un colegio y lo dejaba sin panel.
 
-/* Nota que sustituye al selector de escuela para cada rol sin colegio. Textos
-   tomados de los comentarios de ROL_INFO y de las cabeceras de views/Tesoreria.js
-   y views/Provision.js — antes todos heredaban el texto del contador, que para
-   los demás era simplemente falso. ('distribuidor' no está aquí: tiene su propia
-   rama, porque además elige Zona.) */
-const NOTA_SIN_ESCUELA = {
-  contador:  'Informativa — un contador revisa documentos de CUALQUIER escuela, no pertenece a una sola.',
-  soporte:   'Informativa — soporte consulta CUALQUIER escuela para atender a los colegios. Solo lectura.',
-  provision: 'Informativa — provisión da de alta a los colegios ante el proveedor de pagos, no trabaja para uno solo.',
-  tesoreria: 'Informativa — tesorería lleva las cuentas por pagar de TODOS los colegios, no de uno solo.',
-  promotor:  'Informativa — un promotor invita colegios nuevos; no pertenece a ninguno de ellos.'
+   PARA AGREGAR UN ROL: una entrada aquí y ya. El orden de declaración es el
+   orden en que se pinta. Ojo, sigue habiendo tres sitios FUERA de este archivo
+   que también deben conocerlo, porque mandan de verdad:
+     · acciones/crear_usuario.php  → $roles_validos y el forzado de escuela_id
+     · acciones/editar_usuario.php → el mismo forzado al editar
+     · controllers/AuthController.js → rolesQuePuedeCriar()
+
+   Campos:
+     label/icon/color/bg/badge → presentación (tarjetas, chips, leyenda, tabla)
+     desc       → renglón de la leyenda "Jerarquía de permisos"
+     deColegio  → lo ve un admin (listar_usuarios.php solo le devuelve estos)
+     sinEscuela → rol de plataforma: no se le pide escuela en el formulario
+     nota       → texto que sustituye al selector de escuela cuando sinEscuela
+
+   `var` y no `const` a propósito: un const a nivel raíz tumba toda la app si el
+   archivo llega a cargarse dos veces (mismo criterio que MenuPerfil.js,
+   Provision.js y Tesoreria.js). */
+var ROL_INFO = {
+  superadmin:   { label: 'Super Admin',  icon: 'shield',   color: 'var(--amber)',  bg: 'var(--amber-glow)',    badge: 'badge-amber',
+                  desc: 'Crea admins, cajeros y familias · Acceso global administrativo completo.' },
+  admin:        { label: 'Admin',        icon: 'escuelas', color: 'var(--accent)', bg: 'var(--accent-glow)',   badge: 'badge-blue', deColegio: true,
+                  desc: 'Gestiona cajeros y familias asignados a su mismo plantel escolar.' },
+  cajero:       { label: 'Cajero',       icon: 'cobros',   color: 'var(--green)',  bg: 'var(--green-glow)',    badge: 'badge-green', deColegio: true,
+                  desc: 'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.' },
+  familia:      { label: 'Familia',      icon: 'home',     color: '#a855f7',       bg: 'rgba(168,85,247,.15)', badge: 'badge-purple', deColegio: true,
+                  desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' },
+  // Refiere colegios y cobra comisión. Su rama del formulario es propia porque
+  // además elige Zona, así que no necesita `nota`.
+  distribuidor: { label: 'Distribuidor', icon: 'globe',    color: '#84cc16',       bg: 'rgba(132,204,22,.15)', badge: 'badge-lime', sinEscuela: true,
+                  desc: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.' },
+  // Invita colegios como un distribuidor, pero SIN comisiones (23-sep-2026).
+  // No hizo falta tocar el cálculo de comisiones: esa fila solo nace cuando
+  // quien invita es exactamente 'distribuidor' — ver invitacion_crear.php.
+  promotor:     { label: 'Promotor',     icon: 'globe',    color: '#8b5cf6',       bg: 'rgba(139,92,246,.15)', badge: 'badge-purple', sinEscuela: true,
+                  desc: 'Invita colegios nuevos y da seguimiento a sus ligas de invitación, igual que un distribuidor pero sin comisiones.',
+                  nota: 'Informativa — un promotor invita colegios nuevos; no pertenece a ninguno de ellos.' },
+  // Revisa documentos fiscales y datos de alta de comercio de cualquier
+  // escuela (11-sep-2026) -- sin los demás poderes de superadmin.
+  contador:     { label: 'Contador',     icon: 'shield',   color: '#0891b2',       bg: 'rgba(8,145,178,.15)',  badge: 'badge-blue', sinEscuela: true,
+                  desc: 'Revisa documentos fiscales y datos de alta de comercio de cualquier escuela. Sin los demás poderes de superadmin.',
+                  nota: 'Informativa — un contador revisa documentos de CUALQUIER escuela, no pertenece a una sola.' },
+  // Atención a colegios (22-sep-2026): ve cualquier escuela para poder
+  // diagnosticar, pero es estrictamente de lectura — no aparece en la lista
+  // de roles permitidos de ninguna acción que escriba.
+  soporte:      { label: 'Soporte',      icon: 'info',     color: '#6366f1',       bg: 'rgba(99,102,241,.15)', badge: 'badge-blue', sinEscuela: true,
+                  desc: 'Atiende a los colegios: consulta cualquier escuela para diagnosticar. Estrictamente de lectura, no escribe nada.',
+                  nota: 'Informativa — soporte consulta CUALQUIER escuela para atender a los colegios. Solo lectura.' },
+  // Captura el identificador que el proveedor asigna al colegio tras la
+  // aprobación del contador, y con eso lo activa (22-sep-2026).
+  provision:    { label: 'Provisión',    icon: 'settings', color: '#f97316',       bg: 'rgba(249,115,22,.15)', badge: 'badge-amber', sinEscuela: true,
+                  desc: 'Captura el identificador que el proveedor de pagos asigna al colegio una vez que el contador aprobó sus documentos.',
+                  nota: 'Informativa — provisión da de alta a los colegios ante el proveedor de pagos, no trabaja para uno solo.' },
+  // Cuentas por pagar a proveedores, del lado del dueño del sistema (22-sep-2026).
+  tesoreria:    { label: 'Tesorería',    icon: 'bank',     color: '#0d9488',       bg: 'rgba(13,148,136,.15)', badge: 'badge-green', sinEscuela: true,
+                  desc: 'Calendario de cuentas por pagar a proveedores, con la vista agregada de todos los colegios.',
+                  nota: 'Informativa — tesorería lleva las cuentas por pagar de TODOS los colegios, no de uno solo.' }
 };
 
-/* Orden jerárquico ÚNICO para las tarjetas de arriba, los chips de filtro y la
-   leyenda de abajo. Antes cada uno de esos tres widgets tenía su propia lista
-   escrita a mano: por eso los roles agregados el 22-sep-2026 (soporte,
-   provisión, tesorería) ya tenían etiqueta en ROL_INFO y se podían crear desde
-   el modal, pero no aparecían por ningún lado después de creados. */
-const ROLES_ORDEN = ['superadmin', 'admin', 'cajero', 'familia', 'distribuidor', 'promotor', 'contador', 'soporte', 'provision', 'tesoreria'];
+/* Listas DERIVADAS — nunca se escriben a mano. Si una queda mal, es porque
+   falta un campo en la tabla de arriba, no porque haya que editarlas aquí. */
+var ROLES_ORDEN      = Object.keys(ROL_INFO);
+var ROLES_DE_COLEGIO = ROLES_ORDEN.filter(function (r) { return ROL_INFO[r].deColegio; });
+var ROLES_SIN_ESCUELA = ROLES_ORDEN.filter(function (r) { return ROL_INFO[r].sinEscuela; });
 
-/* Lo que ve un admin. listar_usuarios.php ya excluye server-side a los roles de
-   plataforma (filtra por su escuela_id, y esos roles la tienen en NULL), así que
-   pintárselos daba tarjetas siempre en 0 y filtros que nunca devuelven nada. */
-const ROLES_DE_COLEGIO = ['admin', 'cajero', 'familia'];
-
-/* Descripciones de la leyenda "Jerarquía de permisos y roles autorizados".
-   En un mapa (y no en un arreglo suelto dentro del render) para que la leyenda
-   no pueda volver a quedarse atrás cuando se agregue un rol: el orden y qué se
-   muestra los decide ROLES_ORDEN / ROLES_DE_COLEGIO, igual que las tarjetas. */
-const ROL_DESC = {
-  superadmin:   'Crea admins, cajeros y familias · Acceso global administrativo completo.',
-  admin:        'Gestiona cajeros y familias asignados a su mismo plantel escolar.',
-  cajero:       'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.',
-  familia:      'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.',
-  distribuidor: 'Refiere colegios nuevos y da seguimiento a su embudo y comisiones por zona asignada.',
-  contador:     'Revisa documentos fiscales y datos de alta de comercio de cualquier escuela. Sin los demás poderes de superadmin.',
-  soporte:      'Atiende a los colegios: consulta cualquier escuela para diagnosticar. Estrictamente de lectura, no escribe nada.',
-  provision:    'Captura el identificador que el proveedor de pagos asigna al colegio una vez que el contador aprobó sus documentos.',
-  tesoreria:    'Calendario de cuentas por pagar a proveedores, con la vista agregada de todos los colegios.',
-  promotor:     'Invita colegios nuevos y da seguimiento a sus ligas de invitación, igual que un distribuidor pero sin comisiones.'
-};
 
 /* ─── Componente del modal de formulario — FUERA de Usuarios para evitar re-creación en cada render ─── */
 function UsuariosFormModal({
@@ -298,7 +320,7 @@ function UsuariosFormModal({
                     _jsxDEV("label", { className: "form-label", children: "Escuela asignada (ninguna)" }, void 0, false),
                     _jsxDEV("div", {
                       style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 4 },
-                      children: NOTA_SIN_ESCUELA[form.rol]
+                      children: ROL_INFO[form.rol].nota
                     }, void 0, false)
                   ]
                 }, void 0, true) : _jsxDEV("div", {
@@ -567,29 +589,6 @@ function Usuarios({ user, data }) {
   // su propia cuenta de acceso) pintaba de golpe toda esa lista en la tabla.
   const pagUsr = (typeof usePaginacion === 'function') ? usePaginacion(lista, 25) : null;
 
-  const ROL_INFO = {
-    superadmin:   { label: 'Super Admin',  icon: 'shield',  color: 'var(--amber)', bg: 'var(--amber-glow)',    badge: 'badge-amber'  },
-    admin:        { label: 'Admin',        icon: 'escuelas', color: 'var(--accent)', bg: 'var(--accent-glow)', badge: 'badge-blue'   },
-    cajero:       { label: 'Cajero',       icon: 'cobros',  color: 'var(--green)', bg: 'var(--green-glow)',    badge: 'badge-green'  },
-    familia:      { label: 'Familia',      icon: 'home',    color: '#a855f7',      bg: 'rgba(168,85,247,.15)', badge: 'badge-purple' },
-    distribuidor: { label: 'Distribuidor', icon: 'globe',   color: '#84cc16',      bg: 'rgba(132,204,22,.15)', badge: 'badge-lime'   },
-    // Revisa documentos fiscales y datos de alta de comercio de cualquier
-    // escuela (11-sep-2026) -- sin los demás poderes de superadmin.
-    contador:     { label: 'Contador',     icon: 'shield', color: '#0891b2', bg: 'rgba(8,145,178,.15)', badge: 'badge-blue'   },
-    // Atención a colegios (22-sep-2026): ve cualquier escuela para poder
-    // diagnosticar, pero es estrictamente de lectura — no aparece en la lista
-    // de roles permitidos de ninguna acción que escriba.
-    soporte:      { label: 'Soporte',      icon: 'info',   color: '#6366f1', bg: 'rgba(99,102,241,.15)', badge: 'badge-blue'  },
-    // Captura el identificador que el proveedor asigna al colegio tras la
-    // aprobación del contador, y con eso lo activa (22-sep-2026).
-    provision:    { label: 'Provisión',    icon: 'settings', color: '#f97316', bg: 'rgba(249,115,22,.15)', badge: 'badge-amber' },
-    // Cuentas por pagar a proveedores, del lado del dueño del sistema (22-sep-2026).
-    tesoreria:    { label: 'Tesorería',    icon: 'bank',    color: '#0d9488', bg: 'rgba(13,148,136,.15)', badge: 'badge-green' },
-    // Invita colegios como un distribuidor, pero SIN comisiones (23-sep-2026).
-    // No hizo falta tocar el cálculo de comisiones: esa fila solo nace cuando
-    // quien invita es exactamente 'distribuidor' — ver invitacion_crear.php.
-    promotor:     { label: 'Promotor',     icon: 'globe',   color: '#8b5cf6', bg: 'rgba(139,92,246,.15)', badge: 'badge-purple' }
-  };
 
   // Fuente única de los roles que se pintan en las tarjetas, los chips de
   // filtro y la leyenda. Todos existen en ROL_INFO, que es lo que evita que la
@@ -978,7 +977,7 @@ function Usuarios({ user, data }) {
               // escondía superadmin, así que al admin le mostraba Distribuidor y
               // Contador —roles que no puede crear ni ver— y al superadmin le
               // faltaban soporte, provisión y tesorería.
-              rolesVisibles.map(rol => ({ rol, desc: ROL_DESC[rol] })).map(item => _jsxDEV("div", {
+              rolesVisibles.map(rol => ({ rol, desc: ROL_INFO[rol].desc })).map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [
                   _jsxDEV("span", { className: `badge ${ROL_INFO[item.rol].badge}`, style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: ROL_INFO[item.rol].icon, size: 14, color: "currentColor" }, void 0, false), " ", ROL_INFO[item.rol].label] }, void 0, true),

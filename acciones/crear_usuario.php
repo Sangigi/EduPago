@@ -45,7 +45,7 @@
         // trabajo es mirar o atender a TODAS. Dejarles un escuela_id los
         // encerraría en ese colegio y les vaciaría su propia pantalla.
         // 'soporte' y 'provision' se sumaron el 22-sep-2026.
-        if (in_array($rol, ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'], true)) { $esc_id = null; $fam_id = null; }
+        if (rol_sin_escuela($rol)) { $esc_id = null; $fam_id = null; }
         // Verificar email único
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);

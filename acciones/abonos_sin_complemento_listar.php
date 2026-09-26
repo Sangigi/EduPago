@@ -27,7 +27,14 @@ try {
            FROM cobro_abonos a
            JOIN cobros c    ON c.id = a.cobro_id
       LEFT JOIN clientes cl ON cl.id = c.cliente_id
-          WHERE a.escuela_id = ?
+          -- Se filtra por c.escuela_id, no por a.escuela_id: cobro_abonos
+          -- admite NULL en esa columna (DEFAULT NULL en la migración de abonos,
+          -- y helpers_pagos.php la inserta como `?: null`), y el propio repo la
+          -- marca como no confiable para filtrar en helpers_comisiones.php.
+          -- Con el filtro anterior, todo abono con escuela_id NULL quedaba
+          -- invisible aquí y su complemento de pago nunca se llegaba a emitir.
+          -- El JOIN a cobros ya estaba, así que el dato bueno estaba a mano.
+          WHERE c.escuela_id = ?
             AND c.factura_uuid IS NOT NULL AND c.factura_uuid <> ''
             AND (a.cfdi_complemento_uuid IS NULL OR a.cfdi_complemento_uuid = '')
           ORDER BY a.creado_en ASC, a.id ASC

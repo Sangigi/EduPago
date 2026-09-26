@@ -97,7 +97,7 @@
                 $stmtRolActual->execute([$id]);
                 $rol_efectivo = (string) $stmtRolActual->fetchColumn();
             }
-            if (in_array($rol_efectivo, ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'], true)) {
+            if (rol_sin_escuela($rol_efectivo)) {
                 $esc_id = null;
             }
         }

@@ -112,6 +112,11 @@ $stmtFis = $pdo->prepare(
        FROM clientes cl LEFT JOIN familias f ON f.id = cl.familia_id
       WHERE cl.id = ?"
 );
+// Sin este execute(), fetch() se llamaba sobre un statement preparado pero
+// nunca ejecutado: devuelve false, $fis quedaba en [] y la validación de abajo
+// cortaba SIEMPRE con "Falta el RFC del receptor". El botón "Emitir
+// complemento" no podía funcionar en ningún caso, ni con el RFC bien capturado.
+$stmtFis->execute([$ab['cliente_id']]);
 $fis = $stmtFis->fetch() ?: [];
 if (empty($fis['rfc'])) {
     respond(['success' => false,

@@ -384,6 +384,20 @@ function requerir_rol($rol_actual, array $roles_permitidos, $mensaje = 'No tiene
 function rol_alcance_global($rol_actual) {
     return in_array($rol_actual, ['superadmin', 'soporte'], true);
 }
+// Roles de PLATAFORMA: no pertenecen a NINGÚN colegio. Su escuela_id debe
+// quedar siempre en NULL — dejarles una los encierra en ese colegio y les vacía
+// su propia pantalla, porque sus consultas asumen alcance global.
+//
+// Vive aquí, en una sola función, porque la misma lista se necesita al DAR DE
+// ALTA (crear_usuario.php) y al EDITAR (editar_usuario.php), y tenerla escrita a
+// mano en los dos lados ya falló: el rol 'promotor' se agregó al alta pero no a
+// la edición, así que editarlo le grababa una escuela. Agregar un rol de
+// plataforma nuevo es tocar ESTA función y nada más del lado del servidor.
+// El espejo en el navegador es ROL_INFO (views/Usuarios.js), donde el campo
+// equivalente se llama `sinEscuela`.
+function rol_sin_escuela($rol) {
+    return in_array($rol, ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'], true);
+}
 // Requiere que $rol_actual sea 'superadmin' O que $escuela_id_fila coincida
 // con la escuela del usuario — el patrón "superadmin ve todo, los demás solo
 // lo de su propia escuela" repetido en checks de pertenencia sobre cobros,
