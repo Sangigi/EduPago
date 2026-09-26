@@ -293,6 +293,13 @@
                         factura_rfc_receptor   = ?,
                         factura_razon_social   = ?,
                         factura_uso_cfdi       = ?,
+                        -- Espejo de lo que se le mandó al PAC unas líneas
+                        -- arriba. Antes esta decisión se calculaba, se enviaba
+                        -- y se tiraba, y sin ella no había forma de saber si
+                        -- una factura admite complementos de pago: los de un
+                        -- cobro facturado como PUE se listaban igual y el PAC
+                        -- rechazaba el timbrado.
+                        factura_metodo_pago    = ?,
                         factura_cp_receptor    = ?,
                         factura_email_receptor = ?,
                         factura_qr_url         = ?
@@ -308,6 +315,7 @@
                     $rfc,
                     $razon,
                     $uso,
+                    $cobroCubierto ? 'PUE' : 'PPD',
                     $cp_receptor,
                     $email ?: null,
                     'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($response_data['verification_url'] ?? ''),

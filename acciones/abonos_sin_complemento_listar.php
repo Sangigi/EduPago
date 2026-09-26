@@ -29,13 +29,24 @@ try {
       LEFT JOIN clientes cl ON cl.id = c.cliente_id
           -- Se filtra por c.escuela_id, no por a.escuela_id: cobro_abonos
           -- admite NULL en esa columna (DEFAULT NULL en la migración de abonos,
-          -- y helpers_pagos.php la inserta como `?: null`), y el propio repo la
+          -- y helpers_pagos.php la inserta con un respaldo a NULL), y el repo la
           -- marca como no confiable para filtrar en helpers_comisiones.php.
           -- Con el filtro anterior, todo abono con escuela_id NULL quedaba
           -- invisible aquí y su complemento de pago nunca se llegaba a emitir.
           -- El JOIN a cobros ya estaba, así que el dato bueno estaba a mano.
           WHERE c.escuela_id = ?
             AND c.factura_uuid IS NOT NULL AND c.factura_uuid <> ''
+            -- Una factura PUE (pago en una sola exhibición) NO admite
+            -- complementos de pago: si se listan sus abonos, el cajero pulsa
+            -- el boton de emitir complemento y el PAC rechaza el timbrado.
+            -- Antes bastaba
+            -- con que el cobro tuviera UUID, así que eso pasaba con cualquier
+            -- cobro que se hubiera cubierto antes de facturarse.
+            -- En NEGATIVO a propósito: lo facturado ANTES de esta columna se
+            -- queda en NULL y se sigue listando igual que hasta hoy. Marcarlo
+            -- como PUE adivinando escondería complementos que sí hacen falta,
+            -- que es un problema fiscal peor. Ver la migración del 26-sep-2026.
+            AND (c.factura_metodo_pago IS NULL OR c.factura_metodo_pago <> 'PUE')
             AND (a.cfdi_complemento_uuid IS NULL OR a.cfdi_complemento_uuid = '')
           ORDER BY a.creado_en ASC, a.id ASC
           LIMIT 200"
