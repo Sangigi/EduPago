@@ -16,7 +16,7 @@ var _Fragment = React.Fragment;
    dejándole el panel vacío. NO incluye 'superadmin', que tiene su propia rama.
    Vive a nivel de módulo, no dentro de Usuarios(), porque UsuariosFormModal es
    una función de nivel superior y no vería una const declarada allá adentro. */
-const ROLES_SIN_ESCUELA = ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria'];
+const ROLES_SIN_ESCUELA = ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'];
 
 /* Nota que sustituye al selector de escuela para cada rol sin colegio. Textos
    tomados de los comentarios de ROL_INFO y de las cabeceras de views/Tesoreria.js
@@ -27,7 +27,8 @@ const NOTA_SIN_ESCUELA = {
   contador:  'Informativa — un contador revisa documentos de CUALQUIER escuela, no pertenece a una sola.',
   soporte:   'Informativa — soporte consulta CUALQUIER escuela para atender a los colegios. Solo lectura.',
   provision: 'Informativa — provisión da de alta a los colegios ante el proveedor de pagos, no trabaja para uno solo.',
-  tesoreria: 'Informativa — tesorería lleva las cuentas por pagar de TODOS los colegios, no de uno solo.'
+  tesoreria: 'Informativa — tesorería lleva las cuentas por pagar de TODOS los colegios, no de uno solo.',
+  promotor:  'Informativa — un promotor invita colegios nuevos; no pertenece a ninguno de ellos.'
 };
 
 /* Orden jerárquico ÚNICO para las tarjetas de arriba, los chips de filtro y la
@@ -35,7 +36,7 @@ const NOTA_SIN_ESCUELA = {
    escrita a mano: por eso los roles agregados el 22-sep-2026 (soporte,
    provisión, tesorería) ya tenían etiqueta en ROL_INFO y se podían crear desde
    el modal, pero no aparecían por ningún lado después de creados. */
-const ROLES_ORDEN = ['superadmin', 'admin', 'cajero', 'familia', 'distribuidor', 'contador', 'soporte', 'provision', 'tesoreria'];
+const ROLES_ORDEN = ['superadmin', 'admin', 'cajero', 'familia', 'distribuidor', 'promotor', 'contador', 'soporte', 'provision', 'tesoreria'];
 
 /* Lo que ve un admin. listar_usuarios.php ya excluye server-side a los roles de
    plataforma (filtra por su escuela_id, y esos roles la tienen en NULL), así que
@@ -55,7 +56,8 @@ const ROL_DESC = {
   contador:     'Revisa documentos fiscales y datos de alta de comercio de cualquier escuela. Sin los demás poderes de superadmin.',
   soporte:      'Atiende a los colegios: consulta cualquier escuela para diagnosticar. Estrictamente de lectura, no escribe nada.',
   provision:    'Captura el identificador que el proveedor de pagos asigna al colegio una vez que el contador aprobó sus documentos.',
-  tesoreria:    'Calendario de cuentas por pagar a proveedores, con la vista agregada de todos los colegios.'
+  tesoreria:    'Calendario de cuentas por pagar a proveedores, con la vista agregada de todos los colegios.',
+  promotor:     'Invita colegios nuevos y da seguimiento a sus ligas de invitación, igual que un distribuidor pero sin comisiones.'
 };
 
 /* ─── Componente del modal de formulario — FUERA de Usuarios para evitar re-creación en cada render ─── */

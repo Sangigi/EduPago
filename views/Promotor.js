@@ -24,7 +24,14 @@
 var _hPM = React.createElement;
 
 function Promotor({ user, onLogout, menuPerfil }) {
-  return _hPM('div', { style: { minHeight: '100vh', background: 'var(--bg-main)' } },
+  // minHeight deja crecer el div pero NADA lo puede desplazar: este panel cuelga
+  // de #root (altura fija) con html/body en overflow:hidden, así que todo lo que
+  // pase del alto de la ventana queda inalcanzable — ni con rueda, ni con barra,
+  // ni con gesto. Con una lista larga de invitaciones se perderían las últimas.
+  // Mismo patrón que Provision.js, Tesoreria.js y views/PortalFamilia.js, que ya
+  // documenta la trampa. maxHeight en dvh para que en móvil el fondo no quede
+  // debajo de la barra del navegador.
+  return _hPM('div', { style: { height: '100vh', maxHeight: '100dvh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--bg-main)' } },
 
     _hPM('div', {
       key: 'top',
