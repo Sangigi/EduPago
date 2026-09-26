@@ -496,14 +496,32 @@ function Facturacion({
                   metodo: c.metodo
                 }, void 0, false)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
-                children: /*#__PURE__*/_jsxDEV("span", {
+                children: [/*#__PURE__*/_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
                     fontWeight: 600
                   },
                   children: fmt(c.total)
-                }, void 0, false)
-              }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                }, 'total', false),
+                // Un cobro con abonos se ve aquí IGUAL que uno pagado completo:
+                // mismo importe, mismo botón. Sin esta marca no hay forma de
+                // distinguirlos desde esta pantalla, y la diferencia importa,
+                // porque este se timbra como PPD y después le seguirán
+                // complementos de pago por cada abono. El importe que se
+                // factura sigue siendo el TOTAL, no lo abonado.
+                // Mismo criterio e idéntico formato que views/Cobros.js, para
+                // que la marca se lea igual en las dos pantallas.
+                (Number(c.monto_pagado) > 0 && c.estado !== 'pagado') ? /*#__PURE__*/_jsxDEV("div", {
+                  style: {
+                    fontSize: 11,
+                    color: 'var(--amber)',
+                    fontFamily: 'var(--mono)',
+                    marginTop: 2
+                  },
+                  title: 'Abonado ' + fmt(c.monto_pagado) + ' de ' + fmt(c.total) + ' — se facturará como PPD y cada abono necesitará su complemento de pago',
+                  children: 'faltan ' + fmt(Number(c.total) - Number(c.monto_pagado)) + ' · PPD'
+                }, 'abono', false) : null]
+              }, void 0, true), /*#__PURE__*/_jsxDEV("td", {
                 children: /*#__PURE__*/_jsxDEV("button", {
                   className: "btn btn-primary btn-sm",
                   onClick: () => abrirSolicitar(c),
