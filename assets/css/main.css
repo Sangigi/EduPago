@@ -660,6 +660,21 @@ tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
 
   animation:fadeIn .15s ease; padding:20px;
 
+  /* Con el modal abierto, el fondo seguía desplazándose por detrás: el backdrop
+     es position:fixed y se queda quieto, pero .content (que es el contenedor
+     con scroll de toda la app) nunca se bloqueaba, así que la rueda o el gesto
+     sobre el overlay movían la página de atrás y daba la sensación de "salirse"
+     del modal. No existe bloqueo de scroll en ningún lado del sistema.
+
+     overflow-y:auto convierte al overlay en su propio contenedor de scroll, y
+     overscroll-behavior:contain evita que ese scroll se ENCADENE al de atrás.
+     Como .modal tiene max-height:90vh, el overlay casi nunca desborda: lo que
+     se gana es justamente cortar el encadenamiento. Y si algún día un modal
+     crece de más, ahora se recorre dentro del overlay en vez de quedar fuera
+     de alcance. Va en la clase compartida, así que cubre los 21 modales del
+     sistema y no solo el de Facturación, que fue donde se reportó. */
+  overflow-y:auto; overscroll-behavior:contain;
+
 }
 
 .modal {
