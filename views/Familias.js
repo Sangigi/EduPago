@@ -975,7 +975,7 @@ function Familias({
 
               children: [_jsxDEV("button", {
 
-                className: "btn btn-ghost btn-sm",
+                className: "btn btn-secondary btn-sm",
 
                 onClick: e => {
 
@@ -1047,7 +1047,7 @@ function Familias({
 
               }, 'fichaTutor', true), _jsxDEV("button", {
 
-                className: "btn btn-ghost btn-sm",
+                className: "btn btn-secondary btn-sm",
 
                 onClick: e => {
 
@@ -1068,6 +1068,8 @@ function Familias({
               }, void 0, false)]
 
             }, void 0, true), _jsxDEV("span", {
+
+              className: "fam-chevron",
 
               style: {
 
@@ -1391,6 +1393,8 @@ function Familias({
 
                 children: [hijo.saldo_pendiente > 0 ? _jsxDEV("span", {
 
+                className: "fam-hijo-saldo",
+
                 style: {
 
                   fontFamily: 'var(--mono)',
@@ -1406,6 +1410,8 @@ function Familias({
                 children: fmt(hijo.saldo_pendiente)
 
               }, void 0, false) : _jsxDEV("span", {
+
+                className: "fam-hijo-saldo",
 
                 style: {
 
@@ -1431,9 +1437,15 @@ function Familias({
 
                 }, void 0, false), " Al corriente"]
 
-              }, void 0, true), _jsxDEV("button", {
+              }, void 0, true), _jsxDEV("div", {
 
-                className: "btn btn-ghost btn-sm",
+                className: "fam-actions-buttons",
+
+                style: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+
+                children: [_jsxDEV("button", {
+
+                className: "btn btn-secondary btn-sm",
 
                 onClick: () => {
 
@@ -1471,7 +1483,7 @@ function Familias({
 
               }, void 0, false), _jsxDEV("button", {
 
-                className: "btn btn-ghost btn-sm",
+                className: "btn btn-secondary btn-sm",
 
                 onClick: () => toggleHijo(hijo),
 
@@ -1507,7 +1519,7 @@ function Familias({
 
               }, void 0, false), _jsxDEV("button", {
 
-                className: "btn btn-ghost btn-sm",
+                className: "btn btn-secondary btn-sm",
 
                 onClick: () => desvincularAlumno(hijo),
 
@@ -1534,6 +1546,8 @@ function Familias({
                 }, void 0, false)
 
               }, void 0, false)]
+
+              }, void 0, true)]
 
               }, void 0, true)]
 

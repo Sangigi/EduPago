@@ -1377,7 +1377,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
      donde la barra del navegador sigue visible. La causa concreta de que
      "Cobrar" se recortara era otra (ver .payment-methods abajo), pero de
      todos modos vale usar el alto real aquí. */
-  .pos-cart { max-height: 56vh; max-height: 62dvh; }
+  .pos-cart { max-height: 68vh; max-height: 74dvh; }
 
   /* Los métodos de pago en UNA sola fila con scroll horizontal (22-sep-2026).
      Esta era la causa real de que el botón "Cobrar" se recortara en celular
@@ -1420,7 +1420,12 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 
 
-  .stats-grid { grid-template-columns: 1fr; }
+  /* Antes 1fr (una tarjeta por fila) — a partir del 27-sep-2026, a pedido,
+     se dejan siempre 2 columnas (como ya se ve en "Mi equipo") incluso en
+     celulares chicos: una sola columna obligaba a scrollear mucho para ver
+     4 tarjetas de resumen, y en 2 columnas el contenido (ícono, cifra,
+     etiqueta corta) cabe perfectamente bien. */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
 
 
 
@@ -2039,21 +2044,37 @@ box-shadow:0 0 0 3px var(--accent-glow);
     justify-content: space-between;
     gap: 12px;
     text-align: right;
-    padding: 6px 0;
+    padding: 8px 0;
     border: none;
+    border-bottom: 1px solid var(--glass-light);
     white-space: normal !important;
     max-width: none !important;
   }
 
+  .table-wrap.cards-mobile tr td:last-child { border-bottom: none; }
+
   .table-wrap.cards-mobile td[data-label]::before {
     content: attr(data-label);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .3px;
-    color: var(--ink-4);
+    letter-spacing: .4px;
+    color: var(--ink-3);
     text-align: left;
     flex-shrink: 0;
+  }
+
+  /* La primera celda de cada tarjeta (normalmente el nombre/folio — lo que
+     identifica esa fila) se destaca un poco: sirve de "título" de la
+     tarjeta y ayuda a ubicarse antes de leer el resto de los datos. */
+  .table-wrap.cards-mobile tr td:first-child {
+    padding-top: 2px;
+    padding-bottom: 10px;
+    margin-bottom: 2px;
+    border-bottom: 1px dashed var(--glass-light);
+  }
+  .table-wrap.cards-mobile tr td:first-child::before {
+    color: var(--ink-2);
   }
 
   /* Celdas sin data-label (ej. una sola con colSpan para "sin resultados")
@@ -2064,7 +2085,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   /* Barra de "Conceptos" en Caja: título + buscador en una sola fila se
      apretaban demasiado. El buscador pasa a ocupar todo el ancho, debajo
      del título. */
@@ -2099,6 +2120,15 @@ box-shadow:0 0 0 3px var(--accent-glow);
     gap: 6px;
   }
   .fam-actions-buttons > button { width: 100%; }
+
+  /* Flechita de expandir/contraer la tarjeta de familia: al apilar todo en
+     columna quedaba pegada abajo a la izquierda. Se manda al lado derecho,
+     que es donde se espera un indicador de "abrir/cerrar". */
+  .fam-chevron { display: flex; justify-content: flex-end; width: 100%; }
+
+  /* Saldo/"Al corriente" de cada hijo dentro de la ficha de familia: se
+     centra en vez de quedar pegado a la izquierda al apilarse. */
+  .fam-hijo-saldo { display: flex; justify-content: center; width: 100%; text-align: center; }
 }
 
 @media (max-width: 480px) {
