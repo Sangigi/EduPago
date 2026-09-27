@@ -325,21 +325,26 @@ function MiCuenta({ escuela, user }) {
             children: [
               _jsxDEV('div', {
                 children: [
-                  _jsxDEV('label', { style: { fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }, children: 'Tipo de persona' }, 1),
-                  _jsxDEV('select', {
-                    className: 'form-input', value: tipoPersona,
-                    onChange: e => setTipoPersona(e.target.value),
+                  _jsxDEV('div', {
+                    style: { maxWidth: 240 },
                     children: [
-                      _jsxDEV('option', { value: '', children: 'Sin definir' }, 'op0'),
-                      _jsxDEV('option', { value: 'fisica', children: 'Persona física' }, 'op1'),
-                      _jsxDEV('option', { value: 'moral', children: 'Persona moral' }, 'op2'),
-                      // Negocio independiente (23-sep-2026): cobra pero no
-                      // factura. El valor es 'negocio' y no 'negocio_independiente'
-                      // porque escuelas.tipo_persona es VARCHAR(10) — ver la
-                      // nota en TIPOS_PERSONA (lib/helpers_pagos.php).
-                      _jsxDEV('option', { value: 'negocio', children: 'Negocio independiente' }, 'op3'),
+                      _jsxDEV('label', { style: { fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }, children: 'Tipo de persona' }, 1),
+                      _jsxDEV('select', {
+                        className: 'form-input', value: tipoPersona,
+                        onChange: e => setTipoPersona(e.target.value),
+                        children: [
+                          _jsxDEV('option', { value: '', children: 'Sin definir' }, 'op0'),
+                          _jsxDEV('option', { value: 'fisica', children: 'Persona física' }, 'op1'),
+                          _jsxDEV('option', { value: 'moral', children: 'Persona moral' }, 'op2'),
+                          // Negocio independiente (23-sep-2026): cobra pero no
+                          // factura. El valor es 'negocio' y no 'negocio_independiente'
+                          // porque escuelas.tipo_persona es VARCHAR(10) — ver la
+                          // nota en TIPOS_PERSONA (lib/helpers_pagos.php).
+                          _jsxDEV('option', { value: 'negocio', children: 'Negocio independiente' }, 'op3'),
+                        ]
+                      }, 2)
                     ]
-                  }, 2),
+                  }, 'tp-campo'),
                   _jsxDEV('div', {
                     style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 5, lineHeight: 1.45 },
                     children: tipoPersona === 'negocio'
@@ -355,6 +360,7 @@ function MiCuenta({ escuela, user }) {
                 ]
               }, 'rs'),
               _jsxDEV('div', {
+                style: { maxWidth: 200 },
                 children: [
                   _jsxDEV('label', { style: { fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }, children: 'Régimen fiscal (clave SAT)' }, 1),
                   _jsxDEV('input', { className: 'form-input', value: regimenFiscal, onChange: e => setRegimenFiscal(e.target.value), placeholder: '601, 612, 626…' }, 2)

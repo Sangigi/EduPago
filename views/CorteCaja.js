@@ -367,7 +367,7 @@ function CorteCaja({ user, escuela }) {
         h('thead', {}, h('tr', {},
           ['Apertura', 'Cierre', 'Cajero', 'Fondo', 'Ventas', 'Esperado', 'Contado', 'Diferencia', 'Estado', ''].map(th => h('th', { key: th }, th))
         )),
-        h('tbody', {}, historial.map(c => h('tr', { key: c.id },
+        h('tbody', {}, historial.map(c => h('tr', { key: c.id, onClick: () => verResumen(c.id), style: { cursor: 'pointer' } },
           h('td', { 'data-label': 'Apertura' }, new Date(c.fecha_apertura).toLocaleString('es-MX')),
           h('td', { 'data-label': 'Cierre' }, c.fecha_cierre ? new Date(c.fecha_cierre).toLocaleString('es-MX') : '—'),
           h('td', { 'data-label': 'Cajero' }, c.usuario_nombre),
@@ -379,7 +379,7 @@ function CorteCaja({ user, escuela }) {
             ? h('span', { style: { color: Math.abs(c.diferencia) < 0.01 ? 'var(--green-dark)' : 'var(--red)', fontWeight: 700 } }, fmt(c.diferencia))
             : '—'),
           h('td', { 'data-label': 'Estado' }, h('span', { className: `badge ${c.estado === 'abierta' ? 'badge-amber' : 'badge-gray'}` }, c.estado)),
-          h('td', {}, h('button', { className: 'btn btn-ghost btn-sm', onClick: () => verResumen(c.id) }, h(Icon, { name: 'eye', size: 14, color: 'currentColor' })))
+          h('td', { onClick: e => e.stopPropagation() }, h('button', { className: 'btn btn-ghost btn-sm', onClick: () => verResumen(c.id) }, h(Icon, { name: 'eye', size: 14, color: 'currentColor' })))
         )))
       )
     )

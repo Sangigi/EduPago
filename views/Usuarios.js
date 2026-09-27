@@ -985,7 +985,7 @@ function Usuarios({ user, data }) {
               rolesVisibles.map(rol => ({ rol, desc: ROL_INFO[rol].desc })).map(item => _jsxDEV("div", {
                 style: { display: 'flex', alignItems: 'flex-start', gap: 8, flex: '1 1 220px' },
                 children: [
-                  _jsxDEV("span", { className: `badge ${ROL_INFO[item.rol].badge}`, style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: ROL_INFO[item.rol].icon, size: 14, color: "currentColor" }, void 0, false), " ", ROL_INFO[item.rol].label] }, void 0, true),
+                  _jsxDEV("span", { className: `badge rol-legend-badge ${ROL_INFO[item.rol].badge}`, style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: ROL_INFO[item.rol].icon, size: 14, color: "currentColor" }, void 0, false), " ", ROL_INFO[item.rol].label] }, void 0, true),
                   _jsxDEV("span", { style: { fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.5 }, children: item.desc }, void 0, false)
                 ]
               }, item.rol, true))

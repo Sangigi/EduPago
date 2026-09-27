@@ -670,7 +670,11 @@ function Dashboard({
 
         },
 
-        children: [escuela && _jsxDEV("span", {
+        children: [_jsxDEV("span", {
+
+          className: "dash-escuela-line",
+
+          children: [escuela && _jsxDEV("span", {
 
           style: {
 
@@ -714,7 +718,9 @@ function Dashboard({
 
           }, void 0, true);
 
-        })(), new Date().toLocaleDateString('es-MX', {
+        })()]
+
+        }, void 0, true), new Date().toLocaleDateString('es-MX', {
 
           weekday: 'long',
 
@@ -750,7 +756,7 @@ function Dashboard({
 
       return _jsxDEV("div", {
 
-        className: "card",
+        className: "card dash-plan-card",
 
         style: { marginBottom: 22, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' },
 
@@ -761,6 +767,8 @@ function Dashboard({
           _jsxDEV("div", { style: { fontSize: 15, fontWeight: 700, color: info.color }, children: info.label }, void 0, false)]
 
         }, void 0, true), _jsxDEV("div", {
+
+          className: "dash-plan-alumnos",
 
           style: { flex: 1, minWidth: 180 },
 
@@ -783,6 +791,8 @@ function Dashboard({
           }, void 0, false)]
 
         }, void 0, true), _jsxDEV("div", {
+
+          className: "dash-plan-planteles",
 
           style: { fontSize: 12, color: excedidoPlt ? 'var(--red)' : 'var(--ink-3)' },
 

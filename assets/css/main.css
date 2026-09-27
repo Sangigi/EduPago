@@ -969,6 +969,13 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .search-bar { position:relative; display:flex; align-items:center; }
 
+/* Leyenda "Jerarquía de permisos y roles autorizados" en Mi equipo: los
+   badges de rol tienen texto de distinto largo (Admin vs Cajero vs
+   Superadmin), lo que dejaba la descripción de cada uno arrancando en un
+   punto distinto y se veía disparejo. Se les da un ancho mínimo parejo para
+   que todas las descripciones alineen en la misma columna. */
+.rol-legend-badge { min-width: 100px; justify-content: center; }
+
 .search-bar .search-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:15px; pointer-events:none; color:var(--ink-4); }
 
 .search-bar input {
@@ -1993,6 +2000,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
     gap: 4px;
   }
   .dash-greeting-meta > * { margin-right: 0 !important; }
+  .dash-escuela-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 
   /* Dona de "Por método de pago" + su leyenda: en escritorio van una junto a
      la otra a la izquierda; en celular se ven mejor centradas y, si no caben
@@ -2008,6 +2016,21 @@ box-shadow:0 0 0 3px var(--accent-glow);
      tarjeta de método de pago: se centra en vez de ir pegado a la izquierda. */
   .dash-pendientes-titulo { justify-content: center; }
   .dash-pendientes-item { text-align: center; }
+
+  /* Tarjeta "Tu plan" (plan + barra de alumnos + planteles): en escritorio
+     van los 3 bloques en una fila; en celular, al envolverse con flex-wrap,
+     quedaban con anchos dispares y se sentían "flotando" sin relación entre
+     sí. Se apilan, cada uno ocupando el ancho completo, con una línea sutil
+     separando alumnos de planteles para que se lean como dos datos
+     distintos y no como uno solo cortado. */
+  .dash-plan-card { flex-direction: column; align-items: stretch !important; gap: 12px !important; }
+  .dash-plan-alumnos { width: 100%; min-width: 0 !important; }
+  .dash-plan-alumnos > div { max-width: none !important; }
+  .dash-plan-planteles {
+    width: 100%;
+    padding-top: 10px;
+    border-top: 1px dashed var(--glass-light);
+  }
 }
 
 /* ── Tablas sin scroll horizontal en móvil ──────────────────────────────
