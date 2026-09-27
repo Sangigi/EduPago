@@ -334,7 +334,7 @@ function Cobros({
         }, 'head', true),
 
         noAplicadosAbierto ? _jsxDEV("div", {
-          className: "table-wrap",
+          className: "table-wrap cards-mobile",
           style: { marginTop: 14 },
           children: _jsxDEV("table", {
             children: [
@@ -347,13 +347,13 @@ function Cobros({
               _jsxDEV("tbody", {
                 children: noAplicados.map(p => _jsxDEV("tr", {
                   children: [
-                    _jsxDEV("td", { style: { fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }, children: (p.creado_en || '').slice(0, 16) }, 1, false),
-                    _jsxDEV("td", { style: { fontSize: 12 }, children: CANAL_TXT[p.canal] || p.canal }, 2, false),
-                    _jsxDEV("td", { style: { fontSize: 12 }, children: MOTIVO_TXT[p.motivo] || p.motivo }, 3, false),
-                    _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--red)' }, children: fmt(p.monto_recibido) }, 4, false),
-                    _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-3)' }, children: p.monto_esperado != null ? fmt(p.monto_esperado) : '—' }, 5, false),
-                    _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 11, wordBreak: 'break-all', maxWidth: 160 }, children: p.referencia || p.clabe || '—' }, 6, false),
-                    _jsxDEV("td", { style: { fontSize: 12 }, children: p.cliente_nombre || (p.cobro_folio ? ('Folio ' + p.cobro_folio) : '—') }, 7, false),
+                    _jsxDEV("td", { "data-label": "Fecha", style: { fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }, children: (p.creado_en || '').slice(0, 16) }, 1, false),
+                    _jsxDEV("td", { "data-label": "Canal", style: { fontSize: 12 }, children: CANAL_TXT[p.canal] || p.canal }, 2, false),
+                    _jsxDEV("td", { "data-label": "Motivo", style: { fontSize: 12 }, children: MOTIVO_TXT[p.motivo] || p.motivo }, 3, false),
+                    _jsxDEV("td", { "data-label": "Recibido", style: { fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--red)' }, children: fmt(p.monto_recibido) }, 4, false),
+                    _jsxDEV("td", { "data-label": "Esperado", style: { fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-3)' }, children: p.monto_esperado != null ? fmt(p.monto_esperado) : '—' }, 5, false),
+                    _jsxDEV("td", { "data-label": "Referencia", style: { fontFamily: 'var(--mono)', fontSize: 11, wordBreak: 'break-all', maxWidth: 160 }, children: p.referencia || p.clabe || '—' }, 6, false),
+                    _jsxDEV("td", { "data-label": "Alumno", style: { fontSize: 12 }, children: p.cliente_nombre || (p.cobro_folio ? ('Folio ' + p.cobro_folio) : '—') }, 7, false),
                     _jsxDEV("td", {
                       children: _jsxDEV("div", {
                         style: { display: 'flex', gap: 5, flexWrap: 'wrap' },
@@ -634,7 +634,7 @@ function Cobros({
           onChange: e => setQ(e.target.value)
         }, void 0, false)]
       }, void 0, true), _jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: _jsxDEV("table", {
           children: [_jsxDEV("thead", {
             children: _jsxDEV("tr", {
@@ -681,6 +681,7 @@ function Cobros({
               },
               onClick: () => setDetalle(c),
               children: [_jsxDEV("td", {
+                "data-label": "Folio",
                 children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -689,12 +690,14 @@ function Cobros({
                   children: c.folio
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Fecha",
                 style: {
                   color: 'var(--ink-3)',
                   fontSize: 12
                 },
                 children: c.fecha
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Cliente",
                 style: {
                   maxWidth: 160,
                   overflow: 'hidden',
@@ -704,6 +707,7 @@ function Cobros({
                 },
                 children: c.cliente
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Referencia",
                 children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -713,6 +717,7 @@ function Cobros({
                   children: c.referencia || '—'
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Total",
                 children: [_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -729,16 +734,19 @@ function Cobros({
                   children: 'faltan ' + fmt(Number(c.total) - Number(c.monto_pagado))
                 }, 'abono', false) : null]
               }, void 0, true), _jsxDEV("td", {
+                "data-label": "Método",
                 children: _jsxDEV(MetodoBadge, {
                   metodo: c.metodo
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Estado",
                 children: (Number(c.monto_pagado) > 0 && c.estado !== 'pagado')
                   ? _jsxDEV("span", { className: "badge badge-amber", children: "Abonado" }, void 0, false)
                   : _jsxDEV(EstadoBadge, {
                       estado: c.estado
                     }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Acción",
                 onClick: e => e.stopPropagation(),
                 children: _jsxDEV("div", {
                   style: {

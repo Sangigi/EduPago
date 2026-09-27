@@ -248,6 +248,7 @@ function Reportes({
             children: [cobrosFilt.length, " transacciones"]
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
+          className: "donut-row",
           style: { display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' },
           children: (() => {
             /* Dona con la misma información que antes mostraban las barras */
@@ -353,7 +354,7 @@ function Reportes({
           children: [data.clientes.filter(c => c.saldo_pendiente > 0 && c.activo).length, " alumnos"]
         }, void 0, true)]
       }, void 0, true), _jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: _jsxDEV("table", {
           children: [_jsxDEV("thead", {
             children: _jsxDEV("tr", {
@@ -372,12 +373,14 @@ function Reportes({
           }, void 0, false), _jsxDEV("tbody", {
             children: [data.clientes.filter(c => c.saldo_pendiente > 0 && c.activo).map(c => _jsxDEV("tr", {
               children: [_jsxDEV("td", {
+                "data-label": "Alumno",
                 style: {
                   fontWeight: 500,
                   fontSize: 13
                 },
                 children: c.nombre
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Matrícula",
                 children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -386,18 +389,21 @@ function Reportes({
                   children: c.matricula || '—'
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Grado",
                 style: {
                   color: 'var(--ink-3)',
                   fontSize: 12
                 },
                 children: c.grado || '—'
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Familia",
                 style: {
                   fontSize: 12,
                   color: 'var(--ink-3)'
                 },
                 children: c.familia_id ? data.familias.find(f => f.id === c.familia_id)?.nombre : '—'
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Adeudo",
                 children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',

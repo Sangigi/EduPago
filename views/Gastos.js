@@ -234,7 +234,7 @@ function Gastos({ data, escuela_id }) {
         hGas('input', { className: 'form-input', style: { width: 150 }, type: 'date', value: hasta, onChange: e => setHasta(e.target.value) })
       ),
       error && hGas('div', { style: { padding: '12px 16px', color: 'var(--red)', fontSize: 13 } }, error),
-      !error && hGas('div', { className: 'table-wrap' },
+      !error && hGas('div', { className: 'table-wrap cards-mobile' },
         hGas('table', {},
           hGas('thead', {}, hGas('tr', {},
             ['Fecha', 'Proveedor', 'Concepto', 'Forma de pago', 'Monto', 'Comprobante', ''].map(th => hGas('th', { key: th }, th))
@@ -245,12 +245,12 @@ function Gastos({ data, escuela_id }) {
               : gastos.length === 0
                 ? hGas('tr', {}, hGas('td', { colSpan: 7, className: 'empty-text' }, 'Sin gastos registrados.'))
                 : gastos.map(g => hGas('tr', { key: g.id },
-                    hGas('td', { style: { fontFamily: 'var(--mono)', fontSize: 11.5, whiteSpace: 'nowrap' } }, g.fecha),
-                    hGas('td', { style: { fontSize: 12.5 } }, g.proveedor_nombre),
-                    hGas('td', { style: { fontSize: 12.5 } }, g.concepto),
-                    hGas('td', { style: { fontSize: 12 } }, FORMAS_PAGO_GASTO_LABELS[g.forma_pago] || g.forma_pago),
-                    hGas('td', { style: { fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 13 } }, fmt(g.monto)),
-                    hGas('td', {},
+                    hGas('td', { 'data-label': 'Fecha', style: { fontFamily: 'var(--mono)', fontSize: 11.5, whiteSpace: 'nowrap' } }, g.fecha),
+                    hGas('td', { 'data-label': 'Proveedor', style: { fontSize: 12.5 } }, g.proveedor_nombre),
+                    hGas('td', { 'data-label': 'Concepto', style: { fontSize: 12.5 } }, g.concepto),
+                    hGas('td', { 'data-label': 'Forma de pago', style: { fontSize: 12 } }, FORMAS_PAGO_GASTO_LABELS[g.forma_pago] || g.forma_pago),
+                    hGas('td', { 'data-label': 'Monto', style: { fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 13 } }, fmt(g.monto)),
+                    hGas('td', { 'data-label': 'Comprobante' },
                       g.comprobante_url
                         ? hGas('a', { href: g.comprobante_url, target: '_blank', rel: 'noopener', className: 'btn btn-ghost btn-sm' },
                             hGas(Icon, { name: 'download', size: 13, color: 'currentColor' }), ' Ver')

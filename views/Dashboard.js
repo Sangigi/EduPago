@@ -658,6 +658,8 @@ function Dashboard({
 
       }, void 0, true), _jsxDEV("p", {
 
+        className: "dash-greeting-meta",
+
         style: {
 
           fontSize: 13,
@@ -1248,7 +1250,7 @@ function Dashboard({
 
         }, void 0, false), _jsxDEV("div", {
 
-          className: "table-wrap",
+          className: "table-wrap cards-mobile",
 
           children: _jsxDEV("table", {
 
@@ -1314,6 +1316,8 @@ function Dashboard({
 
                 children: [_jsxDEV("td", {
 
+                  "data-label": "Folio",
+
                   children: _jsxDEV("span", {
 
                     style: {
@@ -1329,6 +1333,8 @@ function Dashboard({
                   }, void 0, false)
 
                 }, void 0, false), _jsxDEV("td", {
+
+                  "data-label": "Cliente",
 
                   style: {
 
@@ -1346,6 +1352,8 @@ function Dashboard({
 
                 }, void 0, false), _jsxDEV("td", {
 
+                  "data-label": "Total",
+
                   children: _jsxDEV("span", {
 
                     style: {
@@ -1362,6 +1370,8 @@ function Dashboard({
 
                 }, void 0, false), _jsxDEV("td", {
 
+                  "data-label": "Método",
+
                   children: _jsxDEV(MetodoBadge, {
 
                     metodo: c.metodo
@@ -1369,6 +1379,8 @@ function Dashboard({
                   }, void 0, false)
 
                 }, void 0, false), _jsxDEV("td", {
+
+                  "data-label": "Estado",
 
                   children: _jsxDEV(EstadoBadge, {
 
@@ -1413,6 +1425,8 @@ function Dashboard({
           }, void 0, true)
 
         }, void 0, false), _jsxDEV("div", {
+
+          className: "donut-row",
 
           style: { display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
 
@@ -1485,6 +1499,8 @@ function Dashboard({
 
           children: [_jsxDEV("div", {
 
+            className: "dash-pendientes-titulo",
+
             style: {
 
               fontSize: 12,
@@ -1514,6 +1530,8 @@ function Dashboard({
             }, void 0, false), " Cobros pendientes"]
 
           }, void 0, true), pendientes.slice(0, 3).map(c => _jsxDEV("div", {
+
+            className: "dash-pendientes-item",
 
             style: {
 

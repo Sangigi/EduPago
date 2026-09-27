@@ -961,6 +961,8 @@ function Familias({
 
             }, void 0, true), _jsxDEV("div", {
 
+              className: "fam-actions-buttons",
+
               style: {
 
                 display: 'flex',

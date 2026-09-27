@@ -505,7 +505,7 @@ function Alumnos({
           }, void 0, false)]
         }, void 0, true)
       }, void 0, false), _jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: _jsxDEV("table", {
           children: [_jsxDEV("thead", {
             children: _jsxDEV("tr", {
@@ -559,6 +559,7 @@ function Alumnos({
                 setFicha(c);
               },
               children: [_jsxDEV("td", {
+                "data-label": "Nombre",
                 children: _jsxDEV("div", {
                   style: {
                     display: 'flex',
@@ -579,6 +580,7 @@ function Alumnos({
                   }, void 0, false)]
                 }, void 0, true)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Matrícula",
                 children: _jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -587,12 +589,14 @@ function Alumnos({
                   children: c.matricula || '—'
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Grado",
                 style: {
                   color: 'var(--ink-3)',
                   fontSize: 12
                 },
                 children: c.grado || '—'
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Familia",
                 children: c.familia_id ? _jsxDEV("span", {
                   style: {
                     fontSize: 12,
@@ -611,6 +615,7 @@ function Alumnos({
                   children: "—"
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "CLABE SPEI individual",
                 children: clabeLoadingId === c.id ? _jsxDEV("span", {
                   style: {
                     display: 'flex',
@@ -696,6 +701,7 @@ function Alumnos({
                   children: "—"
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Saldo pendiente",
                 children: c.saldo_pendiente > 0 ? _jsxDEV("span", {
                   style: {
                     color: 'var(--red)',
@@ -716,6 +722,7 @@ function Alumnos({
                   }, void 0, false), " Al corriente"]
                 }, void 0, true)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Estado",
                 children: c.activo ? _jsxDEV("span", {
                   className: "badge badge-green",
                   children: "Activo"
@@ -724,6 +731,7 @@ function Alumnos({
                   children: "Inactivo"
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
+                "data-label": "Acciones",
                 children: !puedeEditar ? _jsxDEV("span", {
                   style: { fontSize: 11, color: 'var(--ink-4)' },
                   children: "Sin edición"

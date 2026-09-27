@@ -434,7 +434,7 @@ function Facturacion({
           onChange: e => setQ(e.target.value)
         }, void 0, false)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: /*#__PURE__*/_jsxDEV("table", {
           children: [/*#__PURE__*/_jsxDEV("thead", {
             children: /*#__PURE__*/_jsxDEV("tr", {
@@ -473,6 +473,7 @@ function Facturacion({
               }, void 0, false)
             }, void 0, false), pgPend.pagina.map(c => /*#__PURE__*/_jsxDEV("tr", {
               children: [/*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Folio",
                 children: /*#__PURE__*/_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -481,21 +482,25 @@ function Facturacion({
                   children: c.folio
                 }, void 0, false)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Fecha",
                 style: {
                   color: 'var(--ink-3)',
                   fontSize: 12
                 },
                 children: c.fecha
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Cliente",
                 style: {
                   fontSize: 13
                 },
                 children: c.cliente
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Método",
                 children: /*#__PURE__*/_jsxDEV(MetodoBadge, {
                   metodo: c.metodo
                 }, void 0, false)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Total",
                 children: [/*#__PURE__*/_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -522,6 +527,7 @@ function Facturacion({
                   children: 'faltan ' + fmt(Number(c.total) - Number(c.monto_pagado)) + ' · PPD'
                 }, 'abono', false) : null]
               }, void 0, true), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Acción",
                 children: /*#__PURE__*/_jsxDEV("button", {
                   className: "btn btn-primary btn-sm",
                   onClick: () => abrirSolicitar(c),
@@ -556,7 +562,7 @@ function Facturacion({
             /*#__PURE__*/_jsxDEV("div", { className: "empty-text", children: "Todo al corriente. Ninguna factura PPD tiene pagos sin registrar." }, 't', false)
           ]
         }, 'vacio', true) : /*#__PURE__*/_jsxDEV("div", {
-          className: "table-wrap",
+          className: "table-wrap cards-mobile",
           children: /*#__PURE__*/_jsxDEV("table", {
             children: [
               /*#__PURE__*/_jsxDEV("thead", {
@@ -574,11 +580,11 @@ function Facturacion({
               /*#__PURE__*/_jsxDEV("tbody", {
                 children: complementos.map(ab => /*#__PURE__*/_jsxDEV("tr", {
                   children: [
-                    /*#__PURE__*/_jsxDEV("td", { style: { whiteSpace: 'nowrap' }, children: String(ab.creado_en || '').slice(0, 10) }, 'a', false),
-                    /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 11.5 }, children: ab.cobro_folio }, 'b', false),
-                    /*#__PURE__*/_jsxDEV("td", { children: ab.cliente }, 'c', false),
-                    /*#__PURE__*/_jsxDEV("td", { children: ab.metodo || '—' }, 'd', false),
-                    /*#__PURE__*/_jsxDEV("td", { style: { textAlign: 'right', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }, children: '$' + Number(ab.monto).toFixed(2) }, 'e', false),
+                    /*#__PURE__*/_jsxDEV("td", { "data-label": "Fecha", style: { whiteSpace: 'nowrap' }, children: String(ab.creado_en || '').slice(0, 10) }, 'a', false),
+                    /*#__PURE__*/_jsxDEV("td", { "data-label": "Cobro", style: { fontFamily: 'var(--mono)', fontSize: 11.5 }, children: ab.cobro_folio }, 'b', false),
+                    /*#__PURE__*/_jsxDEV("td", { "data-label": "Alumno", children: ab.cliente }, 'c', false),
+                    /*#__PURE__*/_jsxDEV("td", { "data-label": "Método", children: ab.metodo || '—' }, 'd', false),
+                    /*#__PURE__*/_jsxDEV("td", { "data-label": "Abono", style: { textAlign: 'right', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }, children: '$' + Number(ab.monto).toFixed(2) }, 'e', false),
                     /*#__PURE__*/_jsxDEV("td", {
                       style: { textAlign: 'right' },
                       children: /*#__PURE__*/_jsxDEV("button", {
@@ -614,7 +620,7 @@ function Facturacion({
           etiqueta: pgEmit.total + ' facturas'
         }, 'pag', false) : null]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: /*#__PURE__*/_jsxDEV("table", {
           children: [/*#__PURE__*/_jsxDEV("thead", {
             children: /*#__PURE__*/_jsxDEV("tr", {
@@ -646,6 +652,7 @@ function Facturacion({
               }, void 0, false)
             }, void 0, false), pgEmit.pagina.map(c => /*#__PURE__*/_jsxDEV("tr", {
               children: [/*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Folio",
                 children: /*#__PURE__*/_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -654,6 +661,7 @@ function Facturacion({
                   children: c.folio
                 }, void 0, false)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Cliente / RFC",
                 children: [/*#__PURE__*/_jsxDEV("div", {
                   style: {
                     fontSize: 13,
@@ -669,6 +677,7 @@ function Facturacion({
                   children: c.factura_cfdi?.rfc_receptor
                 }, void 0, false)]
               }, void 0, true), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "UUID Fiscal",
                 children: /*#__PURE__*/_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -678,12 +687,14 @@ function Facturacion({
                   children: [c.factura_cfdi?.uuid?.slice(0, 18), "…"]
                 }, void 0, true)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Fecha",
                 style: {
                   fontSize: 12,
                   color: 'var(--ink-3)'
                 },
                 children: c.factura_cfdi?.fecha_timbrado?.slice(0, 10)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Total",
                 children: /*#__PURE__*/_jsxDEV("span", {
                   style: {
                     fontFamily: 'var(--mono)',
@@ -693,6 +704,7 @@ function Facturacion({
                   children: fmt(c.total)
                 }, void 0, false)
               }, void 0, false), /*#__PURE__*/_jsxDEV("td", {
+                "data-label": "Acciones",
                 children: /*#__PURE__*/_jsxDEV("div", {
                   style: {
                     display: 'flex',

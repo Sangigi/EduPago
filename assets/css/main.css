@@ -1957,3 +1957,154 @@ box-shadow:0 0 0 3px var(--accent-glow);
   @keyframes guia-ilu-entra { from { opacity: 0; } to { opacity: 1; } }
   .guia-ilustracion { animation-duration: .15s; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   RESPONSIVE — RONDA DE AJUSTES MÓVIL (27-sep-2026)
+   Ajustes de estilo pedidos por Leo tras revisar Admin en móvil: topbar,
+   saludo del dashboard, gráficas de dona, tarjetas de "Conceptos" en Caja,
+   tarjetas de familia y grid de roles en Mi Equipo. Todo va detrás de
+   media queries — en escritorio no cambia nada.
+   ══════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Aviso de "cobros pendientes" junto al nombre de la sección: en escritorio
+     cabe bien, pero en la topbar angosta de un celular empuja al botón de
+     "Nuevo cobro" y al de tema fuera de vista o los deja pegados. Se oculta
+     solo aquí — el aviso real (con el detalle de cada cobro) ya vive también
+     dentro del dashboard, así que no se pierde información, solo se quita el
+     duplicado que estorba en la barra superior. */
+  .topbar-pendientes { display: none !important; }
+}
+
+@media (max-width: 600px) {
+  /* Subtítulo del saludo del dashboard ("Instituto X · Plan Y · sábado ...").
+     En escritorio fluye bien en una sola línea; en celular el badge del plan
+     y la fecha quedaban pegados sin separación clara. Se apila en líneas
+     cortas, cada dato en su propio renglón. */
+  .dash-greeting-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .dash-greeting-meta > * { margin-right: 0 !important; }
+
+  /* Dona de "Por método de pago" + su leyenda: en escritorio van una junto a
+     la otra a la izquierda; en celular se ven mejor centradas y, si no caben
+     lado a lado, apiladas una encima de la otra. */
+  .donut-row {
+    justify-content: center;
+    text-align: center;
+  }
+  .donut-row > svg,
+  .donut-row > div:first-child { margin: 0 auto; }
+
+  /* Aviso de "Cobros pendientes" (con el ícono de warning) dentro de la
+     tarjeta de método de pago: se centra en vez de ir pegado a la izquierda. */
+  .dash-pendientes-titulo { justify-content: center; }
+  .dash-pendientes-item { text-align: center; }
+}
+
+/* ── Tablas sin scroll horizontal en móvil ──────────────────────────────
+   Técnica de "tabla → tarjetas": se oculta el <thead> y cada <td> se
+   convierte en una fila propia con su etiqueta a la izquierda (tomada del
+   atributo data-label) y el valor a la derecha. Requiere que el <td>
+   correspondiente traiga data-label="Nombre de columna" — se está agregando
+   vista por vista; donde todavía no está, la tabla simplemente sigue
+   mostrando scroll horizontal como hasta ahora (no se rompe nada). */
+@media (max-width: 700px) {
+  .table-wrap.cards-mobile { overflow-x: visible; }
+  .table-wrap.cards-mobile table,
+  .table-wrap.cards-mobile thead,
+  .table-wrap.cards-mobile tbody,
+  .table-wrap.cards-mobile th,
+  .table-wrap.cards-mobile td,
+  .table-wrap.cards-mobile tr { display: block; width: 100%; }
+
+  .table-wrap.cards-mobile thead { display: none; }
+
+  .table-wrap.cards-mobile tbody tr {
+    border: 1px solid var(--border-glow);
+    border-radius: var(--radius-md, 10px);
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--bg-surface);
+  }
+
+  .table-wrap.cards-mobile tbody tr:last-child { margin-bottom: 0; }
+
+  .table-wrap.cards-mobile td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+    padding: 6px 0;
+    border: none;
+    white-space: normal !important;
+    max-width: none !important;
+  }
+
+  .table-wrap.cards-mobile td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    color: var(--ink-4);
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* Celdas sin data-label (ej. una sola con colSpan para "sin resultados")
+     no muestran etiqueta ni el layout de dos columnas. */
+  .table-wrap.cards-mobile td:not([data-label]) {
+    display: block;
+    text-align: left;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Barra de "Conceptos" en Caja: título + buscador en una sola fila se
+     apretaban demasiado. El buscador pasa a ocupar todo el ancho, debajo
+     del título. */
+  .pos-header-top {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .pos-header-top .search-bar { width: 100%; }
+
+  /* Chips de categoría ("Todos", "Por categoría", "Descuentos"...): en vez
+     de envolverse en un bloque de varias filas que empuja el contenido hacia
+     abajo, se deslizan en una sola fila horizontal — mismo patrón que ya se
+     usa abajo para los métodos de pago del carrito. */
+  .pos-cat-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .pos-cat-tabs::-webkit-scrollbar { display: none; }
+  .pos-cat-tabs > button { flex: 0 0 auto; }
+
+  /* Fila de acciones de cada tarjeta de familia (editar, añadir estudiante,
+     ficha, vincular): en escritorio caben junto al badge de saldo; en
+     celular se veían amontonadas. Bajan a su propia fila, en dos columnas. */
+  .fam-row-actions { flex-direction: column; align-items: stretch !important; }
+  .fam-actions-buttons {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .fam-actions-buttons > button { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  /* Tarjetas de rol en "Mi equipo" (Admin/Cajero/Familia...): con una sola
+     columna cada tarjeta ocupa todo el ancho y obliga a bajar mucho para
+     ver las demás. Se mantienen en 2 columnas también en celulares chicos —
+     el contenido (ícono, número, etiqueta) cabe bien así. */
+  .roles-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}

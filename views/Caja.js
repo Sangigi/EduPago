@@ -797,6 +797,7 @@ function Caja({
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "pos-header",
         children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "pos-header-top",
           style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%' },
           children: [/*#__PURE__*/_jsxDEV("span", {
             style: { fontWeight: 600, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 },
@@ -814,6 +815,7 @@ function Caja({
             }, void 0, false)]
           }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "pos-cat-tabs",
           style: { display: 'flex', gap: 5, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--glass-light)', marginTop: 4 },
           children: [
             { id: 'todos',        label: 'Todos',        icon: 'productos' },

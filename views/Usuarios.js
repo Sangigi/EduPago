@@ -739,7 +739,7 @@ function Usuarios({ user, data }) {
     children: [
       /* Stats grid */
       _jsxDEV("div", {
-        className: "stats-grid",
+        className: "stats-grid roles-grid",
         style: { marginBottom: 20 },
         children: [
           // Un admin nunca puede tener ni ver cuentas superadmin ni de plataforma
@@ -836,7 +836,7 @@ function Usuarios({ user, data }) {
 
           /* Table */
           _jsxDEV("div", {
-            className: "table-wrap",
+            className: "table-wrap cards-mobile",
             children: _jsxDEV("table", {
               children: [
                 _jsxDEV("thead", {
@@ -867,6 +867,7 @@ function Usuarios({ user, data }) {
                       return _jsxDEV("tr", {
                         children: [
                           _jsxDEV("td", {
+                            "data-label": "Usuario",
                             children: _jsxDEV("div", {
                               style: { display: 'flex', alignItems: 'center', gap: 10 },
                               children: [
@@ -886,9 +887,11 @@ function Usuarios({ user, data }) {
                             }, void 0, true)
                           }, void 0, false),
                           _jsxDEV("td", {
+                            "data-label": "Rol",
                             children: _jsxDEV("span", { className: `badge ${info?.badge || 'badge-gray'}`, style: { display: 'flex', alignItems: 'center', gap: 4 }, children: [_jsxDEV(Icon, { name: info?.icon, size: 14, color: "currentColor" }, void 0, false), " ", info?.label] }, void 0, true)
                           }, void 0, false),
                           _jsxDEV("td", {
+                            "data-label": "Vínculo / Escuela",
                             children: u.rol === 'familia'
                               ? _jsxDEV("div", {
                                   style: { fontSize: 12, color: 'var(--ink-2)' },
@@ -904,14 +907,16 @@ function Usuarios({ user, data }) {
                                   ? _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-2)' }, children: [emojiEscuela(u.escuela_id), " ", nombreEscuela(u.escuela_id)] }, void 0, true)
                                   : _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-4)' }, children: "Global" }, void 0, false)
                           }, void 0, false),
-                          _jsxDEV("td", { children: _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: u.creado_por === null ? '⭐ Sistema' : creadorNombre(u.creado_por) }, void 0, false) }, void 0, false),
-                          _jsxDEV("td", { style: { fontSize: 12, color: 'var(--ink-3)', fontFamily: 'var(--mono)' }, children: u.fecha_alta || '—' }, void 0, false),
+                          _jsxDEV("td", { "data-label": "Creado por", children: _jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: u.creado_por === null ? '⭐ Sistema' : creadorNombre(u.creado_por) }, void 0, false) }, void 0, false),
+                          _jsxDEV("td", { "data-label": "Alta", style: { fontSize: 12, color: 'var(--ink-3)', fontFamily: 'var(--mono)' }, children: u.fecha_alta || '—' }, void 0, false),
                           _jsxDEV("td", {
+                            "data-label": "Estado",
                             children: u.activo === false
                               ? _jsxDEV("span", { className: "badge badge-red", children: "Inactivo" }, void 0, false)
                               : _jsxDEV("span", { className: "badge badge-green", children: "Activo" }, void 0, false)
                           }, void 0, false),
                           _jsxDEV("td", {
+                            "data-label": "Acciones",
                             children: _jsxDEV("div", {
                               style: { display: 'flex', gap: 5 },
                               children: [

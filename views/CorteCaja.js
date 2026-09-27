@@ -362,23 +362,23 @@ function CorteCaja({ user, escuela }) {
       h('div', { className: 'card-title' }, 'Historial de cortes'),
       h('div', { className: 'card-sub' }, historial.length + ' registros')
     ),
-    h('div', { className: 'table-wrap' },
+    h('div', { className: 'table-wrap cards-mobile' },
       h('table', {},
         h('thead', {}, h('tr', {},
           ['Apertura', 'Cierre', 'Cajero', 'Fondo', 'Ventas', 'Esperado', 'Contado', 'Diferencia', 'Estado', ''].map(th => h('th', { key: th }, th))
         )),
         h('tbody', {}, historial.map(c => h('tr', { key: c.id },
-          h('td', {}, new Date(c.fecha_apertura).toLocaleString('es-MX')),
-          h('td', {}, c.fecha_cierre ? new Date(c.fecha_cierre).toLocaleString('es-MX') : '—'),
-          h('td', {}, c.usuario_nombre),
-          h('td', {}, fmt(c.monto_apertura)),
-          h('td', {}, fmt(c.total_ventas)),
-          h('td', {}, c.monto_esperado != null ? fmt(c.monto_esperado) : '—'),
-          h('td', {}, c.monto_cierre != null ? fmt(c.monto_cierre) : '—'),
-          h('td', {}, c.diferencia != null
+          h('td', { 'data-label': 'Apertura' }, new Date(c.fecha_apertura).toLocaleString('es-MX')),
+          h('td', { 'data-label': 'Cierre' }, c.fecha_cierre ? new Date(c.fecha_cierre).toLocaleString('es-MX') : '—'),
+          h('td', { 'data-label': 'Cajero' }, c.usuario_nombre),
+          h('td', { 'data-label': 'Fondo' }, fmt(c.monto_apertura)),
+          h('td', { 'data-label': 'Ventas' }, fmt(c.total_ventas)),
+          h('td', { 'data-label': 'Esperado' }, c.monto_esperado != null ? fmt(c.monto_esperado) : '—'),
+          h('td', { 'data-label': 'Contado' }, c.monto_cierre != null ? fmt(c.monto_cierre) : '—'),
+          h('td', { 'data-label': 'Diferencia' }, c.diferencia != null
             ? h('span', { style: { color: Math.abs(c.diferencia) < 0.01 ? 'var(--green-dark)' : 'var(--red)', fontWeight: 700 } }, fmt(c.diferencia))
             : '—'),
-          h('td', {}, h('span', { className: `badge ${c.estado === 'abierta' ? 'badge-amber' : 'badge-gray'}` }, c.estado)),
+          h('td', { 'data-label': 'Estado' }, h('span', { className: `badge ${c.estado === 'abierta' ? 'badge-amber' : 'badge-gray'}` }, c.estado)),
           h('td', {}, h('button', { className: 'btn btn-ghost btn-sm', onClick: () => verResumen(c.id) }, h(Icon, { name: 'eye', size: 14, color: 'currentColor' })))
         )))
       )
@@ -401,11 +401,11 @@ function CorteCaja({ user, escuela }) {
         ),
         detalle.ventas && detalle.ventas.length > 0 && h('div', { style: { marginTop: 16 } },
           h('div', { className: 'card-title', style: { marginBottom: 8 } }, 'Ventas de este corte'),
-          h('div', { className: 'table-wrap' },
+          h('div', { className: 'table-wrap cards-mobile' },
             h('table', {},
               h('thead', {}, h('tr', {}, ['Folio', 'Método', 'Total', 'Estado'].map(t => h('th', { key: t }, t)))),
               h('tbody', {}, detalle.ventas.map(v => h('tr', { key: v.id },
-                h('td', {}, v.folio), h('td', {}, v.metodo), h('td', {}, fmt(v.total)), h('td', {}, v.estado)
+                h('td', { 'data-label': 'Folio' }, v.folio), h('td', { 'data-label': 'Método' }, v.metodo), h('td', { 'data-label': 'Total' }, fmt(v.total)), h('td', { 'data-label': 'Estado' }, v.estado)
               )))
             )
           )
