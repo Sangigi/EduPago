@@ -395,6 +395,7 @@ function PortalFamilia({
   const [descargandoComplementoFam, setDescargandoComplementoFam] = useState(null);
 
   const verComplementosCobroFam = async cobro => {
+    setModal(null); // por si quedaba abierto: solo un modal a la vez
     setCargandoComplementosFam(true);
     setComplementosVisorFam({ cobro, abonos: [] });
     try {
@@ -644,6 +645,7 @@ function PortalFamilia({
           clabe_es_individual: !!spei.esIndividual,
         };
         setCobroActivo(cobroFinal);
+        setComplementosVisorFam(null); // por si quedaba abierto: solo un modal a la vez
         setModal('spei');
         iniciarPollingSaldo(hijoSeleccionado.id, hijoSeleccionado.saldo_pendiente);
       } catch (err) {

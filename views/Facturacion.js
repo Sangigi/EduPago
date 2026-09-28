@@ -80,6 +80,7 @@ function Facturacion({
   const [descargandoComplemento, setDescargandoComplemento] = useState(null);
 
   const verComplementosCobro = async cobro => {
+    setModal(null); // por si quedaba abierto: solo un modal a la vez
     setCargandoComplementos(true);
     setComplementosVisor({ cobro, abonos: [] });
     try {
@@ -213,6 +214,7 @@ function Facturacion({
       rvoe: cli?.rvoe || escuela?.rvoe || ''
     });
     setErrMsg('');
+    setComplementosVisor(null); // por si quedaba abierto: solo un modal a la vez
     setModal('solicitar');
   };
   const generarCFDI = async () => {
@@ -295,6 +297,7 @@ function Facturacion({
         razon: formFact.razon_social,
         cobro: cobroSel
       });
+      setComplementosVisor(null); // por si quedaba abierto: solo un modal a la vez
       setModal('visor');
     } catch (e) {
       setErrMsg(e.message);
