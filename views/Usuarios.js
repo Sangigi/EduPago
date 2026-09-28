@@ -800,9 +800,10 @@ function Usuarios({ user, data }) {
 
           /* Filtros */
           _jsxDEV("div", {
+            className: "usuarios-filtros",
             style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' },
             children: [
-              ['todos', ...rolesVisibles].map(r =>
+              _jsxDEV("div", { className: "chip-row-fill", style: { flex: '1 1 auto', width: 'auto' }, children: ['todos', ...rolesVisibles].map(r =>
                 _jsxDEV("button", {
                   className: `badge ${filtroRol === r ? ROL_INFO[r]?.badge || 'badge-blue' : 'badge-gray'}`,
                   style: {
@@ -822,7 +823,7 @@ function Usuarios({ user, data }) {
                     ROL_INFO[r]?.label
                   ]
                 }, r, false)
-              ),
+              ) }, 'roles', false),
               _jsxDEV("div", {
                 className: "search-bar",
                 style: { marginLeft: 'auto', minWidth: 220 },
@@ -865,6 +866,8 @@ function Usuarios({ user, data }) {
                       const puedeAcc = puedeEditar(u);
                       const esUnoMismo = u.id === user.id;
                       return _jsxDEV("tr", {
+                        onClick: (puedeAcc || esUnoMismo) ? () => abrirEditar(u) : undefined,
+                        style: (puedeAcc || esUnoMismo) ? { cursor: 'pointer' } : undefined,
                         children: [
                           _jsxDEV("td", {
                             "data-label": "Usuario",
@@ -917,6 +920,7 @@ function Usuarios({ user, data }) {
                           }, void 0, false),
                           _jsxDEV("td", {
                             "data-label": "Acciones",
+                            onClick: e => e.stopPropagation(),
                             children: _jsxDEV("div", {
                               style: { display: 'flex', gap: 5 },
                               children: [

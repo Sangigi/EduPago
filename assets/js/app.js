@@ -362,6 +362,10 @@ const TITLES = {
 
   productos: 'Conceptos de pago',
 
+  gastos: 'Gastos',
+
+  proveedores: 'Proveedores',
+
   facturacion: 'Facturación',
 
   recordatorios: 'Recordatorios',
@@ -371,6 +375,8 @@ const TITLES = {
   escuelas: 'Colegios / Inquilinos',
 
   suscripciones: 'Suscripciones',
+
+  mi_suscripcion: 'Mi suscripción',
 
   logs: 'Logs del Sistema',
 

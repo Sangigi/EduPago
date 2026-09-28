@@ -66,9 +66,10 @@ function Proveedores({ data, setData, escuela_id }) {
 
   const tarjeta = p => hProv('div', {
     key: p.id,
+    onClick: () => { setForm({ ...EMPTY_PROV, ...p }); setErrForm(''); setModal('form'); },
     style: {
       background: 'var(--glass-light)', border: '1px solid var(--border-glow)',
-      borderRadius: 'var(--radius)', padding: '14px 16px', opacity: p.activo ? 1 : .5, transition: 'all .2s'
+      borderRadius: 'var(--radius)', padding: '14px 16px', opacity: p.activo ? 1 : .5, transition: 'all .2s', cursor: 'pointer'
     }
   },
     hProv('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 } },
@@ -87,7 +88,7 @@ function Proveedores({ data, setData, escuela_id }) {
     (p.contacto_nombre || p.contacto_telefono || p.contacto_email) && hProv('div', {
       style: { fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 10, lineHeight: 1.5 }
     }, [p.contacto_nombre, p.contacto_telefono, p.contacto_email].filter(Boolean).join(' · ')),
-    hProv('div', { style: { display: 'flex', gap: 6 } },
+    hProv('div', { style: { display: 'flex', gap: 6 }, onClick: e => e.stopPropagation() },
       hProv('button', {
         className: 'btn btn-ghost btn-sm', style: { flex: 1 },
         onClick: () => { setForm({ ...EMPTY_PROV, ...p }); setErrForm(''); setModal('form'); }

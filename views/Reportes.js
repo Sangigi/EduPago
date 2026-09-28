@@ -109,6 +109,7 @@ function Reportes({
           children: ["Reporte de cobros — ", escuela?.nombre || 'Esta escuela', escuela && !escuela.activa ? ' (Inactiva)' : '']
         }, void 0, true)]
       }, void 0, true), _jsxDEV("div", {
+        className: "reportes-periodo-bar",
         style: {
           display: 'flex',
           gap: 8,
@@ -116,8 +117,8 @@ function Reportes({
           flexWrap: 'wrap'
         },
         children: [_jsxDEV("div", {
+          className: "chip-row-fill",
           style: {
-            display: 'flex',
             gap: 4
           },
           children: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año'], ['todo', 'Todo']].map(([val, label]) => _jsxDEV("button", {

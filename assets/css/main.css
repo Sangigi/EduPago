@@ -969,6 +969,27 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .search-bar { position:relative; display:flex; align-items:center; }
 
+/* Fila de filtros/chips (rangos de fecha, métodos de pago, estados, roles...):
+   en vez de quedar amontonados a la izquierda, se reparten uniformemente
+   ocupando todo el ancho disponible. Si no caben a un tamaño legible
+   (min-width), en vez de encogerse hasta ser ilegibles, el renglón se
+   convierte en un carrusel horizontal — mismo comportamiento que ya se usa
+   en los métodos de pago del carrito de Caja. */
+.chip-row-fill {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.chip-row-fill::-webkit-scrollbar { display: none; }
+.chip-row-fill > * { flex: 1 1 110px; text-align: center; white-space: nowrap; }
+/* .pill-group (definido más abajo) trae inline-flex + wrap; con esta doble
+   clase gana la especificidad y el renglón se comporta igual que los demás. */
+.chip-row-fill.pill-group { display: flex; flex-wrap: nowrap; }
+
 /* Leyenda "Jerarquía de permisos y roles autorizados" en Mi equipo: los
    badges de rol tienen texto de distinto largo (Admin vs Cajero vs
    Superadmin), lo que dejaba la descripción de cada uno arrancando en un
@@ -1001,6 +1022,11 @@ box-shadow:0 0 0 3px var(--accent-glow);
 .empty-state { text-align:center; padding:40px 20px; }
 
 .empty-icon  { font-size:38px; margin-bottom:10px; opacity:.4; }
+.empty-icon > svg { display:block; margin:0 auto; }
+
+/* Botones de pago de Mi suscripción (tarjeta / efectivo): cada uno ocupa el
+   ancho disponible; si no caben lado a lado, se apilan a ancho completo. */
+.susc-pagos > .btn { flex:1 1 220px; justify-content:center; }
 
 .empty-text  { font-size:14px; color:var(--ink-3); font-weight:500; }
 
@@ -2106,10 +2132,44 @@ box-shadow:0 0 0 3px var(--accent-glow);
     display: block;
     text-align: left;
   }
+
+  /* Botón de acción único dentro de una tarjeta (ej. "Generar CFDI",
+     "Emitir complemento" en Facturación): ocupa todo el ancho de la tarjeta
+     en vez de quedar pegado a un lado. Solo aplica cuando el botón es hijo
+     directo de la celda — los grupos de varios botones (dentro de un div)
+     no se tocan. */
+  .table-wrap.cards-mobile td:not([data-label]) > .btn,
+  .table-wrap.cards-mobile td[data-label="Acción"] > .btn {
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+  }
+  .table-wrap.cards-mobile td[data-label="Acción"] { display: block; }
+  .table-wrap.cards-mobile td[data-label="Acción"]::before { display: none; }
 }
 
 @media (max-width: 640px) {
-  /* Barra de "Conceptos" en Caja: título + buscador en una sola fila se
+  /* Filtros de Gastos (proveedor, forma de pago, fecha inicio/fin): en vez
+     de amontonarse en 4 renglones sueltos, se acomodan en pares de 2
+     columnas (proveedor+forma de pago arriba, fechas abajo, una a cada
+     lado) y el texto seleccionado va centrado en los selects. */
+  .gastos-filtros { display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px !important; }
+  .gastos-filtros select,
+  .gastos-filtros input { width: 100% !important; text-align-last: center; text-align: center; }
+
+     el select tenía marginLeft:auto para ir pegado a la derecha en
+     escritorio; en celular se manda a su propia fila, a todo el ancho. */
+  /* Recordatorios: el select "Ordenar" baja a su propia fila, ancho completo.
+     Reportes: el botón Exportar baja debajo del selector de periodo. */
+  .recordatorios-controles { flex-direction: column; align-items: stretch !important; }
+  .recordatorios-controles select { width: 100% !important; margin-left: 0 !important; }
+  .reportes-periodo-bar { flex-direction: column; align-items: stretch !important; }
+  .reportes-periodo-bar > .btn { width: 100%; justify-content: center; }
+  .usuarios-filtros { flex-direction: column; align-items: stretch !important; }
+  .usuarios-filtros .search-bar { margin-left: 0 !important; min-width: 0 !important; width: 100%; }
+  .cobros-filtros { flex-direction: column; }
+  .cobros-filtros select { width: 100% !important; margin-left: 0 !important; }
+
      apretaban demasiado. El buscador pasa a ocupar todo el ancho, debajo
      del título. */
   .pos-header-top {

@@ -1178,7 +1178,8 @@ function Dashboard({
           }, 'head', true),
 
           _jsxDEV("div", {
-            style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 14 },
+            className: "chip-row-fill",
+            style: { alignItems: 'center', marginBottom: 14 },
             children: [
               ...RANGOS_TENDENCIA.map(r => _jsxDEV("button", {
                 type: "button",

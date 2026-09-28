@@ -167,13 +167,25 @@ function Productos({
             children: "Crea los conceptos de pago de esta escuela"
           }, void 0, false)]
         }, void 0, true), lista.map(p => /*#__PURE__*/_jsxDEV("div", {
+          onClick: () => {
+            setForm({
+              ...EMPTY,
+              ...p,
+              fecha_inicio: p.fecha_inicio || '',
+              penalizacion_tipo: p.penalizacion_tipo || '',
+              penalizacion_valor: p.penalizacion_valor || 0
+            });
+            setErrForm('');
+            setModal('form');
+          },
           style: {
             background: 'var(--glass-light)',
             border: '1px solid var(--border-glow)',
             borderRadius: 'var(--radius)',
             padding: '14px 16px',
             opacity: p.activo ? 1 : .5,
-            transition: 'all .2s'
+            transition: 'all .2s',
+            cursor: 'pointer'
           },
           children: [/*#__PURE__*/_jsxDEV("div", {
             style: {
@@ -241,6 +253,7 @@ function Productos({
               children: "descuento"
             }, void 0, false)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            onClick: e => e.stopPropagation(),
             style: {
               display: 'flex',
               gap: 6

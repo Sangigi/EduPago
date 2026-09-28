@@ -215,7 +215,7 @@ function Gastos({ data, escuela_id }) {
         ),
         hGas('button', { className: 'btn btn-primary', onClick: abrirNuevo }, '+ Nuevo gasto')
       ),
-      hGas('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 } },
+      hGas('div', { className: 'gastos-filtros', style: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 } },
         hGas('select', {
           className: 'form-select', style: { width: 'auto', fontSize: 12.5 },
           value: filtroProveedor, onChange: e => setFiltroProveedor(e.target.value)
@@ -244,13 +244,13 @@ function Gastos({ data, escuela_id }) {
               ? hGas('tr', {}, hGas('td', { colSpan: 7, className: 'empty-text' }, 'Cargando…'))
               : gastos.length === 0
                 ? hGas('tr', {}, hGas('td', { colSpan: 7, className: 'empty-text' }, 'Sin gastos registrados.'))
-                : gastos.map(g => hGas('tr', { key: g.id },
+                : gastos.map(g => hGas('tr', { key: g.id, onClick: () => abrirEditar(g), style: { cursor: 'pointer' } },
                     hGas('td', { 'data-label': 'Fecha', style: { fontFamily: 'var(--mono)', fontSize: 11.5, whiteSpace: 'nowrap' } }, g.fecha),
                     hGas('td', { 'data-label': 'Proveedor', style: { fontSize: 12.5 } }, g.proveedor_nombre),
                     hGas('td', { 'data-label': 'Concepto', style: { fontSize: 12.5 } }, g.concepto),
                     hGas('td', { 'data-label': 'Forma de pago', style: { fontSize: 12 } }, FORMAS_PAGO_GASTO_LABELS[g.forma_pago] || g.forma_pago),
                     hGas('td', { 'data-label': 'Monto', style: { fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 13 } }, fmt(g.monto)),
-                    hGas('td', { 'data-label': 'Comprobante' },
+                    hGas('td', { 'data-label': 'Comprobante', onClick: e => e.stopPropagation() },
                       g.comprobante_url
                         ? hGas('a', { href: g.comprobante_url, target: '_blank', rel: 'noopener', className: 'btn btn-ghost btn-sm' },
                             hGas(Icon, { name: 'download', size: 13, color: 'currentColor' }), ' Ver')
@@ -259,7 +259,7 @@ function Gastos({ data, escuela_id }) {
                             onClick: () => pedirComprobante(g.id)
                           }, subiendoId === g.id ? 'Subiendo…' : 'Subir')
                     ),
-                    hGas('td', { style: { display: 'flex', gap: 6 } },
+                    hGas('td', { style: { display: 'flex', gap: 6 }, onClick: e => e.stopPropagation() },
                       hGas('button', { className: 'btn btn-ghost btn-sm', onClick: () => abrirEditar(g) },
                         hGas(Icon, { name: 'edit', size: 13, color: 'currentColor' })),
                       hGas('button', { className: 'btn btn-ghost btn-sm', onClick: () => setConfirmarEliminar(g.id) },

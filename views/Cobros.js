@@ -573,13 +573,16 @@ function Cobros({
           }, void 0, false), " Exportar"]
         }, void 0, true)]
       }, void 0, true), _jsxDEV("div", {
+        className: "cobros-filtros",
         style: {
           display: 'flex',
           gap: 8,
           marginBottom: 14,
           flexWrap: 'wrap'
         },
-        children: [[['todos', 'Todos', 'badge-gray'], ['pagado', 'Pagados', 'badge-green'], ['pendiente', 'Pendientes', 'badge-amber'], ['cancelado', 'Cancelados', 'badge-red']].map(([val, label, cls]) => _jsxDEV("button", {
+        children: [_jsxDEV("div", {
+          className: "chip-row-fill",
+          children: [['todos', 'Todos', 'badge-gray'], ['pagado', 'Pagados', 'badge-green'], ['pendiente', 'Pendientes', 'badge-amber'], ['cancelado', 'Cancelados', 'badge-red']].map(([val, label, cls]) => _jsxDEV("button", {
           className: `badge ${filtroEstado === val ? cls : 'badge-gray'}`,
           style: {
             cursor: 'pointer',
@@ -589,7 +592,8 @@ function Cobros({
           },
           onClick: () => setFiltroEstado(val),
           children: [label, " (", totales[val] ?? lista.filter(c => c.estado === val).length, ")"]
-        }, val, true)), _jsxDEV("select", {
+        }, val, true))
+        }, 'estados', false), _jsxDEV("select", {
           className: "form-select",
           style: {
             fontSize: 12,

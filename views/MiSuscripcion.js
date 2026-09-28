@@ -313,13 +313,8 @@ function MiSuscripcion({ escuela, user, onIrA, planes }) {
                 children: 'Te recomendamos hacer eso primero. La aprobación tarda entre 48 y 72 horas hábiles, y esos días corren contra tu suscripción: si pagas ahora, es muy probable que pierdas varios días pagados sin poder usarlos todavía para cobrar.'
               }, 'd2'),
               _jsxDEV('div', {
-                style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' },
+                style: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12, alignItems: 'stretch' },
                 children: [
-                  (typeof onIrA === 'function' ? _jsxDEV('button', {
-                    className: 'btn btn-primary btn-sm',
-                    onClick: () => onIrA('mi_cuenta'),
-                    children: 'Ir a subir documentos'
-                  }, 'ir') : null),
                   _jsxDEV('label', {
                     style: { display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 12 },
                     children: [
@@ -330,7 +325,13 @@ function MiSuscripcion({ escuela, user, onIrA, planes }) {
                       }, 'chk'),
                       'Entiendo y quiero pagar de todos modos'
                     ]
-                  }, 'lab')
+                  }, 'lab'),
+                  (typeof onIrA === 'function' ? _jsxDEV('button', {
+                    className: 'btn btn-primary btn-sm',
+                    style: { width: '100%', justifyContent: 'center' },
+                    onClick: () => onIrA('mi_cuenta'),
+                    children: 'Ir a subir documentos'
+                  }, 'ir') : null)
                 ]
               }, 'acc')
             ]
@@ -394,6 +395,7 @@ function MiSuscripcion({ escuela, user, onIrA, planes }) {
           }, 'planes'),
 
           _jsxDEV('div', {
+            className: 'susc-pagos',
             style: { display: 'flex', gap: 12, flexWrap: 'wrap' },
             children: [
               _jsxDEV('button', {

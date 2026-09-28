@@ -325,26 +325,21 @@ function MiCuenta({ escuela, user }) {
             children: [
               _jsxDEV('div', {
                 children: [
-                  _jsxDEV('div', {
-                    style: { maxWidth: 240 },
+                  _jsxDEV('label', { style: { fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }, children: 'Tipo de persona' }, 1),
+                  _jsxDEV('select', {
+                    className: 'form-input', value: tipoPersona,
+                    onChange: e => setTipoPersona(e.target.value),
                     children: [
-                      _jsxDEV('label', { style: { fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }, children: 'Tipo de persona' }, 1),
-                      _jsxDEV('select', {
-                        className: 'form-input', value: tipoPersona,
-                        onChange: e => setTipoPersona(e.target.value),
-                        children: [
-                          _jsxDEV('option', { value: '', children: 'Sin definir' }, 'op0'),
-                          _jsxDEV('option', { value: 'fisica', children: 'Persona física' }, 'op1'),
-                          _jsxDEV('option', { value: 'moral', children: 'Persona moral' }, 'op2'),
-                          // Negocio independiente (23-sep-2026): cobra pero no
-                          // factura. El valor es 'negocio' y no 'negocio_independiente'
-                          // porque escuelas.tipo_persona es VARCHAR(10) — ver la
-                          // nota en TIPOS_PERSONA (lib/helpers_pagos.php).
-                          _jsxDEV('option', { value: 'negocio', children: 'Negocio independiente' }, 'op3'),
-                        ]
-                      }, 2)
+                      _jsxDEV('option', { value: '', children: 'Sin definir' }, 'op0'),
+                      _jsxDEV('option', { value: 'fisica', children: 'Persona física' }, 'op1'),
+                      _jsxDEV('option', { value: 'moral', children: 'Persona moral' }, 'op2'),
+                      // Negocio independiente (23-sep-2026): cobra pero no
+                      // factura. El valor es 'negocio' y no 'negocio_independiente'
+                      // porque escuelas.tipo_persona es VARCHAR(10) — ver la
+                      // nota en TIPOS_PERSONA (lib/helpers_pagos.php).
+                      _jsxDEV('option', { value: 'negocio', children: 'Negocio independiente' }, 'op3'),
                     ]
-                  }, 'tp-campo'),
+                  }, 2),
                   _jsxDEV('div', {
                     style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 5, lineHeight: 1.45 },
                     children: tipoPersona === 'negocio'
@@ -360,14 +355,13 @@ function MiCuenta({ escuela, user }) {
                 ]
               }, 'rs'),
               _jsxDEV('div', {
-                style: { maxWidth: 200 },
                 children: [
                   _jsxDEV('label', { style: { fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }, children: 'Régimen fiscal (clave SAT)' }, 1),
                   _jsxDEV('input', { className: 'form-input', value: regimenFiscal, onChange: e => setRegimenFiscal(e.target.value), placeholder: '601, 612, 626…' }, 2)
                 ]
               }, 'rf'),
               _jsxDEV('button', {
-                className: 'btn btn-primary', style: { alignSelf: 'flex-start' },
+                className: 'btn btn-primary', style: { alignSelf: 'stretch', width: '100%' },
                 disabled: guardando, onClick: guardarFiscal,
                 children: guardando ? 'Guardando…' : 'Guardar datos fiscales'
               }, 'guardar'),
@@ -406,10 +400,10 @@ function MiCuenta({ escuela, user }) {
                 ]
               }, gi)),
               _jsxDEV('div', {
-                style: { padding: '12px 14px', background: 'rgba(40,45,101,.04)', borderRadius: 'var(--radius-sm)', marginBottom: 14 },
+                style: { padding: '12px 14px', background: 'rgba(40,45,101,.04)', borderRadius: 'var(--radius-sm)', marginBottom: 14, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
                 children: [
                   _jsxDEV('label', {
-                    style: { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: yaAcepto ? 'default' : 'pointer' },
+                    style: { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: yaAcepto ? 'default' : 'pointer', flex: '1 1 260px' },
                     children: [
                       _jsxDEV('input', {
                         type: 'checkbox', checked: aceptaClausulado || yaAcepto, disabled: yaAcepto,
@@ -419,14 +413,14 @@ function MiCuenta({ escuela, user }) {
                     ]
                   }, 'chk'),
                   _jsxDEV('button', {
-                    type: 'button', className: 'btn-link', style: { fontSize: 12, marginTop: 6, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0 },
+                    type: 'button', className: 'btn-link', style: { fontSize: 12, marginTop: 2, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, flexShrink: 0 },
                     onClick: () => setVerClausulado(true),
                     children: 'Ver Clausulado'
                   }, 'verlink')
                 ]
               }, 'clausulado'),
               _jsxDEV('button', {
-                className: 'btn btn-primary', disabled: guardandoPago, onClick: guardarDatosPago,
+                className: 'btn btn-primary', disabled: guardandoPago, onClick: guardarDatosPago, style: { width: '100%' },
                 children: guardandoPago ? 'Guardando…' : 'Guardar datos de alta de comercio'
               }, 'guardarpago'),
               msgPago ? _jsxDEV('div', {

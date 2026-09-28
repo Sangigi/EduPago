@@ -386,10 +386,11 @@ function Recordatorios({ data, setData, escuela }) {
       }, 'busq', true),
 
       _jsxDEV("div", {
+        className: "recordatorios-controles",
         style: { display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 },
         children: [
           _jsxDEV("div", {
-            className: "pill-group",
+            className: "pill-group chip-row-fill",
             children: FILTROS.map(f => _jsxDEV("button", {
               onClick: () => setFiltro(f.id),
               className: "pill" + (filtro === f.id ? " active" : ""),
