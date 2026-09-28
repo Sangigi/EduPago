@@ -42,17 +42,28 @@ function EstadoBadge({
 function MetodoBadge({
   metodo
 }) {
+  // CoDi se retiró (ya no es un método de pago del sistema).
   const map = {
     TC: 'badge-blue',
     SPEI: 'badge-purple',
-    CoDi: 'badge-green',
-    Efectivo: 'badge-gray'
+    Efectivo: 'badge-gray',
+    EfectivoRef: 'badge-gray',
+    Cheque: 'badge-gray'
   };
   const icons = {
     TC: 'card',
     SPEI: 'bank',
-    CoDi: 'phone',
-    Efectivo: 'pay'
+    Efectivo: 'pay',
+    EfectivoRef: 'pay',
+    Cheque: 'pay'
+  };
+  // Texto legible en vez del código interno ("TC", "EfectivoRef").
+  const labels = {
+    TC: 'Tarjeta',
+    SPEI: 'SPEI',
+    Efectivo: 'Efectivo',
+    EfectivoRef: 'Efectivo en tienda',
+    Cheque: 'Cheque'
   };
   return /*#__PURE__*/_jsxDEV("span", {
     className: `badge ${map[metodo] || 'badge-gray'}`,
@@ -60,6 +71,6 @@ function MetodoBadge({
       name: icons[metodo] || 'pay',
       size: 11,
       color: "currentColor"
-    }, void 0, false), metodo]
+    }, void 0, false), labels[metodo] || metodo]
   }, void 0, true);
 }
