@@ -78,6 +78,13 @@ $saldoAntes  = round($totalCobro - $pagadoAntes, 2);
 $saldoDespues = round($saldoAntes - $montoAbono, 2);
 if ($saldoDespues < 0) $saldoDespues = 0.0; // sobrepago: el saldo no baja de cero
 
+// Base gravable del abono: el SAT exige este campo explícito en cada
+// impuesto del documento relacionado (no basta con `rate`), porque es sobre
+// lo que se calcula el IVA trasladado. $montoAbono ya incluye IVA (es lo que
+// el cliente pagó), así que se retira con el mismo criterio de siempre
+// (dividir entre 1.16) que usa generar_cfdi.php para el subtotal.
+$baseAbono = round($montoAbono / 1.16, 2);
+
 // Número de parcialidad: cuántos abonos hubo antes de este, más uno.
 $stmtN = $pdo->prepare("SELECT COUNT(*) FROM cobro_abonos WHERE cobro_id = ? AND id <= ?");
 $stmtN->execute([$ab['cobro_id'], $abono_id]);
@@ -151,7 +158,7 @@ $payload = [
                 'amount'       => $montoAbono,
                 'installment'  => $numParcialidad,
                 'last_balance' => $saldoAntes,
-                'taxes'        => [['type' => 'IVA', 'rate' => 0.16, 'withholding' => false]],
+                'taxes'        => [['type' => 'IVA', 'rate' => 0.16, 'base' => $baseAbono, 'withholding' => false]],
             ]],
         ]],
     ]],
