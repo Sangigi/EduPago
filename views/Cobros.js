@@ -613,11 +613,14 @@ function Cobros({
             value: "SPEI",
             children: "SPEI"
           }, void 0, false), _jsxDEV("option", {
-            value: "CoDi",
-            children: "CoDi"
-          }, void 0, false), _jsxDEV("option", {
             value: "Efectivo",
             children: "Efectivo"
+          }, void 0, false), _jsxDEV("option", {
+            value: "EfectivoRef",
+            children: "Efectivo en tienda"
+          }, void 0, false), _jsxDEV("option", {
+            value: "Cheque",
+            children: "Cheque"
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true), _jsxDEV("div", {
