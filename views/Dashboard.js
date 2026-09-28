@@ -1456,12 +1456,15 @@ function Dashboard({
 
               { label: 'Efectivo',  valor: stats.cobradosPorMetodo.Efectivo || 0, color: 'var(--green)' },
 
+              // Efectivo en tienda (pago con referencia) toma el rojo que antes tenía
+              // "Otro": los métodos ya están definidos y "Otro" no aportaba nada.
+              { label: 'Efectivo en tienda', valor: stats.cobradosPorMetodo.EfectivoRef || 0, color: 'var(--red)' },
+
               { label: 'Cheque',    valor: stats.cobradosPorMetodo.Cheque   || 0, color: 'var(--amber)' },
 
-              // CoDi se suma a "Otro" en vez de tener su propia categoría
-              // (10-sep-2026, a pedido) -- se sigue contando en el total, solo
-              // no se muestra como rebanada aparte.
-              { label: 'Otro',      valor: (stats.cobradosPorMetodo.Otro || 0) + (stats.cobradosPorMetodo.CoDi || 0), color: 'var(--red)' }
+              // Solo aparece si hay cobros sin método/desconocidos (valor > 0), para
+              // no perder dinero del total; en condiciones normales no se ve.
+              { label: 'Sin clasificar', valor: stats.cobradosPorMetodo.Otro || 0, color: 'var(--ink-4)' }
 
             ].filter(d => d.valor > 0);
 
