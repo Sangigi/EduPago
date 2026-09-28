@@ -2289,3 +2289,10 @@ box-shadow:0 0 0 3px var(--accent-glow);
     background: var(--bg-surface-2, var(--glass-light));
   }
 }
+
+/* Portal Familia: el logo ya dice "Paga la Escuela" y "Portal familiar" se
+   sobreentiende, así que en celular el texto repetido junto al logo se quita
+   para dar espacio a los botones de la derecha (tema, avatar, guía, salir). */
+@media (max-width: 640px) {
+  .pf-brand-text { display: none !important; }
+}
