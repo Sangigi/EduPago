@@ -261,7 +261,10 @@ const AppModel = (() => {
       // Ahora todo cobro pagado cae en alguna categoría y la suma siempre
       // coincide con totalCobrado.
       cobradosPorMetodo: (() => {
-        const acc = { TC: 0, SPEI: 0, CoDi: 0, Efectivo: 0, Cheque: 0, Otro: 0 };
+        // CoDi ya no es un método de pago del sistema y EfectivoRef (efectivo en
+        // tienda, con referencia) tiene su propio bucket. 'Otro' solo recoge lo
+        // vacío/desconocido para que la suma siga cuadrando con totalCobrado.
+        const acc = { TC: 0, SPEI: 0, Efectivo: 0, EfectivoRef: 0, Cheque: 0, Otro: 0 };
         cobros.filter(c => c.estado === 'pagado').forEach(c => {
           const m = String(c.metodo || '').trim();
           // 'EfectivoRef' es el valor real que queda en `cobros.metodo` para
@@ -270,7 +273,6 @@ const AppModel = (() => {
           // guarda así, así que sin este caso TODOS esos pagos caían en
           // "Otro" en vez de "Efectivo" (10-sep-2026).
           if (m === 'Tarjeta') acc.TC += c.total;            // mismo medio que TC
-          else if (m === 'EfectivoRef') acc.Efectivo += c.total;
           else if (acc[m] !== undefined) acc[m] += c.total;
           else acc.Otro += c.total;                          // incluye vacío/desconocido
         });
