@@ -36,17 +36,19 @@ function Promotor({ user, onLogout, menuPerfil }) {
     _hPM('div', {
       key: 'top',
       style: {
-        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap',
         padding: '14px 20px', borderBottom: '1px solid var(--border-glow)',
         background: 'var(--bg-surface)'
       }
     },
-      _hPM('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)' } }, 'Invitaciones a colegios'),
-      _hPM('div', { key: 'u', style: { marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-3)' } }, (user && user.nombre) || ''),
+      _hPM('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 auto' } }, 'Invitaciones a colegios'),
+      // Antes había aquí un <div> con el nombre del usuario, pero el menú de perfil
+      // (abajo) ya muestra el nombre: salía duplicado. El título se encoge con
+      // puntos suspensivos y el menú queda fijo arriba a la derecha.
       // menuPerfil llega ya armado desde app.js (24-sep-2026): trae editar
       // perfil, cambiar contraseña, cerrar sesión y "Ver la guía otra vez".
       // El || deja el botón suelto como respaldo si la prop no llegara.
-      menuPerfil || _hPM('button', { key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión')
+      _hPM('div', { key: 'menu', style: { marginLeft: 'auto', flexShrink: 0 } }, menuPerfil || _hPM('button', { className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión'))
     ),
 
     _hPM('div', { key: 'body', style: { padding: 20, maxWidth: 1100, margin: '0 auto' } },
