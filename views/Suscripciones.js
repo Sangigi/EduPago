@@ -703,7 +703,7 @@ function Suscripciones({ data, setData }) {
         className: "card-header",
         children: /*#__PURE__*/_jsxDEV("div", { className: "card-title", children: "Colegios por plan" }, void 0, false)
       }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: /*#__PURE__*/_jsxDEV("table", {
           children: [/*#__PURE__*/_jsxDEV("thead", {
             children: /*#__PURE__*/_jsxDEV("tr", {
@@ -721,14 +721,14 @@ function Suscripciones({ data, setData }) {
               children: /*#__PURE__*/_jsxDEV("td", { colSpan: 6, className: "empty-text", children: "Sin colegios registrados." }, void 0, false)
             }, void 0, false) : filas.map(({ esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento, enDemo, finPrueba, diasMostrar }) => /*#__PURE__*/_jsxDEV("tr", {
               children: [
-                /*#__PURE__*/_jsxDEV("td", {
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Colegio",
                   children: /*#__PURE__*/_jsxDEV("div", {
                     style: { display: 'flex', alignItems: 'center', gap: 8 },
                     children: [/*#__PURE__*/_jsxDEV("span", { style: { fontSize: 16 }, children: esc.logo_emoji }, void 0, false),
                     /*#__PURE__*/_jsxDEV("span", { style: { fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap' }, children: esc.nombre }, void 0, false)]
                   }, void 0, true)
                 }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", {
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Plan",
                   children: /*#__PURE__*/_jsxDEV("select", {
                     className: "form-select",
                     value: planKey,
@@ -742,12 +742,12 @@ function Suscripciones({ data, setData }) {
                     }, k, false))
                   }, void 0, false)
                 }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 12.5 }, children: enDemo
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Precio", style: { fontFamily: 'var(--mono)', fontSize: 12.5 }, children: enDemo
                   // Un colegio en prueba no debe (todavia) nada: mostrar el precio
                   // del plan aqui lo hacia parecer un cobro pendiente.
                   ? /*#__PURE__*/_jsxDEV("span", { style: { color: 'var(--ink-4)' }, children: 'Prueba — sin cobro' }, void 0, false)
                   : fmt(info.precio) + ' + IVA' }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", {
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Vencimiento",
                   children: !(enDemo ? finPrueba : esc.fecha_vencimiento_plan) ? /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12, color: 'var(--ink-4)' }, children: "Sin definir" }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
                     style: { display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' },
                     children: [
@@ -790,7 +790,7 @@ function Suscripciones({ data, setData }) {
                     ]
                   }, void 0, true)
                 }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", {
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Planteles",
                   children: /*#__PURE__*/_jsxDEV("span", {
                     style: { fontSize: 12.5, whiteSpace: 'nowrap', color: excedidoPlanteles ? 'var(--red)' : 'var(--ink-3)' },
                     children: info.max_planteles === null
@@ -798,7 +798,7 @@ function Suscripciones({ data, setData }) {
                       : [numPlanteles, " / ", info.max_planteles, excedidoPlanteles && ' (excede el plan)']
                   }, void 0, false)
                 }, void 0, false),
-                /*#__PURE__*/_jsxDEV("td", {
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Alumnos vs límite",
                   children: /*#__PURE__*/_jsxDEV("div", {
                     children: [/*#__PURE__*/_jsxDEV("span", {
                       style: { fontSize: 12.5, whiteSpace: 'nowrap', color: excedido ? 'var(--red)' : 'var(--ink-2)', fontWeight: excedido ? 600 : 400 },

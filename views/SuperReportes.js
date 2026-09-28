@@ -500,7 +500,7 @@ function SuperReportes({
 
         }, void 0, true), _jsxDEV("div", {
 
-          style: {
+          className: "sr-filtros", style: {
 
             display: 'flex',
 
@@ -574,7 +574,7 @@ function SuperReportes({
 
       }, void 0, true), _jsxDEV("div", {
 
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
 
         children: _jsxDEV("table", {
 
@@ -624,7 +624,7 @@ function SuperReportes({
 
               children: [_jsxDEV("tr", {
 
-              children: [_jsxDEV("td", {
+              children: [_jsxDEV("td", { "data-label": "Escuela",
 
                 children: _jsxDEV("div", {
 
@@ -704,7 +704,7 @@ function SuperReportes({
 
                 }, void 0, true)
 
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", { "data-label": "Plan",
 
                 children: _jsxDEV("span", {
 
@@ -714,7 +714,7 @@ function SuperReportes({
 
                 }, void 0, false)
 
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", { "data-label": "Alumnos",
 
                 style: {
 
@@ -726,7 +726,7 @@ function SuperReportes({
 
                 children: s.numAlumnos
 
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", { "data-label": "Cobros",
 
                 style: {
 
@@ -738,7 +738,7 @@ function SuperReportes({
 
                 children: s.numCobros
 
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", { "data-label": "Total cobrado",
 
                 style: {
 
@@ -752,7 +752,7 @@ function SuperReportes({
 
                 children: fmt(s.totalCobrado)
 
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", { "data-label": "Pendiente",
 
                 style: {
 
@@ -764,7 +764,7 @@ function SuperReportes({
 
                 children: fmt(s.totalPendiente)
 
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", { "data-label": "SPEI",
 
                 style: {
 
@@ -778,7 +778,7 @@ function SuperReportes({
 
                 children: fmt(s.porMetodo.SPEI)
 
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), _jsxDEV("td", { "data-label": "Tarjeta",
 
                 style: {
 

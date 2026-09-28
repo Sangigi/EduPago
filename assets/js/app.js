@@ -378,6 +378,8 @@ const TITLES = {
 
   mi_suscripcion: 'Mi suscripción',
 
+  comisiones: 'Distribuidores y comisiones',
+
   logs: 'Logs del Sistema',
 
   busqueda_global: 'Búsqueda Global',

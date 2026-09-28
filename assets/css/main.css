@@ -978,6 +978,8 @@ box-shadow:0 0 0 3px var(--accent-glow);
 .chip-row-fill {
   display: flex;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -2157,8 +2159,8 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .gastos-filtros select,
   .gastos-filtros input { width: 100% !important; text-align-last: center; text-align: center; }
 
-     el select tenía marginLeft:auto para ir pegado a la derecha en
-     escritorio; en celular se manda a su propia fila, a todo el ancho. */
+  /* Filtros de Historial de cobros: el select tenía marginLeft:auto para ir
+     pegado a la derecha en escritorio; en celular va en su propia fila. */
   /* Recordatorios: el select "Ordenar" baja a su propia fila, ancho completo.
      Reportes: el botón Exportar baja debajo del selector de periodo. */
   .recordatorios-controles { flex-direction: column; align-items: stretch !important; }
@@ -2166,12 +2168,16 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .reportes-periodo-bar { flex-direction: column; align-items: stretch !important; }
   .reportes-periodo-bar > .btn { width: 100%; justify-content: center; }
   .usuarios-filtros { flex-direction: column; align-items: stretch !important; }
+  .usuarios-filtros > .chip-row-fill { width: 100% !important; flex: 0 0 auto !important; }
   .usuarios-filtros .search-bar { margin-left: 0 !important; min-width: 0 !important; width: 100%; }
   .cobros-filtros { flex-direction: column; }
   .cobros-filtros select { width: 100% !important; margin-left: 0 !important; }
 
-     apretaban demasiado. El buscador pasa a ocupar todo el ancho, debajo
-     del título. */
+  /* Barra de "Conceptos" en Caja. Causa raíz de que el buscador no ocupara todo el ancho: .pos-header es
+     una fila flex y dejaba el bloque título+buscador y las categorías LADO A
+     LADO. En celular se apilan: título, buscador (ancho completo), categorías. */
+  .pos-header { flex-direction: column; align-items: stretch !important; gap: 8px; }
+  .pos-header > * { width: 100%; min-width: 0; }
   .pos-header-top {
     flex-direction: column;
     align-items: stretch !important;
@@ -2220,4 +2226,37 @@ box-shadow:0 0 0 3px var(--accent-glow);
      ver las demás. Se mantienen en 2 columnas también en celulares chicos —
      el contenido (ícono, número, etiqueta) cabe bien así. */
   .roles-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SUPER ADMIN — Colegios / Inquilinos (27-sep-2026)
+   La rejilla de colegios tenía 4 columnas fijas en línea (sin clase), así que
+   en tablet/celular las tarjetas quedaban aplastadas. Se baja a 2 columnas y
+   luego a 1. Los !important son necesarios porque el valor viene inline.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .esc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 640px) {
+  .esc-grid { grid-template-columns: minmax(0, 1fr) !important; gap: 12px !important; }
+  /* Buscador a todo el ancho; los dos selects (plan / estado) lado a lado. */
+  .esc-filtros { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; }
+  .esc-filtros input { grid-column: 1 / -1; max-width: none !important; width: 100%; }
+  .esc-filtros select { max-width: none !important; width: 100%; text-align-last: center; }
+  /* Paginación + "Alta escuela": el botón a ancho completo debajo. */
+  .esc-acciones { width: 100%; }
+  .esc-acciones > .btn { flex: 1 1 100%; justify-content: center; }
+}
+
+@media (max-width: 640px) {
+  /* Super Admin — filtros: selects/botones de Métricas Globales, Logs y
+     Comisiones ocupan el ancho completo en vez de quedar pegados a un lado. */
+  .sr-filtros { display: grid !important; grid-template-columns: 1fr; gap: 8px !important; width: 100%; }
+  .sr-filtros select { width: 100% !important; text-align-last: center; }
+  .sr-filtros > .btn { width: 100%; justify-content: center; }
+  .logs-filtro { width: 100%; text-align-last: center; }
+  .card-header:has(> .logs-filtro) { flex-direction: column; align-items: stretch; gap: 10px; }
+  .com-busqueda { flex-direction: column; align-items: stretch !important; }
+  .com-busqueda > .search-bar { max-width: none !important; width: 100%; }
+  .com-busqueda > .btn { width: 100%; justify-content: center; }
 }

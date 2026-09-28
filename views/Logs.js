@@ -76,7 +76,7 @@ function Logs({ data }) {
           children: [/*#__PURE__*/_jsxDEV("div", { className: "card-title", children: "Logs del sistema" }, void 0, false),
           /*#__PURE__*/_jsxDEV("div", { className: "card-sub", children: [total, " eventos registrados"] }, void 0, true)]
         }, void 0, true), /*#__PURE__*/_jsxDEV("select", {
-          className: "form-select",
+          className: "form-select logs-filtro",
           style: { fontSize: 12.5, padding: '6px 10px' },
           value: accion,
           onChange: e => { setPagina(1); setAccion(e.target.value); },
@@ -87,7 +87,7 @@ function Logs({ data }) {
         style: { padding: '12px 16px', color: 'var(--red)', fontSize: 13 },
         children: error
       }, void 0, false), !error && /*#__PURE__*/_jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: /*#__PURE__*/_jsxDEV("table", {
           children: [/*#__PURE__*/_jsxDEV("thead", {
             children: /*#__PURE__*/_jsxDEV("tr", {
@@ -110,17 +110,17 @@ function Logs({ data }) {
               const esSensible = l.accion === 'usuario_eliminado' || l.accion === 'login_fallido' || l.accion === 'usuario_editado_sensible';
               return /*#__PURE__*/_jsxDEV("tr", {
                 children: [
-                  /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 11.5, whiteSpace: 'nowrap' }, children: l.fecha }, void 0, false),
-                  /*#__PURE__*/_jsxDEV("td", {
+                  /*#__PURE__*/_jsxDEV("td", { "data-label": "Fecha", style: { fontFamily: 'var(--mono)', fontSize: 11.5, whiteSpace: 'nowrap' }, children: l.fecha }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("td", { "data-label": "Acción",
                     children: /*#__PURE__*/_jsxDEV("span", {
                       style: { fontSize: 12, fontWeight: 600, color: esSensible ? 'var(--red)' : 'var(--ink-2)' },
                       children: ACCIONES_LOG_LABELS[l.accion] || l.accion
                     }, void 0, false)
                   }, void 0, false),
-                  /*#__PURE__*/_jsxDEV("td", { style: { fontSize: 12.5 }, children: l.usuario_nombre || '—' }, void 0, false),
-                  /*#__PURE__*/_jsxDEV("td", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: esc ? esc.nombre : (l.escuela_id || '—') }, void 0, false),
-                  /*#__PURE__*/_jsxDEV("td", { style: { fontSize: 12, color: 'var(--ink-3)', maxWidth: 320 }, children: l.detalle || '—' }, void 0, false),
-                  /*#__PURE__*/_jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-4)' }, children: l.ip || '—' }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("td", { "data-label": "Usuario", style: { fontSize: 12.5 }, children: l.usuario_nombre || '—' }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("td", { "data-label": "Escuela", style: { fontSize: 12, color: 'var(--ink-3)' }, children: esc ? esc.nombre : (l.escuela_id || '—') }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("td", { "data-label": "Detalle", style: { fontSize: 12, color: 'var(--ink-3)', maxWidth: 320 }, children: l.detalle || '—' }, void 0, false),
+                  /*#__PURE__*/_jsxDEV("td", { "data-label": "IP", style: { fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-4)' }, children: l.ip || '—' }, void 0, false),
                 ]
               }, l.id, true);
             })

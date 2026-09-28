@@ -191,7 +191,8 @@ function Comisiones({ data, user }) {
     }, void 0, true),
 
     _jsxDEV("div", {
-      style: { display: 'flex', gap: 6, margin: '14px 0 18px' },
+      className: "chip-row-fill",
+      style: { gap: 6, margin: '14px 0 18px' },
       children: [
         { id: 'referidos', label: 'Referidos y comisiones', icon: 'reportes' },
         { id: 'zonas', label: 'Zonas', icon: 'escuelas' },
@@ -205,6 +206,7 @@ function Comisiones({ data, user }) {
 
     tab === 'referidos' && _jsxDEV(_Fragment, {
       children: [_jsxDEV("div", {
+        className: "com-busqueda",
         style: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 },
         children: [_jsxDEV("div", {
           className: "search-bar",
@@ -227,7 +229,7 @@ function Comisiones({ data, user }) {
           _jsxDEV("div", { className: "empty-text", children: "Sin referidos todavía" }, void 0, false)
         ] }, void 0, true)
       : _jsxDEV("div", {
-        className: "table-wrap",
+        className: "table-wrap cards-mobile",
         children: _jsxDEV("table", {
           className: "table",
           children: [_jsxDEV("thead", {
@@ -242,16 +244,16 @@ function Comisiones({ data, user }) {
             }, void 0, true)
           }, void 0, false), _jsxDEV("tbody", {
             children: lista.map(r => _jsxDEV("tr", {
-              children: [_jsxDEV("td", {
+              children: [_jsxDEV("td", { "data-label": "Distribuidor",
                 children: [_jsxDEV("div", { style: { fontWeight: 600 }, children: r.distribuidor_nombre || '—' }, void 0, false),
                 _jsxDEV("div", { style: { fontSize: 11, color: 'var(--ink-4)' }, children: r.distribuidor_email }, void 0, false)]
-              }, void 0, true), _jsxDEV("td", {
+              }, void 0, true), _jsxDEV("td", { "data-label": "Colegio",
                 children: [_jsxDEV("div", { children: r.escuela_nombre || r.nombre_colegio }, void 0, false),
                 r.notas && _jsxDEV("div", { style: { fontSize: 11, color: 'var(--ink-4)' }, children: r.notas }, void 0, false)]
-              }, void 0, true), _jsxDEV("td", { children: r.num_alumnos ?? '—' }, void 0, false),
-              _jsxDEV("td", { children: _jsxDEV("span", { className: `badge ${ESTADO_BADGE[r.estado] || 'badge-gray'}`, children: (ESTADOS.find(e => e.value === r.estado) || {}).label || r.estado }, void 0, false) }, void 0, false),
-              _jsxDEV("td", { style: { fontFamily: 'var(--mono)', fontWeight: 700 }, children: [r.comision_pct, "%"] }, void 0, true),
-              _jsxDEV("td", { style: { fontSize: 12, color: 'var(--ink-3)' }, children: r.fecha_alta }, void 0, false),
+              }, void 0, true), _jsxDEV("td", { "data-label": "Alumnos", children: r.num_alumnos ?? '—' }, void 0, false),
+              _jsxDEV("td", { "data-label": "Estado", children: _jsxDEV("span", { className: `badge ${ESTADO_BADGE[r.estado] || 'badge-gray'}`, children: (ESTADOS.find(e => e.value === r.estado) || {}).label || r.estado }, void 0, false) }, void 0, false),
+              _jsxDEV("td", { "data-label": "Comisión", style: { fontFamily: 'var(--mono)', fontWeight: 700 }, children: [r.comision_pct, "%"] }, void 0, true),
+              _jsxDEV("td", { "data-label": "Alta", style: { fontSize: 12, color: 'var(--ink-3)' }, children: r.fecha_alta }, void 0, false),
               _jsxDEV("td", { children: _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(r), children: "Editar" }, void 0, false) }, void 0, false)]
             }, r.id, true))
           }, void 0, false)]

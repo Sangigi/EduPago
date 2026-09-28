@@ -711,6 +711,7 @@ function Escuelas({
           children: [data.escuelas.filter(e => e.activa).length, " activas"]
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+        className: "esc-acciones",
         style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
         children: [
           // Paginación arriba a la derecha (24-sep-2026). El typeof protege de
@@ -734,6 +735,7 @@ function Escuelas({
         ]
       }, void 0, true)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      className: "esc-filtros",
       style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
       children: [/*#__PURE__*/_jsxDEV("input", {
         className: "form-input",
@@ -760,6 +762,7 @@ function Escuelas({
         /*#__PURE__*/_jsxDEV("option", { value: "inactiva", children: "Inactivas" }, void 0, false)]
       }, void 0, true)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+      className: "esc-grid",
       style: {
         display: 'grid',
         // 4 columnas en escritorio (24-sep-2026): con 8 por página quedan

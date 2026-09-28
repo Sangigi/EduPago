@@ -386,7 +386,7 @@ function Dashboard({
 
         }, void 0, false), _jsxDEV("div", {
 
-          style: { display: 'flex', gap: 6 },
+          className: "chip-row-fill", style: { gap: 6, flex: "1 1 260px", maxWidth: "100%" },
 
           children: [
 

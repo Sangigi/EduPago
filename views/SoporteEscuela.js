@@ -170,7 +170,7 @@ function SoporteEscuela({ data }) {
               ? _hSE('div', { key: 'av', style: { fontSize: 12.5, color: 'var(--ink-3)' } }, detalle.avisoPagos)
               : (!detalle || detalle.pagos.length === 0
                   ? _hSE('div', { key: 'v', style: { fontSize: 12.5, color: 'var(--ink-3)' } }, 'Sin pagos registrados todavía.')
-                  : _hSE('div', { key: 't', className: 'table-wrap' },
+                  : _hSE('div', { key: 't', className: 'table-wrap cards-mobile' },
                       _hSE('table', {},
                         _hSE('thead', { key: 'th' }, _hSE('tr', {},
                           _hSE('th', { key: 'a' }, 'Fecha'), _hSE('th', { key: 'b' }, 'Concepto'),
@@ -178,13 +178,13 @@ function SoporteEscuela({ data }) {
                           _hSE('th', { key: 'e', style: { textAlign: 'right' } }, 'Monto'))),
                         _hSE('tbody', { key: 'tb' }, detalle.pagos.map(function (p) {
                           return _hSE('tr', { key: p.id },
-                            _hSE('td', { key: 'a', style: { whiteSpace: 'nowrap' } }, String(p.pagado_en || '').slice(0, 10)),
-                            _hSE('td', { key: 'b' }, (SE_ORIGEN[p.origen] || p.origen) + (p.plan ? ' · ' + p.plan : '')),
-                            _hSE('td', { key: 'c' }, p.metodo || '—'),
-                            _hSE('td', { key: 'd', style: { fontFamily: 'var(--mono)', fontSize: 11.5, wordBreak: 'break-all' } }, p.referencia || p.auth_code || '—'),
+                            _hSE('td', { "data-label": "Fecha", key: 'a', style: { whiteSpace: 'nowrap' } }, String(p.pagado_en || '').slice(0, 10)),
+                            _hSE('td', { "data-label": "Concepto", key: 'b' }, (SE_ORIGEN[p.origen] || p.origen) + (p.plan ? ' · ' + p.plan : '')),
+                            _hSE('td', { "data-label": "Método", key: 'c' }, p.metodo || '—'),
+                            _hSE('td', { "data-label": "Referencia", key: 'd', style: { fontFamily: 'var(--mono)', fontSize: 11.5, wordBreak: 'break-all' } }, p.referencia || p.auth_code || '—'),
                             // monto null = ajuste manual sin cobro. "$0.00"
                             // diría que pagó cero, que es falso.
-                            _hSE('td', { key: 'e', style: { textAlign: 'right', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' } },
+                            _hSE('td', { "data-label": "Monto", key: 'e', style: { textAlign: 'right', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' } },
                               p.monto === null ? 'Sin cobro' : fmt(p.monto)));
                         })))))
           ), 'sus'),
