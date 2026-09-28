@@ -171,16 +171,14 @@ function Provision({ user, onLogout, menuPerfil }) {
     _hPR('div', {
       key: 'top',
       style: {
-        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap',
         padding: '14px 20px', borderBottom: '1px solid var(--border-glow)',
         background: 'var(--bg-surface)'
       }
     },
-      _hPR('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)' } }, 'Provisión de colegios'),
-      _hPR('div', { key: 'u', style: { marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-3)' } }, user?.nombre || ''),
-      menuPerfil || _hPR('button', {
-        key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout
-      }, 'Cerrar sesión')
+      _hPR('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 auto' } }, 'Provisión de colegios'),
+      // (Se quitó el <div> con el nombre: menuPerfil ya lo muestra y salía duplicado.)
+      _hPR('div', { key: 'menu', style: { marginLeft: 'auto', flexShrink: 0 } }, menuPerfil || _hPR('button', { className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión'))
     ),
 
     _hPR('div', { key: 'body', style: { padding: 20, maxWidth: 1100, margin: '0 auto' } },
