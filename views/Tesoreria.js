@@ -96,14 +96,14 @@ function Tesoreria({ user, onLogout, menuPerfil }) {
     _hTS('div', {
       key: 'top',
       style: {
-        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap',
         padding: '14px 20px', borderBottom: '1px solid var(--border-glow)',
         background: 'var(--bg-surface)'
       }
     },
-      _hTS('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)' } }, 'Cuentas por pagar'),
-      _hTS('div', { key: 'u', style: { marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-3)' } }, user?.nombre || ''),
-      menuPerfil || _hTS('button', { key: 'out', className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión')
+      _hTS('div', { key: 't', style: { fontWeight: 800, fontSize: 16, color: 'var(--ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 auto' } }, 'Cuentas por pagar'),
+      // (Se quitó el <div> con el nombre: menuPerfil ya lo muestra y salía duplicado.)
+      _hTS('div', { key: 'menu', style: { marginLeft: 'auto', flexShrink: 0 } }, menuPerfil || _hTS('button', { className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión'))
     ),
 
     _hTS('div', { key: 'body', style: { padding: 20, maxWidth: 1100, margin: '0 auto' } },
