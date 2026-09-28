@@ -52,6 +52,8 @@ function Suscripciones({ data, setData }) {
   const [motivoRechazo, setMotivoRechazo] = useState({}); // { [id]: texto }
   // Página de la tarjeta "Invitaciones sin completar" (24-sep-2026).
   const [pagInvSusc, setPagInvSusc] = useState(1);
+  // Página de la tabla "Colegios por plan" (5 por página).
+  const [pagPlan, setPagPlan] = useState(1);
 
   const cargarInvitaciones = async () => {
     setCargandoInv(true);
@@ -391,6 +393,7 @@ function Suscripciones({ data, setData }) {
       : null;
     return { esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento, enDemo, finPrueba, diasPrueba, diasMostrar: enDemo ? diasPrueba : diasVencimiento };
   });
+  const pgPlan = paginarManual(filas, pagPlan, setPagPlan, 5);
 
   // Solo cuentan los colegios que DE VERDAD pagan: sumar los que estan en
   // prueba inflaba el ingreso estimado con dinero que nadie ha cobrado.
@@ -534,7 +537,7 @@ function Suscripciones({ data, setData }) {
     return !isNaN(t) && t < Date.now();
   };
 
-  const INV_POR_PAGINA = 10;
+  const INV_POR_PAGINA = 5;
   const totalPagInvSusc = Math.max(1, Math.ceil(invSinCompletar.length / INV_POR_PAGINA));
   // Si la lista encoge (se registró alguien), se vuelve a la última página
   // válida en vez de mostrar una tabla vacía sin explicación.
@@ -719,7 +722,7 @@ function Suscripciones({ data, setData }) {
           }, void 0, false), /*#__PURE__*/_jsxDEV("tbody", {
             children: filas.length === 0 ? /*#__PURE__*/_jsxDEV("tr", {
               children: /*#__PURE__*/_jsxDEV("td", { colSpan: 6, className: "empty-text", children: "Sin colegios registrados." }, void 0, false)
-            }, void 0, false) : filas.map(({ esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento, enDemo, finPrueba, diasMostrar }) => /*#__PURE__*/_jsxDEV("tr", {
+            }, void 0, false) : pgPlan.pagina.map(({ esc, info, planKey, planReconocido, numPlanteles, totalAlumnos, pctAlumnos, excedido, excedidoPlanteles, diasVencimiento, enDemo, finPrueba, diasMostrar }) => /*#__PURE__*/_jsxDEV("tr", {
               children: [
                 /*#__PURE__*/_jsxDEV("td", { "data-label": "Colegio",
                   children: /*#__PURE__*/_jsxDEV("div", {
@@ -817,7 +820,7 @@ function Suscripciones({ data, setData }) {
             }, esc.id, true))
           }, void 0, false)]
         }, void 0, true)
-      }, void 0, false)]
+      }, void 0, false), /*#__PURE__*/_jsxDEV(Paginador, { ctrl: pgPlan, etiqueta: 'colegios' }, 'pgplan', false)]
     }, void 0, true), modalMant && _jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setModalMant(false),

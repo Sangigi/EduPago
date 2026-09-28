@@ -128,8 +128,13 @@ function SoporteEscuela({ data }) {
         placeholder: 'Buscar colegio por nombre o clave…',
         value: q, onChange: function (e) { setQ(e.target.value); }
       }),
+      // Las etiquetas de colegios NO se muestran todas de entrada (con miles de
+      // colegios sería una pared de botones): solo aparecen las coincidencias
+      // cuando se escribe algo en el buscador.
+      !q.trim() ? _hSE('div', { key: 'pista', style: { fontSize: 12, color: 'var(--ink-4)' } },
+        'Escribe el nombre o la clave de un colegio para buscarlo.') : null,
       _hSE('div', { key: 'lista', style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
-        visibles.slice(0, 40).map(function (e) {
+        (q.trim() ? visibles : []).slice(0, 12).map(function (e) {
           return _hSE('button', {
             key: e.id,
             className: 'btn btn-sm ' + (escId === e.id ? 'btn-primary' : 'btn-secondary'),
@@ -137,8 +142,10 @@ function SoporteEscuela({ data }) {
           }, e.nombre);
         })
       ),
-      visibles.length > 40 ? _hSE('div', { key: 'mas', style: { fontSize: 11.5, color: 'var(--ink-4)', marginTop: 8 } },
-        'Se muestran 40 de ' + visibles.length + '. Afina la búsqueda para ver el resto.') : null
+      q.trim() && visibles.length === 0 ? _hSE('div', { key: 'nada', style: { fontSize: 12, color: 'var(--ink-4)' } },
+        'Ningún colegio coincide con la búsqueda.') : null,
+      q.trim() && visibles.length > 12 ? _hSE('div', { key: 'mas', style: { fontSize: 11.5, color: 'var(--ink-4)', marginTop: 8 } },
+        'Se muestran 12 de ' + visibles.length + '. Afina la búsqueda para ver el resto.') : null
     ),
 
     !esc ? _hSE('div', { key: 'vacio', className: 'empty-state' },

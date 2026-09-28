@@ -2090,6 +2090,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .table-wrap.cards-mobile tbody tr:last-child { margin-bottom: 0; }
 
   .table-wrap.cards-mobile td {
+    padding: 8px 0 !important;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2259,4 +2260,32 @@ box-shadow:0 0 0 3px var(--accent-glow);
   .com-busqueda { flex-direction: column; align-items: stretch !important; }
   .com-busqueda > .search-bar { max-width: none !important; width: 100%; }
   .com-busqueda > .btn { width: 100%; justify-content: center; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   PORTAL FAMILIA — ajustes móviles (27-sep-2026)
+   1) No dejaba llegar al final de ninguna sección: .pf-root trae
+      height:100vh EN LÍNEA, y en celular 100vh es más alto que la pantalla
+      visible (la barra del navegador tapa la parte de abajo), así que el
+      último tramo quedaba fuera de alcance. #root y .app ya usan 100dvh;
+      aquí faltaba. El !important es necesario porque el valor viene inline.
+   2) Cabecera: en celular las acciones (tema, avatar, guía, salir) caían a un
+      segundo renglón pegadas a la izquierda. Ahora se quedan en la MISMA fila,
+      a la derecha, como botones redondos parejos.
+   ══════════════════════════════════════════════════════════════════════ */
+.pf-root { height: 100vh !important; height: 100dvh !important; }
+.pf-body { padding-bottom: calc(clamp(18px,3vw,30px) + env(safe-area-inset-bottom, 0px) + 24px) !important; }
+
+@media (max-width: 640px) {
+  .pf-header { flex-wrap: nowrap !important; padding: 8px 12px !important; gap: 8px !important; }
+  .pf-header > div:first-child { flex: 1 1 auto; min-width: 0; }
+  .pf-header-actions { margin-left: auto; flex: 0 0 auto; gap: 6px !important; }
+  .pf-header-user-name { display: none !important; }
+  .pf-header-actions .theme-toggle,
+  .pf-header-actions .btn-ghost {
+    width: 36px; height: 36px; padding: 0 !important; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border-glow) !important; border-radius: 50%;
+    background: var(--bg-surface-2, var(--glass-light));
+  }
 }

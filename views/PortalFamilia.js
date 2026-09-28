@@ -1491,6 +1491,7 @@ function PortalFamilia({
             }, void 0, true)]
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
+          className: "table-wrap cards-mobile",
           style: {
             overflowX: 'auto'
           },
@@ -1535,7 +1536,7 @@ function PortalFamilia({
                   borderBottom: `1px solid ${PLC.border}`,
                   background: i % 2 === 0 ? 'transparent' : 'rgba(40,45,101,.02)'
                 },
-                children: [_jsxDEV("td", {
+                children: [_jsxDEV("td", { "data-label": "Folio",
                   style: {
                     padding: '11px 16px',
                     fontFamily: 'monospace',
@@ -1543,21 +1544,21 @@ function PortalFamilia({
                     color: PLC.muted
                   },
                   children: cob.folio
-                }, void 0, false), _jsxDEV("td", {
+                }, void 0, false), _jsxDEV("td", { "data-label": "Alumno",
                   style: {
                     padding: '11px 16px',
                     fontWeight: 500,
                     color: PLC.text
                   },
                   children: cob.cliente
-                }, void 0, false), _jsxDEV("td", {
+                }, void 0, false), _jsxDEV("td", { "data-label": "Concepto",
                   style: {
                     padding: '11px 16px',
                     color: PLC.muted,
                     maxWidth: 180
                   },
                   children: cob.items?.map(i => i.nombre).join(', ')
-                }, void 0, false), _jsxDEV("td", {
+                }, void 0, false), _jsxDEV("td", { "data-label": "Método",
                   style: {
                     padding: '11px 16px'
                   },
@@ -1579,7 +1580,7 @@ function PortalFamilia({
                       color: "currentColor"
                     }, void 0, false), cob.metodo]
                   }, void 0, true)
-                }, void 0, false), _jsxDEV("td", {
+                }, void 0, false), _jsxDEV("td", { "data-label": "Total",
                   style: {
                     padding: '11px 16px',
                     fontFamily: 'monospace',
@@ -1600,7 +1601,7 @@ function PortalFamilia({
                     },
                     children: ["faltan ", fmt(faltaDe(cob))]
                   }, void 0, true)]
-                }, void 0, true), _jsxDEV("td", {
+                }, void 0, true), _jsxDEV("td", { "data-label": "Estado",
                   style: {
                     padding: '11px 16px'
                   },
@@ -1612,7 +1613,7 @@ function PortalFamilia({
                       color: "currentColor"
                     }, void 0, false), cob.estado === 'pagado' ? 'Pagado' : 'Pendiente']
                   }, void 0, true)
-                }, void 0, false), _jsxDEV("td", {
+                }, void 0, false), _jsxDEV("td", { "data-label": "Fecha",
                   style: {
                     padding: '11px 16px',
                     color: PLC.muted,
@@ -1620,7 +1621,7 @@ function PortalFamilia({
                     whiteSpace: 'nowrap'
                   },
                   children: cob.fecha
-                }, void 0, false), _jsxDEV("td", {
+                }, void 0, false), _jsxDEV("td", { "data-label": "Comprobante",
                   style: { padding: '11px 16px' },
                   // Pagado por Efectivo/SPEI -> comprobante ya emitido (ver
                   // botón). Pendiente por Efectivo -> antes no había forma de
@@ -1867,9 +1868,11 @@ function PortalFamilia({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '10px 8px',
-                  marginBottom: 4,
-                  borderRadius: 8,
+                  padding: '12px 12px',
+                  marginBottom: 10,
+                  boxSizing: 'border-box',
+                  transition: 'border-color .15s, background .15s',
+                  borderRadius: 10,
                   cursor: hijosConSaldo.length > 1 ? 'pointer' : 'default',
                   border: hijosConSaldo.length > 1 ? `2px solid ${hijoSeleccionado?.id === h.id ? PLC.navy : PLC.border}` : 'none',
                   background: hijosConSaldo.length > 1 && hijoSeleccionado?.id === h.id ? 'rgba(40,45,101,.05)' : 'transparent',

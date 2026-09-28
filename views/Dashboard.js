@@ -57,6 +57,7 @@ function Dashboard({
   const { useState, useEffect, useMemo } = React;
 
   const [filtroEscEstado, setFiltroEscEstado] = useState('todas'); // 'todas' | 'activas' | 'inactivas'
+  const [pagEsc, setPagEsc] = useState(1); // paginación (5 por página) del listado global de escuelas
 
   // ── Tendencia de cobranza: rango de fechas elegido por el usuario ──
   // Antes eran siempre los últimos 30 días, calculados en el navegador a
@@ -147,6 +148,8 @@ function Dashboard({
       !s.activa
 
     );
+
+    const pgEsc = paginarManual(statsFiltrados, pagEsc, setPagEsc, 5);
 
     const totalCobrado = statsFiltrados.reduce((a, s) => a + s.totalCobrado, 0);
 
@@ -374,7 +377,7 @@ function Dashboard({
 
           alignItems: 'center',
 
-          marginBottom: 14
+          gap: 14, flexWrap: 'wrap', marginBottom: 14
 
         },
 
@@ -402,7 +405,7 @@ function Dashboard({
 
             className: `btn btn-sm ${filtroEscEstado === f.id ? 'btn-primary' : 'btn-secondary'}`,
 
-            onClick: () => setFiltroEscEstado(f.id),
+            onClick: () => { setFiltroEscEstado(f.id); setPagEsc(1); },
 
             children: f.label
 
@@ -422,7 +425,7 @@ function Dashboard({
 
         },
 
-        children: statsFiltrados.length ? statsFiltrados.map(s => _jsxDEV("div", {
+        children: statsFiltrados.length ? pgEsc.pagina.map(s => _jsxDEV("div", {
 
           className: "card",
 
@@ -624,7 +627,7 @@ function Dashboard({
 
         }, void 0, false)
 
-      }, void 0, false)]
+      }, void 0, false), _jsxDEV(Paginador, { ctrl: pgEsc, etiqueta: 'escuelas' }, 'pgesc', false)]
 
     }, void 0, true);
 

@@ -237,8 +237,9 @@ const AppModel = (() => {
         porMetodo: {
           TC:       pagados.filter(c=>c.metodo==='TC').reduce((a,c)=>a+c.total,0),
           SPEI:     pagados.filter(c=>c.metodo==='SPEI').reduce((a,c)=>a+c.total,0),
-          CoDi:     pagados.filter(c=>c.metodo==='CoDi').reduce((a,c)=>a+c.total,0),
-          Efectivo: pagados.filter(c=>c.metodo==='Efectivo').reduce((a,c)=>a+c.total,0),
+          Efectivo:    pagados.filter(c=>c.metodo==='Efectivo').reduce((a,c)=>a+c.total,0),
+          EfectivoRef: pagados.filter(c=>c.metodo==='EfectivoRef').reduce((a,c)=>a+c.total,0),
+          Cheque:      pagados.filter(c=>c.metodo==='Cheque').reduce((a,c)=>a+c.total,0),
         },
         resumenLigero: false,
         subplanteles: desglosePlanteles(esc),

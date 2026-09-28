@@ -88,7 +88,7 @@ function Paginador({ ctrl, etiqueta, tamanos }) {
         )
       : null,
 
-    _hPG('select', {
+    ctrl.fijo ? null : _hPG('select', {
       key: 'tam',
       className: 'pag-tam',
       value: ctrl.tam,
@@ -98,4 +98,30 @@ function Paginador({ ctrl, etiqueta, tamanos }) {
       return _hPG('option', { key: t, value: t }, t + ' por página');
     }))
   );
+}
+
+
+// Variante SIN hooks de usePaginacion, para componentes que tienen un return
+// anticipado (no se pueden agregar useState después de él). El estado de la
+// pagina (n / setN) lo lleva el componente con su propio useState arriba.
+//
+//   var _p = useState(1);                      // arriba del componente
+//   var pg = paginarManual(lista, _p[0], _p[1], 5);
+function paginarManual(lista, n, setN, tam) {
+  var total = (lista || []).length;
+  var t = tam || 5;
+  var totalPaginas = Math.max(1, Math.ceil(total / t));
+  var actual = Math.min(Math.max(1, n || 1), totalPaginas);
+  var desde = (actual - 1) * t;
+  return {
+    pagina: (lista || []).slice(desde, desde + t),
+    n: actual,
+    totalPaginas: totalPaginas,
+    total: total,
+    tam: t,
+    ir: function (p) { setN(Math.min(Math.max(1, p), totalPaginas)); },
+    cambiarTam: function () { setN(1); },
+    reiniciar: function () { setN(1); },
+    fijo: true // tamaño fijo: el Paginador no muestra el selector "por página"
+  };
 }

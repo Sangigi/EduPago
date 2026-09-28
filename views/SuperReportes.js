@@ -48,13 +48,16 @@ function SuperReportes({
 
     numCobros: s.numCobros ?? 0,
 
-    porMetodo: s.porMetodo || { TC: 0, SPEI: 0, CoDi: 0, Efectivo: 0 },
+    porMetodo: s.porMetodo || { TC: 0, SPEI: 0, Efectivo: 0, EfectivoRef: 0, Cheque: 0 },
 
     subplanteles: s.subplanteles || [],
 
   }));
 
   const [expandidas, setExpandidas] = useState({});
+  // Paginación (5 por página) de "Cobrado por escuela" y "Desglose por escuela".
+  const [pagCob, setPagCob] = useState(1);
+  const [pagDes, setPagDes] = useState(1);
 
   const filtradas = filtroEsc === 'todas' ? stats : stats.filter(s => s.escuela_id === parseInt(filtroEsc));
 
@@ -70,7 +73,7 @@ function SuperReportes({
 
   // Totales por método (todas las escuelas)
 
-  const metodos = ['TC', 'SPEI', 'CoDi', 'Efectivo'];
+  const metodos = ['TC', 'SPEI', 'Efectivo', 'EfectivoRef', 'Cheque'];
 
   const metodoGlobal = {};
 
@@ -82,15 +85,27 @@ function SuperReportes({
 
   const totalMetodos = Object.values(metodoGlobal).reduce((a, b) => a + b, 0) || 1;
 
+  // Etiquetas legibles. Antes el renglón imprimía el NOMBRE interno del ícono
+  // como texto ("phone CoDi", "card TC"...). CoDi se retiró: no se ofrece
+  // como método de pago. Los datos no distinguen débito de crédito (ambas son
+  // 'TC'), por eso la tarjeta va en una sola línea.
+  const METODO_LABELS = {
+    TC: 'Tarjeta (crédito / débito)',
+    SPEI: 'SPEI',
+    Efectivo: 'Efectivo',
+    EfectivoRef: 'Efectivo en tienda',
+    Cheque: 'Cheque'
+  };
+
   const METODO_ICONS = {
 
     TC: 'card',
 
     SPEI: 'bank',
 
-    CoDi: 'phone',
-
-    Efectivo: 'pay'
+    EfectivoRef: 'pay',
+    Efectivo: 'pay',
+    Cheque: 'edit'
 
   };
 
@@ -100,9 +115,9 @@ function SuperReportes({
 
     SPEI: 'var(--purple)',
 
-    CoDi: 'var(--green)',
-
-    Efectivo: 'var(--amber)'
+    Efectivo: 'var(--amber)',
+    EfectivoRef: 'var(--green)',
+    Cheque: 'var(--cyan)'
 
   };
 
@@ -121,14 +136,17 @@ function SuperReportes({
     const sum = campo => stats.reduce((a, s) => a + (Number(campo(s)) || 0), 0);
 
     const rows = [
-      ['Escuela', 'Plan', 'Alumnos', 'Cobros', 'Total cobrado', 'Pendiente', 'TC', 'SPEI', 'CoDi', 'Efectivo'],
-      ...stats.map(s => [s.nombre, s.plan, s.numAlumnos, s.numCobros, CSVExport.money(s.totalCobrado), CSVExport.money(s.totalPendiente), CSVExport.money(s.porMetodo.TC), CSVExport.money(s.porMetodo.SPEI), CSVExport.money(s.porMetodo.CoDi), CSVExport.money(s.porMetodo.Efectivo)]),
-      ['TOTAL', '', sum(s => s.numAlumnos), sum(s => s.numCobros), CSVExport.money(sum(s => s.totalCobrado)), CSVExport.money(sum(s => s.totalPendiente)), CSVExport.money(sum(s => s.porMetodo.TC)), CSVExport.money(sum(s => s.porMetodo.SPEI)), CSVExport.money(sum(s => s.porMetodo.CoDi)), CSVExport.money(sum(s => s.porMetodo.Efectivo))],
+      ['Escuela', 'Plan', 'Alumnos', 'Cobros', 'Total cobrado', 'Pendiente', 'Tarjeta', 'SPEI', 'Efectivo', 'Efectivo tienda', 'Cheque'],
+      ...stats.map(s => [s.nombre, s.plan, s.numAlumnos, s.numCobros, CSVExport.money(s.totalCobrado), CSVExport.money(s.totalPendiente), CSVExport.money(s.porMetodo.TC), CSVExport.money(s.porMetodo.SPEI), CSVExport.money(s.porMetodo.Efectivo), CSVExport.money(s.porMetodo.EfectivoRef), CSVExport.money(s.porMetodo.Cheque)]),
+      ['TOTAL', '', sum(s => s.numAlumnos), sum(s => s.numCobros), CSVExport.money(sum(s => s.totalCobrado)), CSVExport.money(sum(s => s.totalPendiente)), CSVExport.money(sum(s => s.porMetodo.TC)), CSVExport.money(sum(s => s.porMetodo.SPEI)), CSVExport.money(sum(s => s.porMetodo.Efectivo)), CSVExport.money(sum(s => s.porMetodo.EfectivoRef)), CSVExport.money(sum(s => s.porMetodo.Cheque))],
     ];
 
     CSVExport.descargar(`edupago-global-${new Date().toISOString().slice(0, 10)}.csv`, rows);
 
   };
+
+  const pgCob = paginarManual(stats, pagCob, setPagCob, 5);
+  const pgDes = paginarManual(filtradas, pagDes, setPagDes, 5);
 
   return _jsxDEV("div", {
 
@@ -326,7 +344,7 @@ function SuperReportes({
 
                 },
 
-                children: [METODO_ICONS[m], " ", m]
+                children: METODO_LABELS[m] || m
 
               }, void 0, true), _jsxDEV("span", {
 
@@ -396,7 +414,7 @@ function SuperReportes({
 
           }, void 0, false)
 
-        }, void 0, false), stats.map(s => {
+        }, void 0, false), pgCob.pagina.map(s => {
 
           const pct = Math.round(s.totalCobrado / (totalGlobal || 1) * 100);
 
@@ -470,7 +488,7 @@ function SuperReportes({
 
           }, s.escuela_id, true);
 
-        })]
+        }), _jsxDEV(Paginador, { ctrl: pgCob, etiqueta: 'escuelas' }, 'pgcob', false)]
 
       }, void 0, true)]
 
@@ -526,7 +544,7 @@ function SuperReportes({
 
             value: filtroEsc,
 
-            onChange: e => setFiltroEsc(e.target.value),
+            onChange: e => { setFiltroEsc(e.target.value); setPagDes(1); },
 
             children: [_jsxDEV("option", {
 
@@ -620,7 +638,7 @@ function SuperReportes({
 
           }, void 0, false), _jsxDEV("tbody", {
 
-            children: filtradas.map(s => _jsxDEV(_Fragment, {
+            children: pgDes.pagina.map(s => _jsxDEV(_Fragment, {
 
               children: [_jsxDEV("tr", {
 
@@ -856,7 +874,7 @@ function SuperReportes({
 
         }, void 0, true)
 
-      }, void 0, false)]
+      }, void 0, false), _jsxDEV(Paginador, { ctrl: pgDes, etiqueta: 'escuelas' }, 'pgdes', false)]
 
     }, void 0, true)]
 

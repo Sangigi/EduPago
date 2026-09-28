@@ -422,7 +422,7 @@ function PanelInvitaciones({ esSuperAdmin }) {
         ? _hPI('div', { key: 'vacio', className: 'empty-state' }, _hPI('div', { className: 'empty-text' }, 'Aún no has generado ninguna invitación.'))
         : lista.length === 0
           ? _hPI('div', { key: 'sinres', className: 'empty-state' }, _hPI('div', { className: 'empty-text' }, 'Nada coincide con esa búsqueda.'))
-          : _hPI('div', { key: 'tabla', className: 'table-wrap' },
+          : _hPI('div', { key: 'tabla', className: 'table-wrap cards-mobile' },
             _hPI('table', {},
               _hPI('thead', {},
                 _hPI('tr', {},
@@ -438,11 +438,11 @@ function PanelInvitaciones({ esSuperAdmin }) {
                 listaPagina.map(function (inv) {
                   const info = _ESTADO_INV[inv.estado] || { label: inv.estado, clase: 'badge-gray' };
                   return _hPI('tr', { key: inv.id },
-                    _hPI('td', {}, inv.contacto_nombre),
-                    _hPI('td', {}, inv.contacto_email),
-                    esSuperAdmin ? _hPI('td', {}, inv.creado_por_nombre || '—') : null,
-                    _hPI('td', {}, _hPI('span', { className: 'badge ' + info.clase }, info.label)),
-                    _hPI('td', {}, String(inv.fecha_alta || '').slice(0, 10)),
+                    _hPI('td', { 'data-label': 'Contacto' }, inv.contacto_nombre),
+                    _hPI('td', { 'data-label': 'Correo' }, inv.contacto_email),
+                    esSuperAdmin ? _hPI('td', { 'data-label': 'Generado por' }, inv.creado_por_nombre || '—') : null,
+                    _hPI('td', { 'data-label': 'Estado' }, _hPI('span', { className: 'badge ' + info.clase }, info.label)),
+                    _hPI('td', { 'data-label': 'Creada' }, String(inv.fecha_alta || '').slice(0, 10)),
                     _hPI('td', {},
                       _hPI('div', { style: { display: 'flex', gap: 6 } },
                         _hPI('button', {

@@ -29,6 +29,9 @@ function Comisiones({ data, user }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
+  // Paginación (5 por página) del listado de referidos y comisiones.
+  const [pagRef, setPagRef] = useState(1);
+  useEffect(() => { setPagRef(1); }, [q]);
 
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(null);
@@ -76,6 +79,8 @@ function Comisiones({ data, user }) {
     const texto = [r.distribuidor_nombre, r.nombre_colegio, r.escuela_nombre].filter(Boolean).join(' ').toLowerCase();
     return texto.includes(q.toLowerCase());
   });
+
+  const pgRef = paginarManual(lista, pagRef, setPagRef, 5);
 
   // Exportar agrupado por distribuidor, con subtotal por grupo y un total
   // general al final — mismo estilo que un reporte de comisiones por
@@ -243,7 +248,8 @@ function Comisiones({ data, user }) {
               _jsxDEV("th", {}, void 0, false)]
             }, void 0, true)
           }, void 0, false), _jsxDEV("tbody", {
-            children: lista.map(r => _jsxDEV("tr", {
+            children: pgRef.pagina.map(r => _jsxDEV("tr", {
+              onClick: () => abrirEditar(r), style: { cursor: 'pointer' },
               children: [_jsxDEV("td", { "data-label": "Distribuidor",
                 children: [_jsxDEV("div", { style: { fontWeight: 600 }, children: r.distribuidor_nombre || '—' }, void 0, false),
                 _jsxDEV("div", { style: { fontSize: 11, color: 'var(--ink-4)' }, children: r.distribuidor_email }, void 0, false)]
@@ -254,11 +260,11 @@ function Comisiones({ data, user }) {
               _jsxDEV("td", { "data-label": "Estado", children: _jsxDEV("span", { className: `badge ${ESTADO_BADGE[r.estado] || 'badge-gray'}`, children: (ESTADOS.find(e => e.value === r.estado) || {}).label || r.estado }, void 0, false) }, void 0, false),
               _jsxDEV("td", { "data-label": "Comisión", style: { fontFamily: 'var(--mono)', fontWeight: 700 }, children: [r.comision_pct, "%"] }, void 0, true),
               _jsxDEV("td", { "data-label": "Alta", style: { fontSize: 12, color: 'var(--ink-3)' }, children: r.fecha_alta }, void 0, false),
-              _jsxDEV("td", { children: _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(r), children: "Editar" }, void 0, false) }, void 0, false)]
+              _jsxDEV("td", { onClick: e => e.stopPropagation(), children: _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(r), children: "Editar" }, void 0, false) }, void 0, false)]
             }, r.id, true))
           }, void 0, false)]
         }, void 0, true)
-      }, void 0, false)]
+      }, void 0, false), _jsxDEV(Paginador, { ctrl: pgRef, etiqueta: 'referidos' }, 'pgref', false)]
     }, void 0, true),
 
     tab === 'zonas' && _jsxDEV("div", {
