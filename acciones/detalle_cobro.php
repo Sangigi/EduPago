@@ -36,7 +36,8 @@
         try {
             $stmtAb = $pdo->prepare(
                 "SELECT id, monto, metodo, referencia, clabe, transaccion_proveedor,
-                        auth_code, origen, notas, creado_en
+                        auth_code, origen, notas, creado_en,
+                        cfdi_complemento_id, cfdi_complemento_uuid, cfdi_complemento_en
                    FROM cobro_abonos
                   WHERE cobro_id = ?
                   ORDER BY creado_en, id"
@@ -44,9 +45,21 @@
             $stmtAb->execute([$cobro_id_det]);
             $abonos = $stmtAb->fetchAll();
         } catch (\PDOException $e) {
-            // Si la migración de abonos no ha corrido, la tabla no existe. No
-            // es motivo para romper el detalle: se devuelve vacío y la vista
-            // simplemente no pinta la sección.
-            $abonos = [];
+            // Si la migración de abonos (o la de complemento_pago) no ha
+            // corrido, alguna de esas columnas no existe. No es motivo para
+            // romper el detalle: se reintenta sin ellas antes de rendirse.
+            try {
+                $stmtAb = $pdo->prepare(
+                    "SELECT id, monto, metodo, referencia, clabe, transaccion_proveedor,
+                            auth_code, origen, notas, creado_en
+                       FROM cobro_abonos
+                      WHERE cobro_id = ?
+                      ORDER BY creado_en, id"
+                );
+                $stmtAb->execute([$cobro_id_det]);
+                $abonos = $stmtAb->fetchAll();
+            } catch (\PDOException $e2) {
+                $abonos = [];
+            }
         }
         respond(['success' => true, 'items' => $items, 'abonos' => $abonos]);

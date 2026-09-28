@@ -384,6 +384,61 @@ function PortalFamilia({
     }
     setDescargandoFactura(null);
   };
+  // ── Complementos de pago del cobro (28-sep-2026) ─────────────────────────
+  //
+  // Si el colegio cobró en abonos, la factura que ve arriba es la PPD "madre"
+  // (por el total). El comprobante de que SÍ se pagó cada abono es un CFDI
+  // aparte (complemento de pago), y hasta hoy no había forma de que el padre
+  // lo consultara: solo se avisaba al colegio en el momento de emitirlo.
+  const [complementosVisorFam, setComplementosVisorFam] = useState(null); // { cobro, abonos } | null
+  const [cargandoComplementosFam, setCargandoComplementosFam] = useState(false);
+  const [descargandoComplementoFam, setDescargandoComplementoFam] = useState(null);
+
+  const verComplementosCobroFam = async cobro => {
+    setCargandoComplementosFam(true);
+    setComplementosVisorFam({ cobro, abonos: [] });
+    try {
+      const res = await fetch('api.php?action=detalle_cobro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + user.token },
+        body: JSON.stringify({ cobro_id: cobro.id }),
+      });
+      const j = await res.json();
+      setComplementosVisorFam({ cobro, abonos: (j && j.success) ? (j.abonos || []) : [] });
+    } catch (e) {
+      setComplementosVisorFam({ cobro, abonos: [] });
+    }
+    setCargandoComplementosFam(false);
+  };
+
+  const descargarComplementoFam = async (abono, tipo) => {
+    const llave = abono.id + '-' + tipo;
+    setDescargandoComplementoFam(llave);
+    try {
+      const params = new URLSearchParams({ action: 'descargar_complemento_pago', abono_id: abono.id, tipo });
+      const res = await fetch('api.php?' + params.toString(), {
+        headers: { 'Authorization': 'Bearer ' + user.token },
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || contentType.includes('application/json')) {
+        const json = await res.json().catch(() => null);
+        alert('No se pudo descargar: ' + (json?.error || 'Error desconocido'));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `complemento-pago-${abono.id}.${tipo}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Error de conexión al descargar: ' + e.message);
+    } finally {
+      setDescargandoComplementoFam(null);
+    }
+  };
+
   const [formEditHijo, setFormEditHijo] = useState({});
   const [guardandoHijo, setGuardandoHijo] = useState(false);
   const [errorEditHijo, setErrorEditHijo] = useState('');
@@ -2705,6 +2760,13 @@ function PortalFamilia({
                   _jsxDEV(Icon, { name: 'download', size: 13, color: 'currentColor' }, 'xml-ic', false),
                   ' XML'
                 ]
+              }, void 0, false), _jsxDEV("button", {
+                onClick: () => verComplementosCobroFam(cob),
+                style: {
+                  padding: '8px 14px', borderRadius: 8, border: `1px solid ${PLC.border}`,
+                  background: PLC.card, color: PLC.navy, fontSize: 12.5, fontWeight: 600, cursor: 'pointer'
+                },
+                children: "Complementos de pago"
               }, void 0, false)]
             }, void 0, true)]
           }, cob.id, true))
@@ -2866,6 +2928,61 @@ function PortalFamilia({
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true),
+      complementosVisorFam && _jsxDEV("div", {
+        style: {
+          position: 'fixed', inset: 0, background: 'rgba(28,32,80,.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: 20
+        },
+        onClick: e => e.target === e.currentTarget && setComplementosVisorFam(null),
+        children: _jsxDEV("div", {
+          style: { background: PLC.card, borderRadius: 18, width: '100%', maxWidth: 460, boxShadow: '0 28px 70px rgba(28,32,80,.35)', padding: 20 },
+          children: [_jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+            children: [_jsxDEV("div", {
+              children: [_jsxDEV("div", { style: { fontWeight: 700, fontSize: 15, color: PLC.text }, children: "Complementos de pago" }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 11.5, color: PLC.muted, marginTop: 2 }, children: [complementosVisorFam.cobro.folio, " · ", complementosVisorFam.cobro.cliente] }, void 0, true)]
+            }, void 0, true), _jsxDEV("button", {
+              onClick: () => setComplementosVisorFam(null),
+              style: { background: 'none', border: 'none', cursor: 'pointer', color: PLC.muted, fontSize: 18 },
+              children: "×"
+            }, void 0, false)]
+          }, void 0, true), cargandoComplementosFam ? _jsxDEV("div", {
+            style: { textAlign: 'center', padding: '18px 0', color: PLC.muted, fontSize: 13 },
+            children: "Cargando…"
+          }, void 0, false) : (complementosVisorFam.abonos.length === 0 ? _jsxDEV("div", {
+            style: { textAlign: 'center', padding: '18px 0', color: PLC.muted, fontSize: 13 },
+            children: "Este cobro no tiene abonos registrados."
+          }, void 0, false) : _jsxDEV("div", {
+            style: { display: 'flex', flexDirection: 'column', gap: 10 },
+            children: complementosVisorFam.abonos.map(ab => _jsxDEV("div", {
+              style: { ...card(), padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+              children: [_jsxDEV("div", {
+                children: [_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: [fmt(ab.monto), " · ", ab.metodo || '—'] }, void 0, true),
+                _jsxDEV("div", {
+                  style: { fontSize: 11, color: PLC.muted, marginTop: 2 },
+                  children: ab.cfdi_complemento_uuid
+                    ? ['Timbrado ', (ab.creado_en || '').slice(0, 10)]
+                    : 'Todavía sin complemento de pago'
+                }, void 0, true)]
+              }, void 0, true), ab.cfdi_complemento_uuid ? _jsxDEV("div", {
+                style: { display: 'flex', gap: 6 },
+                children: [_jsxDEV("button", {
+                  disabled: descargandoComplementoFam === ab.id + '-pdf',
+                  onClick: () => descargarComplementoFam(ab, 'pdf'),
+                  style: { padding: '6px 10px', borderRadius: 8, border: `1px solid ${PLC.border}`, background: PLC.card, color: PLC.navy, fontSize: 12, fontWeight: 600, cursor: 'pointer' },
+                  children: descargandoComplementoFam === ab.id + '-pdf' ? '…' : 'PDF'
+                }, void 0, false), _jsxDEV("button", {
+                  disabled: descargandoComplementoFam === ab.id + '-xml',
+                  onClick: () => descargarComplementoFam(ab, 'xml'),
+                  style: { padding: '6px 10px', borderRadius: 8, border: `1px solid ${PLC.border}`, background: PLC.card, color: PLC.navy, fontSize: 12, fontWeight: 600, cursor: 'pointer' },
+                  children: descargandoComplementoFam === ab.id + '-xml' ? '…' : 'XML'
+                }, void 0, false)]
+              }, void 0, true) : _jsxDEV("span", { style: { fontSize: 11, color: '#b45309' }, children: "pendiente" }, void 0, false)]
+            }, ab.id, true))
+          }, void 0, false))]
+        }, void 0, true)
+      }, void 0, false),
       ficha && typeof FichaTecnica !== 'undefined' ? _jsxDEV(FichaTecnica, {
         registro: ficha.registro,
         tipo: ficha.tipo,

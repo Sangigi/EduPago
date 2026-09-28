@@ -67,6 +67,65 @@ function Facturacion({
   const [modal, setModal] = useState(null);
   const [cobroSel, setCobroSel] = useState(null);
   const [cfdiVisor, setCfdiVisor] = useState(null);
+  // ── Complementos de pago YA emitidos, por cobro (28-sep-2026) ───────────
+  //
+  // Hasta hoy la única constancia que veía el usuario al emitir un complemento
+  // era el alert() de generar_complemento_pago.php, de un solo uso: si se
+  // cerraba sin copiar el UUID, ese folio fiscal quedaba solo en la base de
+  // datos. Este modal reutiliza detalle_cobro (ya trae cfdi_complemento_* por
+  // abono) para poder consultarlo y descargarlo cuando haga falta, no solo en
+  // el instante en que se generó.
+  const [complementosVisor, setComplementosVisor] = useState(null); // { cobro, abonos } | null
+  const [cargandoComplementos, setCargandoComplementos] = useState(false);
+  const [descargandoComplemento, setDescargandoComplemento] = useState(null);
+
+  const verComplementosCobro = async cobro => {
+    setCargandoComplementos(true);
+    setComplementosVisor({ cobro, abonos: [] });
+    try {
+      const token = AuthController.getToken ? AuthController.getToken() : '';
+      const res = await fetch('api.php?action=detalle_cobro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+        body: JSON.stringify({ cobro_id: cobro.id }),
+      });
+      const j = await res.json();
+      setComplementosVisor({ cobro, abonos: (j && j.success) ? (j.abonos || []) : [] });
+    } catch (e) {
+      setComplementosVisor({ cobro, abonos: [] });
+    }
+    setCargandoComplementos(false);
+  };
+
+  const descargarComplemento = async (abono, tipo) => {
+    const llave = abono.id + '-' + tipo;
+    setDescargandoComplemento(llave);
+    try {
+      const token = AuthController.getToken ? AuthController.getToken() : '';
+      const params = new URLSearchParams({ action: 'descargar_complemento_pago', abono_id: abono.id, tipo });
+      const res = await fetch('api.php?' + params.toString(), {
+        headers: { 'Authorization': token ? `Bearer ${token}` : '' },
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || contentType.includes('application/json')) {
+        const json = await res.json().catch(() => null);
+        alert('No se pudo descargar: ' + (json?.error || 'Error desconocido'));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `complemento-pago-${abono.id}.${tipo}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Error de conexión al descargar: ' + e.message);
+    } finally {
+      setDescargandoComplemento(null);
+    }
+  };
+
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const [formFact, setFormFact] = useState({
@@ -728,6 +787,11 @@ function Facturacion({
                     className: "btn btn-ghost btn-sm",
                     onClick: () => descargarDocumento(c, 'pdf'),
                     children: "⬇ PDF"
+                  }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                    className: "btn btn-ghost btn-sm",
+                    onClick: () => verComplementosCobro(c),
+                    title: "Ver los complementos de pago (CFDI de pago) ya emitidos para los abonos de este cobro",
+                    children: "Complementos"
                   }, void 0, false)]
                 }, void 0, true)
               }, void 0, false)]
@@ -1328,6 +1392,80 @@ function Facturacion({
           children: /*#__PURE__*/_jsxDEV("button", {
             className: "btn className=btn-secondary",
             onClick: () => setModal(null),
+            children: "Cerrar"
+          }, void 0, false)
+        }, void 0, false)]
+      }, void 0, true)
+    }, void 0, false), complementosVisor && /*#__PURE__*/_jsxDEV("div", {
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && setComplementosVisor(null),
+      children: /*#__PURE__*/_jsxDEV("div", {
+        className: "modal",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          className: "modal-header",
+          children: [/*#__PURE__*/_jsxDEV("div", {
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              className: "modal-title",
+              children: "Complementos de pago"
+            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
+              children: [complementosVisor.cobro.folio, " · ", complementosVisor.cobro.cliente]
+            }, void 0, true)]
+          }, void 0, true), /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: () => setComplementosVisor(null),
+            children: /*#__PURE__*/_jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-body",
+          children: cargandoComplementos ? /*#__PURE__*/_jsxDEV("div", {
+            style: { textAlign: 'center', padding: '20px 0', color: 'var(--ink-3)', fontSize: 13 },
+            children: "Cargando…"
+          }, void 0, false) : (complementosVisor.abonos.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
+            style: { textAlign: 'center', padding: '20px 0', color: 'var(--ink-3)', fontSize: 13 },
+            children: "Este cobro no tiene abonos registrados."
+          }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
+            style: { display: 'flex', flexDirection: 'column', gap: 10 },
+            children: complementosVisor.abonos.map(ab => /*#__PURE__*/_jsxDEV("div", {
+              style: {
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 12px', border: '1px solid var(--border-glow)',
+                borderRadius: 'var(--radius-sm)', flexWrap: 'wrap', gap: 8
+              },
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                children: [/*#__PURE__*/_jsxDEV("div", {
+                  style: { fontSize: 13, fontWeight: 600 },
+                  children: [fmt(ab.monto), " · ", ab.metodo || '—']
+                }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+                  style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 2 },
+                  children: ab.cfdi_complemento_uuid
+                    ? ['Timbrado ', (ab.creado_en || '').slice(0, 10), ' · ', /*#__PURE__*/_jsxDEV("span", { style: { fontFamily: 'var(--mono)' }, children: ab.cfdi_complemento_uuid.slice(0, 18) + '…' }, 'u', false)]
+                    : 'Todavía sin complemento de pago'
+                }, void 0, true)]
+              }, void 0, true), ab.cfdi_complemento_uuid ? /*#__PURE__*/_jsxDEV("div", {
+                style: { display: 'flex', gap: 6 },
+                children: [/*#__PURE__*/_jsxDEV("button", {
+                  className: "btn btn-ghost btn-sm",
+                  disabled: descargandoComplemento === ab.id + '-pdf',
+                  onClick: () => descargarComplemento(ab, 'pdf'),
+                  children: descargandoComplemento === ab.id + '-pdf' ? '…' : '⬇ PDF'
+                }, void 0, false), /*#__PURE__*/_jsxDEV("button", {
+                  className: "btn btn-ghost btn-sm",
+                  disabled: descargandoComplemento === ab.id + '-xml',
+                  onClick: () => descargarComplemento(ab, 'xml'),
+                  children: descargandoComplemento === ab.id + '-xml' ? '…' : '⬇ XML'
+                }, void 0, false)]
+              }, void 0, true) : /*#__PURE__*/_jsxDEV("span", {
+                style: { fontSize: 11, color: 'var(--amber)' },
+                children: "pendiente"
+              }, void 0, false)]
+            }, ab.id, true))
+          }, void 0, false))
+        }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+          className: "modal-footer",
+          children: /*#__PURE__*/_jsxDEV("button", {
+            className: "btn btn-secondary",
+            onClick: () => setComplementosVisor(null),
             children: "Cerrar"
           }, void 0, false)
         }, void 0, false)]
