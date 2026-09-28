@@ -566,6 +566,11 @@ function PortalFamilia({
   const faltaDe = (c) => Math.round((Number(c?.total || 0) - Number(c?.monto_pagado || 0)) * 100) / 100;
   const hijosConSaldo = misHijos.filter(h => h.saldo_pendiente > 0);
   const hijoSeleccionado = hijosConSaldo.find(h => h.id === hijoPagoId) || hijosConSaldo[0] || null;
+  // Deja el estado igual a lo que se ve marcado: sin esto, hasta el primer clic
+  // hijoPagoId era null y el primero solo estaba resaltado por defecto.
+  useEffect(() => {
+    if (hijosConSaldo.length && !hijosConSaldo.some(h => h.id === hijoPagoId)) setHijoPagoId(hijosConSaldo[0].id);
+  }, [hijosConSaldo.map(h => h.id).join(',')]);
   // Si el método quedó en "Tarjeta guardada" y luego se cambia de alumno a
   // uno sin tarjeta domiciliada activa, no dejar el formulario atorado en un
   // método que ya no aplica para él.
@@ -891,7 +896,7 @@ function PortalFamilia({
                 },
                 onError: e => { e.target.style.display = 'none'; }
               }, void 0, false),
-              _jsxDEV("div", {
+              _jsxDEV("div", { className: "pf-brand-text",
                 style: { minWidth: 0 },
                 children: [
                   _jsxDEV("div", {
@@ -1925,13 +1930,20 @@ function PortalFamilia({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '12px 12px',
-                  marginBottom: 10,
+                  gap: 10,
+                  padding: '13px 14px',
+                  marginBottom: 12,
                   boxSizing: 'border-box',
-                  transition: 'border-color .15s, background .15s',
-                  borderRadius: 10,
+                  transition: 'border-color .15s, background .15s, box-shadow .15s',
+                  borderRadius: 12,
                   cursor: hijosConSaldo.length > 1 ? 'pointer' : 'default',
-                  border: hijosConSaldo.length > 1 ? `2px solid ${hijoSeleccionado?.id === h.id ? PLC.navy : PLC.border}` : 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                  userSelect: 'none',
+                  // Borde SIEMPRE de 1px; la selección se marca con un anillo
+                  // (boxShadow) en vez de cambiar el grosor del borde: así la
+                  // tarjeta no cambia de tamaño ni se ve pegada a la de al lado.
+                  border: hijosConSaldo.length > 1 ? `1px solid ${hijoSeleccionado?.id === h.id ? PLC.navy : PLC.border}` : 'none',
+                  boxShadow: hijosConSaldo.length > 1 && hijoSeleccionado?.id === h.id ? `0 0 0 2px ${PLC.navy}` : 'none',
                   background: hijosConSaldo.length > 1 && hijoSeleccionado?.id === h.id ? 'rgba(40,45,101,.05)' : 'transparent',
                   borderBottom: hijosConSaldo.length > 1 ? undefined : `1px solid ${PLC.border}`
                 },
