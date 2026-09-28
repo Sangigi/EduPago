@@ -51,7 +51,7 @@ var ROL_INFO = {
   // No hizo falta tocar el cálculo de comisiones: esa fila solo nace cuando
   // quien invita es exactamente 'distribuidor' — ver invitacion_crear.php.
   promotor:     { label: 'Promotor',     icon: 'globe',    color: '#8b5cf6',       bg: 'rgba(139,92,246,.15)', badge: 'badge-purple', sinEscuela: true,
-                  desc: 'Invita colegios nuevos y da seguimiento a sus ligas de invitación, igual que un distribuidor pero sin comisiones.',
+                  desc: 'Invita colegios nuevos y da seguimiento a sus ligas de invitación, igual que un distribuidor.',
                   nota: 'Informativa — un promotor invita colegios nuevos; no pertenece a ninguno de ellos.' },
   // Revisa documentos fiscales y datos de alta de comercio de cualquier
   // escuela (11-sep-2026) -- sin los demás poderes de superadmin.
