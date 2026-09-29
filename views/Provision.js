@@ -22,7 +22,10 @@ function Provision({ user, onLogout, menuPerfil }) {
   const { useState, useEffect, useCallback } = React;
 
   const [escuelas, setEscuelas]   = useState([]);
-  const [filtro, setFiltro]       = useState('pendientes');
+  // Arranca en 'por_revisar': desde el 29-sep-2026 provisión también valida
+  // la documentación, y ese es el trabajo que llega primero. Si abriera en
+  // 'pendientes' (capturar id), los colegios recién subidos no se verían.
+  const [filtro, setFiltro]       = useState('por_revisar');
   const [cargando, setCargando]   = useState(true);
   const [error, setError]         = useState('');
   const [busqueda, setBusqueda]   = useState('');
@@ -155,6 +158,7 @@ function Provision({ user, onLogout, menuPerfil }) {
   });
 
   const FILTROS = [
+    { id: 'por_revisar', label: 'Por revisar' },
     { id: 'pendientes', label: 'Por provisionar' },
     { id: 'listas',     label: 'Ya provisionadas' },
     { id: 'todas',      label: 'Todas' },
@@ -267,11 +271,13 @@ function Provision({ user, onLogout, menuPerfil }) {
                 className: 'empty-state'
               },
                 _hPR('div', { key: 'i', className: 'empty-icon' },
-                  _hPR(Icon, { key: 'ic', name: filtro === 'pendientes' ? 'check' : 'search', size: 34, color: 'currentColor' })),
+                  _hPR(Icon, { key: 'ic', name: (filtro === 'pendientes' || filtro === 'por_revisar') ? 'check' : 'search', size: 34, color: 'currentColor' })),
                 _hPR('div', { key: 't', className: 'empty-text' },
-                  filtro === 'pendientes'
-                    ? 'No hay colegios esperando provisión. Todo al corriente.'
-                    : 'Ningún colegio coincide.')
+                  filtro === 'por_revisar'
+                    ? 'No hay documentación esperando revisión. Todo al corriente.'
+                    : (filtro === 'pendientes'
+                        ? 'No hay colegios esperando provisión. Todo al corriente.'
+                        : 'Ningún colegio coincide.'))
               )
             : _hPR('div', { key: 'lista', style: { display: 'grid', gap: 10 } },
                 visibles.map(esc => _hPR('div', {

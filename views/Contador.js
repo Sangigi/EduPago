@@ -62,7 +62,7 @@ function Contador({ user, onLogout, menuPerfil }) {
   const [datosPago, setDatosPago] = useState(null);
   const [adminEsc, setAdminEsc] = useState(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
-  const [revisandoDoc, setRevisandoDoc] = useState(null);
+  // revisandoDoc quedó sin uso al quitar aprobar/rechazar (29-sep-2026).
   const [idExterno, setIdExterno] = useState('');
   const [guardandoId, setGuardandoId] = useState(false);
   const [msg, setMsg] = useState(null);
