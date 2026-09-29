@@ -72,13 +72,7 @@ $stmtTP2->execute([$escuela_id]);
 $escInfo = $stmtTP2->fetch() ?: ['tipo_persona' => null, 'nombre' => ''];
 $tiposRequeridos2 = documentos_requeridos_por_tipo_persona($escInfo['tipo_persona']);
 
-// Un documento RECHAZADO no cuenta como "presente": el set no está listo para
-// revisar mientras haya uno rechazado sin corregir. Antes se contaban todas las
-// filas, así que al re-subir un documento rechazado el set ya figuraba como
-// "completo antes" y la transición incompleto -> completo nunca se detectaba:
-// provisión no recibía el aviso (ni en re-subidas ni al re-probar con una
-// escuela que ya tenía los 5 documentos cargados).
-$stmtTiposPrev = $pdo->prepare("SELECT tipo FROM escuela_documentos WHERE escuela_id = ? AND estado <> 'rechazado'");
+$stmtTiposPrev = $pdo->prepare("SELECT tipo FROM escuela_documentos WHERE escuela_id = ?");
 $stmtTiposPrev->execute([$escuela_id]);
 $tiposPresentesAntes = array_column($stmtTiposPrev->fetchAll(), 'tipo');
 $completoAntes = empty(array_diff($tiposRequeridos2, $tiposPresentesAntes));
