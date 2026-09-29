@@ -61,7 +61,7 @@ $stmtExistente->execute([$escuela_id, $tipo]);
 $existente = $stmtExistente->fetch();
 
 // ¿Ya estaba completo ANTES de esta subida? Se necesita para el aviso a
-// contador de más abajo: hay que avisar en la TRANSICIÓN de "incompleto" a
+// provisión de más abajo: hay que avisar en la TRANSICIÓN de "incompleto" a
 // "completo y listo para revisar", no en cada documento suelto que se sube
 // mientras el colegio todavía va juntando el resto (eso sería spam: son
 // hasta 5 correos por colegio en vez de uno). El tipo_persona decide cuáles
@@ -85,11 +85,11 @@ $completoAntes = empty(array_diff($tiposRequeridos2, $tiposPresentesAntes));
 // bajo una aprobación vieja. Resolvía el problema correcto por el lado
 // equivocado: el archivo aprobado ya se había borrado del disco con el
 // @unlink de más abajo, sin copia ni versionado, así que cualquier cuenta
-// admin del colegio podía destruir evidencia que el contador ya había
+// admin del colegio podía destruir evidencia que quien revisa ya había
 // validado. Ahora simplemente no se deja reemplazar.
 //
 // La válvula de escape para una aprobación equivocada es por el lado de quien
-// revisa: contador, provisión y superadmin pueden RECHAZAR un documento
+// revisa: provisión y superadmin pueden RECHAZAR un documento
 // aunque ya esté aprobado (revisar_documento_escuela.php no valida el estado
 // previo), y con eso el colegio recupera la posibilidad de subir la versión
 // corregida. Sin esa válvula, un documento mal aprobado quedaría congelado
@@ -139,9 +139,10 @@ $pdo->prepare("UPDATE escuelas SET documentacion_estado = 'en_revision' WHERE id
 
 registrar_log($pdo, $usuario_actual, 'documento_escuela_subido', "Escuela #$escuela_id: subió documento '$tipo' (#$documento_id)", $escuela_id);
 
-// ── Aviso a CONTADOR: documentación completa y lista para revisar ──────
+// ── Aviso a PROVISIÓN: documentación completa y lista para revisar ─────
 //
-// Sin esto, la cola de contador solo se descubre entrando a mirarla -- un
+// El aviso va a PROVISIÓN (29-sep-2026): son quienes validan ahora. Sin esto,
+// su cola solo se descubre entrando a mirarla -- un
 // colegio puede terminar de subir sus 5 documentos y quedarse esperando
 // días sin que nadie se entere de que ya hay algo que revisar.
 //
@@ -152,14 +153,14 @@ registrar_log($pdo, $usuario_actual, 'documento_escuela_subido', "Escuela #$escu
 // subida suelta mientras el colegio todavía va juntando el resto, ni cada
 // vez que se reemplaza un documento ya aprobado dentro de un set que ya
 // estaba completo.
-$aviso_contador_enviado = false;
+$aviso_provision_enviado = false;
 $tiposPresentesDespues = array_unique(array_merge($tiposPresentesAntes, [$tipo]));
 $completoDespues = empty(array_diff($tiposRequeridos2, $tiposPresentesDespues));
 if (!$completoAntes && $completoDespues) {
     try {
-        // A todas las cuentas de contador activas -- es trabajo de equipo, no
+        // A todas las cuentas de provisión activas -- es trabajo de equipo, no
         // de una persona fija: quien esté disponible lo revisa.
-        $stmtCont = $pdo->prepare("SELECT email FROM usuarios WHERE rol = 'contador' AND activo = 1 AND email IS NOT NULL AND email <> ''");
+        $stmtCont = $pdo->prepare("SELECT email FROM usuarios WHERE rol = 'provision' AND activo = 1 AND email IS NOT NULL AND email <> ''");
         $stmtCont->execute();
         $destCont = array_values(array_unique(array_filter(array_column($stmtCont->fetchAll(), 'email'))));
 
@@ -172,21 +173,21 @@ if (!$completoAntes && $completoDespues) {
                 <p>— Sistema Pagalaescuela</p>
             ";
             $rCont = enviar_correo($destCont, "Documentación lista para revisar: {$escInfo['nombre']}", $htmlCont);
-            $aviso_contador_enviado = (bool) ($rCont['success'] ?? false);
-            if (!$aviso_contador_enviado) {
-                log_api("subir_documento_escuela: falló el aviso a contador por la escuela #{$escuela_id} -> " . ($rCont['error'] ?? 'desconocido'));
+            $aviso_provision_enviado = (bool) ($rCont['success'] ?? false);
+            if (!$aviso_provision_enviado) {
+                log_api("subir_documento_escuela: falló el aviso a provisión por la escuela #{$escuela_id} -> " . ($rCont['error'] ?? 'desconocido'));
             }
         } else {
             // No es un error del flujo: puede que todavía no existan cuentas
-            // de contador. Pero sí hay que poder enterarse, porque significa
+            // de provisión. Pero sí hay que poder enterarse, porque significa
             // que este colegio se queda en la cola sin que nadie lo sepa.
-            log_api("subir_documento_escuela: escuela #{$escuela_id} lista para revisar, pero NO hay ninguna cuenta con rol 'contador' activa que avisar.");
+            log_api("subir_documento_escuela: escuela #{$escuela_id} lista para revisar, pero NO hay ninguna cuenta con rol 'provision' activa que avisar.");
         }
     } catch (\Throwable $eCont) {
         // Nunca tumbar la subida del documento por un problema de correo: el
         // archivo y la fila ya quedaron guardados, que es lo que importa.
-        log_api("subir_documento_escuela: error armando el aviso a contador de la escuela #{$escuela_id} -> " . $eCont->getMessage());
+        log_api("subir_documento_escuela: error armando el aviso a provisión de la escuela #{$escuela_id} -> " . $eCont->getMessage());
     }
 }
 
-respond(['success' => true, 'documento_id' => $documento_id, 'tipo' => $tipo, 'aviso_contador_enviado' => $aviso_contador_enviado]);
+respond(['success' => true, 'documento_id' => $documento_id, 'tipo' => $tipo, 'aviso_provision_enviado' => $aviso_provision_enviado]);

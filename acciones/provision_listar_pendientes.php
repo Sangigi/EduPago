@@ -16,20 +16,37 @@
 
 requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'provision'], 'No tienes permiso para ver la cola de provisión.');
 
-// `filtro` decide qué pila se pide:
-//   'pendientes' (default) -> aprobadas SIN id: lo que hay que trabajar hoy
-//   'listas'                -> aprobadas CON id: para consultar o corregir
-//   'todas'                 -> ambas
-$filtro = trim($input['filtro'] ?? 'pendientes');
-if (!in_array($filtro, ['pendientes', 'listas', 'todas'], true)) $filtro = 'pendientes';
+// `filtro` decide qué pila se pide. Desde el 29-sep-2026 provisión también
+// REVISA la documentación (antes lo hacía contador), así que la primera pila
+// es la de documentos por revisar — que es el trabajo que llega primero:
+//
+//   'por_revisar' (default) -> documentación en revisión o rechazada: hay que
+//                              aprobar o rechazar documentos.
+//   'pendientes'            -> aprobadas SIN id: falta capturar el del proveedor.
+//   'listas'                -> aprobadas CON id: para consultar o corregir.
+//   'todas'                 -> las tres.
+//
+// El default cambió de 'pendientes' a 'por_revisar' a propósito: si al entrar
+// se viera la pila de "capturar id", los colegios que acaban de subir sus
+// documentos quedarían fuera de la vista inicial y nadie los revisaría.
+$filtro = trim($input['filtro'] ?? 'por_revisar');
+if (!in_array($filtro, ['por_revisar', 'pendientes', 'listas', 'todas'], true)) $filtro = 'por_revisar';
 
-$where = "e.documentacion_estado = 'aprobada'";
-if ($filtro === 'pendientes') {
-    $where .= " AND (e.proveedor_school_id IS NULL OR e.proveedor_school_id = '')";
-} elseif ($filtro === 'listas') {
-    $where .= " AND e.proveedor_school_id IS NOT NULL AND e.proveedor_school_id <> ''";
+if ($filtro === 'por_revisar') {
+    // 'rechazada' entra aquí porque el colegio puede volver a subir el
+    // documento corregido y hay que volver a mirarlo. 'sin_enviar' NO: ahí la
+    // pelota está del lado del colegio y llenaría la cola de ruido.
+    $where = "e.documentacion_estado IN ('en_revision', 'rechazada')";
+} elseif ($filtro === 'todas') {
+    $where = "e.documentacion_estado IN ('en_revision', 'rechazada', 'aprobada')";
+} else {
+    $where = "e.documentacion_estado = 'aprobada'";
+    if ($filtro === 'pendientes') {
+        $where .= " AND (e.proveedor_school_id IS NULL OR e.proveedor_school_id = '')";
+    } else { // 'listas'
+        $where .= " AND e.proveedor_school_id IS NOT NULL AND e.proveedor_school_id <> ''";
+    }
 }
-
 try {
     // El LEFT JOIN a distribuidor_referidos trae el estado del embudo comercial
     // cuando el colegio llegó por un distribuidor. Es LEFT y no INNER porque

@@ -20,7 +20,14 @@
 // un negocio independiente una constancia que no tiene lo dejaría atorado en
 // 'en_revision' y, por lo tanto, SIN PODER COBRAR NUNCA.
 
-requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'contador', 'provision'], 'No tienes permiso para revisar documentos.');
+// Quien valida es PROVISIÓN (29-sep-2026). Antes revisaba el contador y
+// provisión podía rechazar después; ahora los documentos van directo a
+// provisión, que es quien hace el trámite con el proveedor y por tanto quien
+// sabe si un documento sirve. Contador conserva la vista de los documentos,
+// pero de SOLO LECTURA: su panel ya no pinta los botones de aprobar/rechazar
+// (views/Contador.js) y este candado lo hace cumplir del lado del servidor,
+// que es lo que de verdad importa — la UI sola sería cortesía.
+requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'provision'], 'Quien revisa la documentación es el equipo de provisión.');
 
 $documento_id = intval($input['documento_id'] ?? 0);
 $accion       = trim($input['accion'] ?? ''); // 'aprobar' | 'rechazar'

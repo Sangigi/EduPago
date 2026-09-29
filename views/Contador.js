@@ -116,23 +116,7 @@ function Contador({ user, onLogout, menuPerfil }) {
     await cargarEscuelas();
   };
 
-  const revisarDocumento = async (documentoId, accion) => {
-    let motivo = '';
-    if (accion === 'rechazar') {
-      motivo = prompt('Motivo del rechazo (se le muestra al colegio):') || '';
-      if (motivo.trim() === '') return;
-    }
-    setRevisandoDoc(documentoId);
-    try {
-      const res = await apiPost('revisar_documento_escuela', { documento_id: documentoId, accion, motivo: motivo.trim() });
-      if (!res.success) throw new Error(res.error || 'No se pudo procesar');
-      await refrescarDetalle();
-    } catch (e) {
-      setMsg({ ok: false, texto: e.message });
-    } finally {
-      setRevisandoDoc(null);
-    }
-  };
+  // revisarDocumento() se eliminó el 29-sep-2026: contador ya no valida.
 
   // Toda la mecánica (pestaña abierta dentro del gesto, aviso si el navegador
   // la bloquea, caída a descarga y liberación del blob) vive en
@@ -322,10 +306,17 @@ function Contador({ user, onLogout, menuPerfil }) {
                           _jsxDEV('div', { style: { fontSize: 12.5 }, children: t.label }, 1),
                           doc ? _jsxDEV('span', { className: 'badge ' + info.clase, children: info.label }, 2) : _jsxDEV('span', { style: { fontSize: 11, color: 'var(--ink-4)' }, children: 'Sin subir' }, 2)
                         ] }, void 0, true),
+                        // Solo "Ver" (29-sep-2026). Quien aprueba o rechaza es
+                        // PROVISIÓN: son quienes hacen el trámite con el
+                        // proveedor y por tanto quienes saben si un documento
+                        // sirve. Contador conserva la vista como copia, para
+                        // consultar sin tener que pedírselo a nadie.
+                        //
+                        // El candado de verdad está en el servidor
+                        // (acciones/revisar_documento_escuela.php): quitar los
+                        // botones sola sería cortesía, un POST directo pasaría.
                         doc ? _jsxDEV('div', { style: { display: 'flex', gap: 4 }, children: [
                           _jsxDEV('button', { className: 'btn btn-secondary btn-sm', onClick: () => descargarDocumento(doc), children: 'Ver' }, 'ver'),
-                          doc.estado === 'pendiente' ? _jsxDEV('button', { className: 'btn btn-secondary btn-sm', disabled: revisandoDoc === doc.id, onClick: () => revisarDocumento(doc.id, 'rechazar'), children: 'Rechazar' }, 'rech') : null,
-                          doc.estado === 'pendiente' ? _jsxDEV('button', { className: 'btn btn-primary btn-sm', disabled: revisandoDoc === doc.id, onClick: () => revisarDocumento(doc.id, 'aprobar'), children: 'Aprobar' }, 'apr') : null,
                         ] }, void 0, true) : null
                       ]
                     }, t.tipo, true);
