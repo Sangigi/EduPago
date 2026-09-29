@@ -50,9 +50,48 @@ function enviar_correo($destinatarios, $asunto, $htmlBody, $adjuntos = []) {
         _smtp_comando($socket, base64_encode(SMTP_PASS), 235);
 
         _smtp_comando($socket, "MAIL FROM:<" . SMTP_FROM_EMAIL . ">", 250);
+
+        // Un destinatario rechazado NO tumba el envío a los demás (29-sep-2026).
+        //
+        // ESTO ERA UN BUG SERIO. _smtp_comando() lanza excepción ante un código
+        // inesperado, así que un solo "550 No Such User Here" en mitad del bucle
+        // abortaba el envío COMPLETO: no lo recibía nadie, ni las direcciones
+        // buenas. Y como los avisos del sistema van a listas (todos los
+        // provisión, todos los admin de un colegio, todos los contadores), una
+        // sola dirección con un typo dejaba sin notificar a un equipo entero,
+        // en silencio y para siempre.
+        //
+        // Se vio en producción: "falló el aviso a provisión por la escuela #N
+        // -> Respuesta SMTP inesperada: 550 No Such User Here", repetido para
+        // las escuelas #1, #3 y #8 — la misma dirección mala de una cuenta de
+        // provisión bloqueando el aviso de todos los colegios.
+        //
+        // Ahora cada RCPT TO se evalúa por separado: los aceptados siguen, los
+        // rechazados quedan en el log con su motivo, y solo se falla si NO
+        // quedó ninguno — que es el único caso en el que de verdad no hay nada
+        // que mandar.
+        $aceptados = [];
+        $rechazados = [];
         foreach ($destinatarios as $to) {
-            _smtp_comando($socket, "RCPT TO:<$to>", [250, 251]);
+            try {
+                _smtp_comando($socket, "RCPT TO:<$to>", [250, 251]);
+                $aceptados[] = $to;
+            } catch (Exception $eRcpt) {
+                $rechazados[] = $to . ' (' . $eRcpt->getMessage() . ')';
+            }
         }
+        if ($rechazados && defined('CORREOS_LOG_FILE')) {
+            file_put_contents(CORREOS_LOG_FILE,
+                date('Y-m-d H:i:s') . " | DESTINATARIO RECHAZADO asunto \"$asunto\": " . implode(' | ', $rechazados) . "\n",
+                FILE_APPEND);
+        }
+        if (empty($aceptados)) {
+            // Ninguno pasó: se aborta como antes, pero diciendo por qué.
+            throw new Exception('Ningún destinatario fue aceptado por el servidor: ' . implode(' | ', $rechazados));
+        }
+        // El cuerpo se arma con los ACEPTADOS: poner en la cabecera "To:" una
+        // dirección que el servidor rechazó solo confundiría a quien lo reciba.
+        $destinatarios = $aceptados;
 
         _smtp_comando($socket, "DATA", 354);
         $mensaje = _construir_mensaje($destinatarios, $asunto, $htmlBody, $adjuntos);

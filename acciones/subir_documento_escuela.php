@@ -71,10 +71,28 @@ $stmtTP2 = $pdo->prepare("SELECT tipo_persona, nombre FROM escuelas WHERE id = ?
 $stmtTP2->execute([$escuela_id]);
 $escInfo = $stmtTP2->fetch() ?: ['tipo_persona' => null, 'nombre' => ''];
 $tiposRequeridos2 = documentos_requeridos_por_tipo_persona($escInfo['tipo_persona']);
-
-$stmtTiposPrev = $pdo->prepare("SELECT tipo FROM escuela_documentos WHERE escuela_id = ?");
+// Cuenta como "presente" solo lo que NO está rechazado (29-sep-2026).
+//
+// ESTO ERA UN BUG, y de los silenciosos. Antes se miraba únicamente si existía
+// una FILA de cada tipo, sin importar su estado. Como subir un documento hace
+// UPDATE sobre la fila existente (no inserta otra), bastaba con que el colegio
+// hubiera completado su set UNA vez para que $completoAntes quedara en true
+// para siempre. A partir de ahí la transición "incompleto -> completo" no
+// volvía a ocurrir jamás y el aviso NO SE MANDABA NUNCA MÁS:
+//
+//   · El colegio corrige el documento que le rechazaron -> nadie se entera.
+//   · Un colegio que ya tenía documentos antes del cambio de flujo del
+//     29-sep-2026 -> provisión nunca recibe su primer aviso.
+//
+// Contando solo lo no rechazado, un rechazo devuelve el set a "incompleto" y
+// la corrección del último pendiente vuelve a disparar el aviso, que es
+// justo el momento en que hay algo que revisar.
+$stmtTiposPrev = $pdo->prepare("SELECT tipo, estado FROM escuela_documentos WHERE escuela_id = ?");
 $stmtTiposPrev->execute([$escuela_id]);
-$tiposPresentesAntes = array_column($stmtTiposPrev->fetchAll(), 'tipo');
+$tiposPresentesAntes = [];
+foreach ($stmtTiposPrev->fetchAll() as $fPrev) {
+    if (($fPrev['estado'] ?? '') !== 'rechazado') $tiposPresentesAntes[] = $fPrev['tipo'];
+}
 $completoAntes = empty(array_diff($tiposRequeridos2, $tiposPresentesAntes));
 
 // UN DOCUMENTO APROBADO YA NO SE PUEDE REEMPLAZAR (23-sep-2026).
