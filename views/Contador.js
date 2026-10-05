@@ -28,7 +28,7 @@ const CT_ESTADO_DOC = {
 const CT_TIPOS_DOCUMENTO = [
   { tipo: 'identificacion_frente',   label: 'Identificación dueño del negocio (Frente)' },
   { tipo: 'identificacion_reverso',  label: 'Identificación dueño del negocio (Reverso)' },
-  { tipo: 'estado_cuenta_bancario',  label: 'Portada del estado de cuenta bancario' },
+  { tipo: 'estado_cuenta_bancario',  label: 'Documento con la CLABE interbancaria' },
   { tipo: 'comprobante_domicilio',   label: 'Comprobante de domicilio' },
   { tipo: 'constancia_fiscal',       label: 'Constancia Fiscal' },
   { tipo: 'acta_constitutiva',       label: 'Acta constitutiva' },

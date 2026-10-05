@@ -832,7 +832,23 @@ function Escuelas({
                 }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
                   className: `badge ${PLAN_COLORS[esc.plan]}`,
                   children: PLANES[esc.plan]
-                }, void 0, false), !esc.activa && /*#__PURE__*/_jsxDEV("span", {
+                }, void 0, false), /*#__PURE__*/_jsxDEV("select", {
+                  className: "input",
+                  title: "Estatus del contrato",
+                  style: { fontSize: 11, padding: '2px 6px', width: 'auto' },
+                  value: esc.contrato_estado || 'sin_enviar',
+                  onChange: async e => {
+                    const estado = e.target.value;
+                    try {
+                      const res = await apiPost('superadmin_set_contrato_estado', { id: esc.id, estado });
+                      if (!res.success) throw new Error(res.error || 'No se pudo cambiar');
+                      setData({ ...data, escuelas: data.escuelas.map(x => x.id === esc.id ? { ...x, ...res.escuela } : x) });
+                    } catch (err) {
+                      alert('No se pudo cambiar el estatus del contrato: ' + err.message);
+                    }
+                  },
+                  children: [/*#__PURE__*/_jsxDEV("option", { value: 'sin_enviar', children: 'Contrato sin enviar' }, 'sin_enviar', false), /*#__PURE__*/_jsxDEV("option", { value: 'enviado', children: 'Contrato enviado' }, 'enviado', false), /*#__PURE__*/_jsxDEV("option", { value: 'firmado', children: 'Contrato firmado' }, 'firmado', false)]
+                }, 'contrato', false), !esc.activa && /*#__PURE__*/_jsxDEV("span", {
                   className: "badge badge-red",
                   children: "Inactiva"
                 }, void 0, false)]

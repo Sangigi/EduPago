@@ -483,7 +483,7 @@ function Dashboard({
 
                 },
 
-                children: [s.nombre, !s.activa && _jsxDEV("span", {
+                children: [s.nombre, _jsxDEV("span", { className: "badge " + (s.contratoEstado === 'firmado' ? 'badge-green' : s.contratoEstado === 'enviado' ? 'badge-amber' : 'badge-gray'), title: "Estatus del contrato", children: s.contratoEstado === 'firmado' ? 'Contrato firmado' : s.contratoEstado === 'enviado' ? 'Contrato enviado' : 'Contrato sin enviar' }, 'contrato', false), !s.activa && _jsxDEV("span", {
 
                   className: "badge badge-red",
 

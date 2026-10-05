@@ -207,6 +207,7 @@ const AppModel = (() => {
           color:          esc.color,
           plan:           esc.plan,
           activa:         !!esc.activa,
+          contratoEstado: esc.contrato_estado || 'sin_enviar',
           numPlanteles:   idsGrupo.length - 1,
           totalCobrado:   r.cobrado_90d, // últimos 90 días — el desglose exacto/histórico completo sigue requiriendo entrar a la escuela
           totalPendiente: r.saldo_total,
@@ -229,6 +230,7 @@ const AppModel = (() => {
         color:          esc.color,
         plan:           esc.plan,
         activa:         !!esc.activa,
+        contratoEstado: esc.contrato_estado || 'sin_enviar',
         numPlanteles:   idsGrupo.length - 1,
         totalCobrado:   pagados.reduce((a,c)=>a+c.total,0),
         totalPendiente: pendientes.reduce((a,c)=>a+c.total,0),

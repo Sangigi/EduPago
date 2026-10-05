@@ -131,7 +131,7 @@ if ($hayRechazados && !$quedanPendientes && ($nuevoEstado === 'rechazado' || $er
         $ETIQUETAS_DOC = [
             'identificacion_frente'  => 'Identificación del ' . etiqueta_titular_identificacion($tipoPersonaEsc) . ' (Frente)',
             'identificacion_reverso' => 'Identificación del ' . etiqueta_titular_identificacion($tipoPersonaEsc) . ' (Reverso)',
-            'estado_cuenta_bancario' => 'Portada del estado de cuenta bancario',
+            'estado_cuenta_bancario' => 'Documento con la CLABE interbancaria',
             'comprobante_domicilio'  => 'Comprobante de domicilio',
             'constancia_fiscal'      => 'Constancia Fiscal',
             'acta_constitutiva'      => 'Acta constitutiva',

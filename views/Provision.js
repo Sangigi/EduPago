@@ -90,7 +90,7 @@ function Provision({ user, onLogout, menuPerfil }) {
   const PR_DOCS = {
     identificacion_frente:  'Identificación dueño del negocio (Frente)',
     identificacion_reverso: 'Identificación dueño del negocio (Reverso)',
-    estado_cuenta_bancario: 'Portada del estado de cuenta bancario',
+    estado_cuenta_bancario: 'Documento con la CLABE interbancaria',
     comprobante_domicilio:  'Comprobante de domicilio',
     constancia_fiscal:      'Constancia Fiscal',
     acta_constitutiva:      'Acta constitutiva',

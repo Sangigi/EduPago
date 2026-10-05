@@ -71,7 +71,19 @@ $vals = [
     'sucursal_bancaria'       => $campo('sucursal_bancaria', 100),
     'cuenta_cheques'          => $campo('cuenta_cheques', 30),
     'cuenta_clabe'            => $campo('cuenta_clabe', 18),
+    'contacto_facturas_nombre' => $campo('contacto_facturas_nombre', 150),
+    'contacto_facturas_correo' => $campo('contacto_facturas_correo', 160),
+    'contacto_contrato_nombre' => $campo('contacto_contrato_nombre', 150),
+    'contacto_contrato_correo' => $campo('contacto_contrato_correo', 160),
+    'contacto_pagos_nombre'    => $campo('contacto_pagos_nombre', 150),
+    'contacto_pagos_correo'    => $campo('contacto_pagos_correo', 160),
 ];
+
+foreach (['contacto_facturas_correo', 'contacto_contrato_correo', 'contacto_pagos_correo'] as $cc) {
+    if ($vals[$cc] !== null && !filter_var($vals[$cc], FILTER_VALIDATE_EMAIL)) {
+        respond(['success' => false, 'error' => 'Revisa los correos de contacto: uno no es válido.']);
+    }
+}
 
 if ($vals['cuenta_clabe'] !== null && !preg_match('/^\d{18}$/', $vals['cuenta_clabe'])) {
     respond(['success' => false, 'error' => 'La cuenta CLABE debe tener 18 dígitos.']);

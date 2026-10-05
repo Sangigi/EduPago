@@ -24,7 +24,7 @@ var _hSE = React.createElement;
 var SE_DOCS = {
   identificacion_frente:  'Identificación (frente)',
   identificacion_reverso: 'Identificación (reverso)',
-  estado_cuenta_bancario: 'Estado de cuenta',
+  estado_cuenta_bancario: 'Documento con la CLABE interbancaria',
   comprobante_domicilio:  'Comprobante de domicilio',
   constancia_fiscal:      'Constancia fiscal',
   acta_constitutiva:      'Acta constitutiva',

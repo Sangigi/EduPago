@@ -42,7 +42,7 @@ function mcTiposDocumento(tipoPersona) {
   return [
     { tipo: 'identificacion_frente',   label: 'Identificación del ' + quien + ' (Frente)' },
     { tipo: 'identificacion_reverso',  label: 'Identificación del ' + quien + ' (Reverso)' },
-    { tipo: 'estado_cuenta_bancario',  label: 'Portada del estado de cuenta bancario' },
+    { tipo: 'estado_cuenta_bancario',  label: 'Documento donde aparezca la CLABE interbancaria (estado de cuenta o carta del banco)' },
     { tipo: 'comprobante_domicilio',   label: 'Comprobante de domicilio' },
     { tipo: 'constancia_fiscal',       label: 'Constancia Fiscal' },
     { tipo: 'acta_constitutiva',       label: 'Acta constitutiva' },
@@ -90,6 +90,17 @@ const MC_GRUPOS_DATOS_PAGO = [
     ],
   },
   {
+    titulo: 'Personas de contacto',
+    campos: [
+      ['contacto_facturas_nombre', 'Recibe facturas: nombre', false],
+      ['contacto_facturas_correo', 'Recibe facturas: correo', false, 'email'],
+      ['contacto_contrato_nombre', 'Firma del contrato: nombre', false],
+      ['contacto_contrato_correo', 'Firma del contrato: correo', false, 'email'],
+      ['contacto_pagos_nombre', 'Atiende pagos: nombre', false],
+      ['contacto_pagos_correo', 'Atiende pagos: correo', false, 'email'],
+    ],
+  },
+  {
     titulo: 'Datos del representante legal',
     campos: [
       ['rep_legal_nombre', 'Nombre completo', false],
@@ -133,7 +144,7 @@ const MC_GRUPOS_DATOS_PAGO = [
       ['plaza', 'Plaza', false],
       ['sucursal_bancaria', 'Sucursal', true],
       ['cuenta_cheques', 'Cuenta cheques', true],
-      ['cuenta_clabe', 'Cuenta CLABE', true],
+      ['cuenta_clabe', 'Cuenta CLABE interbancaria (18 dígitos)', true],
     ],
   },
 ];
