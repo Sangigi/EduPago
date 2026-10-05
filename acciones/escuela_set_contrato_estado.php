@@ -1,11 +1,11 @@
 <?php
-// acciones/superadmin_set_contrato_estado.php
+// acciones/escuela_set_contrato_estado.php
 //
-// El superadmin marca a mano el estatus del contrato de una escuela:
+// El superadmin o provision marcan a mano el estatus del contrato de una escuela:
 // sin_enviar -> enviado -> firmado. Sin proveedor de firma de por medio.
 // Guarda la fecha de envío / firma la primera vez que se llega a ese estado.
 
-requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'Solo el super admin puede cambiar el estatus del contrato.');
+requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'provision'], 'No tienes permiso para cambiar el estatus del contrato.');
 
 $id = intval($input['id'] ?? 0);
 $estado = trim($input['estado'] ?? '');

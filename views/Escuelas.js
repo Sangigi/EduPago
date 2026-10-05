@@ -840,7 +840,7 @@ function Escuelas({
                   onChange: async e => {
                     const estado = e.target.value;
                     try {
-                      const res = await apiPost('superadmin_set_contrato_estado', { id: esc.id, estado });
+                      const res = await apiPost('escuela_set_contrato_estado', { id: esc.id, estado });
                       if (!res.success) throw new Error(res.error || 'No se pudo cambiar');
                       setData({ ...data, escuelas: data.escuelas.map(x => x.id === esc.id ? { ...x, ...res.escuela } : x) });
                     } catch (err) {

@@ -54,7 +54,9 @@ try {
     // directo no tiene renglón ahí, y aun así hay que provisionarlo.
     $stmt = $pdo->prepare(
         "SELECT e.id, e.nombre, e.clave, e.tipo_persona, e.razon_social,
-                e.documentacion_estado, e.proveedor_school_id,
+                e.documentacion_estado, e.proveedor_school_id, e.contrato_estado,
+                (SELECT p.contacto_contrato_nombre FROM escuela_datos_pago p WHERE p.escuela_id = e.id) AS contacto_contrato_nombre,
+                (SELECT p2.contacto_contrato_correo FROM escuela_datos_pago p2 WHERE p2.escuela_id = e.id) AS contacto_contrato_correo,
                 e.proveedor_school_id_en, e.proveedor_school_id_por,
                 u.nombre AS capturado_por_nombre,
                 r.id     AS referido_id,

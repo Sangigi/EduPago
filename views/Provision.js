@@ -85,6 +85,16 @@ function Provision({ user, onLogout, menuPerfil }) {
     setGuardando(null);
   };
 
+  const cambiarContrato = async (esc, estado) => {
+    setAviso(null);
+    try {
+      await pedir('escuela_set_contrato_estado', { id: esc.id, estado });
+      setEscuelas(lista => lista.map(x => x.id === esc.id ? { ...x, contrato_estado: estado } : x));
+    } catch (e) {
+      setAviso({ tipo: 'error', txt: esc.nombre + ': ' + e.message });
+    }
+  };
+
   // Etiquetas legibles. Deben coincidir con MC_TIPOS_DOCUMENTO (MiCuenta.js) y
   // CT_TIPOS_DOCUMENTO (Contador.js): la misma lista vive hoy en tres vistas.
   const PR_DOCS = {
@@ -294,6 +304,24 @@ function Provision({ user, onLogout, menuPerfil }) {
                       (esc.clave ? esc.clave + ' · ' : '')
                       + (esc.razon_social || esc.tipo_persona || '')
                       + ' · ' + esc.documentos_aprobados + ' documentos aprobados'
+                    ),
+                    _hPR('div', { key: 'ct', style: { marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+                      _hPR('select', {
+                        key: 'sel',
+                        className: 'form-input',
+                        style: { fontSize: 11.5, padding: '2px 6px', width: 'auto' },
+                        title: 'Estatus del contrato',
+                        value: esc.contrato_estado || 'sin_enviar',
+                        onChange: e => cambiarContrato(esc, e.target.value)
+                      },
+                        _hPR('option', { key: 'a', value: 'sin_enviar' }, 'Contrato sin enviar'),
+                        _hPR('option', { key: 'b', value: 'enviado' }, 'Contrato enviado'),
+                        _hPR('option', { key: 'c', value: 'firmado' }, 'Contrato firmado')
+                      ),
+                      esc.contacto_contrato_correo ? _hPR('span', {
+                        key: 'dest',
+                        style: { fontSize: 11.5, color: 'var(--ink-3)' }
+                      }, 'Firma: ' + (esc.contacto_contrato_nombre || '') + ' <' + esc.contacto_contrato_correo + '>') : null
                     ),
                     esc.tiene_id ? _hPR('div', {
                       key: 'ya',
