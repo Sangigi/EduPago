@@ -85,6 +85,32 @@ function Provision({ user, onLogout, menuPerfil }) {
     setGuardando(null);
   };
 
+  const [enviandoContrato, setEnviandoContrato] = useState(null);
+  // Sube el PDF (o reenvía el ya guardado si archivo es null). El servidor lo
+  // manda por correo al contacto de firma y deja el estatus en 'enviado'.
+  const enviarContrato = async (esc, archivo) => {
+    setEnviandoContrato(esc.id);
+    setAviso(null);
+    try {
+      const fd = new FormData();
+      fd.append('escuela_id', esc.id);
+      if (archivo) fd.append('archivo', archivo);
+      const token = AuthController.getToken ? AuthController.getToken() : '';
+      const r = await fetch('api.php?action=enviar_contrato_escuela', {
+        method: 'POST',
+        headers: { 'Authorization': token ? 'Bearer ' + token : '' },
+        body: fd,
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.error || 'No se pudo enviar el contrato');
+      setAviso({ tipo: 'ok', txt: esc.nombre + ': ' + j.mensaje });
+      await cargar(filtro);
+    } catch (e) {
+      setAviso({ tipo: 'error', txt: esc.nombre + ': ' + e.message });
+    }
+    setEnviandoContrato(null);
+  };
+
   const cambiarContrato = async (esc, estado) => {
     setAviso(null);
     try {
@@ -321,7 +347,28 @@ function Provision({ user, onLogout, menuPerfil }) {
                       esc.contacto_contrato_correo ? _hPR('span', {
                         key: 'dest',
                         style: { fontSize: 11.5, color: 'var(--ink-3)' }
-                      }, 'Firma: ' + (esc.contacto_contrato_nombre || '') + ' <' + esc.contacto_contrato_correo + '>') : null
+                      }, 'Firma: ' + (esc.contacto_contrato_nombre || '') + ' <' + esc.contacto_contrato_correo + '>')
+                        : _hPR('span', { key: 'sinc', style: { fontSize: 11.5, color: 'var(--amber)' } }, 'Falta el correo de firma del colegio'),
+                      esc.contacto_contrato_correo ? _hPR('label', {
+                        key: 'subir',
+                        className: 'btn btn-ghost btn-sm',
+                        style: { cursor: enviandoContrato === esc.id ? 'wait' : 'pointer', marginBottom: 0 },
+                        title: 'Sube el PDF del contrato: se manda solo al correo de firma'
+                      },
+                        enviandoContrato === esc.id ? 'Enviando…' : (esc.contrato_nombre ? 'Subir otro y enviar' : 'Subir contrato y enviar'),
+                        _hPR('input', {
+                          key: 'f', type: 'file', accept: 'application/pdf,.pdf', style: { display: 'none' },
+                          disabled: enviandoContrato === esc.id,
+                          onChange: e => { const f = e.target.files[0]; e.target.value = ''; if (f) enviarContrato(esc, f); }
+                        })
+                      ) : null,
+                      (esc.contacto_contrato_correo && esc.contrato_nombre) ? _hPR('button', {
+                        key: 'reenv',
+                        className: 'btn btn-ghost btn-sm',
+                        disabled: enviandoContrato === esc.id,
+                        title: 'Reenviar ' + esc.contrato_nombre,
+                        onClick: () => enviarContrato(esc, null)
+                      }, 'Reenviar') : null
                     ),
                     esc.tiene_id ? _hPR('div', {
                       key: 'ya',
