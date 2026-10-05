@@ -362,6 +362,17 @@ function Provision({ user, onLogout, menuPerfil }) {
                           onChange: e => { const f = e.target.files[0]; e.target.value = ''; if (f) enviarContrato(esc, f); }
                         })
                       ) : null,
+                      esc.contrato_firmado_nombre ? _hPR('button', {
+                        key: 'vfirm',
+                        className: 'btn btn-ghost btn-sm',
+                        title: 'Ver el contrato firmado que subió el colegio',
+                        onClick: () => abrirDocumentoPrivado(
+                          'api.php?action=descargar_contrato_firmado&escuela_id=' + esc.id,
+                          AuthController.getToken ? AuthController.getToken() : '',
+                          esc.contrato_firmado_nombre,
+                          (m) => setAviso({ tipo: 'error', txt: m })
+                        )
+                      }, 'Ver contrato firmado') : null,
                       (esc.contacto_contrato_correo && esc.contrato_nombre) ? _hPR('button', {
                         key: 'reenv',
                         className: 'btn btn-ghost btn-sm',

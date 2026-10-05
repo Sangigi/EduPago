@@ -70,6 +70,8 @@
         $escuelas = array_map(function($e) use ($metodosGlobal, $seccionesGlobal) {
             $propiasSecciones = json_decode($e['secciones_deshabilitadas'] ?? '', true) ?: [];
             $e['secciones_deshabilitadas'] = array_values(array_unique(array_merge($propiasSecciones, $seccionesGlobal)));
+            // Rutas y nombres de archivos de contrato: internos, no viajan a ningún rol del colegio.
+            unset($e['contrato_ruta'], $e['contrato_nombre'], $e['contrato_firmado_ruta'], $e['contrato_firmado_nombre'], $e['contrato_firmado_mime']);
             $propios = json_decode($e['metodos_pago_deshabilitados'] ?? '', true) ?: [];
             $e['metodos_pago_deshabilitados'] = array_values(array_unique(array_merge($propios, $metodosGlobal)));
             return $e;

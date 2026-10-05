@@ -547,7 +547,7 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
     // requerir_rol de la acción y olvidarlo aquí da un 403 que solo deja
     // rastro en api_log.txt y se diagnostica mal como problema de frontend.
     'provision' => [
-        'provision_listar_pendientes', 'provision_asignar_id', 'escuela_set_contrato_estado', 'enviar_contrato_escuela',
+        'provision_listar_pendientes', 'provision_asignar_id', 'escuela_set_contrato_estado', 'enviar_contrato_escuela', 'descargar_contrato_firmado',
         'listar_documentos_escuela', 'descargar_documento_escuela',
         'revisar_documento_escuela', 'asignar_id_externo',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',

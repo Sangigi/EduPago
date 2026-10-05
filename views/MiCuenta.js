@@ -302,6 +302,29 @@ function MiCuenta({ escuela, user }) {
     }
   };
 
+  const [contratoEstado, setContratoEstado] = useState(escuela?.contrato_estado || 'sin_enviar');
+  const [subiendoContrato, setSubiendoContrato] = useState(false);
+  const [msgContrato, setMsgContrato] = useState(null);
+  const subirContratoFirmado = async (archivo) => {
+    setSubiendoContrato(true);
+    setMsgContrato(null);
+    try {
+      const fd = new FormData();
+      fd.append('escuela_id', escuela.id);
+      fd.append('archivo', archivo);
+      const r = await fetch('api.php?action=subir_contrato_firmado', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + tkn() }, body: fd,
+      });
+      const res = await r.json();
+      if (!res.success) throw new Error(res.error || 'No se pudo subir el contrato');
+      setContratoEstado('firmado');
+      setMsgContrato({ ok: true, texto: 'Contrato recibido. ¡Gracias!' });
+    } catch (e) {
+      setMsgContrato({ ok: false, texto: e.message });
+    }
+    setSubiendoContrato(false);
+  };
+
   const docDe = tipo => documentos.find(d => d.tipo === tipo);
   const estadoEscuela = MC_ESTADO_ESCUELA[escuela?.documentacion_estado] || MC_ESTADO_ESCUELA.sin_enviar;
 
@@ -458,6 +481,36 @@ function MiCuenta({ escuela, user }) {
           }, void 0, false) : null
         ]
       }, 'card2'),
+
+      // ── Contrato ────────────────────────────────────────────────────────
+      // Lo envía provisión por correo; aquí la escuela sube el firmado y el
+      // servidor pasa el estatus a 'firmado' y avisa a provisión.
+      _jsxDEV('div', {
+        className: 'card', style: { marginBottom: 20 },
+        children: [
+          _jsxDEV('div', { className: 'card-header', children: _jsxDEV('div', { children: [
+            _jsxDEV('div', { className: 'card-title', children: 'Contrato' }, 't'),
+            _jsxDEV('div', { className: 'card-sub', children: 'Te lo enviamos por correo a la persona que firma el contrato. Aquí subes la copia firmada.' }, 's'),
+          ] }) }, 'h'),
+          _jsxDEV('div', { style: { padding: '0 16px 16px' }, children: [
+            _jsxDEV('span', {
+              className: 'badge ' + (contratoEstado === 'firmado' ? 'badge-green' : contratoEstado === 'enviado' ? 'badge-amber' : 'badge-gray'),
+              children: contratoEstado === 'firmado' ? 'Contrato firmado' : contratoEstado === 'enviado' ? 'Pendiente de tu firma' : 'Aún no enviado'
+            }, 'b'),
+            contratoEstado === 'enviado' ? _jsxDEV('div', { style: { marginTop: 12 }, children: [
+              _jsxDEV('label', {
+                className: 'btn btn-primary btn-sm', style: { cursor: subiendoContrato ? 'wait' : 'pointer' },
+                children: [subiendoContrato ? 'Subiendo…' : 'Subir contrato firmado', _jsxDEV('input', {
+                  type: 'file', accept: '.pdf,.jpg,.jpeg,.png', style: { display: 'none' }, disabled: subiendoContrato,
+                  onChange: e => { const f = e.target.files[0]; e.target.value = ''; if (f) subirContratoFirmado(f); }
+                }, 'f')]
+              }, 'l'),
+              _jsxDEV('div', { style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 6 }, children: 'PDF, JPG o PNG, máximo 10 MB.' }, 'n'),
+            ] }, 'sub') : null,
+            msgContrato ? _jsxDEV('div', { style: { marginTop: 10, fontSize: 12.5, color: msgContrato.ok ? 'var(--green)' : 'var(--red)' }, children: msgContrato.texto }, 'm') : null,
+          ] }, 'body'),
+        ]
+      }, 'contrato'),
 
       // ── Documentos ──────────────────────────────────────────────────────
       _jsxDEV('div', {
