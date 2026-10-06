@@ -550,6 +550,7 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'provision_listar_pendientes', 'provision_asignar_id', 'escuela_set_contrato_estado', 'enviar_contrato_escuela', 'descargar_contrato_firmado',
         'listar_documentos_escuela', 'descargar_documento_escuela',
         'revisar_documento_escuela', 'asignar_id_externo',
+        'escuela_obtener_datos_pago',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
     // Invita colegios como un distribuidor, pero sin comisiones. La ausencia

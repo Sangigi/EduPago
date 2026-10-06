@@ -6,17 +6,20 @@
 // BANCARIOS. A propósito NO viaja por cargar_datos.php (que hace SELECT *
 // de escuelas y se lo manda a todos los roles del colegio) -- este endpoint
 // aparte solo lo puede pedir el admin de su propia escuela, el superadmin,
-// o contador (revisa, pero no edita -- ver escuela_guardar_datos_pago.php,
-// que a propósito NO incluye 'contador').
+// o contador / provision (revisan, pero no editan -- ver
+// escuela_guardar_datos_pago.php, que a propósito NO incluye esos roles).
+// 'provision' se agregó el 06-oct-2026: es quien valida la documentación y
+// hace el trámite con el proveedor, y necesita ver lo que capturó el colegio
+// (folio del registro público, correos de contacto, etc.).
 
 $rol = $usuario_actual['rol'] ?? '';
-requerir_rol($rol, ['admin', 'superadmin', 'contador'], 'No tienes permiso para ver estos datos.');
+requerir_rol($rol, ['admin', 'superadmin', 'contador', 'provision'], 'No tienes permiso para ver estos datos.');
 
 $escuela_id = intval($input['escuela_id'] ?? ($usuario_actual['escuela_id'] ?? 0));
 if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
-// Bypass local para 'contador' (revisa cualquier escuela) -- ver nota en
-// listar_documentos_escuela.php.
-if ($rol !== 'contador') {
+// Bypass local para 'contador' y 'provision' (revisan cualquier escuela) --
+// ver nota en listar_documentos_escuela.php.
+if (!in_array($rol, ['contador', 'provision'], true)) {
     requerir_escuela_propia($rol, $escuela_id, $usuario_actual, 'No tienes permiso sobre esta escuela.');
 }
 
