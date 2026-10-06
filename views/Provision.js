@@ -41,6 +41,9 @@ function Provision({ user, onLogout, menuPerfil }) {
   const [docsEsc, setDocsEsc]         = useState(null); // { escuela, documentos[] }
   const [docsCargando, setDocsCargando] = useState(false);
   const [revisandoDoc, setRevisandoDoc] = useState(null);
+  // Datos que capturó el colegio en su formulario de alta de comercio (solo
+  // lectura): folio del RPC, correos de contacto, escrituras, etc.
+  const [datosForm, setDatosForm]     = useState(null);
 
   const pedir = useCallback(async (accion, payload) => {
     const token = AuthController.getToken ? AuthController.getToken() : '';
@@ -131,6 +134,59 @@ function Provision({ user, onLogout, menuPerfil }) {
     constancia_fiscal:      'Constancia Fiscal',
     acta_constitutiva:      'Acta constitutiva',
   };
+  // Datos del formulario de Mi cuenta que provisión necesita ver. Las claves
+  // son las de escuela_datos_pago (+ rfc y cp que vienen de escuelas).
+  const PR_GRUPOS_FORM = [
+    { titulo: 'Personas de contacto', campos: [
+      ['contacto_contrato_nombre', 'Firma del contrato: nombre'],
+      ['contacto_contrato_correo', 'Firma del contrato: correo'],
+      ['contacto_facturas_nombre', 'Recibe facturas: nombre'],
+      ['contacto_facturas_correo', 'Recibe facturas: correo'],
+      ['contacto_pagos_nombre',    'Atiende pagos: nombre'],
+      ['contacto_pagos_correo',    'Atiende pagos: correo'],
+    ]},
+    { titulo: 'Datos de la empresa (acta constitutiva)', campos: [
+      ['empresa_folio_rpc',        'Folio del registro público de comercio'],
+      ['empresa_escritura_numero', 'Número de escritura'],
+      ['empresa_escritura_fecha',  'Fecha de la escritura'],
+      ['empresa_notaria_numero',   'Notaría número'],
+      ['empresa_notario_nombre',   'Notario'],
+      ['empresa_ciudad',           'Ciudad'],
+    ]},
+    { titulo: 'Representante legal', campos: [
+      ['rep_legal_nombre',            'Nombre'],
+      ['rep_legal_escritura_numero',  'Número de escritura'],
+      ['rep_legal_escritura_fecha',   'Fecha de la escritura'],
+      ['rep_legal_notaria_numero',    'Notaría número'],
+      ['rep_legal_notario_nombre',    'Notario'],
+      ['rep_legal_ciudad',            'Ciudad'],
+    ]},
+    { titulo: 'Titular y domicilio', campos: [
+      ['titular_nombre',  'Titular'],
+      ['nombre_comercio', 'Nombre de sucursal'],
+      ['titular_correo',  'Correo'],
+      ['rfc',             'R.F.C.'],
+      ['giro',            'Actividad o giro'],
+      ['calle_numero',    'Calle y número'],
+      ['colonia',         'Colonia'],
+      ['cp',              'C.P.'],
+      ['ciudad',          'Ciudad'],
+      ['estado_direccion','Estado'],
+      ['telefono_celular','Teléfono celular'],
+      ['telefono_oficina','Teléfono oficina'],
+    ]},
+    { titulo: 'Identificación y datos bancarios', campos: [
+      ['id_tipo',            'Tipo de identificación'],
+      ['id_numero',          'Número'],
+      ['id_fecha_expedicion','Fecha expedición'],
+      ['id_vigencia',        'Vigencia'],
+      ['banco',              'Banco'],
+      ['sucursal_bancaria',  'Sucursal'],
+      ['cuenta_cheques',     'Cuenta cheques'],
+      ['cuenta_clabe',       'CLABE'],
+    ]},
+  ];
+
   const PR_ESTADO_DOC = {
     pendiente: { label: 'En revisión', color: 'var(--amber)' },
     aprobado:  { label: 'Aprobado',    color: 'var(--green)' },
@@ -139,10 +195,17 @@ function Provision({ user, onLogout, menuPerfil }) {
 
   const abrirDocs = async (esc) => {
     setDocsEsc({ escuela: esc, documentos: [] });
+    setDatosForm(null);
     setDocsCargando(true);
     try {
       const j = await pedir('listar_documentos_escuela', { escuela_id: esc.id });
       setDocsEsc({ escuela: esc, documentos: j.documentos || [] });
+      // Los datos del formulario son informativos: si fallan, los documentos
+      // se siguen mostrando.
+      try {
+        const jd = await pedir('escuela_obtener_datos_pago', { escuela_id: esc.id });
+        setDatosForm(jd.datos_pago || {});
+      } catch (_) { setDatosForm({}); }
     } catch (e) {
       setAviso({ tipo: 'error', txt: 'No se pudieron cargar los documentos: ' + e.message });
       setDocsEsc(null);
@@ -430,6 +493,29 @@ function Provision({ user, onLogout, menuPerfil }) {
               key: 'nota',
               style: { fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 12 }
             }, 'El contador ya revisó estos documentos. Puedes rechazar alguno si no te sirve para el trámite con el proveedor: al hacerlo, el colegio recibe un correo con el motivo y este colegio sale de la cola hasta que lo corrija.'),
+
+            // Datos que capturó el colegio en el formulario (solo lectura).
+            (datosForm && !docsCargando) ? _hPR('div', { key: 'dform', style: { marginBottom: 16, display: 'grid', gap: 12 } },
+              PR_GRUPOS_FORM.map((g, gi) => _hPR('div', { key: 'g' + gi },
+                _hPR('div', {
+                  key: 't',
+                  style: { fontSize: 11.5, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: .3, marginBottom: 6 }
+                }, g.titulo),
+                _hPR('div', { key: 'c', style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 8 } },
+                  g.campos.map(([k, etiqueta]) => {
+                    const v = datosForm[k];
+                    const vacio = v === null || v === undefined || String(v).trim() === '';
+                    return _hPR('div', { key: k, style: { fontSize: 12.5, minWidth: 0 } },
+                      _hPR('div', { key: 'e', style: { color: 'var(--ink-3)', fontSize: 11 } }, etiqueta),
+                      _hPR('div', {
+                        key: 'v',
+                        style: { color: vacio ? 'var(--amber)' : 'var(--ink)', fontWeight: vacio ? 400 : 600, wordBreak: 'break-word' }
+                      }, vacio ? 'Sin capturar' : String(v))
+                    );
+                  })
+                )
+              ))
+            ) : null,
 
             docsCargando
               ? _hPR('div', { key: 'l', style: { padding: 24, textAlign: 'center', color: 'var(--ink-3)' } }, 'Cargando…')
