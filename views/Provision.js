@@ -147,6 +147,7 @@ function Provision({ user, onLogout, menuPerfil }) {
     comprobante_domicilio:  'Comprobante de domicilio',
     constancia_fiscal:      'Constancia Fiscal',
     acta_constitutiva:      'Acta constitutiva',
+    registro_publico_comercio: 'Registro Público de Comercio (inscripción del acta)',
   };
   // Datos del formulario de Mi cuenta que provisión necesita ver. Las claves
   // son las de escuela_datos_pago (+ rfc y cp que vienen de escuelas).
