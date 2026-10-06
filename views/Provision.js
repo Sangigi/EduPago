@@ -428,11 +428,12 @@ function Provision({ user, onLogout, menuPerfil }) {
                         : _hPR('span', { key: 'sinc', style: { fontSize: 11.5, color: 'var(--amber)' } }, 'Falta el correo de firma del colegio'),
                       _hPR('button', {
                         key: 'solfirma',
-                        className: 'btn btn-ghost btn-sm',
+                        className: 'btn btn-primary',
+                        style: { fontWeight: 700, fontSize: 13, padding: '8px 18px', textTransform: 'uppercase', letterSpacing: .5, boxShadow: '0 2px 8px rgba(0,0,0,.18)' },
                         disabled: enviandoContrato === esc.id,
                         title: 'Elige el contrato, confirma el correo del firmante y solicita las firmas',
                         onClick: () => abrirFirma(esc)
-                      }, esc.contrato_nombre ? 'Solicitar firmas / reenviar' : 'Solicitar firmas'),
+                      }, esc.contrato_nombre ? '✍ Solicitar firmas / reenviar' : '✍ Solicitar firmas'),
                       esc.contrato_firmado_nombre ? _hPR('button', {
                         key: 'vfirm',
                         className: 'btn btn-ghost btn-sm',
