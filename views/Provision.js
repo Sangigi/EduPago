@@ -396,9 +396,9 @@ function Provision({ user, onLogout, menuPerfil }) {
                 visibles.map(esc => _hPR('div', {
                   key: esc.id,
                   className: 'card',
-                  style: { padding: 14, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }
+                  style: { padding: 14, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }
                 },
-                  _hPR('div', { key: 'info', style: { flex: '1 1 220px', minWidth: 0 } },
+                  _hPR('div', { key: 'info', style: { flex: '1 1 440px', minWidth: 0 } },
                     _hPR('div', { key: 'n', style: { fontWeight: 700, fontSize: 14, color: 'var(--ink)' } }, esc.nombre),
                     _hPR('div', {
                       key: 'm',
@@ -411,17 +411,18 @@ function Provision({ user, onLogout, menuPerfil }) {
                     _hPR('div', {
                       key: 'ct',
                       style: {
-                        marginTop: 10, padding: '10px 12px', display: 'flex', flexWrap: 'wrap',
-                        alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                        marginTop: 10, padding: '12px', display: 'grid', boxSizing: 'border-box',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 12,
+                        width: '100%', maxWidth: 560,
                         border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-sm)',
                         background: 'rgba(40,45,101,.04)'
                       }
                     },
-                      _hPR('div', { key: 'izq', style: { display: 'grid', gap: 6, minWidth: 0 } },
+                      _hPR('div', { key: 'izq', style: { display: 'grid', gap: 8, minWidth: 0 } },
                         _hPR('select', {
                           key: 'sel',
                           className: 'form-input',
-                          style: { fontSize: 12, padding: '4px 8px', width: 'auto' },
+                          style: { fontSize: 12, padding: '6px 8px', width: '100%' },
                           title: 'Estatus del contrato',
                           value: esc.contrato_estado || 'sin_enviar',
                           onChange: e => cambiarContrato(esc, e.target.value)
@@ -436,10 +437,11 @@ function Provision({ user, onLogout, menuPerfil }) {
                         }, 'Firma: ' + (esc.contacto_contrato_nombre || '') + ' <' + esc.contacto_contrato_correo + '>')
                           : _hPR('span', { key: 'sinc', style: { fontSize: 11.5, color: 'var(--amber)' } }, 'Falta el correo de firma del colegio')
                       ),
-                      _hPR('div', { key: 'der', style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+                      _hPR('div', { key: 'der', style: { display: 'grid', gap: 8, justifyItems: 'stretch', width: 170 } },
                         esc.contrato_firmado_nombre ? _hPR('button', {
                         key: 'vfirm',
                         className: 'btn btn-secondary btn-sm',
+                        style: { width: '100%' },
                         title: 'Ver el contrato firmado que subió el colegio',
                         onClick: () => abrirDocumentoPrivado(
                           'api.php?action=descargar_contrato_firmado&escuela_id=' + esc.id,
@@ -451,6 +453,7 @@ function Provision({ user, onLogout, menuPerfil }) {
                         _hPR('button', {
                           key: 'solfirma',
                           className: 'btn btn-primary',
+                          style: { width: '100%' },
                           disabled: enviandoContrato === esc.id,
                           title: 'Elige el contrato, confirma el correo del firmante y solicita las firmas',
                           onClick: () => abrirFirma(esc)
@@ -463,27 +466,31 @@ function Provision({ user, onLogout, menuPerfil }) {
                     }, 'ID actual: ' + esc.proveedor_school_id
                        + (esc.capturado_por_nombre ? ' · lo capturó ' + esc.capturado_por_nombre : '')) : null
                   ),
-                  _hPR('input', {
-                    key: 'in',
-                    className: 'form-input',
-                    style: { flex: '0 1 200px', fontFamily: 'var(--mono)' },
-                    placeholder: esc.tiene_id ? 'Reemplazar ID…' : 'ID del proveedor',
-                    value: borrador[esc.id] !== undefined ? borrador[esc.id] : '',
-                    onChange: e => setBorrador(b => ({ ...b, [esc.id]: e.target.value })),
-                    onKeyDown: e => { if (e.key === 'Enter') guardar(esc); }
-                  }),
-                  _hPR('button', {
-                    key: 'btn',
-                    className: 'btn btn-primary btn-sm',
-                    disabled: guardando === esc.id,
-                    onClick: () => guardar(esc)
-                  }, guardando === esc.id ? 'Guardando…' : (esc.tiene_id ? 'Reemplazar' : 'Guardar')),
-                  _hPR('button', {
-                    key: 'docs',
-                    className: 'btn btn-ghost btn-sm',
-                    onClick: () => abrirDocs(esc),
-                    title: 'Ver los documentos que subió este colegio'
-                  }, 'Ver documentos')
+                  _hPR('div', { key: 'acc', style: { flex: '0 0 320px', maxWidth: '100%', display: 'grid', gap: 8 } },
+                    _hPR('input', {
+                      key: 'in',
+                      className: 'form-input',
+                      style: { width: '100%', boxSizing: 'border-box', fontFamily: 'var(--mono)' },
+                      placeholder: esc.tiene_id ? 'Reemplazar ID…' : 'ID del proveedor',
+                      value: borrador[esc.id] !== undefined ? borrador[esc.id] : '',
+                      onChange: e => setBorrador(b => ({ ...b, [esc.id]: e.target.value })),
+                      onKeyDown: e => { if (e.key === 'Enter') guardar(esc); }
+                    }),
+                    _hPR('div', { key: 'bt', style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } },
+                      _hPR('button', {
+                        key: 'btn',
+                        className: 'btn btn-primary btn-sm',
+                        disabled: guardando === esc.id,
+                        onClick: () => guardar(esc)
+                      }, guardando === esc.id ? 'Guardando…' : (esc.tiene_id ? 'Reemplazar' : 'Guardar')),
+                      _hPR('button', {
+                        key: 'docs',
+                        className: 'btn btn-secondary btn-sm',
+                        onClick: () => abrirDocs(esc),
+                        title: 'Ver los documentos que subió este colegio'
+                      }, 'Ver documentos')
+                    )
+                  )
                 ))
               )
           ),
