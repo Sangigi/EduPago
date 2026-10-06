@@ -55,6 +55,10 @@ $saludo = trim((string) $esc['contacto_contrato_nombre']) !== '' ? htmlspecialch
 $html = "
     <p>{$saludo},</p>
     <p>Te enviamos el contrato de <strong>{$nombreEsc}</strong> para su firma. Está adjunto a este correo.</p>
+    <p><strong>Cuando lo tengas firmado, súbelo en la plataforma Pagalaescuela, en la sección
+       «Mi cuenta» (tarjeta «Contrato»).</strong> No hace falta responder este correo ni mandarlo por otro medio:
+       al subirlo, el sistema lo registra como firmado automáticamente.</p>
+    <p>Para entrar a Mi cuenta usa el acceso del administrador del colegio.</p>
     <p>— Pagalaescuela</p>
 ";
 $adjName = $nombreOriginal ? preg_replace('/[^A-Za-z0-9._ -]/', '_', $nombreOriginal) : 'contrato.pdf';

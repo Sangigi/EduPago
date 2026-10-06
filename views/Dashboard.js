@@ -741,6 +741,7 @@ function Dashboard({
 
     
 
+    escuela && user.rol === 'admin' && escuela.contrato_estado === 'enviado' && _jsxDEV("div", { key: 'aviso-contrato', className: "card", style: { marginBottom: 22, padding: '14px 18px', borderLeft: '4px solid var(--amber)' }, children: [_jsxDEV("div", { style: { fontWeight: 700, fontSize: 14, color: 'var(--ink)' }, children: "Tu contrato está listo para firmar" }, "t", false), _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: "Te lo enviamos por correo. Fírmalo y súbelo en la sección Mi cuenta de la plataforma." }, "d", false)] }, "aviso-contrato", false),
     escuela && !esCajero && (() => {
 
       const planKey = (escuela.plan || '').toLowerCase();

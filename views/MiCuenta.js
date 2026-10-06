@@ -485,7 +485,8 @@ function MiCuenta({ escuela, user }) {
       // ── Contrato ────────────────────────────────────────────────────────
       // Lo envía provisión por correo; aquí la escuela sube el firmado y el
       // servidor pasa el estatus a 'firmado' y avisa a provisión.
-      _jsxDEV('div', {
+      // Solo aparece cuando provisión ya lo envió (enviado o firmado).
+      contratoEstado === 'sin_enviar' ? null : _jsxDEV('div', {
         className: 'card', style: { marginBottom: 20 },
         children: [
           _jsxDEV('div', { className: 'card-header', children: _jsxDEV('div', { children: [
