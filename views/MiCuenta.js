@@ -46,6 +46,7 @@ function mcTiposDocumento(tipoPersona) {
     { tipo: 'comprobante_domicilio',   label: 'Comprobante de domicilio' },
     { tipo: 'constancia_fiscal',       label: 'Constancia Fiscal' },
     { tipo: 'acta_constitutiva',       label: 'Acta constitutiva' },
+    { tipo: 'registro_publico_comercio', label: 'Registro Público de Comercio (inscripción del acta)', ayuda: 'El acta debe estar inscrita en el Registro Público de Comercio. Si la tuya no trae la inscripción, sube aquí la boleta o constancia de inscripción y captura el folio arriba, en «Datos de la empresa».' },
   ];
 }
 
@@ -575,7 +576,7 @@ function MiCuenta({ escuela, user }) {
                 .filter(t => !(t.tipo === 'constancia_fiscal' && tipoPersona === 'negocio'))
                 // El acta constitutiva solo se pide a PERSONA MORAL (igual que en
                 // documentos_requeridos_por_tipo_persona()).
-                .filter(t => !(t.tipo === 'acta_constitutiva' && tipoPersona !== 'moral'))
+                .filter(t => !((t.tipo === 'acta_constitutiva' || t.tipo === 'registro_publico_comercio') && tipoPersona !== 'moral'))
                 .map(t => {
                 const doc = docDe(t.tipo);
                 const info = doc ? (MC_ESTADO_DOC[doc.estado] || MC_ESTADO_DOC.pendiente) : null;
@@ -590,6 +591,7 @@ function MiCuenta({ escuela, user }) {
                     _jsxDEV('div', {
                       children: [
                         _jsxDEV('div', { style: { fontSize: 13.5, fontWeight: 600 }, children: t.label }, 1),
+                        t.ayuda ? _jsxDEV('div', { style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.45, maxWidth: 460 }, children: t.ayuda }, 'ayuda') : null,
                         doc ? _jsxDEV('div', { style: { marginTop: 4 }, children: [
                           _jsxDEV('span', { className: 'badge ' + info.clase, children: info.label }, 'b'),
                           doc.estado === 'rechazado' && doc.motivo_rechazo ? _jsxDEV('span', { style: { fontSize: 12, color: 'var(--red)', marginLeft: 8 }, children: doc.motivo_rechazo }, 'm') : null

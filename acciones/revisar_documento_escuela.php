@@ -135,6 +135,7 @@ if ($hayRechazados && !$quedanPendientes && ($nuevoEstado === 'rechazado' || $er
             'comprobante_domicilio'  => 'Comprobante de domicilio',
             'constancia_fiscal'      => 'Constancia Fiscal',
             'acta_constitutiva'      => 'Acta constitutiva',
+            'registro_publico_comercio' => 'Registro Público de Comercio (inscripción del acta)',
         ];
 
         $stmtRech = $pdo->prepare(

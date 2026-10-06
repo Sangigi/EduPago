@@ -28,6 +28,7 @@ var SE_DOCS = {
   comprobante_domicilio:  'Comprobante de domicilio',
   constancia_fiscal:      'Constancia fiscal',
   acta_constitutiva:      'Acta constitutiva',
+  registro_publico_comercio: 'Registro Público de Comercio (inscripción del acta)',
 };
 
 var SE_ESTADO_DOC = {
