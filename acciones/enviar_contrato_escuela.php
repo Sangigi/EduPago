@@ -7,7 +7,12 @@
 // pasa solo a 'enviado'. Sin plantillas: el documento es el que se sube.
 //
 // Si no viene archivo y ya hay uno guardado, REENVÍA ese mismo.
-// Recibe multipart/form-data: escuela_id y (opcional) archivo.
+// Recibe multipart/form-data: escuela_id y (opcional) archivo, y desde el
+// 06-oct-2026 también lo que captura el modal "Solicitar firmas" de provisión:
+//   correo        (opcional) correo del firmante para ESTE envío; si no viene
+//                 se usa el contacto de firma que capturó el colegio.
+//   mensaje       (opcional) texto para el firmante, va en el cuerpo del correo.
+//   firma_efirma  / firma_simple  ('1') método de firma permitido.
 
 requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'provision'], 'No tienes permiso para enviar contratos.');
 
@@ -25,10 +30,19 @@ $st->execute([$escuela_id]);
 $esc = $st->fetch();
 if (!$esc) respond(['success' => false, 'error' => 'Colegio no encontrado']);
 
-$correo = trim((string) ($esc['contacto_contrato_correo'] ?? ''));
+$correo = trim((string) ($_POST['correo'] ?? ''));
+if ($correo === '') $correo = trim((string) ($esc['contacto_contrato_correo'] ?? ''));
 if ($correo === '' || !filter_var($correo, FILTER_VALIDATE_EMAIL)) {
-    respond(['success' => false, 'error' => 'Este colegio todavía no captura el correo de la persona que firma el contrato (Mi cuenta → Personas de contacto).']);
+    respond(['success' => false, 'error' => 'Indica un correo válido para el firmante (el colegio lo captura en Mi cuenta → Personas de contacto).']);
 }
+$mensajeFirmante = mb_substr(trim((string) ($_POST['mensaje'] ?? '')), 0, 1000);
+$usaEfirma = !empty($_POST['firma_efirma']);
+$usaSimple = !empty($_POST['firma_simple']);
+if (!$usaEfirma && !$usaSimple) { $usaEfirma = true; $usaSimple = true; }
+$metodos = [];
+if ($usaEfirma) $metodos[] = 'firma electrónica avanzada (e.firma)';
+if ($usaSimple) $metodos[] = 'firma electrónica simple';
+$metodosTxt = implode(' o ', $metodos);
 
 $ruta = $esc['contrato_ruta'];
 $nombreOriginal = $esc['contrato_nombre'];
@@ -55,6 +69,8 @@ $saludo = trim((string) $esc['contacto_contrato_nombre']) !== '' ? htmlspecialch
 $html = "
     <p>{$saludo},</p>
     <p>Te enviamos el contrato de <strong>{$nombreEsc}</strong> para su firma. Está adjunto a este correo.</p>
+    " . ($mensajeFirmante !== '' ? "<p><em>" . nl2br(htmlspecialchars($mensajeFirmante)) . "</em></p>" : '') . "
+    <p>Método de firma permitido: {$metodosTxt}.</p>
     <p><strong>Cuando lo tengas firmado, súbelo en la plataforma Pagalaescuela, en la sección
        «Mi cuenta» (tarjeta «Contrato»).</strong> No hace falta responder este correo ni mandarlo por otro medio:
        al subirlo, el sistema lo registra como firmado automáticamente.</p>
@@ -76,6 +92,6 @@ $pdo->prepare(
       WHERE id = ?"
 )->execute([$escuela_id]);
 
-registrar_log($pdo, $usuario_actual, 'contrato_enviado', "Colegio #$escuela_id: contrato enviado a $correo", $escuela_id);
+registrar_log($pdo, $usuario_actual, 'contrato_enviado', "Colegio #$escuela_id: contrato enviado a $correo (método: $metodosTxt)", $escuela_id);
 
 respond(['success' => true, 'mensaje' => "Contrato enviado a $correo.", 'contrato_nombre' => $nombreOriginal]);

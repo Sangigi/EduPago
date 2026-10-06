@@ -89,15 +89,23 @@ function Provision({ user, onLogout, menuPerfil }) {
   };
 
   const [enviandoContrato, setEnviandoContrato] = useState(null);
+  // Modal "Solicitar firmas": { esc, archivo, correo, mensaje, efirma, simple }
+  const [firmaModal, setFirmaModal] = useState(null);
   // Sube el PDF (o reenvía el ya guardado si archivo es null). El servidor lo
   // manda por correo al contacto de firma y deja el estatus en 'enviado'.
-  const enviarContrato = async (esc, archivo) => {
+  const enviarContrato = async (esc, archivo, extra) => {
     setEnviandoContrato(esc.id);
     setAviso(null);
     try {
       const fd = new FormData();
       fd.append('escuela_id', esc.id);
       if (archivo) fd.append('archivo', archivo);
+      if (extra) {
+        if (extra.correo)  fd.append('correo', extra.correo);
+        if (extra.mensaje) fd.append('mensaje', extra.mensaje);
+        if (extra.efirma)  fd.append('firma_efirma', '1');
+        if (extra.simple)  fd.append('firma_simple', '1');
+      }
       const token = AuthController.getToken ? AuthController.getToken() : '';
       const r = await fetch('api.php?action=enviar_contrato_escuela', {
         method: 'POST',
@@ -107,12 +115,18 @@ function Provision({ user, onLogout, menuPerfil }) {
       const j = await r.json();
       if (!j.success) throw new Error(j.error || 'No se pudo enviar el contrato');
       setAviso({ tipo: 'ok', txt: esc.nombre + ': ' + j.mensaje });
+      setFirmaModal(null);
       await cargar(filtro);
     } catch (e) {
       setAviso({ tipo: 'error', txt: esc.nombre + ': ' + e.message });
     }
     setEnviandoContrato(null);
   };
+
+  const abrirFirma = (esc) => setFirmaModal({
+    esc, archivo: null, correo: esc.contacto_contrato_correo || '',
+    mensaje: '', efirma: true, simple: false,
+  });
 
   const cambiarContrato = async (esc, estado) => {
     setAviso(null);
@@ -412,19 +426,13 @@ function Provision({ user, onLogout, menuPerfil }) {
                         style: { fontSize: 11.5, color: 'var(--ink-3)' }
                       }, 'Firma: ' + (esc.contacto_contrato_nombre || '') + ' <' + esc.contacto_contrato_correo + '>')
                         : _hPR('span', { key: 'sinc', style: { fontSize: 11.5, color: 'var(--amber)' } }, 'Falta el correo de firma del colegio'),
-                      esc.contacto_contrato_correo ? _hPR('label', {
-                        key: 'subir',
+                      _hPR('button', {
+                        key: 'solfirma',
                         className: 'btn btn-ghost btn-sm',
-                        style: { cursor: enviandoContrato === esc.id ? 'wait' : 'pointer', marginBottom: 0 },
-                        title: 'Sube el PDF del contrato: se manda solo al correo de firma'
-                      },
-                        enviandoContrato === esc.id ? 'Enviando…' : (esc.contrato_nombre ? 'Subir otro y enviar' : 'Subir contrato y enviar'),
-                        _hPR('input', {
-                          key: 'f', type: 'file', accept: 'application/pdf,.pdf', style: { display: 'none' },
-                          disabled: enviandoContrato === esc.id,
-                          onChange: e => { const f = e.target.files[0]; e.target.value = ''; if (f) enviarContrato(esc, f); }
-                        })
-                      ) : null,
+                        disabled: enviandoContrato === esc.id,
+                        title: 'Elige el contrato, confirma el correo del firmante y solicita las firmas',
+                        onClick: () => abrirFirma(esc)
+                      }, esc.contrato_nombre ? 'Solicitar firmas / reenviar' : 'Solicitar firmas'),
                       esc.contrato_firmado_nombre ? _hPR('button', {
                         key: 'vfirm',
                         className: 'btn btn-ghost btn-sm',
@@ -435,14 +443,7 @@ function Provision({ user, onLogout, menuPerfil }) {
                           esc.contrato_firmado_nombre,
                           (m) => setAviso({ tipo: 'error', txt: m })
                         )
-                      }, 'Ver contrato firmado') : null,
-                      (esc.contacto_contrato_correo && esc.contrato_nombre) ? _hPR('button', {
-                        key: 'reenv',
-                        className: 'btn btn-ghost btn-sm',
-                        disabled: enviandoContrato === esc.id,
-                        title: 'Reenviar ' + esc.contrato_nombre,
-                        onClick: () => enviarContrato(esc, null)
-                      }, 'Reenviar') : null
+                      }, 'Ver contrato firmado') : null
                     ),
                     esc.tiene_id ? _hPR('div', {
                       key: 'ya',
@@ -474,6 +475,66 @@ function Provision({ user, onLogout, menuPerfil }) {
                 ))
               )
           ),
+
+      /* ── Modal "Solicitar firmas" ── */
+      firmaModal ? _hPR('div', {
+        key: 'modfirma',
+        className: 'modal-backdrop',
+        onClick: e => { if (e.target === e.currentTarget && enviandoContrato !== firmaModal.esc.id) setFirmaModal(null); }
+      },
+        _hPR('div', { className: 'modal', style: { maxWidth: 480 } },
+          _hPR('div', { key: 'h', className: 'modal-header' },
+            _hPR('div', { key: 't', className: 'modal-title' }, 'Solicitar firmas · ' + firmaModal.esc.nombre),
+            _hPR('button', { key: 'x', className: 'btn btn-ghost btn-sm', disabled: enviandoContrato === firmaModal.esc.id, onClick: () => setFirmaModal(null) }, 'Cerrar')
+          ),
+          _hPR('div', { key: 'b', className: 'modal-body', style: { display: 'grid', gap: 14 } },
+            _hPR('div', { key: 'doc' },
+              _hPR('div', { key: 'l', style: { fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', marginBottom: 6 } }, 'Documento'),
+              _hPR('label', { key: 'f', className: 'btn btn-ghost btn-sm', style: { cursor: 'pointer', marginBottom: 0 } },
+                firmaModal.archivo ? firmaModal.archivo.name
+                  : (firmaModal.esc.contrato_nombre ? firmaModal.esc.contrato_nombre + ' (cambiar PDF)' : 'Elegir PDF del contrato'),
+                _hPR('input', {
+                  key: 'in', type: 'file', accept: 'application/pdf,.pdf', style: { display: 'none' },
+                  onChange: e => { const f = e.target.files[0]; e.target.value = ''; if (f) setFirmaModal(m => ({ ...m, archivo: f })); }
+                })
+              )
+            ),
+            _hPR('div', { key: 'mail' },
+              _hPR('div', { key: 'l', style: { fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', marginBottom: 6 } }, 'Correo electrónico del firmante'),
+              _hPR('input', {
+                key: 'i', className: 'form-input', type: 'email', placeholder: 'correo@colegio.com',
+                value: firmaModal.correo,
+                onChange: e => { const v = e.target.value; setFirmaModal(m => ({ ...m, correo: v })); }
+              }),
+              (firmaModal.esc.contacto_contrato_nombre ? _hPR('div', { key: 'n', style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 4 } }, 'Contacto de firma del colegio: ' + firmaModal.esc.contacto_contrato_nombre) : null)
+            ),
+            _hPR('div', { key: 'met' },
+              _hPR('div', { key: 'l', style: { fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', marginBottom: 6 } }, 'Método de firma permitido'),
+              _hPR('label', { key: 'e', style: { display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 6, cursor: 'pointer' } },
+                _hPR('input', { key: 'c', type: 'checkbox', checked: firmaModal.efirma, onChange: e => { const v = e.target.checked; setFirmaModal(m => ({ ...m, efirma: v })); } }),
+                'Firma electrónica avanzada (e.firma)'),
+              _hPR('label', { key: 's', style: { display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' } },
+                _hPR('input', { key: 'c', type: 'checkbox', checked: firmaModal.simple, onChange: e => { const v = e.target.checked; setFirmaModal(m => ({ ...m, simple: v })); } }),
+                'Firma electrónica simple')
+            ),
+            _hPR('div', { key: 'msg' },
+              _hPR('div', { key: 'l', style: { fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', marginBottom: 6 } }, 'Mensaje para firmantes'),
+              _hPR('input', {
+                key: 'i', className: 'form-input', maxLength: 1000, value: firmaModal.mensaje,
+                onChange: e => { const v = e.target.value; setFirmaModal(m => ({ ...m, mensaje: v })); }
+              })
+            ),
+            _hPR('button', {
+              key: 'go', className: 'btn btn-primary', style: { width: '100%', textTransform: 'uppercase', letterSpacing: .5 },
+              disabled: enviandoContrato === firmaModal.esc.id || !firmaModal.correo.trim() || (!firmaModal.archivo && !firmaModal.esc.contrato_nombre),
+              onClick: () => enviarContrato(firmaModal.esc, firmaModal.archivo, {
+                correo: firmaModal.correo.trim(), mensaje: firmaModal.mensaje.trim(),
+                efirma: firmaModal.efirma, simple: firmaModal.simple
+              })
+            }, enviandoContrato === firmaModal.esc.id ? 'Enviando…' : 'Solicitar firmas')
+          )
+        )
+      ) : null,
 
       /* ── Modal de documentos ── */
       docsEsc ? _hPR('div', {
