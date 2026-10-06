@@ -396,90 +396,39 @@ function Provision({ user, onLogout, menuPerfil }) {
                 visibles.map(esc => _hPR('div', {
                   key: esc.id,
                   className: 'card',
-                  style: { padding: 14, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }
+                  style: { padding: 0, overflow: 'hidden' }
                 },
-                  _hPR('div', { key: 'info', style: { flex: '1 1 440px', minWidth: 0 } },
-                    _hPR('div', { key: 'n', style: { fontWeight: 700, fontSize: 14, color: 'var(--ink)' } }, esc.nombre),
-                    _hPR('div', {
-                      key: 'm',
-                      style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 }
-                    },
-                      (esc.clave ? esc.clave + ' · ' : '')
-                      + (esc.razon_social || esc.tipo_persona || '')
-                      + ' · ' + esc.documentos_aprobados + ' documentos aprobados'
+                  /* Fila 1: colegio + captura del ID */
+                  _hPR('div', {
+                    key: 'r1',
+                    style: { padding: '14px 16px', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center', justifyContent: 'space-between' }
+                  },
+                    _hPR('div', { key: 'info', style: { flex: '1 1 260px', minWidth: 0 } },
+                      _hPR('div', { key: 'n', style: { fontWeight: 700, fontSize: 14.5, color: 'var(--ink)' } }, esc.nombre),
+                      _hPR('div', { key: 'm', style: { fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 } },
+                        (esc.clave ? esc.clave + ' · ' : '')
+                        + (esc.razon_social || esc.tipo_persona || '')
+                        + ' · ' + esc.documentos_aprobados + ' documentos aprobados'),
+                      esc.tiene_id ? _hPR('div', {
+                        key: 'ya',
+                        style: { fontSize: 11.5, color: 'var(--green)', marginTop: 4, fontWeight: 600 }
+                      }, 'ID actual: ' + esc.proveedor_school_id
+                         + (esc.capturado_por_nombre ? ' · lo capturó ' + esc.capturado_por_nombre : '')) : null
                     ),
-                    _hPR('div', {
-                      key: 'ct',
-                      style: {
-                        marginTop: 10, padding: '12px', display: 'grid', boxSizing: 'border-box',
-                        gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 12,
-                        width: '100%', maxWidth: 560,
-                        border: '1px solid var(--border-glow)', borderRadius: 'var(--radius-sm)',
-                        background: 'rgba(40,45,101,.04)'
-                      }
-                    },
-                      _hPR('div', { key: 'izq', style: { display: 'grid', gap: 8, minWidth: 0 } },
-                        _hPR('select', {
-                          key: 'sel',
-                          className: 'form-input',
-                          style: { fontSize: 12, padding: '6px 8px', width: '100%' },
-                          title: 'Estatus del contrato',
-                          value: esc.contrato_estado || 'sin_enviar',
-                          onChange: e => cambiarContrato(esc, e.target.value)
-                        },
-                          _hPR('option', { key: 'a', value: 'sin_enviar' }, 'Contrato sin enviar'),
-                          _hPR('option', { key: 'b', value: 'enviado' }, 'Contrato enviado'),
-                          _hPR('option', { key: 'c', value: 'firmado' }, 'Contrato firmado')
-                        ),
-                        esc.contacto_contrato_correo ? _hPR('span', {
-                          key: 'dest',
-                          style: { fontSize: 11.5, color: 'var(--ink-3)', wordBreak: 'break-word' }
-                        }, 'Firma: ' + (esc.contacto_contrato_nombre || '') + ' <' + esc.contacto_contrato_correo + '>')
-                          : _hPR('span', { key: 'sinc', style: { fontSize: 11.5, color: 'var(--amber)' } }, 'Falta el correo de firma del colegio')
-                      ),
-                      _hPR('div', { key: 'der', style: { display: 'grid', gap: 8, justifyItems: 'stretch', width: 170 } },
-                        esc.contrato_firmado_nombre ? _hPR('button', {
-                        key: 'vfirm',
-                        className: 'btn btn-secondary btn-sm',
-                        style: { width: '100%' },
-                        title: 'Ver el contrato firmado que subió el colegio',
-                        onClick: () => abrirDocumentoPrivado(
-                          'api.php?action=descargar_contrato_firmado&escuela_id=' + esc.id,
-                          AuthController.getToken ? AuthController.getToken() : '',
-                          esc.contrato_firmado_nombre,
-                          (m) => setAviso({ tipo: 'error', txt: m })
-                        )
-                      }, 'Ver contrato firmado') : null,
-                        _hPR('button', {
-                          key: 'solfirma',
-                          className: 'btn btn-primary',
-                          style: { width: '100%' },
-                          disabled: enviandoContrato === esc.id,
-                          title: 'Elige el contrato, confirma el correo del firmante y solicita las firmas',
-                          onClick: () => abrirFirma(esc)
-                        }, esc.contrato_nombre ? 'Solicitar firmas / reenviar' : 'Solicitar firmas')
-                      )
-                    ),
-                    esc.tiene_id ? _hPR('div', {
-                      key: 'ya',
-                      style: { fontSize: 11.5, color: 'var(--green)', marginTop: 4, fontWeight: 600 }
-                    }, 'ID actual: ' + esc.proveedor_school_id
-                       + (esc.capturado_por_nombre ? ' · lo capturó ' + esc.capturado_por_nombre : '')) : null
-                  ),
-                  _hPR('div', { key: 'acc', style: { flex: '0 0 320px', maxWidth: '100%', display: 'grid', gap: 8 } },
-                    _hPR('input', {
-                      key: 'in',
-                      className: 'form-input',
-                      style: { width: '100%', boxSizing: 'border-box', fontFamily: 'var(--mono)' },
-                      placeholder: esc.tiene_id ? 'Reemplazar ID…' : 'ID del proveedor',
-                      value: borrador[esc.id] !== undefined ? borrador[esc.id] : '',
-                      onChange: e => setBorrador(b => ({ ...b, [esc.id]: e.target.value })),
-                      onKeyDown: e => { if (e.key === 'Enter') guardar(esc); }
-                    }),
-                    _hPR('div', { key: 'bt', style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } },
+                    _hPR('div', { key: 'acc', style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+                      _hPR('input', {
+                        key: 'in',
+                        className: 'form-input',
+                        style: { width: 200, fontFamily: 'var(--mono)' },
+                        placeholder: esc.tiene_id ? 'Reemplazar ID…' : 'ID del proveedor',
+                        value: borrador[esc.id] !== undefined ? borrador[esc.id] : '',
+                        onChange: e => setBorrador(b => ({ ...b, [esc.id]: e.target.value })),
+                        onKeyDown: e => { if (e.key === 'Enter') guardar(esc); }
+                      }),
                       _hPR('button', {
                         key: 'btn',
                         className: 'btn btn-primary btn-sm',
+                        style: { minWidth: 92 },
                         disabled: guardando === esc.id,
                         onClick: () => guardar(esc)
                       }, guardando === esc.id ? 'Guardando…' : (esc.tiene_id ? 'Reemplazar' : 'Guardar')),
@@ -490,6 +439,53 @@ function Provision({ user, onLogout, menuPerfil }) {
                         title: 'Ver los documentos que subió este colegio'
                       }, 'Ver documentos')
                     )
+                  ),
+                  /* Fila 2: contrato */
+                  _hPR('div', {
+                    key: 'r2',
+                    style: {
+                      padding: '10px 16px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
+                      borderTop: '1px solid var(--border-glow)', background: 'rgba(40,45,101,.04)'
+                    }
+                  },
+                    _hPR('span', { key: 'lbl', style: { fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: .4 } }, 'Contrato'),
+                    _hPR('select', {
+                      key: 'sel',
+                      className: 'form-input',
+                      style: { width: 170, fontSize: 12, padding: '6px 8px' },
+                      title: 'Estatus del contrato',
+                      value: esc.contrato_estado || 'sin_enviar',
+                      onChange: e => cambiarContrato(esc, e.target.value)
+                    },
+                      _hPR('option', { key: 'a', value: 'sin_enviar' }, 'Sin enviar'),
+                      _hPR('option', { key: 'b', value: 'enviado' }, 'Enviado'),
+                      _hPR('option', { key: 'c', value: 'firmado' }, 'Firmado')
+                    ),
+                    esc.contacto_contrato_correo ? _hPR('span', {
+                      key: 'dest',
+                      title: (esc.contacto_contrato_nombre || '') + ' <' + esc.contacto_contrato_correo + '>',
+                      style: { flex: '1 1 200px', minWidth: 0, fontSize: 12, color: 'var(--ink-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+                    }, 'Firma: ' + (esc.contacto_contrato_nombre ? esc.contacto_contrato_nombre + ' · ' : '') + esc.contacto_contrato_correo)
+                      : _hPR('span', { key: 'sinc', style: { flex: '1 1 200px', fontSize: 12, color: 'var(--amber)' } }, 'Falta el correo de firma del colegio'),
+                    esc.contrato_firmado_nombre ? _hPR('button', {
+                        key: 'vfirm',
+                        className: 'btn btn-secondary btn-sm',
+                                                title: 'Ver el contrato firmado que subió el colegio',
+                        onClick: () => abrirDocumentoPrivado(
+                          'api.php?action=descargar_contrato_firmado&escuela_id=' + esc.id,
+                          AuthController.getToken ? AuthController.getToken() : '',
+                          esc.contrato_firmado_nombre,
+                          (m) => setAviso({ tipo: 'error', txt: m })
+                        )
+                      }, 'Ver contrato firmado') : null,
+                    _hPR('button', {
+                      key: 'solfirma',
+                      className: 'btn btn-primary btn-sm',
+                      style: { minWidth: 150 },
+                      disabled: enviandoContrato === esc.id,
+                      title: 'Elige el contrato, confirma el correo del firmante y solicita las firmas',
+                      onClick: () => abrirFirma(esc)
+                    }, esc.contrato_nombre ? 'Solicitar firmas / reenviar' : 'Solicitar firmas')
                   )
                 ))
               )
