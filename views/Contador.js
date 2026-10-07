@@ -41,6 +41,11 @@ const CT_CAMPOS_DATOS_PAGO = [
   ['titular_nombre', 'Titular'], ['nombre_comercio', 'Nombre comercial'],
   ['rfc', 'RFC'], ['banco', 'Banco'], ['cuenta_clabe', 'CLABE'],
   ['cuenta_cheques', 'Cuenta cheques'], ['id_tipo', 'Tipo de ID'], ['id_numero', 'Número de ID'],
+  ['empresa_folio_rpc', 'Folio del Registro Público de Comercio'],
+  ['empresa_escritura_numero', 'Escritura número'], ['empresa_notaria_numero', 'Notaría número'],
+  ['contacto_contrato_nombre', 'Firma del contrato: nombre'], ['contacto_contrato_correo', 'Firma del contrato: correo'],
+  ['contacto_facturas_nombre', 'Recibe facturas: nombre'], ['contacto_facturas_correo', 'Recibe facturas: correo'],
+  ['contacto_pagos_nombre', 'Atiende pagos: nombre'], ['contacto_pagos_correo', 'Atiende pagos: correo'],
 ];
 
 // menuPerfil llega ya armado desde assets/js/app.js: incluye "Editar mi perfil",
