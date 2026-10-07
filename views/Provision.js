@@ -599,6 +599,18 @@ function Provision({ user, onLogout, menuPerfil }) {
               : (docsEsc.documentos.length === 0
                   ? _hPR('div', { key: 'v', style: { padding: 24, textAlign: 'center', color: 'var(--ink-3)' } }, 'Este colegio no tiene documentos subidos.')
                   : _hPR('div', { key: 'lst', style: { display: 'grid', gap: 8 } },
+                      // Si el colegio es persona moral y aún no sube el Registro
+                      // Público de Comercio, se deja el renglón visible (en
+                      // ámbar) para que provisión sepa que lo falta por revisar.
+                      (docsEsc.escuela && docsEsc.escuela.tipo_persona === 'moral'
+                        && !docsEsc.documentos.some(d => d.tipo === 'registro_publico_comercio'))
+                        ? _hPR('div', {
+                            key: 'rpc-falta',
+                            style: { padding: 10, border: '1px dashed var(--amber)', borderRadius: 'var(--radius-sm)' }
+                          },
+                            _hPR('div', { key: 'n', style: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } }, PR_DOCS.registro_publico_comercio),
+                            _hPR('div', { key: 'e', style: { fontSize: 11.5, color: 'var(--amber)', fontWeight: 700, marginTop: 2 } }, 'Sin subir — el colegio todavía no lo sube')
+                          ) : null,
                       docsEsc.documentos.map(doc => {
                         const est = PR_ESTADO_DOC[doc.estado] || { label: doc.estado, color: 'var(--ink-3)' };
                         return _hPR('div', {
