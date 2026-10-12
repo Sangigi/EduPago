@@ -42,6 +42,10 @@ const PLANES_INFO_DASH = {
 
 };
 
+// Anuncio y etiqueta del estatus del contrato en el dashboard: apagados por ahora
+// (no se ha decidido si el flujo será así). Cambiar a true para volver a mostrarlos.
+const MOSTRAR_CONTRATO_DASH = false;
+
 function Dashboard({
 
   data,
@@ -483,7 +487,7 @@ function Dashboard({
 
                 },
 
-                children: [s.nombre, _jsxDEV("span", { className: "badge " + (s.contratoEstado === 'firmado' ? 'badge-green' : s.contratoEstado === 'enviado' ? 'badge-amber' : 'badge-gray'), title: "Estatus del contrato", children: s.contratoEstado === 'firmado' ? 'Contrato firmado' : s.contratoEstado === 'enviado' ? 'Contrato enviado' : 'Contrato sin enviar' }, 'contrato', false), !s.activa && _jsxDEV("span", {
+                children: [s.nombre, MOSTRAR_CONTRATO_DASH && _jsxDEV("span", { className: "badge " + (s.contratoEstado === 'firmado' ? 'badge-green' : s.contratoEstado === 'enviado' ? 'badge-amber' : 'badge-gray'), title: "Estatus del contrato", children: s.contratoEstado === 'firmado' ? 'Contrato firmado' : s.contratoEstado === 'enviado' ? 'Contrato enviado' : 'Contrato sin enviar' }, 'contrato', false), !s.activa && _jsxDEV("span", {
 
                   className: "badge badge-red",
 
@@ -741,7 +745,7 @@ function Dashboard({
 
     
 
-    escuela && user.rol === 'admin' && escuela.contrato_estado === 'enviado' && _jsxDEV("div", { key: 'aviso-contrato', className: "card", style: { marginBottom: 22, padding: '14px 18px', borderLeft: '4px solid var(--amber)' }, children: [_jsxDEV("div", { style: { fontWeight: 700, fontSize: 14, color: 'var(--ink)' }, children: "Tu contrato está listo para firmar" }, "t", false), _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: "Te lo enviamos por correo. Fírmalo y súbelo en la sección Mi cuenta de la plataforma." }, "d", false)] }, "aviso-contrato", false),
+    MOSTRAR_CONTRATO_DASH && escuela && user.rol === 'admin' && escuela.contrato_estado === 'enviado' && _jsxDEV("div", { key: 'aviso-contrato', className: "card", style: { marginBottom: 22, padding: '14px 18px', borderLeft: '4px solid var(--amber)' }, children: [_jsxDEV("div", { style: { fontWeight: 700, fontSize: 14, color: 'var(--ink)' }, children: "Tu contrato está listo para firmar" }, "t", false), _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: "Te lo enviamos por correo. Fírmalo y súbelo en la sección Mi cuenta de la plataforma." }, "d", false)] }, "aviso-contrato", false),
     escuela && !esCajero && (() => {
 
       const planKey = (escuela.plan || '').toLowerCase();
