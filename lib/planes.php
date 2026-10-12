@@ -32,7 +32,7 @@
 //
 // CAMBIAR ESTO A false ANTES DE DAR DE ALTA COLEGIOS DE VERDAD.
 // Es lo único que hay que tocar: no hay ninguna otra copia que actualizar.
-const PLANES_USAR_PRECIOS_PRUEBA = false;
+const PLANES_USAR_PRECIOS_PRUEBA = true;
 
 const PLANES_PRECIOS_REALES = [
     'basico'   => 999.00,
