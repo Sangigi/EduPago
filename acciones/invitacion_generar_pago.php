@@ -91,7 +91,10 @@ if ($metodo === 'TC') {
     ];
     log_api("invitacion_generar_pago(TC) -> invitacion={$inv['id']} plan={$inv['plan_elegido']} total={$total} ref={$ref}");
 
-    $res = curl_post(PLE_URL_LIGA_TOKEN, $payload);
+    // 13-oct-2026: igual que la renovación (escuela_generar_pago_renovacion.php).
+    // El endpoint de CAI responde 404 de permisos; la suscripción no usa
+    // domiciliación, así que se usa la liga de pago en línea simple.
+    $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload);
     if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
     $raw = json_decode($res['body'], true) ?? [];
     $data_resp = [];

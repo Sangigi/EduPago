@@ -124,7 +124,12 @@ if ($metodo === 'TC') {
     ];
     log_api("escuela_generar_pago_renovacion(TC) -> escuela={$esc['id']} total={$total} ref={$ref}");
 
-    $res = curl_post(PLE_URL_LIGA_TOKEN, $payload);
+    // 13-oct-2026: GenerarLigaDomiciliacionIndi (CAI) responde 404 "No tiene
+    // permiso para generar ligas" desde el 12-oct. La suscripción no usa
+    // domiciliación, así que se genera la liga de pago en línea simple
+    // (GenerarLigaIndi), que no tokeniza. Para volver al anterior, usar
+    // PLE_URL_LIGA_TOKEN.
+    $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload);
     if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
     $raw = json_decode($res['body'], true) ?? [];
     $data_resp = [];
