@@ -183,7 +183,7 @@ if ($metodo === 'TC') {
     ];
     log_api("iniciar_pago_agrupado(TC) -> agrupado_id={$agrupado_id} cliente={$cliente_id} cobros=" . implode(',', $cobro_ids) . " total={$total} ref={$ref}");
 
-    $res = curl_post(PLE_URL_LIGA_TOKEN, $payload);
+    $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload); // 19-oct-2026: GenerarLigaIndi (la de domiciliación daba 404 de permisos)
     if ($res['error']) {
         log_api("iniciar_pago_agrupado(TC) ERROR DE RED -> " . $res['error']);
         respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);

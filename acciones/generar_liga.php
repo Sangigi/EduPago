@@ -95,7 +95,7 @@
         // (9/15 dígitos, ceros a la izquierda, como STRING) — verificado con
         // una prueba real antes de este cambio. webhook_liga.php ya sabe
         // reconstruir la referencia envuelta que regresa este endpoint.
-        $res = curl_post(PLE_URL_LIGA_TOKEN, $payload);
+        $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload); // 19-oct-2026: GenerarLigaIndi (la de domiciliación daba 404 de permisos)
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
         $data_resp = [];
@@ -127,5 +127,5 @@
             // frontend, que lo usa para decidir si pide la casilla de
             // autorización de cargo automático — antes iba en true fijo y la
             // pedía incluso con la domiciliación deshabilitada.
-            'con_cai'    => !metodo_pago_deshabilitado($pdo, $cobroRow['escuela_id'], 'CAI'),
+            'con_cai'    => false, // la liga simple no tokeniza: no hay tarjeta que domiciliar
         ]);
