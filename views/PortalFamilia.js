@@ -200,7 +200,11 @@ function PortalFamilia({
   // el superadmin las habia apagado (globalmente o para esta escuela). El
   // apagado real ya se valida tambien en el backend; esto es lo que evita
   // que la familia ni siquiera vea la opcion.
-  const metodosApagadosFamilia = escuela?.metodos_pago_deshabilitados || [];
+  // 19-oct-2026: CAI (domiciliación) oculto por ahora -- los pagos con tarjeta usan
+  // GenerarLigaIndi, que no guarda la tarjeta. Se agrega 'CAI' a la lista de apagados
+  // para que no se pida la casilla de autorización ni se ofrezca la tarjeta guardada.
+  // Para reactivarlo: quitar el 'CAI' de aquí.
+  const metodosApagadosFamilia = [...(escuela?.metodos_pago_deshabilitados || []), 'CAI'];
 
   const REGIMENES_SAT = [
     { value: '', label: 'Sin especificar' },

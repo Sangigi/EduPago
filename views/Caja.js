@@ -1858,7 +1858,7 @@ function Caja({
                 marginBottom: 10
               },
               children: "Copiar enlace de pago"
-            }, void 0, false), tcInfo.con_cai === false && /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), /* aviso de CAI oculto 19-oct-2026 */ false && tcInfo.con_cai === false && /*#__PURE__*/_jsxDEV("div", {
               style: {
                 background: '#fffbeb',
                 border: '1px solid #fcd34d',
