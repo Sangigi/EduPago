@@ -19,7 +19,7 @@
     // CSS de index.html. Antes aquí decía 0.45 mientras el CSS corría a 0.3:
     // la animación acababa y el splash seguía tapando la pantalla ~0.7 s de
     // más en cada recarga. Los dos números tienen que moverse juntos.
-    multiplicadorVelocidad = 0.3;
+    multiplicadorVelocidad = 1;
   }
 
   var marcarVisto = function(){
