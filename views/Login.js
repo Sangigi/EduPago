@@ -84,6 +84,8 @@ function Login({
             maxWidth: 280,
             objectFit: 'contain',
             borderRadius: 14,
+            padding: 10,
+            background: '#272c64',
             display: 'inline-block'
           },
           onError: e => {

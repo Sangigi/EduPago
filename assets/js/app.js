@@ -3270,7 +3270,7 @@ function App() {
 
                           maxWidth: '100%',
 
-                          borderRadius: 12,
+                          borderRadius: 12, padding: 10, background: '#272c64',
 
                           display: 'block',
 

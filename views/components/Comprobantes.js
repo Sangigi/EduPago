@@ -172,6 +172,7 @@ const _CSS_COMPROBANTE = `
   .voucher { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.12); }
   .v-top { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 12px; border-bottom: 3px solid #282d65; }
   .v-top img { height: 48px; max-width: 200px; object-fit: contain; }
+  .v-top img.logo-ple { padding: 10px; background: #272c64; border-radius: 8px; }
   .v-titulo { text-align: right; }
   .v-titulo h1 { margin: 0; font-size: 20px; color: #282d65; }
   .v-titulo span { font-size: 11px; color: #6b7280; }
@@ -229,7 +230,7 @@ function generarComprobanteEfectivo({ cobro, cliente, familia, escuela }) {
 </head><body>
   <div class="voucher">
     <div class="v-top">
-      <img src="${esc(abs(logo))}" alt="${esc(nombreEscuela)}" class="js-imgfallback">
+      <img src="${esc(abs(logo))}" alt="${esc(nombreEscuela)}" class="js-imgfallback${escuela?.logo_url ? '' : ' logo-ple'}">
       <div class="v-titulo"><h1>Formato de Pago</h1><span>${esc(nombreEscuela)}</span></div>
     </div>
     <div class="v-body">
@@ -293,7 +294,7 @@ function generarComprobanteSPEI({ cobro, cliente, familia, escuela }) {
 </head><body>
   <div class="voucher">
     <div class="v-top">
-      <img src="${esc(abs(logo))}" alt="${esc(nombreEscuela)}" class="js-imgfallback">
+      <img src="${esc(abs(logo))}" alt="${esc(nombreEscuela)}" class="js-imgfallback${escuela?.logo_url ? '' : ' logo-ple'}">
       <div class="v-titulo"><h1>Instrucciones de pago SPEI</h1><span>${esc(nombreEscuela)}</span></div>
     </div>
     <div class="v-body">

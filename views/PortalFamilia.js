@@ -895,7 +895,7 @@ function PortalFamilia({
                 alt: "Paga la Escuela",
                 style: {
                   height: 36, width: 'auto', maxWidth: 120, flexShrink: 0,
-                  borderRadius: 8, objectFit: 'contain', objectPosition: 'left center',
+                  borderRadius: 8, padding: 10, background: '#272c64', objectFit: 'contain', objectPosition: 'left center',
                   display: 'block'
                 },
                 onError: e => { e.target.style.display = 'none'; }
