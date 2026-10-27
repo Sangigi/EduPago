@@ -891,7 +891,7 @@ function PortalFamilia({
             style: { display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 },
             children: [
               _jsxDEV("img", {
-                src: "assets/logo.jpeg",
+                src: "assets/logo.svg",
                 alt: "Paga la Escuela",
                 style: {
                   height: 36, width: 'auto', maxWidth: 120, flexShrink: 0,

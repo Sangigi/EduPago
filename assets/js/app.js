@@ -3248,7 +3248,7 @@ function App() {
 
                         src:
 
-                          "assets/logo.jpeg",
+                          "assets/logo.svg",
 
 
 

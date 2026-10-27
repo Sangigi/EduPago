@@ -215,7 +215,7 @@ function generarComprobanteEfectivo({ cobro, cliente, familia, escuela }) {
   const esc = escHtml;
   const abs = rutaAbsoluta;
   const total = Number(cobro.total || 0);
-  const logo = escuela?.logo_url || 'assets/logo.jpeg';
+  const logo = escuela?.logo_url || 'assets/logo.svg';
   const nombreEscuela = escuela?.nombre || 'Paga la Escuela';
   const hoy = new Date();
   const fechaEmision = hoy.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
@@ -280,7 +280,7 @@ function generarComprobanteSPEI({ cobro, cliente, familia, escuela }) {
   const esc = escHtml;
   const abs = rutaAbsoluta;
   const total = Number(cobro.total || 0);
-  const logo = escuela?.logo_url || 'assets/logo.jpeg';
+  const logo = escuela?.logo_url || 'assets/logo.svg';
   const nombreEscuela = escuela?.nombre || 'Paga la Escuela';
   const hoy = new Date();
   const fechaEmision = hoy.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });

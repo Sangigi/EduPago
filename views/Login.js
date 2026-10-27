@@ -77,7 +77,7 @@ function Login({
           marginBottom: 28
         },
         children: [/*#__PURE__*/_jsxDEV("img", {
-          src: "assets/logo.jpeg",
+          src: "assets/logo.svg",
           alt: "paga la escuela",
           style: {
             height: 90,
@@ -103,14 +103,6 @@ function Login({
               lineHeight: 1
             },
             children: "paga la escuela"
-          }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
-            style: {
-              fontSize: 12,
-              color: '#bdcf00',
-              marginTop: 6,
-              fontWeight: 600
-            },
-            children: "by Libertyfin"
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -424,7 +416,7 @@ function Login({
           fontSize: 11,
           color: 'var(--ink-4)'
         },
-        children: "© 2026 Pagalaescuela.com · by Libertyfin · Todos los derechos reservados"
+        children: "© 2026 Pagalaescuela.com · Todos los derechos reservados"
       }, void 0, false)]
     }, void 0, true)
   }, void 0, false);
