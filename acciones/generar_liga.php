@@ -89,13 +89,23 @@
             'ExpirationDate' => date('Y-m-d', strtotime('+1 day')),
         ];
         log_api("generar_liga -> folio={$folio} total={$total} ref={$ref}");
-        // MIGRADO a PLE_URL_LIGA_TOKEN (GenerarLigaDomiciliacionIndi): el
-        // proveedor confirmó (ago-2026) que el endpoint de domiciliación ya
-        // responde "code":"success" con el mismo formato de Id/Reference
-        // (9/15 dígitos, ceros a la izquierda, como STRING) — verificado con
-        // una prueba real antes de este cambio. webhook_liga.php ya sabe
-        // reconstruir la referencia envuelta que regresa este endpoint.
-        $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload); // 19-oct-2026: GenerarLigaIndi (la de domiciliación daba 404 de permisos)
+        // 16-oct-2026: DE VUELTA a GenerarLigaIndi (liga simple). El endpoint
+        // de domiciliación (PLE_URL_LIGA_TOKEN / GenerarLigaDomiciliacionIndi)
+        // responde 404 "No tiene permiso para generar ligas" desde el
+        // 12-oct-2026, así que con él NO se puede cobrar con tarjeta en
+        // absoluto: no es que se pierda la domiciliación, es que no hay pago.
+        //
+        // El payload es idéntico en los dos endpoints (mismo formato de
+        // Id/Reference: 9/15 dígitos con ceros a la izquierda, como STRING).
+        // Eso ya está probado en producción, no supuesto: la suscripción
+        // (escuela_generar_pago_renovacion.php) y el alta de colegios
+        // (invitacion_generar_pago.php) llevan usando esta misma URL con este
+        // mismo payload desde el 13-oct.
+        //
+        // Lo que se pierde es la tokenización de la tarjeta — ver 'con_cai'
+        // más abajo. Para volver a domiciliación hay que reactivar el permiso
+        // con Cobroscontarjeta.com y cambiar esta constante de vuelta.
+        $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload);
         if ($res['error']) respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);
         $raw = json_decode($res['body'], true) ?? [];
         $data_resp = [];
@@ -120,12 +130,20 @@
             'total'      => $total,
             'abonado'    => round(floatval($cobroRow['monto_pagado'] ?? 0), 2),
             'qr_url'     => 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=' . urlencode($url_pago),
-            // PLE_URL_LIGA_TOKEN tokeniza la tarjeta del lado del proveedor,
-            // pero eso NO significa que nosotros la vayamos a guardar: desde el
-            // 22-sep-2026 webhook_liga.php descarta el token cuando el colegio
-            // tiene la domiciliación apagada. Este flag le dice la verdad al
-            // frontend, que lo usa para decidir si pide la casilla de
-            // autorización de cargo automático — antes iba en true fijo y la
-            // pedía incluso con la domiciliación deshabilitada.
-            'con_cai'    => false, // la liga simple no tokeniza: no hay tarjeta que domiciliar
+            // Siempre false mientras la liga se genere con GenerarLigaIndi:
+            // ese endpoint NO tokeniza la tarjeta, así que el webhook nunca va
+            // a recibir un token y la domiciliación no puede quedar activa por
+            // esta vía, dé lo que dé la configuración del colegio.
+            //
+            // Antes esto dependía de metodo_pago_deshabilitado(...,'CAI'), que
+            // responde si el colegio TIENE PERMITIDA la domiciliación. Dejarlo
+            // así ahora le mentiría al cajero: el frontend usa este flag para
+            // decidir si pide la casilla de autorización de cargo automático, y
+            // la pediría para una tarjeta que nunca se va a guardar. Peor que
+            // inútil — es pedir un permiso que no se puede ejercer.
+            //
+            // views/Caja.js ya trae la rama para este caso: con false muestra
+            // el aviso de que el pago se procesa normal pero la tarjeta no
+            // quedará guardada para cargos automáticos.
+            'con_cai'    => false,
         ]);

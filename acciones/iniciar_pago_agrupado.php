@@ -183,7 +183,13 @@ if ($metodo === 'TC') {
     ];
     log_api("iniciar_pago_agrupado(TC) -> agrupado_id={$agrupado_id} cliente={$cliente_id} cobros=" . implode(',', $cobro_ids) . " total={$total} ref={$ref}");
 
-    $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload); // 19-oct-2026: GenerarLigaIndi (la de domiciliación daba 404 de permisos)
+    // 16-oct-2026: liga simple (GenerarLigaIndi) en vez de la de domiciliación
+    // (PLE_URL_LIGA_TOKEN), que responde 404 "No tiene permiso para generar
+    // ligas" desde el 12-oct y por tanto impide cobrar con tarjeta. Mismo
+    // payload en ambos endpoints. Este flujo agrupa varios cobros de un alumno
+    // en una sola liga y nunca dependió del token, así que no pierde nada:
+    // solo deja de tokenizar la tarjeta, cosa que aquí no se usaba.
+    $res = curl_post(PLE_URL_LIGA_SIMPLE, $payload);
     if ($res['error']) {
         log_api("iniciar_pago_agrupado(TC) ERROR DE RED -> " . $res['error']);
         respond(['success' => false, 'error' => 'Error de red: ' . $res['error']]);

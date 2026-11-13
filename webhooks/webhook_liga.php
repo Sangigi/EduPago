@@ -674,13 +674,17 @@ try {
         // permiso. Por eso el bloqueo va aquí, en el punto donde se persiste,
         // y no solo en el momento de cobrar.
         //
-        // La liga se sigue generando con PLE_URL_LIGA_TOKEN, que tokeniza del
-        // lado del proveedor. Existe PLE_URL_LIGA_SIMPLE (GenerarLigaIndi) que
-        // no tokeniza, pero su contrato de payload no está verificado contra
-        // este proveedor y cambiarlo a ciegas arriesga tumbar todos los pagos
-        // con tarjeta. Lo correcto es confirmarlo con Cobroscontarjeta.com y
-        // entonces elegir la URL según el método; mientras tanto, lo que no se
-        // guarda no se puede cobrar.
+        // ACTUALIZADO 16-oct-2026: las ligas ya NO se generan con
+        // PLE_URL_LIGA_TOKEN. El endpoint de domiciliación responde 404 "No
+        // tiene permiso para generar ligas" desde el 12-oct, así que todo el
+        // sistema pasó a PLE_URL_LIGA_SIMPLE (GenerarLigaIndi), cuyo contrato
+        // de payload ya quedó verificado en producción. Ese endpoint no
+        // tokeniza, de modo que $number_tkn llega vacío y la rama de guardado
+        // de abajo sencillamente no corre.
+        //
+        // El bloqueo se conserva igual porque sigue siendo el punto correcto
+        // donde defenderlo: si algún día se reactiva el permiso y se vuelve al
+        // endpoint que tokeniza, esta comprobación tiene que seguir ahí.
         $cai_apagado = metodo_pago_deshabilitado($pdo, intval($cobro['escuela_id'] ?? 0), 'CAI');
         if ($number_tkn && !$cai_apagado) {
             $pdo->prepare(
