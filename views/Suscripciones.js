@@ -83,6 +83,8 @@ function Suscripciones({ data, setData }) {
     { id: 'familias', label: 'Familias' }, { id: 'productos', label: 'Conceptos de pago' },
     { id: 'proveedores', label: 'Proveedores' }, { id: 'facturacion', label: 'Facturación' },
     { id: 'recordatorios', label: 'Recordatorios' }, { id: 'reportes', label: 'Reportes' },
+    { id: 'escolar_grupos', label: 'Grupos y horarios' }, { id: 'escolar_asistencias', label: 'Asistencias' },
+    { id: 'escolar_calificaciones', label: 'Calificaciones' }, { id: 'escolar_config', label: 'Ciclos, materias y aulas' },
   ];
   const METODOS_PAGO_GLOBAL_CATALOGO = [
     { id: 'TC', label: 'Tarjeta' }, { id: 'SPEI', label: 'SPEI' },
@@ -107,6 +109,10 @@ function Suscripciones({ data, setData }) {
     { id: 'recordatorios', label: 'Recordatorios' },
     { id: 'reportes', label: 'Reportes' },
     { id: 'miequipo', label: 'Mi equipo' },
+    { id: 'escolar_grupos', label: 'Grupos y horarios' },
+    { id: 'escolar_asistencias', label: 'Asistencias' },
+    { id: 'escolar_calificaciones', label: 'Calificaciones' },
+    { id: 'escolar_config', label: 'Ciclos, materias y aulas' },
   ];
 
   const [mantEstado, setMantEstado] = useState(null); // { secciones, motivo, inicio, fin } | null

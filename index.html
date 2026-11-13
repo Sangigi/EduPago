@@ -776,7 +776,7 @@
 
 
 
-<script defer src="controllers/AuthController.js?v=1790198476"></script>
+<script defer src="controllers/AuthController.js?v=1794600000"></script>
 
 
 
@@ -826,8 +826,8 @@
 
 
 
-<script defer src="views/components/MenuPerfil.js?v=1790264342"></script>
-<script defer src="views/components/GuiaPrimerUso.js?v=1790373039"></script>
+<script defer src="views/components/MenuPerfil.js?v=1794600000"></script>
+<script defer src="views/components/GuiaPrimerUso.js?v=1794600000"></script>
 
 
 
@@ -924,11 +924,11 @@
 
 
 
-<script defer src="views/Escuelas.js?v=1790600000"></script>
+<script defer src="views/Escuelas.js?v=1794600000"></script>
 
 
 
-<script defer src="views/Usuarios.js?v=1790700000"></script>
+<script defer src="views/Usuarios.js?v=1794600000"></script>
 
 
 
@@ -940,7 +940,7 @@
 
 
 
-<script defer src="views/Suscripciones.js?v=1790600000"></script>
+<script defer src="views/Suscripciones.js?v=1794600000"></script>
 
 
 
@@ -951,7 +951,14 @@
 
 
 
-<script defer src="views/PortalFamilia.js?v=1790700000"></script>
+<!-- Control escolar (13-nov-2026). ControlEscolar.js ANTES que EscolarFamilia,
+     PortalDocente y PortalFamilia: los tres usan sus globales (EscBoletaVista,
+     escApi, ESC_ESTADOS…). -->
+<script defer src="views/ControlEscolar.js?v=1794600000"></script>
+<script defer src="views/EscolarFamilia.js?v=1794600000"></script>
+<script defer src="views/PortalDocente.js?v=1794600000"></script>
+
+<script defer src="views/PortalFamilia.js?v=1794600000"></script>
 
 <script defer src="views/Distribuidor.js?v=1790373295"></script>
 
@@ -965,7 +972,7 @@
 
 
 
-<script defer src="assets/js/app.js?v=1790600000"></script>
+<script defer src="assets/js/app.js?v=1794600000"></script>
 
 
 

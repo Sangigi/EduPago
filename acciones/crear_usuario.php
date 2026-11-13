@@ -6,7 +6,8 @@
         $rol       = trim($input['rol']        ?? '');
         $esc_id    = intval($input['escuela_id'] ?? 0) ?: null;
         $fam_id    = intval($input['familia_id'] ?? 0) ?: null;
-        $roles_validos = ['admin','cajero','familia'];
+        // 'docente' (13-nov-2026): personal del colegio, solo control escolar.
+        $roles_validos = ['admin','cajero','familia','docente'];
         // 'contador' (11-sep-2026): revisa documentos fiscales y datos de
         // pago de CUALQUIER escuela (ver revisar_documento_escuela.php y
         // demás), pero no tiene el resto de los poderes de superadmin

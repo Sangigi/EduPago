@@ -41,6 +41,10 @@ var ROL_INFO = {
                   desc: 'Gestiona cajeros y familias asignados a su mismo plantel escolar.' },
   cajero:       { label: 'Cajero',       icon: 'cobros',   color: 'var(--green)',  bg: 'var(--green-glow)',    badge: 'badge-green', deColegio: true,
                   desc: 'Acceso operativo exclusivo a Caja, cobros, e impresión de tickets.' },
+  // Control escolar (13-nov-2026): pasa lista y califica SOLO en los grupos
+  // donde es tutor o imparte materia. No ve nada de cobros ni saldos.
+  docente:      { label: 'Docente',      icon: 'escuelas', color: '#0ea5e9',       bg: 'rgba(14,165,233,.15)', badge: 'badge-blue', deColegio: true,
+                  desc: 'Pasa lista y captura calificaciones de sus grupos y materias. Sin acceso a cobros ni saldos.' },
   familia:      { label: 'Familia',      icon: 'home',     color: '#a855f7',       bg: 'rgba(168,85,247,.15)', badge: 'badge-purple', deColegio: true,
                   desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' },
   // Refiere colegios y cobra comisión. Su rama del formulario es propia porque

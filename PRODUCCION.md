@@ -754,3 +754,16 @@ views/hooks/            ← Hooks compartidos (usePaginaActual)
 
 migracion_*.sql         ← Migraciones manuales (correr una vez en phpMyAdmin, ver sección 5)
 ```
+
+
+---
+
+## Control escolar (13-nov-2026)
+
+Módulo académico nuevo, independiente del de cobros. **Antes de subir el código, correr una vez** `migraciones/migracion_2026_11_13_control_escolar.sql` en phpMyAdmin (crea 10 tablas con `CREATE TABLE IF NOT EXISTS`; no altera tablas existentes). Si no se corre, las pantallas escolares muestran "falta correr la migración" y el resto del sistema sigue igual.
+
+- **Admin** — menú nuevo "Control escolar": *Grupos y horarios*, *Asistencias*, *Calificaciones*, *Ciclos, materias y aulas* (`views/ControlEscolar.js`).
+- **Docente** — rol nuevo (`usuarios.rol = 'docente'`, sin migración: la columna ya es VARCHAR). Se da de alta en *Mi equipo*. Tiene panel propio (`views/PortalDocente.js`) y un allowlist explícito en `api.php`: **no** puede llamar `cargar_datos` ni nada de cobros. Solo ve los grupos donde es tutor o imparte materia; califica solo sus materias y en periodos abiertos; corrige asistencias de hasta 7 días atrás.
+- **Familia** — pestaña "Escolar" en el portal con calificaciones, asistencia, faltas recientes y boleta imprimible de sus hijos.
+- **Superadmin** — las 4 secciones (`escolar_*`) se pueden apagar por colegio o globalmente como cualquier otra.
+- Reglas de acceso centralizadas en `lib/helpers_escolar.php`; acciones en `acciones/escolar_*.php`.

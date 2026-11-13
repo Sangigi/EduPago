@@ -561,6 +561,11 @@ var GUIA_PASOS_POR_ROL = {
     { id: '_m1', titulo: 'Invita colegios', texto: 'Genera una liga, mándasela al colegio y ellos se registran solos. Aquí ves el avance de cada una.' },
     { id: '_m2', titulo: 'Sin comisiones', texto: 'Tu cuenta genera invitaciones, pero no acumula comisión por los colegios que entren.' },
   ],
+  docente: [
+    { id: '_d1', titulo: 'Tus grupos', texto: 'Aquí aparecen los grupos donde eres tutor o das alguna materia, con tu horario de la semana.' },
+    { id: '_d2', titulo: 'Pasa lista', texto: 'Marca presente, falta, retardo o justificada. Puedes corregir hasta 7 días atrás.' },
+    { id: '_d3', titulo: 'Califica', texto: 'Captura las notas de tus materias por periodo. Cuando la escuela cierra un periodo, ya no se puede modificar.' },
+  ],
   familia: [
     { id: '_f1', titulo: 'Lo que debes', texto: 'Aquí ves cada cobro de tus hijos: qué es, cuánto y para cuándo.' },
     { id: '_f2', titulo: 'Paga como te acomode', texto: 'Tarjeta, transferencia o referencia para pagar en tiendas. El colegio lo ve al instante.' },

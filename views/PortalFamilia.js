@@ -827,6 +827,8 @@ function PortalFamilia({
       ]
     }, id, true);
   };
+  const _seccOff = (escuela && Array.isArray(escuela.secciones_deshabilitadas)) ? escuela.secciones_deshabilitadas : [];
+  const escolarHabilitado = ['escolar_grupos', 'escolar_asistencias', 'escolar_calificaciones'].some(s => !_seccOff.includes(s));
   const cobrosHijo = id => misCobros.filter(c => c.cliente_id === id);
   const pendientesHj = id => cobrosHijo(id).filter(c => c.estado === 'pendiente');
   // Serie de pagos por mes para la mini gráfica de la portada
@@ -1076,6 +1078,10 @@ function PortalFamilia({
             children: [
               tabBtn('inicio', 'Inicio', 'home'),
               tabBtn('hijos', 'Mis hijos', 'alumnos'),
+              // Control escolar (13-nov-2026): se esconde si el colegio tiene
+              // apagadas todas las secciones escolares (el servidor también
+              // lo bloquea en escolar_familia_resumen.php).
+              escolarHabilitado ? tabBtn('escolar', 'Escolar', 'reportes') : null,
               tabBtn('historial', 'Historial', 'history'),
               tabBtn('pagar', 'Pagar en línea', 'card'),
               tabBtn('facturas', 'Facturas', 'facturacion2'),
@@ -2736,7 +2742,9 @@ function PortalFamilia({
         }, void 0, false)]
       
       }, void 0, true)
-    }, void 0, false), tab === 'facturas' && _jsxDEV("div", {
+    }, void 0, false), tab === 'escolar' && typeof EscolarFamilia !== 'undefined' && _jsxDEV(EscolarFamilia, {
+        escuela: escuela
+      }, 'escolar', false), tab === 'facturas' && _jsxDEV("div", {
         children: [_jsxDEV("div", {
           style: { fontSize: 13, color: PLC.muted, marginBottom: 14 },
           children: "Facturas (CFDI) generadas para tus pagos. Solo aparecen los cobros que ya fueron facturados."

@@ -71,7 +71,7 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbaj
   // ("contador" en minúsculas) en vez de una etiqueta legible.
   const rolLabel = {
     superadmin: 'Superadministrador', admin: 'Administrador',
-    cajero: 'Cajero', familia: 'Familia', distribuidor: 'Distribuidor',
+    cajero: 'Cajero', docente: 'Docente', familia: 'Familia', distribuidor: 'Distribuidor',
     contador: 'Contador', soporte: 'Soporte', provision: 'Provisión', tesoreria: 'Tesorería', promotor: 'Promotor'
   }[user.rol] || user.rol;
 

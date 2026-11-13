@@ -38,7 +38,9 @@ const VISTA_INICIAL_POR_ROL = { soporte: 'busqueda_global' };
 // `data` (sus ramas de render devuelven antes del guard `if (!data)`). Pedir
 // cargar_datos para ellos era trabajo de servidor tirado a la basura en cada
 // carga de página. Ver el efecto de restauración de sesión.
-const ROLES_SIN_CARGAR_DATOS = ['contador', 'provision', 'distribuidor', 'promotor', 'tesoreria'];
+// 'docente' (13-nov-2026): su panel trae todo con acciones escolar_*; además
+// cargar_datos le está vedado en api.php (le mandaría saldos y cobros).
+const ROLES_SIN_CARGAR_DATOS = ['contador', 'provision', 'distribuidor', 'promotor', 'tesoreria', 'docente'];
 
 const NAV_ITEMS = [{
 
@@ -144,6 +146,34 @@ const NAV_ITEMS = [{
 
   roles: ['admin']
 
+}, {
+  // ── Control escolar (13-nov-2026). views/ControlEscolar.js. Los ids
+  // también existen en SECCIONES_DISPONIBLES (api.php) para que el super
+  // admin pueda apagarlos por colegio. El rol 'docente' no pasa por este
+  // menú: tiene su propio panel (views/PortalDocente.js).
+  id: 'escolar_grupos',
+  label: 'Grupos y horarios',
+  icon: 'escuelas',
+  section: 'control escolar',
+  roles: ['admin']
+}, {
+  id: 'escolar_asistencias',
+  label: 'Asistencias',
+  icon: 'check',
+  section: 'control escolar',
+  roles: ['admin']
+}, {
+  id: 'escolar_calificaciones',
+  label: 'Calificaciones',
+  icon: 'reportes',
+  section: 'control escolar',
+  roles: ['admin']
+}, {
+  id: 'escolar_config',
+  label: 'Ciclos, materias y aulas',
+  icon: 'settings',
+  section: 'control escolar',
+  roles: ['admin']
 }, {
 
   id: 'productos',
@@ -365,6 +395,11 @@ const TITLES = {
   gastos: 'Gastos',
 
   proveedores: 'Proveedores',
+
+  escolar_grupos: 'Grupos y horarios',
+  escolar_asistencias: 'Asistencias',
+  escolar_calificaciones: 'Calificaciones',
+  escolar_config: 'Ciclos, materias y aulas',
 
   facturacion: 'Facturación',
 
@@ -1491,6 +1526,18 @@ function App() {
 
   }
 
+  // * PANEL DOCENTE (13-nov-2026) * Autónomo como los de arriba: no usa
+  // cargar_datos. A diferencia de ellos SÍ pertenece a un colegio
+  // (user.escuela_id), que ControlEscolar usa para sus acciones.
+  if (user.rol === 'docente') {
+    return conGuia(_jsxDEV(
+      PortalDocente,
+      { user: user, onLogout: handleLogout, menuPerfil: menuPerfilPlataforma },
+      void 0,
+      false
+    ));
+  }
+
   if (user.rol === 'tesoreria') {
 
     return conGuia(_jsxDEV(
@@ -2438,6 +2485,24 @@ function App() {
 
           false
 
+        );
+
+      case 'escolar_grupos':
+      case 'escolar_asistencias':
+      case 'escolar_calificaciones':
+      case 'escolar_config':
+        return _jsxDEV(
+          ControlEscolar,
+          {
+            escuela_id: escuelaActiva,
+            user: user,
+            // 'escolar_grupos' → 'grupos', 'escolar_config' → 'config', etc.
+            seccion: view.replace('escolar_', ''),
+            onIrA: setView
+          },
+          // key por sección: cada ítem del menú arranca con su propio estado.
+          view,
+          false
         );
 
       case 'proveedores':

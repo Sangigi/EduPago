@@ -401,6 +401,10 @@ function Escuelas({
     { id: 'recordatorios', label: 'Recordatorios' },
     { id: 'reportes', label: 'Reportes' },
     { id: 'miequipo', label: 'Mi equipo' },
+    { id: 'escolar_grupos', label: 'Grupos y horarios' },
+    { id: 'escolar_asistencias', label: 'Asistencias' },
+    { id: 'escolar_calificaciones', label: 'Calificaciones' },
+    { id: 'escolar_config', label: 'Ciclos, materias y aulas' },
   ];
   // ── Pool CLABEs ─────────────────────────────────────────────────────────────
   const [poolEscId,   setPoolEscId]   = useState(null);  // escuela cuyo pool se gestiona

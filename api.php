@@ -10,6 +10,8 @@ require_once __DIR__ . '/lib/helpers_comisiones.php';
 require_once __DIR__ . '/lib/curl_helper.php';
 require_once __DIR__ . '/lib/facturapi.php';
 require_once __DIR__ . '/lib/uploads.php';
+// Control escolar (13-nov-2026): reglas de acceso del módulo académico.
+require_once __DIR__ . '/lib/helpers_escolar.php';
 // ── Planes de suscripción ───────────────────────────────────────────────
 // La tabla (precios, límites, etiquetas) vivía AQUÍ y estaba copiada a mano
 // en cron_recordatorios.php, views/MiSuscripcion.js y assets/js/registro.js.
@@ -38,6 +40,11 @@ const SECCIONES_DISPONIBLES = [
     'recordatorios' => 'Recordatorios',
     'reportes'      => 'Reportes',
     'miequipo'      => 'Mi equipo',
+    // Control escolar (13-nov-2026). Ver lib/helpers_escolar.php.
+    'escolar_grupos'         => 'Grupos y horarios',
+    'escolar_asistencias'    => 'Asistencias',
+    'escolar_calificaciones' => 'Calificaciones',
+    'escolar_config'         => 'Ciclos, materias y aulas',
 ];
 // ── Vencimiento de suscripción: ciclo de calendario mensual ────────────────
 // El primer periodo de un colegio nuevo se prorratea (vence a fin del mes en
@@ -289,7 +296,8 @@ $ACCIONES_PERMITIDAS_VENCIDO = [
 ];
 
 if (isset($usuario_actual) && $usuario_actual && !empty($usuario_actual['escuela_id'])
-    && in_array($usuario_actual['rol'] ?? '', ['admin', 'cajero'], true)
+    // 'docente' (13-nov-2026) es personal del colegio igual que admin/cajero.
+    && in_array($usuario_actual['rol'] ?? '', ['admin', 'cajero', 'docente'], true)
     && !in_array($action, $ACCIONES_PERMITIDAS_VENCIDO, true)) {
     $estadoSus = suscripcion_estado($pdo, $usuario_actual['escuela_id']);
     if ($estadoSus['vencida']) {
@@ -569,6 +577,20 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // acción aquí, el 403 solo deja rastro en api_log.txt.
         'comisiones_estado_cuenta', 'comisiones_registrar_pago',
         'listar_gastos', 'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    ],
+    // Docente (13-nov-2026). NO es rol de plataforma —pertenece a un colegio—
+    // pero va en este allowlist por la misma razón de fondo: es un rol nuevo y
+    // no debe heredar el hueco histórico de las ~25 acciones sin
+    // requerir_rol(). Lo más delicado que queda fuera es cargar_datos, que le
+    // mandaría saldos, cobros y datos de contacto de toda la escuela. Su panel
+    // (views/PortalDocente.js) trae todo con estas acciones, que además
+    // validan por dentro que el grupo/materia sea suyo (lib/helpers_escolar.php).
+    'docente' => [
+        'escolar_catalogos', 'escolar_grupo_detalle', 'escolar_horario_docente',
+        'escolar_asistencia_obtener', 'escolar_asistencia_guardar', 'escolar_asistencia_reporte',
+        'escolar_calificaciones_obtener', 'escolar_calificaciones_guardar',
+        'escolar_resumen_grupo', 'escolar_boleta',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
 ];
 // 'editar_usuario' y 'cambiar_password_propio' van en las tres listas porque
