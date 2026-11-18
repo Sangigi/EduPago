@@ -41,17 +41,12 @@
         }
         requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['alumnos', 'familias']);
         // Límite de alumnos según el plan contratado (ver PLANES_LIMITES arriba)
-        $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");
-        $plan_esc->execute([$escuela_id]);
-        $plan_nombre = $plan_esc->fetch()['plan'] ?? PLAN_FALLBACK;
-        $limite = limitesDelPlan($plan_nombre)['max_alumnos'];
-        if ($limite !== null) {
-            $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE escuela_id = ? AND activo = 1");
-            $cnt->execute([$escuela_id]);
-            $actuales = intval($cnt->fetch()['n'] ?? 0);
-            if ($actuales >= $limite) {
-                respond(['success' => false, 'error' => "Llegaste al límite de $limite alumnos activos de tu plan ($plan_nombre). Actualiza tu plan para dar de alta a más alumnos."]);
-            }
+        // [F1] La regla se extrajo a alumno_validar_limite_plan()
+        // (lib/helpers_alumnos.php) para que reactivar a un alumno aplique
+        // exactamente la misma y no sea una puerta trasera para pasarse del plan.
+        $err_plan_f1 = alumno_validar_limite_plan($pdo, $escuela_id);
+        if ($err_plan_f1 !== null) {
+            respond(['success' => false, 'error' => $err_plan_f1]);
         }
         $stmt = $pdo->prepare(
             "INSERT INTO clientes (escuela_id, familia_id, tipo, nombre, grado, matricula, curp, email, telefono,
@@ -63,4 +58,9 @@
                          $direccion, $contacto_emergencia, $tel_emergencia, $doc_curp_url, $doc_acta_url, $doc_ine_tutor_url,
                          $nivel_educativo_sat, $parentesco, $foto_url]);
         $id = intval($pdo->lastInsertId());
+        // [F1] Bitácora del alumno: alta manual. Nunca lanza.
+        if (function_exists('alumno_registrar_movimiento')) {
+            alumno_registrar_movimiento($pdo, $escuela_id, $id, 'alta', null, ['origen' => 'alta_manual'],
+                intval($usuario_actual['user_id'] ?? 0) ?: null, null, 'activo');
+        }
         respond(['success' => true, 'cliente' => array_merge($input, ['id' => $id, 'activo' => true, 'saldo_pendiente' => 0])]);

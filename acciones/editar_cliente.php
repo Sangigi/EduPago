@@ -76,12 +76,35 @@
         }
         if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
         $vals[] = $id;
+        // [F1] Cómo estaba antes, para anotar en la bitácora QUÉ campos cambiaron.
+        $antes_f1 = null;
+        if (function_exists('alumno_registrar_movimiento')) {
+            $st_antes_f1 = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
+            $st_antes_f1->execute([$id]);
+            $antes_f1 = $st_antes_f1->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
         $stmt = $pdo->prepare("UPDATE clientes SET " . implode(', ', $sets) . " WHERE id = ?");
         $stmt->execute($vals);
         // Regresar el registro actualizado real de la DB (no $input parcial)
         $stmt2 = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
         $stmt2->execute([$id]);
         $clienteActualizado = $stmt2->fetch(PDO::FETCH_ASSOC);
+        // [F1] Bitácora: solo los NOMBRES de los campos que de verdad cambiaron
+        // (comparando la fila antes/después en la BD), nunca sus valores: CURP,
+        // teléfonos y correos no deben quedar copiados en el historial. Si se
+        // guardó sin cambiar nada, no se registra movimiento.
+        if ($antes_f1 && $clienteActualizado) {
+            $cambiados_f1 = [];
+            foreach ($campos as $c) {
+                if (!array_key_exists($c, $input)) continue;
+                if (strval($antes_f1[$c] ?? '') !== strval($clienteActualizado[$c] ?? '')) $cambiados_f1[] = $c;
+            }
+            if (!empty($cambiados_f1)) {
+                alumno_registrar_movimiento($pdo, intval($clienteActualizado['escuela_id']), $id, 'edicion', null,
+                    ['campos' => $cambiados_f1, 'por' => $es_familia ? 'familia' : 'escuela'],
+                    intval($usuario_actual['user_id'] ?? 0) ?: null);
+            }
+        }
         $clienteActualizado['familia_id'] = $clienteActualizado['familia_id'] ? intval($clienteActualizado['familia_id']) : null;
         $clienteActualizado['activo']     = (bool)$clienteActualizado['activo'];
         $clienteActualizado['tel']        = $clienteActualizado['telefono'] ?? null;

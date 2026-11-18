@@ -147,6 +147,14 @@
                 );
                 $stmtIns->execute([$escuela_id, $familia_id, $alumno_nombre, $grado, $matricula, $curp, $alumno_email, $alumno_tel, $nivel_sat]);
                 $nuevoClienteId = intval($pdo->lastInsertId());
+                // [F1] Bitácora: alta por importación. alumno_hay_tabla() se
+                // recuerda por petición: sin la migración no se intenta (ni se
+                // llena el log) mil veces.
+                if (function_exists('alumno_registrar_movimiento') && alumno_hay_tabla($pdo, 'alumno_movimientos')) {
+                    alumno_registrar_movimiento($pdo, $escuela_id, $nuevoClienteId, 'alta', null,
+                        ['origen' => 'importacion_csv', 'fila' => $numFila],
+                        intval($usuario_actual['user_id'] ?? 0) ?: null, null, 'activo');
+                }
                 $clientesDetalle[] = [
                     'id' => $nuevoClienteId, 'escuela_id' => $escuela_id, 'familia_id' => $familia_id,
                     'tipo' => 'alumno', 'nombre' => $alumno_nombre, 'grado' => $grado, 'matricula' => $matricula,

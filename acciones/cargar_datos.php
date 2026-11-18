@@ -171,6 +171,21 @@
                 $params_cli[] = $like;  // grado
             }
         }
+        // [F1] Filtro por estatus del alumno (selector de views/Alumnos.js). Se
+        // filtra en SQL por la misma razón que la búsqueda: la lista viene
+        // paginada. 'activo'/'inactivos' usan `activo` (funciona aunque aún no
+        // corra la migración); los demás, la columna `estatus`. Sin el parámetro
+        // (Portal de Familia, demás pantallas) no cambia nada.
+        $estatus_cli_f1 = trim(strval($input['estatus_clientes'] ?? $_GET['estatus_clientes'] ?? ''));
+        if ($estatus_cli_f1 === 'activo') {
+            $where_cli .= ' AND activo = 1';
+        } elseif ($estatus_cli_f1 === 'inactivos') {
+            $where_cli .= ' AND activo = 0';
+        } elseif (in_array($estatus_cli_f1, ['baja_temporal', 'baja_definitiva', 'egresado', 'traslado'], true)
+                  && function_exists('alumno_hay_columnas_estatus') && alumno_hay_columnas_estatus($pdo)) {
+            $where_cli .= ' AND activo = 0 AND estatus = ?';
+            $params_cli[] = $estatus_cli_f1;
+        }
         $cnt = $pdo->prepare("SELECT COUNT(*) AS n FROM clientes WHERE $where_cli");
         $cnt->execute($params_cli);
         $clientes_total = intval($cnt->fetch()['n'] ?? 0);

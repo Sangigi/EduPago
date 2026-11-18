@@ -184,6 +184,11 @@ try {
          LEFT JOIN clientes cl ON cl.id = co.cliente_id
          LEFT JOIN familias fa ON fa.id = cl.familia_id
          WHERE co.estado = 'pendiente' AND co.recargo_aplicado = 0"
+        // [F1] Alumno dado de baja / egresado / trasladado (activo = 0): sin
+        // avisos automáticos. Sus adeudos se conservan, pero la cobranza de
+        // esos casos la decide el colegio a mano. cliente_id NULL ('cliente
+        // general') no se ve afectado.
+        . " AND (co.cliente_id IS NULL OR cl.activo = 1)"
     );
     foreach ($stmtPreVenc->fetchAll() as $c) {
         if ($hoyDiaMes !== intval($c['dia_ventana_fin']) - 1) continue; // solo el día antes de que cierre
@@ -219,6 +224,8 @@ try {
          LEFT JOIN clientes cl ON cl.id = co.cliente_id
          LEFT JOIN familias fa ON fa.id = cl.familia_id
          WHERE co.estado = 'pendiente' AND co.recargo_aplicado = 0 AND p.penalizacion_tipo IS NOT NULL"
+        // [F1] No se le aplican recargos a un alumno que ya no está activo.
+        . " AND (co.cliente_id IS NULL OR cl.activo = 1)"
     );
     foreach ($stmtPend->fetchAll() as $row) {
         if ($hoyDiaMes <= intval($row['dia_ventana_fin'])) continue; // todavía dentro de la ventana sin recargo
@@ -303,6 +310,8 @@ try {
          WHERE co.estado = 'pendiente' AND cl.token_tarjeta_estado = 'activo'
            AND cl.token_tarjeta IS NOT NULL
            AND co.fecha <= DATE_SUB(CURDATE(), INTERVAL " . CAI_DIAS_AVISO . " DAY)"
+        // [F1] Nunca un cargo automático a la tarjeta de un alumno dado de baja.
+        . " AND cl.activo = 1"
     );
     // ── Aviso PREVIO al cargo automatico ──
     // Antes solo se avisaba despues de cobrar ("Se realizo un cargo..."). La
@@ -333,6 +342,8 @@ try {
               WHERE co.estado = 'pendiente' AND cl.token_tarjeta_estado = 'activo'
                 AND cl.token_tarjeta IS NOT NULL
                 AND co.fecha > DATE_SUB(CURDATE(), INTERVAL " . CAI_DIAS_AVISO . " DAY)"
+            // [F1] Ni el aviso previo: el cargo de arriba ya no ocurrirá.
+            . " AND cl.activo = 1"
         );
         foreach ($stmtPorAvisar->fetchAll() as $av) {
             // Mismo candado que el bloque del cargo de más abajo: si el colegio
@@ -592,6 +603,9 @@ try {
          LEFT JOIN familias fa ON fa.id = cl.familia_id
          LEFT JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
          WHERE co.estado = 'pendiente' AND prg.id IS NULL"
+        // [F1] Sin recordatorios para alumnos dados de baja (activo = 0). Los
+        // cobros sin alumno (cliente general, cliente_id NULL) siguen igual.
+        . " AND (co.cliente_id IS NULL OR cl.activo = 1)"
     );
     foreach ($stmt->fetchAll() as $c) {
         // crear_cobro nunca guarda una fecha de vencimiento real (columna

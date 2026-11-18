@@ -12,6 +12,9 @@ require_once __DIR__ . '/lib/facturapi.php';
 require_once __DIR__ . '/lib/uploads.php';
 // Control escolar (13-nov-2026): reglas de acceso del módulo académico.
 require_once __DIR__ . '/lib/helpers_escolar.php';
+// [F1] Ciclo de vida del alumno (18-nov-2026): estatus (baja temporal/
+// definitiva, egreso, traslado, reactivación) y bitácora alumno_movimientos.
+require_once __DIR__ . '/lib/helpers_alumnos.php';
 // ── Planes de suscripción ───────────────────────────────────────────────
 // La tabla (precios, límites, etiquetas) vivía AQUÍ y estaba copiada a mano
 // en cron_recordatorios.php, views/MiSuscripcion.js y assets/js/registro.js.
