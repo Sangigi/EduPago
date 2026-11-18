@@ -4,7 +4,8 @@
         // restringido a admin/superadmin más abajo en editar_cliente y
         // toggle_cliente_activo.
         $rol_actual = $usuario_actual['rol'] ?? '';
-        requerir_rol($rol_actual, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para dar de alta alumnos.');
+        // [F0] 'control_escolar' (coordinación académica) también da de alta alumnos.
+        requerir_rol($rol_actual, ['superadmin', 'admin', 'cajero', 'control_escolar'], 'No tienes permiso para dar de alta alumnos.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
         $nombre     = trim($input['nombre']       ?? '');
         $matricula  = trim($input['matricula']    ?? '') ?: null;
@@ -24,6 +25,20 @@
         $parentesco          = normalizar_parentesco($input['parentesco'] ?? '');
         $foto_url            = validar_url_imagen($input['foto_url'] ?? '', 'enlace de la foto');
         if (!$escuela_id || !$nombre) respond(['success' => false, 'error' => 'escuela_id y nombre son requeridos']);
+        // [F0] FIX DE SEGURIDAD (18-nov-2026): el escuela_id venía del input sin
+        // compararse con el del usuario — un admin/cajero podía dar de alta
+        // alumnos en otro colegio. Y familia_id no se validaba: se podía colgar
+        // el alumno de una familia de OTRA escuela, y esa familia lo vería en su
+        // portal (cobros y pagos incluidos).
+        requerir_escuela_propia($rol_actual, $escuela_id, $usuario_actual, 'No puedes dar de alta alumnos en otro colegio.');
+        if ($familia_id) {
+            $chkFamCli = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
+            $chkFamCli->execute([$familia_id]);
+            $famCli = $chkFamCli->fetch();
+            if (!$famCli || intval($famCli['escuela_id']) !== $escuela_id) {
+                respond(['success' => false, 'error' => 'La familia seleccionada no pertenece a este colegio.']);
+            }
+        }
         requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['alumnos', 'familias']);
         // Límite de alumnos según el plan contratado (ver PLANES_LIMITES arriba)
         $plan_esc = $pdo->prepare("SELECT plan FROM escuelas WHERE id = ?");

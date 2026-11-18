@@ -1,5 +1,8 @@
 <?php
         // Devuelve la caja abierta del usuario actual en esa sucursal (o null)
+        // [F0] Solo lectura y solo de la caja propia, pero se alinea con el resto
+        // de caja_*: mismos roles que operan caja.
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'admin', 'cajero'], 'No tienes permiso para consultar la caja.');
         $sucursal_id = intval($input['sucursal_id'] ?? $_GET['sucursal_id'] ?? 0);
         $usuario_id  = intval($usuario_actual['user_id']);
         if (!$sucursal_id) respond(['success' => false, 'error' => 'sucursal_id requerido']);

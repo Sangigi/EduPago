@@ -47,6 +47,19 @@
         // encerraría en ese colegio y les vaciaría su propia pantalla.
         // 'soporte' y 'provision' se sumaron el 22-sep-2026.
         if (rol_sin_escuela($rol)) { $esc_id = null; $fam_id = null; }
+        // [F0] La familia vinculada debe ser del mismo colegio que la cuenta.
+        // Antes se aceptaba cualquier familia_id: un admin podía crear una cuenta
+        // 'familia' en SU colegio ligada a una familia de OTRO colegio. Usuarios.js
+        // ya copia la escuela de la familia al elegirla, así que en uso normal
+        // esto nunca se dispara.
+        if ($fam_id) {
+            $chkFamUsr = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
+            $chkFamUsr->execute([$fam_id]);
+            $famUsr = $chkFamUsr->fetch();
+            if (!$famUsr || intval($famUsr['escuela_id']) !== intval($esc_id ?? -1)) {
+                respond(['success' => false, 'error' => 'La familia seleccionada no pertenece a la escuela de esta cuenta.']);
+            }
+        }
         // Verificar email único
         $chk = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
         $chk->execute([$email]);

@@ -1,4 +1,12 @@
 <?php
+        // [F0] FIX DE SEGURIDAD (18-nov-2026): antes no había requerir_rol ni
+        // chequeo de pertenencia — cualquier usuario con sesión (incluida una
+        // familia) podía abrir una caja en la sucursal de CUALQUIER colegio con
+        // solo mandar su sucursal_id. La caja la operan quienes ven el menú
+        // 'caja'/'corte_caja' (NAV_ITEMS en app.js: cajero y admin), más
+        // superadmin — la misma lista que ya usa caja_cerrar.php.
+        $rol_actual_abrir = $usuario_actual['rol'] ?? '';
+        requerir_rol($rol_actual_abrir, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para abrir cajas.');
         $sucursal_id    = intval($input['sucursal_id'] ?? 0);
         $monto_apertura = floatval($input['monto_apertura'] ?? -1);
         $observaciones  = trim($input['observaciones'] ?? '');
@@ -8,6 +16,9 @@
         $stmtSuc = $pdo->prepare("SELECT escuela_id FROM sucursales WHERE id = ?");
         $stmtSuc->execute([$sucursal_id]);
         $sucCaja = $stmtSuc->fetch();
+        // [F0] La sucursal debe existir y ser de la escuela del usuario.
+        if (!$sucCaja) respond(['success' => false, 'error' => 'Sucursal no encontrada']);
+        requerir_escuela_propia($rol_actual_abrir, $sucCaja['escuela_id'], $usuario_actual, 'No tienes permiso sobre esta sucursal.');
         requerir_seccion_habilitada($pdo, $usuario_actual['rol'] ?? '', $sucCaja ? $sucCaja['escuela_id'] : null, ['caja', 'corte_caja']);
         // No permitir dos cajas abiertas simultáneas del mismo usuario en la misma sucursal
         $chk = $pdo->prepare("SELECT id FROM caja WHERE sucursal_id = ? AND usuario_id = ? AND estado = 'abierta'");

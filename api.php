@@ -476,8 +476,20 @@ function requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, $secciones,
 // if ($rol === 'familia')) y qué pasar como $familia_id_fila cuando la fila
 // no existe (normalmente null, vía "$fila['familia_id'] ?? null" — nunca
 // coincide con un familia_id real, así que se deniega igual que antes).
-function requerir_familia_propia($familia_id_fila, $usuario_actual, $mensaje) {
+//
+// [F0] $escuela_id_fila (opcional, 18-nov-2026): si el llamador ya tiene a la
+// mano la escuela de la fila (cobro/alumno), se exige además que sea la
+// escuela del usuario. Coincidir solo en familia_id no basta: si un alumno
+// quedó ligado por error a una familia de OTRO colegio (dato cruzado), la
+// familia podía operar sobre él en una escuela que no es la suya. Se deja
+// opcional para no romper las llamadas que no la pasan (siguen igual que antes).
+function requerir_familia_propia($familia_id_fila, $usuario_actual, $mensaje, $escuela_id_fila = null) {
     if (intval($familia_id_fila ?? -1) !== intval($usuario_actual['familia_id'] ?? -2)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => $mensaje]);
+    }
+    // [F0] Pertenencia por escuela, solo si el llamador la mandó.
+    if ($escuela_id_fila !== null && intval($escuela_id_fila) !== intval($usuario_actual['escuela_id'] ?? -1)) {
         http_response_code(403);
         respond(['success' => false, 'error' => $mensaje]);
     }
@@ -516,6 +528,8 @@ if (!preg_match('/^[a-z_]+$/', $action)) {
 // (admin, cajero, familia, contador, distribuidor): ese hueco es anterior a
 // estos roles y arreglarlo a ciegas rompería endpoints en producción. Queda
 // documentado en PRODUCCION.md como trabajo aparte.
+// [F0] Excepción desde el 18-nov-2026: 'familia' ya tiene lista propia, en
+// modo registro (ver la entrada 'familia' y ALLOWLIST_FAMILIA_ESTRICTA).
 $ACCIONES_POR_ROL_PLATAFORMA = [
     // Solo lectura. Su trabajo es mirar cualquier colegio para poder atender.
     'soporte' => [
@@ -592,12 +606,69 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'escolar_resumen_grupo', 'escolar_boleta',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
+    // [F0] Familia (18-nov-2026). Rol que ya existía y que heredaba el hueco de
+    // las acciones sin requerir_rol(): con su token podía llamar caja_movimiento,
+    // crear_familia, liberar_clabe_pool, etc. de su propio colegio (y algunas
+    // de cualquier colegio). Esta es la lista EXACTA de lo que su portal llama
+    // hoy (grep de views/PortalFamilia.js, views/EscolarFamilia.js,
+    // views/components/FichaTecnica.js, assets/js/spei_poller.js, app.js y los
+    // controllers que esas vistas usan) más las acciones nuevas que el
+    // proyecto de estudiantes le va a dar. Cada una valida por dentro que el
+    // alumno/cobro sea de SU familia; esta lista solo corta lo que su portal
+    // nunca debería llamar.
+    //
+    // Arranca en MODO REGISTRO (ver ALLOWLIST_FAMILIA_ESTRICTA más abajo): lo
+    // que quede fuera se deja pasar pero se anota en api_log.txt.
+    'familia' => [
+        // Arranque y cuenta propia.
+        'cargar_datos', 'guia_marcar_vista', 'cambiar_password_propio', 'editar_usuario',
+        // Datos de su familia y de sus hijos (campos limitados por dentro).
+        'editar_familia', 'editar_cliente', 'subir_foto_cliente',
+        // Consulta de cobros, comprobantes fiscales y saldo.
+        'detalle_cobro', 'descargar_cfdi', 'descargar_complemento_pago',
+        'verificar_saldo_alumno', 'verificar_spei', 'confirmar_pago',
+        // Pagar: tarjeta (liga), efectivo en tienda, pago agrupado.
+        'generar_liga', 'generar_referencia_efectivo', 'iniciar_pago_agrupado',
+        // Domiciliación (en pausa, pero el portal todavía tiene los botones).
+        'cobrar_cai', 'cancelar_cai',
+        // Control escolar de sus hijos. escolar_boleta ya trae su rama de
+        // familia (requerir_familia_propia) aunque hoy el portal no la llama.
+        'escolar_familia_resumen', 'escolar_boleta',
+        // Nuevas del proyecto de estudiantes (F2, F3, F6). Si esa fase aún no
+        // se integra, el archivo no existe y api.php responde "Acción no
+        // reconocida" igual que hoy.
+        'alumno_aviso_privacidad_aceptar', 'escolar_kardex',
+        'monedero_saldo', 'monedero_movimientos', 'monedero_recargar', 'monedero_config_guardar',
+    ],
 ];
+// [F0] Modo registro de la allowlist de 'familia'. A diferencia de los roles
+// nuevos, 'familia' lleva meses en producción y su lista se armó con grep, no
+// con tráfico real: si se nos escapó una llamada, cortarla de golpe dejaría a
+// los papás sin poder pagar. Por eso arranca en false: lo que esté fuera de
+// la lista SE PERMITE pero deja la línea "FAMILIA_FUERA_ALLOWLIST" en
+// api_log.txt.
+//
+// CÓMO PASAR A MODO ESTRICTO: después de ~1 semana en producción, revisar
+//   grep FAMILIA_FUERA_ALLOWLIST logs/api_log.txt
+// Si aparece una acción legítima, agregarla a la lista de arriba. Cuando el
+// log quede limpio, poner en el config.php DEL SERVIDOR (no en el repo):
+//   define('ALLOWLIST_FAMILIA_ESTRICTA', true);
+// y desde ese momento una familia que llame algo fuera de la lista recibe 403
+// igual que los demás roles con allowlist.
+if (!defined('ALLOWLIST_FAMILIA_ESTRICTA')) define('ALLOWLIST_FAMILIA_ESTRICTA', false);
 // 'editar_usuario' y 'cambiar_password_propio' van en las tres listas porque
 // son de autoservicio: editar_usuario ya se defiende solo por dentro (exige
 // ser superadmin/admin O que la fila sea el propio perfil), así que aquí solo
 // hace falta dejarlo pasar para que puedan cambiar su nombre y su contraseña.
 $rol_plataforma_actual = $usuario_actual['rol'] ?? '';
+// [F0] Modo registro de familia: anota y deja pasar. Se "apaga" la allowlist
+// para ESTA petición vaciando $rol_plataforma_actual, así el candado genérico
+// de abajo no la corta y su código no tuvo que cambiar.
+if ($rol_plataforma_actual === 'familia' && !ALLOWLIST_FAMILIA_ESTRICTA
+    && !in_array($action, $ACCIONES_POR_ROL_PLATAFORMA['familia'], true)) {
+    log_api("FAMILIA_FUERA_ALLOWLIST accion={$action} user_id=" . ($usuario_actual['user_id'] ?? '?'));
+    $rol_plataforma_actual = '';
+}
 if (isset($ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual])
     && !in_array($action, $ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual], true)) {
     log_api("BLOQUEADO por allowlist de plataforma -> rol={$rol_plataforma_actual} accion={$action} user_id=" . ($usuario_actual['user_id'] ?? '?'));

@@ -101,6 +101,25 @@
                 $esc_id = null;
             }
         }
+        // [F0] Si se asigna/cambia la familia, debe ser del mismo colegio que
+        // la cuenta (el nuevo escuela_id si superadmin también lo está
+        // cambiando, o el que ya tiene la fila). Antes se aceptaba cualquier
+        // familia_id: un admin podía ligar una cuenta de su colegio a una
+        // familia de OTRO colegio.
+        if ($fam_id !== '__NO_ENVIADO__' && $fam_id) {
+            $esc_destino = $esc_id;
+            if ($esc_destino === null) {
+                $stmtEscUsr = $pdo->prepare("SELECT escuela_id FROM usuarios WHERE id = ?");
+                $stmtEscUsr->execute([$id]);
+                $esc_destino = $stmtEscUsr->fetchColumn();
+            }
+            $chkFamUsrEd = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
+            $chkFamUsrEd->execute([$fam_id]);
+            $famUsrEd = $chkFamUsrEd->fetch();
+            if (!$famUsrEd || intval($famUsrEd['escuela_id']) !== intval($esc_destino ?: -1)) {
+                respond(['success' => false, 'error' => 'La familia seleccionada no pertenece a la escuela de esta cuenta.']);
+            }
+        }
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
         if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }
