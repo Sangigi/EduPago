@@ -625,6 +625,10 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // Datos de su familia y de sus hijos (campos limitados por dentro).
         'editar_familia', 'editar_cliente', 'subir_foto_cliente',
         // Consulta de cobros, comprobantes fiscales y saldo.
+        // confirmar_pago: hoy el portal ya no la llama (el poller usa
+        // verificar_spei), pero la acción conserva su rama de familia, que
+        // solo refresca un cobro YA pagado por el webhook; se deja para no
+        // cortar una pestaña vieja con JS en caché.
         'detalle_cobro', 'descargar_cfdi', 'descargar_complemento_pago',
         'verificar_saldo_alumno', 'verificar_spei', 'confirmar_pago',
         // Pagar: tarjeta (liga), efectivo en tienda, pago agrupado.
@@ -649,12 +653,16 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
 // api_log.txt.
 //
 // CÓMO PASAR A MODO ESTRICTO: después de ~1 semana en producción, revisar
-//   grep FAMILIA_FUERA_ALLOWLIST logs/api_log.txt
+// (api_log.txt vive en la raíz del proyecto, ver API_LOG_FILE en config.php)
+//   grep FAMILIA_FUERA_ALLOWLIST api_log.txt
 // Si aparece una acción legítima, agregarla a la lista de arriba. Cuando el
-// log quede limpio, poner en el config.php DEL SERVIDOR (no en el repo):
+// log quede limpio, agregar en config.php del servidor:
 //   define('ALLOWLIST_FAMILIA_ESTRICTA', true);
 // y desde ese momento una familia que llame algo fuera de la lista recibe 403
-// igual que los demás roles con allowlist.
+// igual que los demás roles con allowlist. OJO: config.php hoy está
+// versionado en git; si se edita a mano en el servidor, el siguiente git pull
+// puede chocar con esa línea. Lo más limpio es hacerlo con un commit.
+// Para volver al modo registro basta con quitar esa línea.
 if (!defined('ALLOWLIST_FAMILIA_ESTRICTA')) define('ALLOWLIST_FAMILIA_ESTRICTA', false);
 // 'editar_usuario' y 'cambiar_password_propio' van en las tres listas porque
 // son de autoservicio: editar_usuario ya se defiende solo por dentro (exige
