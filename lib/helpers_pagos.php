@@ -22,10 +22,13 @@ function recalcular_saldo_pendiente(PDO $pdo, int $cliente_id): void
     // parcialmente cubierto, y lo que la familia debe de verdad es el resto.
     // Para todo lo anterior a esa migración monto_pagado vale 0.00 y la
     // fórmula da exactamente el mismo resultado que antes.
+    // [F6] Una recarga de monedero pendiente NO es adeudo: si la familia no
+    // la paga, simplemente no recibe saldo (el cron la cancela a los 3 días).
+    $f6_sin_recargas = cobros_col_recarga_monedero($pdo) ? ' AND es_recarga_monedero = 0' : '';
     $pdo->prepare(
         "UPDATE clientes SET saldo_pendiente = (
             SELECT COALESCE(SUM(total - monto_pagado), 0) FROM cobros
-            WHERE cliente_id = ? AND estado = 'pendiente'
+            WHERE cliente_id = ? AND estado = 'pendiente'{$f6_sin_recargas}
         ) WHERE id = ?"
     )->execute([$cliente_id, $cliente_id]);
 }
@@ -205,9 +208,14 @@ function aplicar_abono_a_cliente(PDO $pdo, int $cliente_id, float $monto, array 
         }
     }
 
+    // [F6] Un depósito SPEI a la CLABE del alumno nunca se reparte a una
+    // recarga de monedero: la recarga solo se paga con su liga de tarjeta o su
+    // referencia de efectivo. Sin esto, una colegiatura transferida podía
+    // terminar convertida en saldo de la tiendita.
+    $f6_sin_recargas = cobros_col_recarga_monedero($pdo) ? ' AND es_recarga_monedero = 0' : '';
     $stmt = $pdo->prepare(
         "SELECT id, total, monto_pagado FROM cobros
-          WHERE cliente_id = ? AND estado = 'pendiente'
+          WHERE cliente_id = ? AND estado = 'pendiente'{$f6_sin_recargas}
           ORDER BY id ASC FOR UPDATE"
     );
     $stmt->execute([$cliente_id]);
@@ -1083,4 +1091,30 @@ function registrar_pago_suscripcion(PDO $pdo, array $d) {
         );
         return false;
     }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// [F6] MONEDERO: ¿existe ya cobros.es_recarga_monedero?
+// ════════════════════════════════════════════════════════════════════════
+//
+// Vive AQUÍ y no en lib/helpers_monedero.php porque lo necesitan
+// recalcular_saldo_pendiente() y aplicar_abono_a_cliente(), que corren desde
+// los webhooks de pago, y esos no cargan helpers_monedero.php.
+//
+// Mientras no se corra migracion_2026_11_18_f6_monedero.sql la columna no
+// existe y meterla en un WHERE tumbaría TODOS los pagos. Con este chequeo el
+// código de F6 puede subirse antes que la migración sin romper nada: sin
+// columna no hay recargas que excluir. Se cachea por proceso (una consulta
+// por petición como máximo).
+function cobros_col_recarga_monedero(PDO $pdo): bool
+{
+    static $existe = null;
+    if ($existe !== null) return $existe;
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM cobros LIKE 'es_recarga_monedero'");
+        $existe = (bool) $st->fetch();
+    } catch (\Throwable $e) {
+        $existe = false;
+    }
+    return $existe;
 }
