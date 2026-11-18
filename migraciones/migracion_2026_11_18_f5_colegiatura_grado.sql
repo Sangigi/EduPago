@@ -1,0 +1,49 @@
+-- ════════════════════════════════════════════════════════════════════════
+-- migracion_2026_11_18_f5_colegiatura_grado.sql      -- [F5]
+--
+-- COLEGIATURA POR GRADO / GRUPO
+--
+-- Hasta hoy un concepto recurrente (productos.tipo='recurrente') se le
+-- generaba a TODOS los alumnos activos del colegio (cron_recordatorios.php,
+-- bloque 0). El dueño decidió que sí habrá colegiaturas distintas por grado,
+-- así que cada concepto ahora dice A QUIÉN se le cobra:
+--
+--   productos.alcance      'todos'  → todos los alumnos activos (lo de siempre)
+--                          'grados' → solo alumnos con clientes.grado_id en la lista
+--                          'grupos' → solo alumnos inscritos (grupo_alumnos.activo=1)
+--                                     en alguno de los grupos de la lista
+--   productos.alcance_ids  JSON de enteros: ids de niveles_grados (si 'grados')
+--                          o de grupos (si 'grupos'). NULL cuando es 'todos'.
+--
+-- No es ENUM a propósito (igual que usuarios.rol y parentesco): se valida en
+-- PHP (lib/helpers_alcance_producto.php) para poder agregar valores sin otra
+-- migración. alcance_ids es TEXT/JSON y no una tabla puente porque solo lo lee
+-- el cron una vez al día por concepto, y se guarda/lee siempre completo.
+--
+-- ORDEN DE EJECUCIÓN:
+--   1. Corre este archivo en phpMyAdmin ANTES o JUNTO con el git pull del
+--      código de F5. El código funciona sin esta migración (todo se comporta
+--      como 'todos', igual que antes), pero no deja guardar alcances por
+--      grado/grupo hasta que exista la columna.
+--   2. Cobrar por GRADO necesita además la migración de F3 (tabla
+--      niveles_grados y columna clientes.grado_id). Cobrar por GRUPO solo
+--      necesita migracion_2026_11_13_control_escolar.sql (ya en producción).
+--
+-- BACKFILL: no hace falta. El DEFAULT 'todos' deja a todos los conceptos que
+-- ya existen exactamente como funcionan hoy.
+--
+-- MySQL 5.7 no soporta ADD COLUMN IF NOT EXISTS: cada ALTER va en su propia
+-- sentencia. Si una ya existe (error 1060 "Duplicate column name"), sáltala
+-- y corre la siguiente.
+--
+-- ÍNDICES: no se agrega ninguno. El cron filtra productos por tipo/activo
+-- (no por alcance), y el filtro por grupo usa el índice que ya existe
+-- grupo_alumnos.idx_ga_cliente (cliente_id, activo). El de clientes.grado_id
+-- le toca a la migración de F3, que es la que crea esa columna.
+-- ════════════════════════════════════════════════════════════════════════
+
+-- [F5] A quién se le genera el cobro recurrente.
+ALTER TABLE productos ADD COLUMN alcance VARCHAR(10) NOT NULL DEFAULT 'todos';
+
+-- [F5] Ids (JSON de enteros) de los grados o grupos a los que aplica.
+ALTER TABLE productos ADD COLUMN alcance_ids TEXT NULL;

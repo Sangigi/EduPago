@@ -51,6 +51,11 @@ $hoyStr = date('Y-m-d');
 $hoyTs  = strtotime($hoyStr);
 $resumen = [];
 
+// [F5] Alcance de los conceptos recurrentes (todos / grados / grupos): el
+// filtro que usa el bloque 0 vive ahí, compartido con la vista previa de
+// Productos.js para que lo que ve el colegio sea lo que de verdad se cobra.
+require_once __DIR__ . '/lib/helpers_alcance_producto.php';
+
 // ══════════════════════════════════════════════════════════════════════════
 // 0) PAGOS RECURRENTES: genera el cobro del periodo (colegiatura mensual/
 //    semestral/anual), avisa 1 día antes de que cierre la ventana sin
@@ -81,9 +86,28 @@ try {
         $escStmt->execute([$prod['escuela_id']]);
         $clave = $escStmt->fetch()['clave'] ?? 'ESC';
 
-        $stmtAlumnos = $pdo->prepare("SELECT id, nombre, email, familia_id FROM clientes WHERE escuela_id = ? AND tipo = 'alumno' AND activo = 1");
-        $stmtAlumnos->execute([$prod['escuela_id']]);
-        foreach ($stmtAlumnos->fetchAll() as $al) {
+        // [F5] Alcance del concepto: 'todos' (lo de siempre), solo ciertos
+        // grados (clientes.grado_id) o solo ciertos grupos (grupo_alumnos
+        // activo). Si la migración de F5 no se ha corrido, $prod no trae
+        // 'alcance' y el filtro queda vacío = todos, igual que antes.
+        // Va en su propio try: si el filtro truena (p. ej. un concepto por
+        // grado sin la columna clientes.grado_id) se salta SOLO este concepto
+        // sin marcar ultima_generacion (se reintenta mañana), en vez de tumbar
+        // el bloque entero —avisos y recargos de todos los demás— o, peor,
+        // caer a "todos" y cobrarle la colegiatura de un grado a todo el colegio.
+        $filtroAlcance = producto_alcance_filtro_sql($prod, 'clientes');
+        try {
+            $stmtAlumnos = $pdo->prepare("SELECT id, nombre, email, familia_id FROM clientes WHERE escuela_id = ? AND tipo = 'alumno' AND activo = 1" . $filtroAlcance['sql']);
+            $stmtAlumnos->execute(array_merge([$prod['escuela_id']], $filtroAlcance['params']));
+            $alumnosAlcance = $stmtAlumnos->fetchAll();
+        } catch (\PDOException $eAlcance) {
+            $resumen[] = "ERROR concepto recurrente #{$prod['id']} ({$prod['nombre']}) con alcance '{$filtroAlcance['alcance']}': no se pudo filtrar a los alumnos y NO se generó ningún cobro (se reintenta mañana). ¿Falta la migración de grados de Control escolar? " . $eAlcance->getMessage();
+            continue;
+        }
+        if (!$alumnosAlcance && $filtroAlcance['alcance'] !== 'todos') {
+            $resumen[] = "AVISO: concepto recurrente #{$prod['id']} ({$prod['nombre']}) con alcance '{$filtroAlcance['alcance']}' no alcanzó a ningún alumno activo este periodo.";
+        }
+        foreach ($alumnosAlcance as $al) { // [F5] antes: todos los activos de la escuela
             $chkGen = $pdo->prepare("SELECT 1 FROM pagos_recurrentes_generados WHERE producto_id = ? AND cliente_id = ? AND periodo = ?");
             $chkGen->execute([$prod['id'], $al['id'], $mesActual]);
             if ($chkGen->fetch()) continue; // este alumno ya tiene su cobro de este periodo
