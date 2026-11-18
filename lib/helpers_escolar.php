@@ -89,7 +89,7 @@ function escolar_ctx($pdo, $usuario_actual, $input, array $roles, $secciones = E
     if (!$f3_verificada) {
         try {
             $pdo->query(
-                "SELECT p.publicado, c.cerrado, c.cerrado_en, g.grado_id, cl.grado_id, n.siguiente_id, h.resultado
+                "SELECT p.publicado, c.cerrado, c.cerrado_en, g.grado_id, cl.grado_id, n.siguiente_id, h.resultado, h.promovido_a_ciclo_id
                  FROM periodos_evaluacion p, ciclos_escolares c, grupos g, clientes cl, niveles_grados n, historial_academico h
                  LIMIT 0"
             );

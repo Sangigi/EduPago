@@ -92,8 +92,16 @@ CREATE TABLE IF NOT EXISTS historial_academico (
   promedio_final  DECIMAL(5,2) NULL,
   -- 'aprobado' | 'reprobado' | 'sin_calificar'
   resultado       VARCHAR(20)  NOT NULL DEFAULT 'sin_calificar',
+  materias_reprobadas TINYINT UNSIGNED NOT NULL DEFAULT 0,
   -- JSON: [{"materia_id":1,"nombre":"Matemáticas","final":8.5}, …]
   materias        TEXT NULL,
+  -- Promoción/reinscripción (escolar_promover.php). Mientras sea NULL el
+  -- alumno no se ha procesado; una vez lleno, volver a correr la promoción
+  -- lo salta: así nunca se le sube de grado dos veces.
+  promovido_a_ciclo_id INT UNSIGNED NULL,
+  -- 'promovido' | 'repite' | 'egresado'
+  promocion_accion VARCHAR(20) NULL,
+  promovido_en    DATETIME NULL,
   usuario_id      INT UNSIGNED NULL,
   creado_en       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   actualizado_en  DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
