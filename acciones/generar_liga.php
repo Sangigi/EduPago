@@ -22,7 +22,8 @@
             $stmtFamChk = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
             $stmtFamChk->execute([$cobroRow['cliente_id']]);
             $famChk = $stmtFamChk->fetch();
-            requerir_familia_propia($famChk ? $famChk['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre este cobro.');
+            // [F0] Se pasa la escuela del cobro (ya leída arriba) como candado extra.
+            requerir_familia_propia($famChk ? $famChk['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre este cobro.', $cobroRow['escuela_id']);
         }
         // Modo demo (11-sep-2026): cortar ANTES de reservar una referencia o
         // llamar al proveedor -- así nunca se "quema" una referencia real ni

@@ -71,7 +71,8 @@ if ($rolAgrup === 'familia') {
     $stmtFam = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
     $stmtFam->execute([$cliente_id]);
     $fam = $stmtFam->fetch();
-    requerir_familia_propia($fam ? $fam['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre estos cobros.');
+    // [F0] Se pasa la escuela de los cobros (ya calculada arriba) como candado extra.
+    requerir_familia_propia($fam ? $fam['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre estos cobros.', $escuela_id);
 }
 requerir_metodo_pago_habilitado($pdo, $escuela_id, $metodo, $metodo === 'TC' ? 'Tarjeta' : 'Efectivo (tienda)');
 

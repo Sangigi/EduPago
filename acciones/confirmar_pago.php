@@ -34,11 +34,12 @@
         // saldo después de que el webhook ya confirmó — nunca antes.
         if ($rol_actual_confirmar === 'familia') {
             $chkFamCob = $pdo->prepare(
-                "SELECT co.estado, cl.familia_id FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id WHERE co.id = ?"
+                // [F0] + co.escuela_id (misma consulta) para el candado de escuela.
+                "SELECT co.estado, co.escuela_id, cl.familia_id FROM cobros co LEFT JOIN clientes cl ON cl.id = co.cliente_id WHERE co.id = ?"
             );
             $chkFamCob->execute([$cobro_id]);
             $famCob = $chkFamCob->fetch();
-            requerir_familia_propia($famCob ? $famCob['familia_id'] : null, $usuario_actual, 'No puedes confirmar este cobro.');
+            requerir_familia_propia($famCob ? $famCob['familia_id'] : null, $usuario_actual, 'No puedes confirmar este cobro.', $famCob ? $famCob['escuela_id'] : null);
             if ($famCob['estado'] !== 'pagado') {
                 http_response_code(403);
                 respond(['success' => false, 'error' => 'Este pago todavía no ha sido confirmado por el banco/proveedor.']);

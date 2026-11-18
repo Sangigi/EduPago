@@ -18,7 +18,8 @@ $cliente = $chk->fetch();
 if (!$cliente) respond(['success' => false, 'error' => 'Alumno no encontrado']);
 
 if ($rol_actual === 'familia') {
-    requerir_familia_propia($cliente['familia_id'], $usuario_actual, 'No puedes cambiar la foto de este alumno.');
+    // [F0] Se pasa la escuela del alumno (ya leída arriba) como candado extra.
+    requerir_familia_propia($cliente['familia_id'], $usuario_actual, 'No puedes cambiar la foto de este alumno.', $cliente['escuela_id']);
 } else {
     requerir_escuela_propia($rol_actual, $cliente['escuela_id'], $usuario_actual, 'No tienes permiso para cambiar la foto de este alumno.');
     requerir_seccion_habilitada($pdo, $rol_actual, $cliente['escuela_id'], ['alumnos']);

@@ -14,7 +14,8 @@
             $stmtFamDet = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
             $stmtFamDet->execute([$cobroRow['cliente_id']]);
             $famDet = $stmtFamDet->fetch();
-            requerir_familia_propia($famDet ? $famDet['familia_id'] : null, $usuario_actual, 'No tienes permiso para ver este cobro.');
+            // [F0] Se pasa la escuela del cobro (ya leída arriba) como candado extra.
+            requerir_familia_propia($famDet ? $famDet['familia_id'] : null, $usuario_actual, 'No tienes permiso para ver este cobro.', $cobroRow['escuela_id']);
         }
         try {
             $stmt = $pdo->prepare("SELECT * FROM cobro_items WHERE cobro_id = ? ORDER BY id");

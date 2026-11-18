@@ -61,7 +61,8 @@
             if (!$cliCobro) respond(['success' => false, 'error' => 'cliente_id no corresponde a un alumno de esta escuela']);
             // Un usuario rol 'familia' solo puede generar cobros de SUS PROPIOS hijos.
             if (($usuario_actual['rol'] ?? '') === 'familia') {
-                requerir_familia_propia($cliCobro['familia_id'], $usuario_actual, 'No puedes generar cobros para este alumno.');
+                // [F0] El alumno ya se filtró por $escuela_id arriba; se pasa como candado extra.
+                requerir_familia_propia($cliCobro['familia_id'], $usuario_actual, 'No puedes generar cobros para este alumno.', $escuela_id);
             }
         }
         // El corte de caja compara las ventas del día contra el efectivo/

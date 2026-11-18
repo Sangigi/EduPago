@@ -1,12 +1,18 @@
 <?php
         $cliente_id_saldo = intval($input['cliente_id'] ?? 0);
         if (!$cliente_id_saldo) respond(['success' => false, 'error' => 'cliente_id requerido']);
-        $stmtSaldo = $pdo->prepare("SELECT saldo_pendiente, familia_id FROM clientes WHERE id = ?");
+        // [F0] + escuela_id (misma consulta) para el candado de escuela.
+        $stmtSaldo = $pdo->prepare("SELECT saldo_pendiente, familia_id, escuela_id FROM clientes WHERE id = ?");
         $stmtSaldo->execute([$cliente_id_saldo]);
         $rowSaldo = $stmtSaldo->fetch();
         if (!$rowSaldo) respond(['success' => false, 'error' => 'Alumno no encontrado']);
         if (($usuario_actual['rol'] ?? '') === 'familia') {
-            requerir_familia_propia($rowSaldo['familia_id'], $usuario_actual, 'No puedes consultar este alumno.');
+            requerir_familia_propia($rowSaldo['familia_id'], $usuario_actual, 'No puedes consultar este alumno.', $rowSaldo['escuela_id']);
+        } else {
+            // [F0] Antes cualquier otro rol con sesión leía el saldo de un alumno
+            // de CUALQUIER colegio. Solo lo llama PortalFamilia.js, así que esto
+            // no le quita nada a ninguna pantalla; superadmin sigue exento.
+            requerir_escuela_propia($usuario_actual['rol'] ?? '', $rowSaldo['escuela_id'], $usuario_actual, 'No puedes consultar este alumno.');
         }
         // Abonos parciales (21-sep-2026): el portal hace polling sobre este
         // endpoint y antes solo sabía si saldo_pendiente había bajado, así que

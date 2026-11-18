@@ -29,7 +29,8 @@
                 $stmtFamSpei = $pdo->prepare("SELECT familia_id FROM clientes WHERE id = ?");
                 $stmtFamSpei->execute([$cobro['cliente_id']]);
                 $famSpei = $stmtFamSpei->fetch();
-                requerir_familia_propia($famSpei ? $famSpei['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre este cobro.');
+                // [F0] Se pasa la escuela del cobro (ya leída arriba) como candado extra.
+                requerir_familia_propia($famSpei ? $famSpei['familia_id'] : null, $usuario_actual, 'No tienes permiso sobre este cobro.', $cobro['escuela_id']);
             }
         }
         if ($cobro && $cobro['estado'] === 'pagado') {
