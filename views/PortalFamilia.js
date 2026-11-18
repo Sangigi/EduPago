@@ -1164,7 +1164,19 @@ function PortalFamilia({
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true)
-        }, void 0, false), misHijos.map(hijo => {
+        }, void 0, false),
+        // [F2] Aviso de privacidad por cada hijo que aún no lo tiene aceptado
+        // (views/components/ExpedienteAlumno.js). No aparece si la migración
+        // F2 no ha corrido. Al aceptar solo se marca el hijo en el estado local.
+        typeof AvisoPrivacidadFamilia !== 'undefined' && _jsxDEV(AvisoPrivacidadFamilia, {
+          hijos: misHijos,
+          escuela: escuela,
+          onAceptado: (cid, fecha) => setData(prev => ({
+            ...prev,
+            clientes: (prev.clientes || []).map(x => String(x.id) === String(cid) ? { ...x, aviso_privacidad_aceptado_en: fecha } : x)
+          }))
+        }, 'f2-aviso', false),
+        misHijos.map(hijo => {
           const pends = pendientesHj(hijo.id);
           const pagPends = paginaPends[hijo.id] || 1;
           const totalPagPends = Math.max(1, Math.ceil(pends.length / PEND_POR_PAGINA));

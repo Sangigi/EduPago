@@ -210,6 +210,15 @@
             $c['tel'] = $c['telefono'] ?? null;
             return $c;
         }, $clientes_raw);
+        // [F2] Expediente (18-nov-2026): los datos médicos y las observaciones
+        // del expediente NO viajan aquí. cargar_datos lo recibe también el
+        // cajero (y la familia) y se queda en memoria del navegador; esos
+        // campos solo se leen bajo demanda con alumno_expediente_obtener, que
+        // valida rol y escuela. unset() no truena si la migración aún no corre.
+        foreach ($clientes as &$cF2) {
+            unset($cF2['padecimientos'], $cF2['medicamentos'], $cF2['seguro_medico'], $cF2['observaciones']);
+        }
+        unset($cF2);
         // ── Planteles (sub escuelas) ──
         $stmt = $pdo->prepare("SELECT * FROM planteles WHERE escuela_id = ? ORDER BY id");
         $stmt->execute([$escuela_id_ver]);

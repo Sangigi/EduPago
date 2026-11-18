@@ -36,6 +36,7 @@ function Alumnos({
   };
   const [modal, setModal] = useState(null);
   const [ficha, setFicha] = useState(null);   // alumno cuya credencial se muestra
+  const [expediente, setExpediente] = useState(null); // [F2] alumno cuyo expediente está abierto
   const [form, setForm] = useState(EMPTY);
   const [q, setQ] = useState('');
   // Términos acumulados del buscador. Se mandan al servidor separados por '|'
@@ -444,6 +445,17 @@ function Alumnos({
       onCerrar: () => setModalEstatus(null),
       onGuardado: alCambiarEstatus
     }, 'f1-estatus-' + modalEstatus.id, false),
+    // [F2] Expediente del alumno (views/components/ExpedienteAlumno.js). Al
+    // guardar solo sincroniza los campos que ya viajan en cargar_datos; los
+    // datos médicos se quedan dentro del modal.
+    expediente && typeof ExpedienteAlumno !== 'undefined' && _jsxDEV(ExpedienteAlumno, {
+      alumno: expediente,
+      onCerrar: () => setExpediente(null),
+      onActualizado: p => setData(prev => ({
+        ...prev,
+        clientes: (prev.clientes || []).map(x => String(x.id) === String(p.id) ? { ...x, ...p } : x)
+      }))
+    }, 'f2-expediente', false),
     ficha && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
       tipo: 'alumno',
       registro: ficha,
@@ -827,7 +839,16 @@ function Alumnos({
                       size: 14,
                       color: "currentColor"
                     }, void 0, false)
-                  }, void 0, false)]
+                  }, void 0, false),
+                  // [F2] Expediente (datos médicos, tutores, documentos). El
+                  // servidor vuelve a validar rol y escuela en cada acción.
+                  typeof ExpedienteAlumno !== 'undefined' && typeof expedientePuedeVer === 'function' && expedientePuedeVer(rol) && _jsxDEV("button", {
+                    className: "btn btn-ghost btn-sm",
+                    onClick: () => setExpediente(c),
+                    title: "Expediente: datos personales y médicos, tutores y documentos",
+                    style: { fontSize: 11.5 },
+                    children: "Expediente"
+                  }, 'f2-exp', false)]
                 }, void 0, true)
               }, void 0, false)]
             }, c.id, true))]
