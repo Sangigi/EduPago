@@ -48,6 +48,10 @@ function Alumnos({
   const [buscando, setBuscando] = useState(false);
   const [qFamilia, setQFamilia] = useState('');
   const [familiaAbierta, setFamiliaAbierta] = useState(false);
+  // [F1] Ciclo de vida: filtro de la lista por estatus y alumno al que se le
+  // está cambiando el estatus (modal "Cambiar estatus").
+  const [estatusFiltro, setEstatusFiltro] = useState('');
+  const [modalEstatus, setModalEstatus] = useState(null);
 
   // Importar CSV (alta masiva de alumnos + tutores/familias)
   const [modalImport, setModalImport] = useState(null); // null | 'upload' | 'preview' | 'resultado'
@@ -88,6 +92,7 @@ function Alumnos({
         escuela_id_ver: escuela_id,
         buscar_clientes: texto || '',
         pagina_clientes: paginaBuscar || 1,
+        estatus_clientes: estatusFiltro || '', // [F1] filtro por estatus (se resuelve en SQL)
       });
       const res = await fetch('api.php?' + params.toString(), {
         cache: 'no-store',
@@ -128,6 +133,16 @@ function Alumnos({
     buscarEnServidor(etiquetas.join('|'), 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etiquetas, escuela_id]);
+
+  // [F1] Cambiar el filtro de estatus vuelve a pedir la página 1. Se salta el
+  // primer render: las dos búsquedas de arriba ya cargan la lista al montar.
+  const _f1PrimerFiltro = React.useRef(true);
+  React.useEffect(() => {
+    if (_f1PrimerFiltro.current) { _f1PrimerFiltro.current = false; return; }
+    setPagina(1);
+    buscarEnServidor(etiquetas.length ? etiquetas.join('|') : q, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estatusFiltro]);
 
   const irAPagina = p => {
     const destino = Math.min(Math.max(1, p), totalPaginas);
@@ -379,23 +394,37 @@ function Alumnos({
     } catch (e) { alert('Error al dar de alta alumno: ' + e.message); }
   };
 
-  // ── Activar/Desactivar alumno ──────────────────────────────────────────────
-  const toggle = async cliente => {
-    const eraActivo = cliente.activo;
-    try { await ClienteController.toggleActivo(cliente.id, eraActivo); } catch(e) {}
+  // ── [F1] Cambiar estatus del alumno ────────────────────────────────────────
+  // Antes un solo botón alternaba activo/inactivo: no pedía motivo ni fecha,
+  // si el servidor lo rechazaba igual lo marcaba en pantalla, y al dar de baja
+  // liberaba la CLABE en automático (un SPEI posterior de la familia para
+  // liquidar adeudos ya no se ligaba al alumno). Ahora abre el modal
+  // AlumnoCambioEstatusModalF1 (al final de este archivo): estatus, motivo,
+  // fecha y qué hacer con adeudos y CLABE, que por defecto se CONSERVAN. El
+  // servidor (alumno_cambiar_estatus) hace todo en una transacción y deja
+  // bitácora.
+  const abrirCambioEstatus = cliente => setModalEstatus(cliente);
+  const alCambiarEstatus = async res => {
+    const actualizado = res.cliente || {};
+    const cancelados = (res.cobros_cancelados || []).map(Number);
+    const delta = res.estatus_nuevo === 'activo' ? 1 : (res.estatus_anterior === 'activo' ? -1 : 0);
     const newData = {
       ...data,
-      clientes: data.clientes.map(c => c.id === cliente.id ? { ...c, activo: !eraActivo } : c)
+      clientes: data.clientes.map(c => c.id === actualizado.id ? { ...c, ...actualizado } : c),
+      cobros: cancelados.length && Array.isArray(data.cobros)
+        ? data.cobros.map(co => cancelados.includes(Number(co.id)) ? { ...co, estado: 'cancelado' } : co)
+        : data.cobros,
+      clientes_activos_total: typeof data.clientes_activos_total === 'number'
+        ? data.clientes_activos_total + delta
+        : data.clientes_activos_total,
     };
     setData(newData);
     AppModel.save(newData);
-    if (eraActivo) {
-      // Dar de baja: liberar CLABE
-      if (cliente.clabe_individual) await liberarClabePool(cliente, newData);
-    } else {
-      // Reactivar: generar nueva CLABE
-      const alumnoActualizado = newData.clientes.find(c => c.id === cliente.id);
-      await asignarClabeDesdePool(alumnoActualizado, newData);
+    // Reingreso de un alumno al que en su baja se le liberó la CLABE: se le
+    // genera una nueva, como hacía el botón anterior. Si la conservó, nada.
+    if (res.estatus_nuevo === 'activo' && actualizado.id && !actualizado.clabe_individual) {
+      const alumnoActualizado = newData.clientes.find(c => c.id === actualizado.id);
+      if (alumnoActualizado) await asignarClabeDesdePool(alumnoActualizado, newData);
     }
   };
   const regenerarClabe = async cliente => {
@@ -404,10 +433,26 @@ function Alumnos({
   const familiaDeAlumno = fid => fid ? data.familias.find(f => f.id === fid)?.nombre : null;
   const fmtCLABE = clabe => clabe ? clabe.match(/.{1,4}/g).join(' ') : '—';
   return _jsxDEV("div", {
-    children: [ficha && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
+    children: [
+    // [F1] Modal "Cambiar estatus" (baja, egreso, traslado, reactivación).
+    modalEstatus && _jsxDEV(AlumnoCambioEstatusModalF1, {
+      alumno: modalEstatus,
+      rol: rol,
+      escuelaId: escuela_id || modalEstatus.escuela_id,
+      apiPost: _apiPost,
+      cobrosRespaldo: (data.cobros || []).filter(co => Number(co.cliente_id) === Number(modalEstatus.id) && co.estado === 'pendiente'),
+      onCerrar: () => setModalEstatus(null),
+      onGuardado: alCambiarEstatus
+    }, 'f1-estatus-' + modalEstatus.id, false),
+    ficha && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
       tipo: 'alumno',
       registro: ficha,
       extra: {
+        // [F1] Sección "Historial" (bitácora alumno_movimientos) al pie de la
+        // ficha. El cajero no la ve: su rol no tiene acceso a esa consulta.
+        seccionExtra: rol !== 'cajero'
+          ? _jsxDEV(HistorialAlumnoF1, { clienteId: ficha.id, apiPost: _apiPost }, 'f1-hist-' + ficha.id, false)
+          : null,
         familia: (data.familias || []).find(f => f.id === ficha.familia_id) || null,
         saldo: ficha.saldo_pendiente || 0,
         saldoTexto: '$' + Number(ficha.saldo_pendiente || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
@@ -502,7 +547,20 @@ function Alumnos({
           }, void 0, false), buscando && _jsxDEV("span", {
             style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 6, display: 'block' },
             children: "Buscando…"
-          }, void 0, false)]
+          }, void 0, false),
+          // [F1] Filtro por estatus del alumno (se aplica en el servidor).
+          _jsxDEV("div", {
+            style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12.5, color: 'var(--ink-3)' },
+            children: [_jsxDEV("label", { htmlFor: 'f1-filtro-estatus', children: "Estatus:" }, void 0, false),
+              _jsxDEV("select", {
+                id: 'f1-filtro-estatus',
+                className: "form-select",
+                style: { width: 'auto', padding: '4px 28px 4px 8px', fontSize: 12.5 },
+                value: estatusFiltro,
+                onChange: e => setEstatusFiltro(e.target.value),
+                children: alumnoFiltroEstatusOpcionesF1().map(o => _jsxDEV("option", { value: o[0], children: o[1] }, o[0], false))
+              }, void 0, false)]
+          }, void 0, true)]
         }, void 0, true)
       }, void 0, false), _jsxDEV("div", {
         className: "table-wrap cards-mobile",
@@ -723,13 +781,8 @@ function Alumnos({
                 }, void 0, true)
               }, void 0, false), _jsxDEV("td", {
                 "data-label": "Estado",
-                children: c.activo ? _jsxDEV("span", {
-                  className: "badge badge-green",
-                  children: "Activo"
-                }, void 0, false) : _jsxDEV("span", {
-                  className: "badge badge-gray",
-                  children: "Inactivo"
-                }, void 0, false)
+                // [F1] Estatus con detalle (antes solo Activo/Inactivo).
+                children: alumnoBadgeEstatusF1(c)
               }, void 0, false), _jsxDEV("td", {
                 "data-label": "Acciones",
                 children: !puedeEditar ? _jsxDEV("span", {
@@ -762,8 +815,9 @@ function Alumnos({
                     }, void 0, false)
                   }, void 0, false), _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
-                    onClick: () => toggle(c),
-                    title: c.activo ? 'Dar de baja (libera su CLABE)' : 'Reactivar (genera nueva CLABE)',
+                    // [F1] Abre el modal "Cambiar estatus" (antes: toggle que liberaba la CLABE).
+                    onClick: () => abrirCambioEstatus(c),
+                    title: c.activo ? 'Cambiar estatus: baja, egreso o traslado' : 'Cambiar estatus: reactivar o corregir la baja',
                     children: c.activo ? _jsxDEV(Icon, {
                       name: "shield",
                       size: 14,
@@ -1374,5 +1428,310 @@ function Alumnos({
         }, void 0, true)]
       }, void 0, true)
     }, void 0, false)]
+  }, void 0, true);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// [F1] Ciclo de vida del alumno: estatus, modal "Cambiar estatus" e historial.
+// Espejo en el navegador de ALUMNO_ESTATUS / ALUMNO_TRANSICIONES de
+// lib/helpers_alumnos.php: si cambia allá, cambia aquí.
+// ═══════════════════════════════════════════════════════════════════════════
+var ALUMNO_ESTATUS_INFO = {
+  activo:          { etiqueta: 'Activo',          badge: 'badge-green' },
+  baja_temporal:   { etiqueta: 'Baja temporal',   badge: 'badge-amber' },
+  baja_definitiva: { etiqueta: 'Baja definitiva', badge: 'badge-red' },
+  egresado:        { etiqueta: 'Egresado',        badge: 'badge-blue' },
+  traslado:        { etiqueta: 'Traslado',        badge: 'badge-purple' }
+};
+var ALUMNO_TRANSICIONES_F1 = {
+  activo:          ['baja_temporal', 'baja_definitiva', 'egresado', 'traslado'],
+  baja_temporal:   ['activo', 'baja_definitiva', 'traslado'],
+  baja_definitiva: ['activo', 'traslado'],
+  traslado:        ['activo', 'baja_definitiva'],
+  egresado:        ['activo']
+};
+var ALUMNO_MOVIMIENTO_ETIQUETA_F1 = {
+  alta: 'Alta', edicion: 'Edición de datos', baja_temporal: 'Baja temporal',
+  baja_definitiva: 'Baja definitiva', egreso: 'Egreso', traslado: 'Traslado',
+  reactivacion: 'Reactivación', cambio_grado: 'Cambio de grado',
+  reinscripcion: 'Reinscripción', cambio_grupo: 'Cambio de grupo'
+};
+
+// Misma regla que alumno_estatus_de_fila() del servidor: manda `activo`; sin la
+// columna `estatus` (migración sin correr) un inactivo se trata como baja temporal.
+function alumnoEstatusDeF1(c) {
+  if (!c) return 'activo';
+  if (c.activo) return 'activo';
+  return (c.estatus && c.estatus !== 'activo' && ALUMNO_ESTATUS_INFO[c.estatus]) ? c.estatus : 'baja_temporal';
+}
+
+function alumnoBadgeEstatusF1(c) {
+  var est = alumnoEstatusDeF1(c);
+  var info = ALUMNO_ESTATUS_INFO[est];
+  var detalle = est !== 'activo'
+    ? [c.estatus_fecha ? 'Desde ' + String(c.estatus_fecha).slice(0, 10) : '', c.estatus_motivo || ''].filter(Boolean).join(' · ')
+    : '';
+  return _jsxDEV("span", { className: 'badge ' + info.badge, title: detalle || undefined, children: info.etiqueta }, void 0, false);
+}
+
+// [valor del filtro, etiqueta]. Los valores los entiende cargar_datos.php
+// ('activo' y 'inactivos' filtran por `activo`, funcionan sin la migración).
+function alumnoFiltroEstatusOpcionesF1() {
+  return [
+    ['', 'Todos'],
+    ['activo', 'Activos'],
+    ['inactivos', 'Bajas, egresados y traslados'],
+    ['baja_temporal', '— Baja temporal'],
+    ['baja_definitiva', '— Baja definitiva'],
+    ['egresado', '— Egresados'],
+    ['traslado', '— Traslados']
+  ];
+}
+
+function _alumnoFechaHoyF1() {
+  var d = new Date();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + dd;
+}
+function _alumnoMontoF1(n) {
+  return '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+}
+
+// Modal "Cambiar estatus". Llama alumno_cambiar_estatus (todo o nada en el
+// servidor) y entrega la respuesta a onGuardado. Por defecto NO se cancela
+// ningún adeudo y la CLABE se conserva: se decide caso por caso.
+function AlumnoCambioEstatusModalF1({ alumno, rol, apiPost, cobrosRespaldo, onCerrar, onGuardado }) {
+  const { useState, useEffect } = React;
+  const actual = alumnoEstatusDeF1(alumno);
+  const destinos = ALUMNO_TRANSICIONES_F1[actual] || [];
+  const puedeDinero = rol === 'admin' || rol === 'superadmin';
+  const [estatus, setEstatus] = useState(destinos[0] || '');
+  const [motivo, setMotivo] = useState('');
+  const [fecha, setFecha] = useState(_alumnoFechaHoyF1());
+  const [pendientes, setPendientes] = useState(null); // null = cargando
+  const [avisoPend, setAvisoPend] = useState('');
+  const [cancelar, setCancelar] = useState({});
+  const [clabe, setClabe] = useState('conservar');
+  const [sacar, setSacar] = useState(true);
+  const [sacarTocado, setSacarTocado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  const reactivar = estatus === 'activo';
+  // Los adeudos y la CLABE solo se tocan al dar de baja a un alumno activo.
+  const mostrarAdeudos = puedeDinero && !reactivar && actual === 'activo';
+
+  // Cobros pendientes del alumno (TODOS, no solo los últimos 90 días de data.cobros).
+  useEffect(() => {
+    if (!mostrarAdeudos) { setPendientes([]); return; }
+    let vivo = true;
+    apiPost('alumno_cobros_pendientes', { cliente_id: alumno.id }).then(res => {
+      if (!vivo) return;
+      if (res && res.success) { setPendientes(res.cobros_pendientes || []); return; }
+      throw new Error((res && res.error) || 'sin respuesta');
+    }).catch(() => {
+      if (!vivo) return;
+      // Respaldo: los cobros que ya trae la pantalla (últimos 90 días).
+      setPendientes((cobrosRespaldo || []).map(c => ({
+        id: Number(c.id), folio: c.folio, total: Number(c.total || 0),
+        monto_pagado: Number(c.monto_pagado || 0), fecha: c.fecha,
+        conceptos: (c.items || []).map(i => i.nombre).filter(Boolean)
+      })));
+      setAvisoPend('No se pudo consultar la lista completa de adeudos: se muestran solo los de los últimos 90 días.');
+    });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const elegirEstatus = v => {
+    setEstatus(v);
+    if (!sacarTocado) setSacar(v !== 'activo');
+  };
+
+  const guardar = async () => {
+    setError('');
+    if (!estatus) { setError('Elige el nuevo estatus.'); return; }
+    if (!reactivar && !motivo.trim()) { setError('Escribe el motivo: queda en el historial del alumno.'); return; }
+    const ids = Object.keys(cancelar).filter(k => cancelar[k]).map(Number);
+    const cuerpo = { cliente_id: alumno.id, estatus: estatus, motivo: motivo.trim(), fecha: fecha };
+    if (!reactivar) {
+      cuerpo.sacar_de_grupos = sacar;
+      if (puedeDinero) {
+        cuerpo.cobros_cancelar = ids;
+        cuerpo.clabe = clabe;
+      }
+    }
+    setGuardando(true);
+    try {
+      const res = await apiPost('alumno_cambiar_estatus', cuerpo);
+      if (!res || !res.success) {
+        setError((res && res.error) || 'No se pudo cambiar el estatus.');
+        setGuardando(false);
+        return;
+      }
+      await onGuardado(res);
+      onCerrar();
+    } catch (e) {
+      setError('Error de conexión: ' + e.message);
+      setGuardando(false);
+    }
+  };
+
+  const nota = { fontSize: 12, color: 'var(--ink-3)', marginTop: 4, lineHeight: 1.5 };
+  const info = ALUMNO_ESTATUS_INFO[actual];
+
+  return _jsxDEV("div", {
+    className: "modal-backdrop",
+    onClick: e => e.target === e.currentTarget && !guardando && onCerrar(),
+    children: _jsxDEV("div", {
+      className: "modal",
+      children: [
+        _jsxDEV("div", {
+          className: "modal-header",
+          children: [
+            _jsxDEV("div", { className: "modal-title", children: "Cambiar estatus de " + alumno.nombre }, void 0, false),
+            _jsxDEV("button", {
+              className: "btn btn-ghost btn-sm", onClick: onCerrar, disabled: guardando,
+              children: _jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false)
+            }, void 0, false)
+          ]
+        }, void 0, true),
+        _jsxDEV("div", {
+          className: "modal-body",
+          children: destinos.length === 0
+            ? _jsxDEV("div", { style: nota, children: "Este alumno no admite cambios de estatus." }, void 0, false)
+            : [
+              _jsxDEV("div", { key: 'act', style: { fontSize: 13, marginBottom: 12 }, children: ["Estatus actual: ", _jsxDEV("span", { className: 'badge ' + info.badge, children: info.etiqueta }, void 0, false)] }, void 0, true),
+              _jsxDEV("div", { key: 'est', className: "form-group", children: [
+                _jsxDEV("label", { className: "form-label", children: "Nuevo estatus" }, void 0, false),
+                _jsxDEV("select", {
+                  className: "form-select", value: estatus, onChange: e => elegirEstatus(e.target.value),
+                  children: destinos.map(d => _jsxDEV("option", { value: d, children: ALUMNO_ESTATUS_INFO[d].etiqueta }, d, false))
+                }, void 0, false)
+              ] }, void 0, true),
+              _jsxDEV("div", { key: 'mot', className: "form-group", children: [
+                _jsxDEV("label", { className: "form-label", children: reactivar ? "Motivo (opcional)" : "Motivo *" }, void 0, false),
+                _jsxDEV("input", {
+                  className: "form-input", value: motivo, maxLength: 255,
+                  placeholder: reactivar ? "Ej. Reingreso" : "Ej. Cambio de domicilio, terminó el ciclo, falta de pago…",
+                  onChange: e => setMotivo(e.target.value)
+                }, void 0, false)
+              ] }, void 0, true),
+              _jsxDEV("div", { key: 'fec', className: "form-group", children: [
+                _jsxDEV("label", { className: "form-label", children: "Fecha efectiva" }, void 0, false),
+                _jsxDEV("input", {
+                  className: "form-input", type: "date", value: fecha, max: _alumnoFechaHoyF1(),
+                  onChange: e => setFecha(e.target.value)
+                }, void 0, false)
+              ] }, void 0, true),
+              !reactivar && _jsxDEV("div", { key: 'gru', className: "form-group", children: [
+                _jsxDEV("label", { style: { display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }, children: [
+                  _jsxDEV("input", { type: "checkbox", checked: sacar, onChange: e => { setSacar(e.target.checked); setSacarTocado(true); } }, void 0, false),
+                  "Sacar de sus grupos"
+                ] }, void 0, true),
+                _jsxDEV("div", { style: nota, children: "Cierra sus inscripciones a grupos; el historial académico se conserva." }, void 0, false)
+              ] }, void 0, true),
+              !reactivar && !puedeDinero && _jsxDEV("div", { key: 'sindin', style: nota, children: "Sus adeudos y su CLABE se conservan tal como están. Cancelar adeudos o liberar la CLABE lo hace la administración del colegio." }, void 0, false),
+              mostrarAdeudos && _jsxDEV("div", { key: 'cob', className: "form-group", children: [
+                _jsxDEV("label", { className: "form-label", children: "Adeudos pendientes" }, void 0, false),
+                pendientes === null
+                  ? _jsxDEV("div", { style: nota, children: "Cargando adeudos…" }, void 0, false)
+                  : pendientes.length === 0
+                    ? _jsxDEV("div", { style: nota, children: "No tiene cobros pendientes." }, void 0, false)
+                    : _jsxDEV("div", { style: { border: '1px solid var(--glass-light)', borderRadius: 'var(--radius-sm)', maxHeight: 200, overflowY: 'auto' }, children: pendientes.map(p => {
+                        const conAbonos = Number(p.monto_pagado) > 0;
+                        return _jsxDEV("label", {
+                          style: { display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 10px', borderBottom: '1px solid var(--glass-light)', fontSize: 12.5, opacity: conAbonos ? .65 : 1 },
+                          children: [
+                            _jsxDEV("input", {
+                              type: "checkbox", disabled: conAbonos, checked: !!cancelar[p.id],
+                              onChange: e => setCancelar({ ...cancelar, [p.id]: e.target.checked })
+                            }, void 0, false),
+                            _jsxDEV("span", { style: { flex: 1 }, children: [
+                              _jsxDEV("strong", { children: (p.folio || ('#' + p.id)) }, void 0, false),
+                              " · ", _alumnoMontoF1(p.total),
+                              p.fecha ? " · " + String(p.fecha).slice(0, 10) : "",
+                              (p.conceptos && p.conceptos.length) ? _jsxDEV("div", { style: { color: 'var(--ink-3)' }, children: p.conceptos.join(', ') }, void 0, false) : null,
+                              conAbonos ? _jsxDEV("div", { style: { color: 'var(--amber)' }, children: "Tiene abonos (" + _alumnoMontoF1(p.monto_pagado) + "): no se puede cancelar desde aquí." }, void 0, false) : null
+                            ] }, void 0, true),
+                            _jsxDEV("span", { style: { fontSize: 11.5, color: 'var(--ink-3)' }, children: conAbonos ? "" : "cancelar" }, void 0, false)
+                          ]
+                        }, p.id, true);
+                      }) }, void 0, false),
+                avisoPend ? _jsxDEV("div", { style: { ...nota, color: 'var(--amber)' }, children: avisoPend }, void 0, false) : null,
+                _jsxDEV("div", { style: nota, children: "Los cobros que no marques se conservan como adeudo de la familia." }, void 0, false)
+              ] }, void 0, true),
+              mostrarAdeudos && alumno.clabe_individual && _jsxDEV("div", { key: 'clb', className: "form-group", children: [
+                _jsxDEV("label", { className: "form-label", children: "CLABE SPEI del alumno" }, void 0, false),
+                _jsxDEV("select", {
+                  className: "form-select", value: clabe, onChange: e => setClabe(e.target.value),
+                  children: [
+                    _jsxDEV("option", { value: 'conservar', children: "Conservar (la familia puede seguir pagando adeudos por SPEI)" }, 'c', false),
+                    _jsxDEV("option", { value: 'liberar', children: "Liberar (regresa al pool; los SPEI posteriores ya no se ligarán)" }, 'l', false)
+                  ]
+                }, void 0, false)
+              ] }, void 0, true),
+              error ? _jsxDEV("div", { key: 'err', style: { marginTop: 8, padding: '8px 11px', borderRadius: 'var(--radius-sm)', background: 'var(--red-glow)', color: 'var(--red)', fontSize: 12.5 }, children: error }, void 0, false) : null
+            ]
+        }, void 0, false),
+        _jsxDEV("div", {
+          className: "modal-footer",
+          children: [
+            _jsxDEV("button", { className: "btn btn-secondary", onClick: onCerrar, disabled: guardando, children: "Cancelar" }, void 0, false),
+            destinos.length > 0 && _jsxDEV("button", {
+              className: "btn btn-primary", onClick: guardar,
+              disabled: guardando || (mostrarAdeudos && pendientes === null),
+              children: guardando ? "Guardando…" : "Guardar cambio"
+            }, void 0, false)
+          ]
+        }, void 0, true)
+      ]
+    }, void 0, true)
+  }, void 0, false);
+}
+
+// Sección "Historial" de la ficha del alumno (bitácora alumno_movimientos).
+function HistorialAlumnoF1({ clienteId, apiPost }) {
+  const { useState, useEffect } = React;
+  const [estado, setEstado] = useState({ cargando: true, movs: [], error: '', aviso: '' });
+  useEffect(() => {
+    let vivo = true;
+    setEstado({ cargando: true, movs: [], error: '', aviso: '' });
+    apiPost('alumno_movimientos_listar', { cliente_id: clienteId, limite: 100 }).then(res => {
+      if (!vivo) return;
+      if (res && res.success) setEstado({ cargando: false, movs: res.movimientos || [], error: '', aviso: res.aviso || '' });
+      else setEstado({ cargando: false, movs: [], error: (res && res.error) || 'No se pudo cargar el historial.', aviso: '' });
+    }).catch(e => { if (vivo) setEstado({ cargando: false, movs: [], error: 'Error de conexión: ' + e.message, aviso: '' }); });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteId]);
+
+  const fmtFecha = s => s ? String(s).replace('T', ' ').slice(0, 16) : '';
+  const etq = e => (ALUMNO_ESTATUS_INFO[e] ? ALUMNO_ESTATUS_INFO[e].etiqueta : e);
+  const chico = { fontSize: 12, color: 'var(--ink-3)' };
+
+  return _jsxDEV("div", {
+    style: { marginTop: 18 },
+    children: [
+      _jsxDEV("div", { style: { fontWeight: 600, fontSize: 13, marginBottom: 8 }, children: "Historial" }, 'h', false),
+      estado.cargando ? _jsxDEV("div", { style: chico, children: "Cargando historial…" }, 'c', false)
+        : estado.error ? _jsxDEV("div", { style: { ...chico, color: 'var(--red)' }, children: estado.error }, 'e', false)
+        : estado.movs.length === 0 ? _jsxDEV("div", { style: chico, children: estado.aviso || "Sin movimientos registrados." }, 'v', false)
+        : _jsxDEV("div", { style: { maxHeight: 240, overflowY: 'auto' }, children: estado.movs.map(m => _jsxDEV("div", {
+            style: { padding: '7px 0', borderBottom: '1px solid var(--glass-light)', fontSize: 12.5 },
+            children: [
+              _jsxDEV("div", { style: { display: 'flex', justifyContent: 'space-between', gap: 8 }, children: [
+                _jsxDEV("strong", { children: ALUMNO_MOVIMIENTO_ETIQUETA_F1[m.tipo] || m.tipo }, void 0, false),
+                _jsxDEV("span", { style: chico, children: fmtFecha(m.creado_en) }, void 0, false)
+              ] }, void 0, true),
+              (m.estatus_anterior || m.estatus_nuevo) && m.estatus_anterior !== m.estatus_nuevo
+                ? _jsxDEV("div", { children: [m.estatus_anterior ? etq(m.estatus_anterior) : '—', " → ", m.estatus_nuevo ? etq(m.estatus_nuevo) : '—'] }, void 0, true) : null,
+              m.motivo ? _jsxDEV("div", { style: { color: 'var(--ink-2)' }, children: "Motivo: " + m.motivo }, void 0, false) : null,
+              _jsxDEV("div", { style: chico, children: "Por " + (m.usuario_nombre || 'sistema') }, void 0, false)
+            ]
+          }, m.id, true)) }, 'l', false)
+    ]
   }, void 0, true);
 }

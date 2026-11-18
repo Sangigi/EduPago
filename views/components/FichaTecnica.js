@@ -276,7 +276,9 @@ function FichaTecnica({ registro, tipo, escuela, familia, extra, onCerrar, onGua
                 registro.foto_url ? ' Cambiar foto' : ' Agregar foto'
               ]
             })
-        ) : null
+        ) : null,
+        // [F1] Bloque opcional que la vista le pasa (p. ej. Historial del alumno).
+        (extra && extra.seccionExtra) || null
       )
     )
   );
