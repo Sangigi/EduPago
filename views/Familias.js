@@ -325,7 +325,7 @@ function Familias({
 
       await ClienteController.toggleActivo(hijo.id, eraActivo);
 
-    } catch (e) {}
+    } catch (e) { /* [F1] antes se ignoraba el error y la pantalla mostraba la baja aunque el servidor la rechazara */ alert('No se pudo cambiar el estatus: ' + (e.message || e)); return; }
 
     const newData = {
 
@@ -349,7 +349,7 @@ function Familias({
 
       if (hijo.clabe_individual) {
 
-        await liberarClabePool(hijo, newData);
+        /* [F1] La CLABE ya no se libera sola al dar de baja: se conserva para que la familia pueda seguir pagando sus adeudos. Liberarla se elige en el modal Cambiar estatus de Alumnos. */
 
       }
 
@@ -357,7 +357,7 @@ function Familias({
 
       const alumnoActualizado = newData.clientes.find(c => c.id === hijo.id);
 
-      await asignarClabeDesdePool(alumnoActualizado, newData);
+      /* [F1] Solo si no conserva su CLABE (ya no se libera al dar de baja) */ if (alumnoActualizado && !alumnoActualizado.clabe_individual) await asignarClabeDesdePool(alumnoActualizado, newData);
 
     }
 
