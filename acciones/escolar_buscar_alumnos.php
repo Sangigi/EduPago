@@ -3,7 +3,7 @@
         // data.clientes del frontend porque cargar_datos lo pagina (25 por
         // página): aquí se busca en toda la escuela y se dice en qué grupo del
         // ciclo está ya cada alumno, para no inscribirlo dos veces sin querer.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin'], ['escolar_grupos']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ESCOLAR_ROLES_GESTOR, ['escolar_grupos']);
         $eid = $ctx['escuela_id'];
         $ciclo_id  = intval($input['ciclo_id'] ?? 0);
         $q         = trim($input['q'] ?? '');

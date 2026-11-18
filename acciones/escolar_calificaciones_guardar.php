@@ -4,15 +4,18 @@
         //   · Admin: cualquier materia, incluso periodos cerrados (correcciones).
         //   · La nota debe estar dentro de la escala del ciclo.
         //   · Calificación y observación vacías = se borra el registro.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin', 'docente'], ['escolar_calificaciones']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, array_merge(ESCOLAR_ROLES_GESTOR, ['docente']), ['escolar_calificaciones']);
         $eid = $ctx['escuela_id'];
         $gm = escolar_gm($pdo, $ctx, $input['grupo_materia_id'] ?? 0, true);
         $ciclo = escolar_ciclo($pdo, $eid, $gm['ciclo_id']);
+        // [F3] Con el ciclo cerrado ya se calculó el historial académico:
+        // cambiar una nota ahora lo dejaría desactualizado sin que nadie lo note.
+        escolar_requerir_ciclo_abierto($ciclo, 'modificar calificaciones');
         $emin = floatval($ciclo['escala_min']);
         $emax = floatval($ciclo['escala_max']);
 
-        $st = $pdo->prepare("SELECT id, nombre, cerrado FROM periodos_evaluacion WHERE ciclo_id = ?");
-        $st->execute([$ciclo['id']]);
+        $st = $pdo->prepare("SELECT id, nombre, cerrado FROM periodos_evaluacion WHERE ciclo_id = ? AND escuela_id = ?");
+        $st->execute([$ciclo['id'], $eid]);
         $periodos = [];
         foreach ($st->fetchAll() as $p) $periodos[intval($p['id'])] = $p;
 

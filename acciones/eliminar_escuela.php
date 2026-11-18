@@ -63,6 +63,15 @@
             $pdo->prepare("DELETE FROM recordatorios WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM cobros WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM clabe_pool WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            // [F3] Control escolar. Sin FOREIGN KEY (ver migracion_2026_11_13_control_escolar.sql),
+            // así que nada se borra en cascada: si no se limpian aquí, las filas quedan
+            // huérfanas con un escuela_id que ya no existe. Se borran antes que clientes
+            // y usuarios, de las hojas hacia la raíz. Las listas son fijas (no vienen del
+            // navegador), por eso el nombre de tabla va directo en el SQL.
+            foreach (['calificaciones', 'asistencias', 'horarios', 'grupo_materias', 'grupo_alumnos', 'grupos',
+                      'periodos_evaluacion', 'historial_academico', 'niveles_grados', 'materias', 'aulas', 'ciclos_escolares'] as $tablaEscolar) {
+                $pdo->prepare("DELETE FROM `$tablaEscolar` WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
+            }
             $pdo->prepare("DELETE FROM clientes WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM familias WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);
             $pdo->prepare("DELETE FROM productos WHERE escuela_id IN ($inGrupo)")->execute($idsGrupo);

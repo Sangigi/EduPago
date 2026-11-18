@@ -19,7 +19,7 @@
         );
         foreach ($st->fetchAll() as $h) {
             $h['id'] = intval($h['id']);
-            $h['boleta'] = escolar_armar_boleta($pdo, $eid, $h['id'], $ciclo);
+            $h['boleta'] = escolar_armar_boleta($pdo, $eid, $h['id'], $ciclo, ['solo_publicados' => true]); // [F3] solo periodos publicados
             $inc->execute([$eid, $h['id'], $ciclo['fecha_inicio'], $ciclo['fecha_fin']]);
             $h['incidencias'] = $inc->fetchAll();
             $hijos[] = $h;

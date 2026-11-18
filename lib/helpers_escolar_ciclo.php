@@ -552,10 +552,20 @@ function escolar_kardex($pdo, $escuela_id, $cliente_id, $solo_publicados) {
     foreach (escolar_grados($pdo, $eid) as $g) $grados[$g['id']] = $g;
     $actual = escolar_ciclo_actual($pdo, $eid);
 
+    // Ciclos con algún periodo SIN publicar. Familia/alumno no ven el resultado
+    // guardado de esos ciclos (se calculó con TODOS los periodos, publicados o
+    // no): ven solo lo publicado, calculado en vivo y sin veredicto.
+    $sinPublicar = [];
+    if ($solo_publicados) {
+        $st = $pdo->prepare("SELECT DISTINCT ciclo_id FROM periodos_evaluacion WHERE escuela_id = ? AND publicado = 0");
+        $st->execute([$eid]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $cid_) $sinPublicar[intval($cid_)] = true;
+    }
+
     $filas = [];
     foreach (array_unique(array_merge(array_keys($historial), array_keys($ciclos))) as $ciclo_id) {
         $h = $historial[$ciclo_id] ?? null;
-        if ($h && intval($h['ciclo_cerrado']) === 1) {
+        if ($h && intval($h['ciclo_cerrado']) === 1 && !isset($sinPublicar[intval($ciclo_id)])) {
             $mats = json_decode($h['materias'] ?? '[]', true);
             $filas[] = [
                 'ciclo_id'            => intval($ciclo_id),
@@ -594,9 +604,9 @@ function escolar_kardex($pdo, $escuela_id, $cliente_id, $solo_publicados) {
             'ciclo_id'            => intval($ciclo_id),
             'ciclo'               => $ciclo['nombre'],
             'fecha_inicio'        => $ciclo['fecha_inicio'],
-            'estado'              => $actual && intval($actual['id']) === intval($ciclo_id) ? 'en_curso' : 'sin_cerrar',
+            'estado'              => !empty($ciclo['cerrado']) ? 'en_revision' : ($actual && intval($actual['id']) === intval($ciclo_id) ? 'en_curso' : 'sin_cerrar'),
             'calif_aprobatoria'   => floatval($ciclo['calif_aprobatoria']),
-            'grado'               => $gradoId && isset($grados[$gradoId]) ? $grados[$gradoId]['nombre_corto'] : ($b['grupo'] ? trim(($b['grupo']['grado'] ?? '') . ' ' . ($b['grupo']['nivel'] ?? '')) ?: null : null),
+            'grado'               => $gradoNombre,
             'grupo'               => $b['grupo']['nombre'] ?? null,
             'promedio'            => $r['promedio_final'],
             // En un ciclo abierto todavía no hay resultado oficial.

@@ -1,7 +1,7 @@
 <?php
         // Todo lo de un grupo: datos, alumnos inscritos, materias asignadas
         // (con docente) y horario semanal.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin', 'docente']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, array_merge(ESCOLAR_ROLES_LECTURA, ['docente']));
         $g = escolar_grupo($pdo, $ctx, $input['grupo_id'] ?? 0);
         $gid = intval($g['id']);
 
@@ -9,7 +9,7 @@
         $st->execute([$gid]);
         $g = array_merge($g, $st->fetch() ?: []);
         foreach (['id', 'ciclo_id'] as $k) $g[$k] = intval($g[$k]);
-        foreach (['aula_id', 'tutor_id', 'cupo'] as $k) $g[$k] = $g[$k] !== null ? intval($g[$k]) : null;
+        foreach (['aula_id', 'tutor_id', 'cupo', 'grado_id'] as $k) $g[$k] = $g[$k] !== null ? intval($g[$k]) : null; // [F3] grado_id
         $g['activo'] = (bool) $g['activo'];
 
         $alumnos = escolar_alumnos_grupo($pdo, $gid);

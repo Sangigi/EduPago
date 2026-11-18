@@ -1,6 +1,6 @@
 <?php
         // Baja lógica de un alumno de un grupo (se conserva su historial).
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin'], ['escolar_grupos']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ESCOLAR_ROLES_GESTOR, ['escolar_grupos']);
         $g = escolar_grupo($pdo, $ctx, $input['grupo_id'] ?? 0);
         $cid = intval($input['cliente_id'] ?? 0);
         $st = $pdo->prepare("UPDATE grupo_alumnos SET activo = 0, fecha_baja = CURDATE() WHERE grupo_id = ? AND cliente_id = ? AND activo = 1");

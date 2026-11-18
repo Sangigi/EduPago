@@ -2,17 +2,22 @@
         // Sábana de calificaciones de una materia en un grupo: alumnos ×
         // periodos del ciclo, con su escala y qué periodos puede editar quien
         // pregunta.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin', 'docente'], ['escolar_calificaciones']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, array_merge(ESCOLAR_ROLES_LECTURA, ['docente']), ['escolar_calificaciones']);
         $gm = escolar_gm($pdo, $ctx, $input['grupo_materia_id'] ?? 0);
         $ciclo = escolar_ciclo($pdo, $ctx['escuela_id'], $gm['ciclo_id']);
-        $esSuya = $ctx['rol'] !== 'docente' || intval($gm['docente_id']) === $ctx['user_id'];
+        // [F3] 'direccion' solo lee: antes $esSuya era true para cualquier rol
+        // que no fuera docente. Escribe quien gestiona, o el docente de la materia.
+        $esSuya = escolar_es_gestor($ctx) || ($ctx['rol'] === 'docente' && intval($gm['docente_id']) === $ctx['user_id']);
+        // [F3] Ciclo cerrado: nadie captura (ni la administración) hasta reabrirlo.
+        $cicloCerrado = escolar_ciclo_cerrado($ciclo);
 
-        $st = $pdo->prepare("SELECT id, nombre, orden, cerrado, fecha_inicio, fecha_fin FROM periodos_evaluacion WHERE ciclo_id = ? ORDER BY orden, id");
-        $st->execute([$ciclo['id']]);
-        $periodos = array_map(function ($p) use ($ctx, $esSuya) {
+        $st = $pdo->prepare("SELECT id, nombre, orden, cerrado, publicado, fecha_inicio, fecha_fin FROM periodos_evaluacion WHERE ciclo_id = ? AND escuela_id = ? ORDER BY orden, id");
+        $st->execute([$ciclo['id'], $ctx['escuela_id']]);
+        $periodos = array_map(function ($p) use ($ctx, $esSuya, $cicloCerrado) {
             $p['id'] = intval($p['id']);
             $p['cerrado'] = (bool) $p['cerrado'];
-            $p['editable'] = $esSuya && (escolar_es_gestor($ctx) || !$p['cerrado']);
+            $p['publicado'] = (bool) $p['publicado']; // [F3]
+            $p['editable'] = !$cicloCerrado && $esSuya && (escolar_es_gestor($ctx) || !$p['cerrado']);
             return $p;
         }, $st->fetchAll());
 
@@ -43,6 +48,7 @@
                 'id' => intval($ciclo['id']), 'nombre' => $ciclo['nombre'],
                 'escala_min' => floatval($ciclo['escala_min']), 'escala_max' => floatval($ciclo['escala_max']),
                 'calif_aprobatoria' => floatval($ciclo['calif_aprobatoria']),
+                'cerrado' => $cicloCerrado, // [F3]
             ],
             'periodos' => $periodos,
             'alumnos'  => $alumnos,

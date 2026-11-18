@@ -2,7 +2,7 @@
         // Reporte de asistencia de un grupo en un rango: totales por alumno y,
         // si el rango es de hasta 62 días, la matriz día por día (para la
         // lista mensual que se imprime o se exporta).
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin', 'docente'], ['escolar_asistencias']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, array_merge(ESCOLAR_ROLES_LECTURA, ['docente']), ['escolar_asistencias']);
         $g = escolar_grupo($pdo, $ctx, $input['grupo_id'] ?? 0);
         $gid = intval($g['id']);
         $desde = escolar_fecha($input['desde'] ?? date('Y-m-01'), 'fecha inicial');
