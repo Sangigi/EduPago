@@ -26,7 +26,10 @@ function Productos({
     fecha_inicio: '',
     dia_ventana_fin: 5,
     penalizacion_tipo: '',
-    penalizacion_valor: 0
+    penalizacion_valor: 0,
+    // [F5] A quién se le genera el cobro recurrente: 'todos' | 'grados' | 'grupos'.
+    alcance: 'todos',
+    alcance_ids: []
   };
   const PERIODICIDADES = [
     { value: 1, label: 'Mensual' },
@@ -38,6 +41,67 @@ function Productos({
   const [q, setQ] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [errForm, setErrForm] = useState('');
+  // [F5] Catálogo de grados (F3) y grupos del ciclo actual, sacado de
+  // escolar_catalogos para el selector "Se cobra a" y para poner nombre a los
+  // ids en la lista. null = cargando. Si falla (módulo escolar apagado o sin
+  // instalar) el concepto se puede seguir guardando como "Todos los alumnos".
+  const [catAlc, setCatAlc] = useState(null);
+  // [F5] Vista previa: a cuántos alumnos activos se les generaría hoy el cobro.
+  const [previa, setPrevia] = useState(null);
+  React.useEffect(() => {
+    if (!escuela_id) {
+      setCatAlc({ grados: null, grupos: [], ciclo: null, error: 'Selecciona un colegio.' });
+      return;
+    }
+    let vivo = true;
+    setCatAlc(null);
+    ApiClient.post('escolar_catalogos', { escuela_id }).then(res => {
+      if (!vivo) return;
+      if (!res || !res.success) {
+        setCatAlc({ grados: null, grupos: [], ciclo: null, error: (res && res.error) || 'No se pudo cargar el control escolar.' });
+        return;
+      }
+      const ciclo = (res.ciclos || []).find(c => Number(c.id) === Number(res.ciclo_id)) || null;
+      setCatAlc({ grados: Array.isArray(res.grados) ? res.grados : null, grupos: res.grupos || [], ciclo, error: '' });
+    }).catch(e => {
+      if (!vivo) return;
+      const msg = /HTTP 403/.test(e.message) ? 'el control escolar no está habilitado para este colegio.' : e.message;
+      setCatAlc({ grados: null, grupos: [], ciclo: null, error: msg });
+    });
+    return () => { vivo = false; };
+  }, [escuela_id]);
+  const idsForm = _prodAlcanceIds(form.alcance_ids);
+  const idsFormClave = idsForm.join(',');
+  React.useEffect(() => {
+    if (modal !== 'form' || form.tipo !== 'recurrente') {
+      setPrevia(null);
+      return;
+    }
+    let vivo = true;
+    setPrevia(p => ({ ...(p || {}), cargando: true }));
+    // Se espera un momento para no pedir una cuenta por cada clic en los chips.
+    const t = setTimeout(() => {
+      ApiClient.post('producto_alcance_vista_previa', { escuela_id, alcance: form.alcance || 'todos', alcance_ids: idsForm })
+        .then(res => {
+          if (!vivo) return;
+          setPrevia(res && res.success ? { ...res, cargando: false } : { cargando: false, error: (res && res.error) || 'No se pudo calcular a cuántos alumnos aplica.' });
+        })
+        .catch(e => { if (vivo) setPrevia({ cargando: false, error: e.message }); });
+    }, 350);
+    return () => { vivo = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal, form.tipo, form.alcance, idsFormClave, escuela_id]);
+  // [F5] Abre el formulario con un concepto existente (alcance_ids llega como
+  // texto JSON desde cargar_datos y como arreglo desde editar_producto).
+  const formDeProducto = p => ({
+    ...EMPTY,
+    ...p,
+    fecha_inicio: p.fecha_inicio || '',
+    penalizacion_tipo: p.penalizacion_tipo || '',
+    penalizacion_valor: p.penalizacion_valor || 0,
+    alcance: p.alcance || 'todos',
+    alcance_ids: _prodAlcanceIds(p.alcance_ids)
+  });
   const lista = data.productos.filter(p => !q || p.nombre.toLowerCase().includes(q.toLowerCase()) || p.categoria.toLowerCase().includes(q.toLowerCase()));
   const guardar = async () => {
     setErrForm('');
@@ -48,11 +112,17 @@ function Productos({
       if (diaInicioDerivado > 28) return setErrForm('Elige un día 1-28 en "Empieza a cobrarse" (los días 29-31 no existen en todos los meses).');
       if (form.dia_ventana_fin < diaInicioDerivado) return setErrForm(`El día de cierre debe ser igual o posterior al día ${diaInicioDerivado} (el día en que abre, según la fecha de inicio).`);
       if (form.penalizacion_tipo && (!form.penalizacion_valor || form.penalizacion_valor <= 0)) return setErrForm('Define un valor de penalización mayor a cero, o quita el tipo de penalización.');
+      // [F5]
+      if ((form.alcance === 'grados' || form.alcance === 'grupos') && idsForm.length === 0) return setErrForm(form.alcance === 'grados' ? 'Elige al menos un grado al que se le cobrará este concepto.' : 'Elige al menos un grupo al que se le cobrará este concepto.');
     }
+    // [F5] El alcance solo aplica a recurrentes; un concepto único va siempre a 'todos'.
+    const esRecurrente = form.tipo === 'recurrente';
+    const alcanceEnvio = esRecurrente ? (form.alcance || 'todos') : 'todos';
+    const payload = { ...form, alcance: alcanceEnvio, alcance_ids: alcanceEnvio === 'todos' ? [] : idsForm };
     setGuardando(true);
     try {
       if (form.id) {
-        const res = await ProductosController.editar(form);
+        const res = await ProductosController.editar(payload); // [F5] antes: form
         const newData = {
           ...data,
           productos: data.productos.map(p => p.id === form.id ? { ...p, ...res.producto } : p)
@@ -60,7 +130,7 @@ function Productos({
         setData(newData);
         AppModel.save(newData);
       } else {
-        const res = await ProductosController.crear({ ...form, escuela_id });
+        const res = await ProductosController.crear({ ...payload, escuela_id }); // [F5] antes: form
         const newData = {
           ...data,
           productos: [...data.productos, res.producto]
@@ -168,13 +238,7 @@ function Productos({
           }, void 0, false)]
         }, void 0, true), lista.map(p => /*#__PURE__*/_jsxDEV("div", {
           onClick: () => {
-            setForm({
-              ...EMPTY,
-              ...p,
-              fecha_inicio: p.fecha_inicio || '',
-              penalizacion_tipo: p.penalizacion_tipo || '',
-              penalizacion_valor: p.penalizacion_valor || 0
-            });
+            setForm(formDeProducto(p)); // [F5] incluye alcance / alcance_ids
             setErrForm('');
             setModal('form');
           },
@@ -233,6 +297,11 @@ function Productos({
               }, void 0, false), p.tipo === 'recurrente' && /*#__PURE__*/_jsxDEV("div", {
                 style: { fontSize: 10.5, color: 'var(--accent, #bdcf00)', marginTop: 2, fontWeight: 600 },
                 children: "🔁 " + (PERIODICIDADES.find(pe => pe.value === p.periodicidad_meses)?.label || 'Recurrente') + ` · día ${p.dia_ventana_inicio}-${p.dia_ventana_fin}`
+              }, void 0, false), p.tipo === 'recurrente' && /*#__PURE__*/_jsxDEV("div", {
+                // [F5] A quién se le cobra (todos / grados / grupos).
+                title: _prodAlcanceTexto(p, catAlc, true),
+                style: { fontSize: 10.5, color: 'var(--ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                children: _prodAlcanceTexto(p, catAlc, false)
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
@@ -264,13 +333,7 @@ function Productos({
                 flex: 1
               },
               onClick: () => {
-                setForm({
-                  ...EMPTY,
-                  ...p,
-                  fecha_inicio: p.fecha_inicio || '',
-                  penalizacion_tipo: p.penalizacion_tipo || '',
-                  penalizacion_valor: p.penalizacion_valor || 0
-                });
+                setForm(formDeProducto(p)); // [F5] incluye alcance / alcance_ids
                 setErrForm('');
                 setModal('form');
               },
@@ -472,9 +535,19 @@ function Productos({
                   }, void 0, false)]
                 }, void 0, true)]
               }, void 0, true),
+              // [F5] "Se cobra a": todos / ciertos grados / ciertos grupos.
+              /*#__PURE__*/_jsxDEV(ProdAlcanceSelector, {
+                form: form,
+                setForm: setForm,
+                cat: catAlc,
+                previa: previa,
+                productos: data.productos,
+                catLabels: CAT_LABELS
+              }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", {
                 style: { fontSize: 11.5, color: 'var(--ink-4)' },
-                children: "Se genera un cobro pendiente para cada alumno activo en la fecha que toque, y se avisa por correo al padre/tutor (o al alumno si tiene correo propio)."
+                // [F5] el texto depende del alcance, y aclara qué pasa con las altas a medio periodo.
+                children: "Se genera un cobro pendiente para cada alumno activo" + ((form.alcance || 'todos') === 'todos' ? '' : (form.alcance === 'grados' ? ' de los grados elegidos' : ' inscrito en los grupos elegidos')) + " en la fecha que toque, y se avisa por correo al padre/tutor (o al alumno si tiene correo propio). Se genera una vez por periodo: a quien se dé de alta o cambie de grado/grupo después de esa fecha no se le genera el de ese periodo."
               }, void 0, false)
             ]
           }, void 0, true), errForm && /*#__PURE__*/_jsxDEV("div", {
@@ -496,5 +569,268 @@ function Productos({
         }, void 0, true)]
       }, void 0, true)
     }, void 0, false)]
+  }, void 0, true);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * [F5] Colegiatura por grado/grupo — selector "Se cobra a" y sus helpers.
+ * Viven fuera de Productos() porque no dependen de su estado. Prefijo
+ * _prod / Prod: todas las vistas comparten el scope global de window.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+// Normaliza alcance_ids a enteros positivos, únicos y ordenados. Acepta el
+// arreglo que devuelven crear/editar_producto o el texto JSON tal como llega
+// de cargar_datos (SELECT * de productos). Misma regla que
+// producto_alcance_ids() en lib/helpers_alcance_producto.php.
+function _prodAlcanceIds(v) {
+  let arr = v;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr.trim() || '[]'); } catch (e) { arr = []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  const vistos = {};
+  const out = [];
+  arr.forEach(x => {
+    const n = Math.trunc(Number(x));
+    if (Number.isFinite(n) && n > 0 && !vistos[n]) { vistos[n] = true; out.push(n); }
+  });
+  return out.sort((a, b) => a - b);
+}
+
+// activo puede llegar como bool, 0/1 o '0'/'1' según la acción que lo mande.
+function _prodEsActivo(v) {
+  return !(v === false || v === 0 || v === '0');
+}
+
+function _prodNombreGrado(g) {
+  if (!g) return '';
+  return g.nombre_corto || [g.grado, g.nivel].filter(Boolean).join(' ') || ('Grado #' + g.id);
+}
+
+function _prodNombreGrupo(g) {
+  if (!g) return '';
+  return g.nombre || ('Grupo #' + g.id);
+}
+
+// Texto "a quién se cobra" de la tarjeta del concepto. cat = catálogo ya
+// cargado, o null mientras carga (entonces solo se dice cuántos son).
+// largo = true devuelve la lista completa (para el tooltip).
+function _prodAlcanceTexto(p, cat, largo) {
+  const alcance = (p && p.alcance) || 'todos';
+  if (alcance !== 'grados' && alcance !== 'grupos') return 'Se cobra a todos los alumnos activos';
+  const esGrado = alcance === 'grados';
+  const ids = _prodAlcanceIds(p.alcance_ids);
+  if (!ids.length) return esGrado ? 'Por grado, sin grados elegidos: no se genera a nadie' : 'Por grupo, sin grupos elegidos: no se genera a nadie';
+  // Sin catálogo (cargando, error o sin grados de F3) no se inventan
+  // nombres: solo se dice cuántos son.
+  const fuente = (cat && !cat.error) ? (esGrado ? cat.grados : cat.grupos) : null;
+  if (!Array.isArray(fuente)) return 'Solo ' + ids.length + ' ' + (esGrado ? (ids.length === 1 ? 'grado' : 'grados') : (ids.length === 1 ? 'grupo' : 'grupos'));
+  const porId = {};
+  fuente.forEach(x => { porId[Number(x.id)] = x; });
+  // Un id que ya no está en el catálogo: grado borrado, o grupo de otro ciclo
+  // (escolar_catalogos solo trae los grupos del ciclo actual).
+  const nombres = ids.map(id => porId[id]
+    ? (esGrado ? _prodNombreGrado(porId[id]) : _prodNombreGrupo(porId[id]))
+    : (esGrado ? 'grado #' + id : 'grupo #' + id + ' (otro ciclo)'));
+  const MAX = 3;
+  const lista = (largo || nombres.length <= MAX)
+    ? nombres.join(', ')
+    : nombres.slice(0, MAX).join(', ') + ' y ' + (nombres.length - MAX) + ' más';
+  return (esGrado ? 'Solo grados: ' : 'Solo grupos: ') + lista;
+}
+
+// Selector "Se cobra a" del formulario de un concepto recurrente.
+//   form / setForm : estado del formulario de Productos()
+//   cat            : null (cargando) | { grados: [] | null, grupos: [], ciclo, error }
+//                    grados === null → escolar_catalogos no devolvió 'grados'
+//                    (el catálogo de grados de Control escolar aún no existe).
+//   previa         : respuesta de producto_alcance_vista_previa (+ cargando / error)
+//   productos      : todos los conceptos, para avisar de posibles cobros dobles
+//   catLabels      : nombres de las categorías
+function ProdAlcanceSelector({ form, setForm, cat, previa, productos, catLabels }) {
+  const alcance = form.alcance || 'todos';
+  const ids = _prodAlcanceIds(form.alcance_ids);
+  const cargando = cat === null;
+  const gradosDisp = !cargando && Array.isArray(cat.grados);
+  const gruposDisp = !cargando && !cat.error;
+  const grupos = (!cargando && cat.grupos) || [];
+
+  // Cambiar de opción borra la selección: los ids de grados y los de grupos
+  // son de tablas distintas y no se pueden reutilizar entre sí.
+  const elegir = v => setForm(f => ((f.alcance || 'todos') === v ? f : { ...f, alcance: v, alcance_ids: [] }));
+  const alternar = id => setForm(f => {
+    const act = _prodAlcanceIds(f.alcance_ids);
+    return { ...f, alcance_ids: act.includes(id) ? act.filter(x => x !== id) : act.concat([id]).sort((a, b) => a - b) };
+  });
+  const ponerVarios = (lista, encender) => setForm(f => {
+    const act = _prodAlcanceIds(f.alcance_ids).filter(x => !lista.includes(x));
+    return { ...f, alcance_ids: (encender ? act.concat(lista) : act).sort((a, b) => a - b) };
+  });
+
+  const AVISO = 'var(--amber, #d97706)';
+  const nota = (texto, color, key) => /*#__PURE__*/_jsxDEV("div", {
+    style: { fontSize: 11.5, color: color || 'var(--ink-4)', marginTop: 6, lineHeight: 1.4 },
+    children: texto
+  }, key, false);
+  const chip = (id, texto, titulo) => /*#__PURE__*/_jsxDEV("button", {
+    type: "button",
+    className: "btn btn-sm " + (ids.includes(id) ? 'btn-primary' : 'btn-secondary'),
+    style: { padding: '4px 10px', fontSize: 12 },
+    title: titulo || undefined,
+    "aria-pressed": ids.includes(id),
+    onClick: () => alternar(id),
+    children: texto
+  }, id, false);
+  const filaChips = (children, key) => /*#__PURE__*/_jsxDEV("div", {
+    style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+    children: children
+  }, key, true);
+
+  // Opciones. Una opción que el concepto YA tiene guardada no se deshabilita
+  // aunque su catálogo no cargue: así se ve qué tiene y se puede cambiar a
+  // "Todos" a propósito, en vez de quedar atorado.
+  const opciones = [
+    { value: 'todos', label: 'Todos los alumnos', disabled: false, title: '' },
+    { value: 'grados', label: 'Ciertos grados', disabled: !gradosDisp && alcance !== 'grados',
+      title: cargando ? 'Cargando…' : (!gradosDisp ? 'Primero configura el catálogo de grados en Control escolar.' : '') },
+    { value: 'grupos', label: 'Ciertos grupos', disabled: !gruposDisp && alcance !== 'grupos',
+      title: cargando ? 'Cargando…' : (!gruposDisp ? 'No se pudo cargar el control escolar: ' + cat.error : '') }
+  ];
+
+  const cuerpo = [];
+  if (alcance === 'grados') {
+    if (cargando) {
+      cuerpo.push(nota('Cargando grados…', null, 'carg'));
+    } else if (!gradosDisp) {
+      cuerpo.push(nota('Primero configura el catálogo de grados en Control escolar. Mientras tanto puedes cobrar a todos los alumnos o por grupos.', AVISO, 'sin'));
+    } else {
+      const lista = cat.grados
+        .filter(g => _prodEsActivo(g.activo) || ids.includes(Number(g.id)))
+        .slice()
+        .sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0) || Number(a.id) - Number(b.id));
+      if (!lista.length) {
+        cuerpo.push(nota('El catálogo de grados está vacío. Agrega los grados en Control escolar.', AVISO, 'vacio'));
+      }
+      // Agrupados por nivel, en el orden del catálogo; el botón del nivel
+      // marca o desmarca todos sus grados de un jalón.
+      const niveles = [];
+      const porNivel = {};
+      lista.forEach(g => {
+        const n = g.nivel || 'Sin nivel';
+        if (!porNivel[n]) { porNivel[n] = []; niveles.push(n); }
+        porNivel[n].push(g);
+      });
+      niveles.forEach(n => {
+        const idsNivel = porNivel[n].map(g => Number(g.id));
+        const todosNivel = idsNivel.every(x => ids.includes(x));
+        cuerpo.push(/*#__PURE__*/_jsxDEV("div", {
+          style: { marginTop: 8 },
+          children: [/*#__PURE__*/_jsxDEV("button", {
+            type: "button",
+            className: "btn btn-ghost btn-sm",
+            style: { padding: '2px 6px', fontSize: 11, fontWeight: 600 },
+            title: todosNivel ? 'Quitar todos los grados de ' + n : 'Elegir todos los grados de ' + n,
+            onClick: () => ponerVarios(idsNivel, !todosNivel),
+            children: n + (todosNivel ? ' · quitar todos' : ' · elegir todos')
+          }, "h", false), filaChips(porNivel[n].map(g => chip(Number(g.id), _prodNombreGrado(g) + (_prodEsActivo(g.activo) ? '' : ' (inactivo)'))), "c")]
+        }, 'niv-' + n, true));
+      });
+      // Ids guardados que ya no están en el catálogo: el backend no deja
+      // guardar con ellos, así que se muestran para poder quitarlos.
+      const conocidos = cat.grados.map(g => Number(g.id));
+      const huerfanos = ids.filter(id => !conocidos.includes(id));
+      if (huerfanos.length) {
+        cuerpo.push(nota('Estos grados ya no están en el catálogo; quítalos para poder guardar:', AVISO, 'hn'));
+        cuerpo.push(filaChips(huerfanos.map(id => chip(id, 'Grado #' + id + ' ×')), 'hc'));
+      }
+    }
+  } else if (alcance === 'grupos') {
+    if (cargando) {
+      cuerpo.push(nota('Cargando grupos…', null, 'carg'));
+    } else if (!gruposDisp) {
+      cuerpo.push(nota('No se pudieron cargar los grupos: ' + cat.error, AVISO, 'err'));
+    } else {
+      const lista = grupos.filter(g => _prodEsActivo(g.activo) || ids.includes(Number(g.id)));
+      cuerpo.push(nota(cat.ciclo ? 'Grupos del ciclo ' + cat.ciclo.nombre + ':' : 'Grupos del ciclo actual:', null, 'ciclo'));
+      if (!lista.length) {
+        cuerpo.push(nota('No hay grupos en el ciclo actual. Créalos en Control escolar.', AVISO, 'vacio'));
+      } else {
+        cuerpo.push(filaChips(lista.map(g => chip(
+          Number(g.id),
+          _prodNombreGrupo(g) + ' · ' + (Number(g.num_alumnos) || 0),
+          [g.nivel, g.grado, g.turno].filter(Boolean).join(' · ') + ' — ' + (Number(g.num_alumnos) || 0) + ' alumnos inscritos'
+        )), 'chips'));
+      }
+      // Grupos guardados que no son del ciclo actual (o ya se borraron): se
+      // muestran para poder quitarlos. Mientras sigan en el concepto, el cron
+      // los respeta para los alumnos que sigan inscritos (activo) en ellos.
+      const conocidos = grupos.map(g => Number(g.id));
+      const otros = ids.filter(id => !conocidos.includes(id));
+      if (otros.length) {
+        cuerpo.push(nota('Grupos guardados que no son del ciclo actual:', AVISO, 'on'));
+        cuerpo.push(filaChips(otros.map(id => chip(id, 'Grupo #' + id + ' ×')), 'oc'));
+      }
+      cuerpo.push(nota('Los grupos cambian cada ciclo: al empezar el siguiente tendrás que actualizar este concepto. Para una colegiatura por grado conviene "Ciertos grados".', null, 'tip'));
+    }
+  }
+
+  // Vista previa: el mismo filtro que usa el cron, para que el número que ve
+  // el colegio sea el que de verdad se cobra.
+  if (previa) {
+    if (previa.cargando) {
+      cuerpo.push(nota('Calculando a cuántos alumnos aplica…', null, 'pv'));
+    } else if (previa.error) {
+      cuerpo.push(nota(previa.error, AVISO, 'pv'));
+    } else if (alcance !== 'todos' && !ids.length) {
+      cuerpo.push(nota(alcance === 'grados' ? 'Elige al menos un grado.' : 'Elige al menos un grupo.', null, 'pv'));
+    } else if (previa.alumnos_activos != null) {
+      const n = Number(previa.alumnos_alcanzados) || 0;
+      cuerpo.push(nota(/*#__PURE__*/_jsxDEV("span", {
+        children: ['Hoy se le generaría a ', /*#__PURE__*/_jsxDEV("strong", { children: String(n) }, "n", false),
+          ' de ' + (Number(previa.alumnos_activos) || 0) + ' alumnos activos.']
+      }, void 0, true), alcance !== 'todos' && n === 0 ? AVISO : 'var(--ink-3)', 'pv'));
+      const sinGrado = Number(previa.activos_sin_grado) || 0;
+      if (alcance === 'grados' && sinGrado > 0) {
+        cuerpo.push(nota('Ojo: ' + sinGrado + (sinGrado === 1 ? ' alumno activo no tiene' : ' alumnos activos no tienen') + ' grado asignado y no entra' + (sinGrado === 1 ? '' : 'n') + ' en ningún concepto por grado. Asígnaselo en Control escolar para que se le genere.', AVISO, 'sg'));
+      }
+    }
+  }
+
+  // Posible cobro doble: otro concepto recurrente activo de la misma
+  // categoría que alcanza (o podría alcanzar) a los mismos alumnos. Grado
+  // contra grupo no se puede saber aquí, así que se avisa como "podría".
+  if (alcance === 'todos' || ids.length) {
+    const choca = (productos || []).filter(p => {
+      if (!p || !p.activo || p.tipo !== 'recurrente') return false;
+      if (form.id != null && String(p.id) === String(form.id)) return false;
+      if (p.categoria !== form.categoria) return false;
+      const a2 = p.alcance || 'todos';
+      if (alcance === 'todos' || a2 === 'todos' || a2 !== alcance) return true;
+      return _prodAlcanceIds(p.alcance_ids).some(x => ids.includes(x));
+    });
+    if (choca.length) {
+      cuerpo.push(nota('Ojo: ' + (choca.length === 1 ? 'el concepto ' : 'los conceptos ') + choca.map(p => '"' + p.nombre + '"').join(', ')
+        + ' también ' + (choca.length === 1 ? 'es' : 'son') + ' de ' + ((catLabels && catLabels[form.categoria]) || form.categoria)
+        + ' y podría' + (choca.length === 1 ? '' : 'n') + ' cobrarse a los mismos alumnos: a quien entre en los dos se le generarán ambos cargos.', AVISO, 'doble'));
+    }
+  }
+
+  return /*#__PURE__*/_jsxDEV("div", {
+    className: "form-group",
+    children: [/*#__PURE__*/_jsxDEV("label", {
+      className: "form-label",
+      children: "Se cobra a"
+    }, "l", false), /*#__PURE__*/_jsxDEV("div", {
+      style: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+      children: opciones.map(op => /*#__PURE__*/_jsxDEV("button", {
+        type: "button",
+        className: "btn btn-sm " + (alcance === op.value ? 'btn-primary' : 'btn-secondary'),
+        style: { flex: '1 1 120px' },
+        disabled: op.disabled,
+        title: op.title || undefined,
+        onClick: () => elegir(op.value),
+        children: op.label
+      }, op.value, false))
+    }, "o", true), (!cargando && !gradosDisp && alcance !== 'grados') ? nota('Para cobrar por grado, primero configura el catálogo de grados en Control escolar.', null, 'ng') : null].concat(cuerpo)
   }, void 0, true);
 }
