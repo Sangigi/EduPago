@@ -15,6 +15,11 @@
  *                SOLO sus materias, y solo en periodos abiertos.
  *   familia    → solo lectura de la boleta/asistencias de SUS hijos.
  *   cajero     → nada: su trabajo es la caja, no lo académico.
+ *   [F3] control_escolar → lo mismo que admin dentro del módulo (es la
+ *                coordinación académica): ver escolar_es_gestor().
+ *   [F3] direccion → solo lectura de todo lo académico de su escuela; ninguna
+ *                acción de escritura la incluye en su lista de roles.
+ *   [F3] alumno → solo su propia boleta y su kárdex (periodos publicados).
  *
  * El rol 'docente' además está en el allowlist explícito de api.php
  * ($ACCIONES_POR_ROL_PLATAFORMA), así que aunque una acción futura olvide
@@ -27,6 +32,14 @@
 const ESCOLAR_SECCIONES = ['escolar_grupos', 'escolar_asistencias', 'escolar_calificaciones', 'escolar_config'];
 
 const ESCOLAR_ESTADOS_ASISTENCIA = ['presente', 'falta', 'retardo', 'justificada'];
+
+// [F3] Listas de roles del módulo, en un solo lugar para que cada acción no
+// las escriba a mano (y no se le olvide 'control_escolar' a ninguna).
+//   GESTOR  → escriben configuración, inscripciones, cierres y promociones.
+//   LECTURA → además 'direccion', que solo consulta. Las acciones de escritura
+//             usan ESCOLAR_ROLES_GESTOR (+ 'docente' donde aplica), nunca esta.
+const ESCOLAR_ROLES_GESTOR  = ['superadmin', 'admin', 'control_escolar'];
+const ESCOLAR_ROLES_LECTURA = ['superadmin', 'admin', 'control_escolar', 'direccion'];
 
 /**
  * Valida rol + escuela + sección habilitada + que la migración exista.
@@ -68,16 +81,38 @@ function escolar_ctx($pdo, $usuario_actual, $input, array $roles, $secciones = E
         respond(['success' => false, 'error' => 'El módulo escolar aún no está instalado en la base de datos (falta correr migracion_2026_11_13_control_escolar.sql).']);
     }
 
+    // [F3] Igual para las columnas/tablas de la F3 (grados, publicación,
+    // cierre de ciclo, historial). LIMIT 0 no lee ninguna fila: solo obliga a
+    // MySQL a resolver los nombres, que es justo lo que falla si falta la
+    // migración. Una sola vez por petición.
+    static $f3_verificada = false;
+    if (!$f3_verificada) {
+        try {
+            $pdo->query(
+                "SELECT p.publicado, c.cerrado, c.cerrado_en, g.grado_id, cl.grado_id, n.siguiente_id, h.resultado
+                 FROM periodos_evaluacion p, ciclos_escolares c, grupos g, clientes cl, niveles_grados n, historial_academico h
+                 LIMIT 0"
+            );
+            $f3_verificada = true;
+        } catch (\PDOException $e) {
+            log_api("escolar: faltan columnas de la F3 (¿falta migracion_2026_11_18_f3_control_escolar.sql?) -> " . $e->getMessage());
+            respond(['success' => false, 'error' => 'El control escolar necesita una actualización de la base de datos (falta correr migracion_2026_11_18_f3_control_escolar.sql).']);
+        }
+    }
+
     return [
         'rol'        => $rol,
         'escuela_id' => $escuela_id,
         'user_id'    => intval($usuario_actual['user_id'] ?? 0),
         'familia_id' => $usuario_actual['familia_id'] ?? null,
+        // [F3] Cuenta de alumno: a qué clientes.id está ligada (0 = a ninguno).
+        'cliente_id' => $rol === 'alumno' ? escolar_cliente_id_de_usuario($pdo, $usuario_actual) : null,
     ];
 }
 
 function escolar_es_gestor($ctx) {
-    return in_array($ctx['rol'], ['superadmin', 'admin'], true);
+    // [F3] 'control_escolar' (coordinación académica) gestiona igual que admin.
+    return in_array($ctx['rol'], ESCOLAR_ROLES_GESTOR, true);
 }
 
 function escolar_requerir_gestor($ctx, $mensaje = 'Solo la administración del colegio puede hacer esto.') {
@@ -134,7 +169,11 @@ function escolar_gm($pdo, $ctx, $gm_id, $para_escribir = false) {
     if ($ctx['rol'] === 'docente') {
         $esSuya = intval($gm['docente_id']) === $ctx['user_id'];
         if ($para_escribir && !$esSuya) escolar_403('Solo el docente asignado puede calificar esta materia.');
-        if (!$esSuya && !escolar_docente_en_grupo($pdo, $ctx['user_id'], $gm['grupo_id'])) {
+        // [F3] Leer calificaciones de una materia AJENA solo lo puede el
+        // tutor del grupo (es quien da seguimiento a todo el salón). Antes
+        // bastaba con dar cualquier materia en el grupo, así que el maestro de
+        // Inglés podía abrir la sábana de Matemáticas de otro docente.
+        if (!$esSuya && intval($gm['tutor_id']) !== $ctx['user_id']) {
             escolar_403('Esa materia no está asignada a ti.');
         }
     }
@@ -208,13 +247,24 @@ function escolar_redondear($n, $dec = 1) {
  * materia, promedio general y resumen de asistencia. La usan la vista de
  * admin, el portal del docente y el portal de familia — una sola cuenta para
  * que las tres pantallas nunca discrepen en un promedio.
+ *
+ * [F3] $opciones:
+ *   'solo_publicados' => true  → solo periodos con publicado = 1 (familia y
+ *                                alumno: no ven lo que el colegio aún no publica).
+ *   'sin_asistencia'  => true  → no consulta asistencias ('asistencia' = null);
+ *                                lo usa el cierre de ciclo, que no la necesita.
+ * [F3] Las materias se combinan por materia_id entre TODOS los grupos del
+ * ciclo en los que estuvo inscrito el alumno: si se cambió de 3° A a 3° B a
+ * medio ciclo, las calificaciones que le pusieron en 3° A ya no se pierden de
+ * la boleta. Para un mismo periodo manda la calificación del grupo actual.
  */
-function escolar_armar_boleta($pdo, $escuela_id, $cliente_id, $ciclo) {
+function escolar_armar_boleta($pdo, $escuela_id, $cliente_id, $ciclo, $opciones = []) {
     $cliente_id = intval($cliente_id);
     $ciclo_id   = intval($ciclo['id']);
+    $solo_publicados = !empty($opciones['solo_publicados']); // [F3]
 
     $st = $pdo->prepare(
-        "SELECT g.id, g.nombre, g.nivel, g.grado, g.turno, u.nombre AS tutor
+        "SELECT g.id, g.nombre, g.nivel, g.grado, g.turno, g.grado_id, u.nombre AS tutor
          FROM grupo_alumnos ga
          JOIN grupos g ON g.id = ga.grupo_id
          LEFT JOIN usuarios u ON u.id = g.tutor_id
@@ -223,46 +273,93 @@ function escolar_armar_boleta($pdo, $escuela_id, $cliente_id, $ciclo) {
     );
     $st->execute([$cliente_id, $ciclo_id, $escuela_id]);
     $grupo = $st->fetch() ?: null;
+    if ($grupo) $grupo['grado_id'] = $grupo['grado_id'] !== null ? intval($grupo['grado_id']) : null; // [F3]
 
-    $st = $pdo->prepare("SELECT id, nombre, orden, cerrado FROM periodos_evaluacion WHERE ciclo_id = ? AND escuela_id = ? ORDER BY orden, id");
+    // [F3] + publicado, y filtro de publicados para familia/alumno.
+    $st = $pdo->prepare(
+        "SELECT id, nombre, orden, cerrado, publicado FROM periodos_evaluacion
+         WHERE ciclo_id = ? AND escuela_id = ?" . ($solo_publicados ? " AND publicado = 1" : "") . "
+         ORDER BY orden, id"
+    );
     $st->execute([$ciclo_id, $escuela_id]);
     $periodos = array_map(function ($p) {
         $p['id'] = intval($p['id']); $p['cerrado'] = (bool) $p['cerrado'];
+        $p['publicado'] = (bool) $p['publicado']; // [F3]
         return $p;
     }, $st->fetchAll());
+    $periodosValidos = array_flip(array_column($periodos, 'id'));
 
+    // [F3] Materias de todos los grupos del ciclo donde estuvo el alumno. El
+    // ORDER BY define la prioridad: primero el grupo actual, luego las
+    // inscripciones activas y, al final, las más recientes.
     $materias = [];
     if ($grupo) {
         $st = $pdo->prepare(
-            "SELECT gm.id AS gm_id, m.nombre AS materia, m.clave, u.nombre AS docente
-             FROM grupo_materias gm
-             JOIN materias m ON m.id = gm.materia_id
-             LEFT JOIN usuarios u ON u.id = gm.docente_id
-             WHERE gm.grupo_id = ?
-             ORDER BY m.nombre"
+            "SELECT gm.id AS gm_id, gm.grupo_id, gm.materia_id, m.nombre AS materia, m.clave, u.nombre AS docente
+             FROM grupo_alumnos ga
+             JOIN grupos g          ON g.id = ga.grupo_id
+             JOIN grupo_materias gm ON gm.grupo_id = g.id
+             JOIN materias m        ON m.id = gm.materia_id
+             LEFT JOIN usuarios u   ON u.id = gm.docente_id
+             WHERE ga.cliente_id = ? AND g.ciclo_id = ? AND g.escuela_id = ?
+             ORDER BY (g.id = ?) DESC, ga.activo DESC, ga.id DESC, m.nombre"
         );
-        $st->execute([$grupo['id']]);
-        foreach ($st->fetchAll() as $m) {
-            $materias[intval($m['gm_id'])] = $m + ['calificaciones' => new \stdClass(), 'observaciones' => new \stdClass(), 'promedio' => null];
+        $st->execute([$cliente_id, $ciclo_id, $escuela_id, intval($grupo['id'])]);
+        $prioridad = [];   // gm_id => posición (menor = manda)
+        $gmMateria = [];   // gm_id => materia_id
+        $porMateria = [];  // materia_id => datos de la materia
+        foreach ($st->fetchAll() as $i => $m) {
+            $gm  = intval($m['gm_id']);
+            $mid = intval($m['materia_id']);
+            $prioridad[$gm] = $i;
+            $gmMateria[$gm] = $mid;
+            if (!isset($porMateria[$mid])) {
+                $porMateria[$mid] = [
+                    'gm_id' => $gm, 'materia_id' => $mid, 'materia' => $m['materia'], 'clave' => $m['clave'], 'docente' => $m['docente'],
+                    'del_grupo_actual' => intval($m['grupo_id']) === intval($grupo['id']),
+                    'c' => [], 'o' => [], 'pc' => [], 'po' => [],
+                ];
+            }
         }
-        if ($materias) {
-            $in = implode(',', array_fill(0, count($materias), '?'));
+        if ($gmMateria) {
+            $in = implode(',', array_fill(0, count($gmMateria), '?'));
             $st = $pdo->prepare("SELECT grupo_materia_id, periodo_id, calificacion, observacion FROM calificaciones WHERE cliente_id = ? AND grupo_materia_id IN ($in)");
-            $st->execute(array_merge([$cliente_id], array_keys($materias)));
-            $porGm = [];
+            $st->execute(array_merge([$cliente_id], array_keys($gmMateria)));
             foreach ($st->fetchAll() as $c) {
-                $gm = intval($c['grupo_materia_id']);
-                if ($c['calificacion'] !== null) $porGm[$gm]['c'][intval($c['periodo_id'])] = floatval($c['calificacion']);
-                if ($c['observacion'])           $porGm[$gm]['o'][intval($c['periodo_id'])] = $c['observacion'];
+                $gm  = intval($c['grupo_materia_id']);
+                $pid = intval($c['periodo_id']);
+                if (!isset($periodosValidos[$pid]) || !isset($gmMateria[$gm])) continue;
+                $mid = $gmMateria[$gm];
+                $pr  = $prioridad[$gm];
+                if ($c['calificacion'] !== null && (!isset($porMateria[$mid]['pc'][$pid]) || $pr < $porMateria[$mid]['pc'][$pid])) {
+                    $porMateria[$mid]['c'][$pid]  = floatval($c['calificacion']);
+                    $porMateria[$mid]['pc'][$pid] = $pr;
+                }
+                if ($c['observacion'] && (!isset($porMateria[$mid]['po'][$pid]) || $pr < $porMateria[$mid]['po'][$pid])) {
+                    $porMateria[$mid]['o'][$pid]  = $c['observacion'];
+                    $porMateria[$mid]['po'][$pid] = $pr;
+                }
             }
-            foreach ($materias as $gm => &$m) {
-                $cal = $porGm[$gm]['c'] ?? [];
-                $m['calificaciones'] = (object) $cal;
-                $m['observaciones']  = (object) ($porGm[$gm]['o'] ?? []);
-                $m['promedio'] = $cal ? escolar_redondear(array_sum($cal) / count($cal)) : null;
-            }
-            unset($m);
         }
+        foreach ($porMateria as $m) {
+            // Una materia de un grupo anterior que no lleva el grupo actual
+            // solo se muestra si le dejaron alguna calificación u observación.
+            if (!$m['del_grupo_actual'] && !$m['c'] && !$m['o']) continue;
+            $cal = $m['c'];
+            $materias[] = [
+                'gm_id'          => $m['gm_id'],
+                'materia_id'     => $m['materia_id'],
+                'materia'        => $m['materia'],
+                'clave'          => $m['clave'],
+                'docente'        => $m['docente'],
+                'calificaciones' => (object) $cal,
+                'observaciones'  => (object) $m['o'],
+                'promedio'       => $cal ? escolar_redondear(array_sum($cal) / count($cal)) : null,
+            ];
+        }
+        usort($materias, function ($a, $b) {
+            return strcmp(mb_strtolower($a['materia'], 'UTF-8'), mb_strtolower($b['materia'], 'UTF-8'));
+        });
     }
     $materias = array_values($materias);
     $proms = array_values(array_filter(array_column($materias, 'promedio'), function ($p) { return $p !== null; }));
@@ -279,7 +376,8 @@ function escolar_armar_boleta($pdo, $escuela_id, $cliente_id, $ciclo) {
         $prom_periodo[$p['id']] = $vals ? escolar_redondear(array_sum($vals) / count($vals)) : null;
     }
 
-    $asistencia = escolar_resumen_asistencia_alumno($pdo, $escuela_id, $cliente_id, $ciclo['fecha_inicio'], $ciclo['fecha_fin']);
+    $asistencia = !empty($opciones['sin_asistencia']) ? null // [F3]
+        : escolar_resumen_asistencia_alumno($pdo, $escuela_id, $cliente_id, $ciclo['fecha_inicio'], $ciclo['fecha_fin']);
 
     $aprob = floatval($ciclo['calif_aprobatoria']);
     return [
@@ -308,3 +406,7 @@ function escolar_resumen_asistencia_alumno($pdo, $escuela_id, $cliente_id, $desd
     $r['porcentaje'] = $total ? round(($r['presente'] + $r['retardo'] + $r['justificada']) * 100 / $total, 1) : null;
     return $r;
 }
+
+// [F3] Grados, cierre de ciclo, promoción, kárdex y acceso del rol alumno.
+// Vive en su propio archivo para no engordar este (que tocan varias fases).
+require_once __DIR__ . '/helpers_escolar_ciclo.php';
