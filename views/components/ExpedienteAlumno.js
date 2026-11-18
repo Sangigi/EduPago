@@ -189,13 +189,17 @@ function ExpDatos(props) {
     ),
     _hEx(ExpSeccion, null, 'Datos médicos'),
     _hEx('div', { style: { fontSize: 11.5, color: 'var(--ink-4)', marginTop: -6, marginBottom: 10, lineHeight: 1.5 } },
-      'Solo los ve el personal autorizado del colegio. No viajan en la carga general del sistema ni quedan en la bitácora.'),
+      'Padecimientos, medicamentos, seguro médico y observaciones solo se consultan aquí: no viajan en la carga general del sistema ni se escriben en la bitácora.'),
     _hEx('div', { style: EXP_GRID },
       _hEx(ExpCampo, { label: 'Tipo de sangre' },
         _hEx('select', { className: 'form-select', value: f.tipo_sangre, disabled: ro, onChange: function (e) { set('tipo_sangre', e.target.value); } },
-          [_hEx('option', { key: '', value: '' }, '—')].concat((props.tiposSangre || []).map(function (t) {
-            return _hEx('option', { key: t, value: t }, t);
-          })))),
+          // Un valor viejo capturado a mano ("O positivo") se conserva como
+          // opción: si no, el select lo enseñaría vacío aunque siga guardado.
+          [_hEx('option', { key: '', value: '' }, '—')].concat((props.tiposSangre || [])
+            .concat(f.tipo_sangre && (props.tiposSangre || []).indexOf(f.tipo_sangre) === -1 ? [f.tipo_sangre] : [])
+            .map(function (t) {
+              return _hEx('option', { key: t, value: t }, t);
+            })))),
       _hEx(ExpCampo, { label: 'Seguro médico' }, input('seguro_medico', { maxLength: 150, placeholder: 'IMSS, ISSSTE, aseguradora y póliza…' }))
     ),
     _hEx(ExpCampo, { label: 'Alergias' }, area('alergias', 255)),
