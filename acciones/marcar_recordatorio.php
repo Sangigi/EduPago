@@ -1,4 +1,10 @@
 <?php
+        // [F0] FIX DE SEGURIDAD (18-nov-2026): solo validaba la escuela del
+        // cobro, así que una familia (o un docente) podía registrar
+        // recordatorios sobre cobros de su colegio, incluidos los de otras
+        // familias. La pantalla Recordatorios es de admin (NAV_ITEMS en app.js)
+        // y superadmin.
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin', 'admin'], 'No tienes permiso para registrar recordatorios.');
         $cobro_id = intval($input['cobro_id'] ?? 0);
         if (!$cobro_id) respond(['success' => false, 'error' => 'cobro_id requerido']);
         // El cobro debe pertenecer a la escuela del usuario (o cualquiera si superadmin)

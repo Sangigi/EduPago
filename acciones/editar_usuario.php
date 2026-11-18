@@ -106,18 +106,23 @@
         // cambiando, o el que ya tiene la fila). Antes se aceptaba cualquier
         // familia_id: un admin podía ligar una cuenta de su colegio a una
         // familia de OTRO colegio.
+        // Solo se valida cuando la familia CAMBIA o cuando superadmin cambia la
+        // escuela (Usuarios.js reenvía familia_id en cada guardado): así no se
+        // traba la edición de nombre/correo de una cuenta vieja que ya tuviera
+        // el dato cruzado — mismo criterio que editar_cliente.php.
         if ($fam_id !== '__NO_ENVIADO__' && $fam_id) {
-            $esc_destino = $esc_id;
-            if ($esc_destino === null) {
-                $stmtEscUsr = $pdo->prepare("SELECT escuela_id FROM usuarios WHERE id = ?");
-                $stmtEscUsr->execute([$id]);
-                $esc_destino = $stmtEscUsr->fetchColumn();
-            }
-            $chkFamUsrEd = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
-            $chkFamUsrEd->execute([$fam_id]);
-            $famUsrEd = $chkFamUsrEd->fetch();
-            if (!$famUsrEd || intval($famUsrEd['escuela_id']) !== intval($esc_destino ?: -1)) {
-                respond(['success' => false, 'error' => 'La familia seleccionada no pertenece a la escuela de esta cuenta.']);
+            $stmtUsrFamEd = $pdo->prepare("SELECT escuela_id, familia_id FROM usuarios WHERE id = ?");
+            $stmtUsrFamEd->execute([$id]);
+            $usrFamEd = $stmtUsrFamEd->fetch();
+            $esc_destino = $esc_id !== null ? $esc_id : ($usrFamEd ? $usrFamEd['escuela_id'] : null);
+            $cambia_vinculo = !$usrFamEd || intval($usrFamEd['familia_id'] ?? 0) !== intval($fam_id) || $esc_id !== null;
+            if ($cambia_vinculo) {
+                $chkFamUsrEd = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
+                $chkFamUsrEd->execute([$fam_id]);
+                $famUsrEd = $chkFamUsrEd->fetch();
+                if (!$famUsrEd || intval($famUsrEd['escuela_id']) !== intval($esc_destino ?: -1)) {
+                    respond(['success' => false, 'error' => 'La familia seleccionada no pertenece a la escuela de esta cuenta.']);
+                }
             }
         }
         $sets = []; $vals = [];

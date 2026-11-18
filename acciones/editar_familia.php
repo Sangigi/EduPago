@@ -7,11 +7,15 @@
         if (!$id) respond(['success' => false, 'error' => 'id requerido']);
         $rol_actual_fam = $usuario_actual['rol'] ?? '';
         $es_familia_propia = $rol_actual_fam === 'familia' && intval($usuario_actual['familia_id'] ?? -1) === $id;
-        if (!in_array($rol_actual_fam, ['superadmin', 'admin']) && !$es_familia_propia) {
+        // [F0] 'control_escolar' (coordinación académica) gestiona familias
+        // igual que admin: si crear_familia ya lo deja dar de alta, también
+        // debe poder corregir los datos de la familia que capturó.
+        if (!in_array($rol_actual_fam, ['superadmin', 'admin', 'control_escolar']) && !$es_familia_propia) {
             http_response_code(403);
             respond(['success' => false, 'error' => 'No tienes permiso para editar esta familia.']);
         }
-        if ($rol_actual_fam === 'admin') {
+        // [F0] La escuela de la familia se valida para admin y control_escolar.
+        if (in_array($rol_actual_fam, ['admin', 'control_escolar'], true)) {
             $chkFam = $pdo->prepare("SELECT escuela_id FROM familias WHERE id = ?");
             $chkFam->execute([$id]);
             $famObjetivo = $chkFam->fetch();
