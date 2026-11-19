@@ -127,6 +127,7 @@
             'grupos'          => $grupos,
             'asignaciones'    => $asignaciones,
             'puede_gestionar' => escolar_es_gestor($ctx),
+            'puede_ver_kardex' => $ctx['rol'] !== 'docente', // [F3] el docente no tiene kárdex (ver escolar_kardex.php)
             // [F3] Catálogo de grados de la escuela (para el selector del grupo,
             // el asistente de mapeo y la promoción).
             'grados'          => escolar_grados($pdo, $eid),

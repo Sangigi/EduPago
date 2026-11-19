@@ -13,6 +13,7 @@ function EscolarFamilia(props) {
   var R = React;
   var s1 = R.useState(null), datos = s1[0], setDatos = s1[1];
   var s2 = R.useState(''), error = s2[0], setError = s2[1];
+  var s3 = R.useState(null), kardexDe = s3[0], setKardexDe = s3[1]; // [F3] hijo cuyo kárdex se está viendo
 
   R.useEffect(function () {
     escApi('escolar_familia_resumen', {}).then(setDatos).catch(function (e) { setError(e.message); });
@@ -38,9 +39,12 @@ function EscolarFamilia(props) {
           _hEF('div', { style: { flex: 1, minWidth: 0 } },
             _hEF('div', { style: { fontWeight: 700, fontSize: 15, color: 'var(--ink)' } }, h.nombre),
             _hEF('div', { style: { fontSize: 12, color: 'var(--ink-3)' } }, h.matricula ? 'Matrícula ' + h.matricula : '')),
+          _hEF('button', { className: 'btn btn-ghost btn-sm', onClick: function () { setKardexDe(h.id); } }, 'Kárdex'), // [F3]
           _hEF('button', { className: 'btn btn-ghost btn-sm', onClick: function () { escImprimirBoleta(vista); } },
             _hEF(Icon, { name: 'download', size: 14, color: 'currentColor' }), ' Descargar boleta')
         ),
+        // [F3] El servidor solo manda los periodos que el colegio ya publicó.
+        h.boleta.periodos.length === 0 ? _hEF('div', { style: { padding: 12, fontSize: 13, color: 'var(--ink-3)', textAlign: 'center' } }, 'El colegio todavía no publica calificaciones de este ciclo.') : null,
         _hEF(EscBoletaVista, { datos: vista }),
         h.incidencias && h.incidencias.length ? _hEF('div', { style: { marginTop: 14 } },
           _hEF('div', { style: { fontWeight: 700, fontSize: 13, color: 'var(--ink)', marginBottom: 6 } }, 'Faltas y retardos recientes'),
@@ -55,6 +59,8 @@ function EscolarFamilia(props) {
           )
         ) : null
       );
-    })
+    }),
+    // [F3] Kárdex del hijo (solo lo publicado; el servidor valida que sea hijo suyo).
+    kardexDe ? _hEF(EscKardexModal, { api: escApi, clienteId: kardexDe, onCerrar: function () { setKardexDe(null); } }) : null
   );
 }
