@@ -127,6 +127,115 @@ function Facturacion({
     }
   };
 
+  // ── [OF-2] Cancelación de facturas ─────────────────────────────────────
+  //
+  // Cancelar la factura NO cancela el cobro ni mueve dinero: el cobro queda
+  // listo para facturarse otra vez. Solo superadmin y admin del colegio (el
+  // servidor lo vuelve a validar). Si el SAT pide que el receptor acepte, la
+  // factura sigue vigente y aparece "Cancelación pendiente" hasta que se
+  // pulse "Actualizar estado" y el receptor haya respondido.
+  const rolSesion = (AuthController.getSession && (AuthController.getSession() || {}).rol) || '';
+  const puedeCancelar = rolSesion === 'admin' || rolSesion === 'superadmin';
+  const MOTIVOS_CANCELACION = [
+    { id: '02', titulo: '02 · Comprobante emitido con errores, sin relación',
+      texto: 'La factura tiene un error (datos del receptor, importe, clave...) y no la vas a sustituir con otra ya emitida. Es la opción de siempre para corregir: cancelas y después vuelves a facturar este cobro.' },
+    { id: '01', titulo: '01 · Comprobante emitido con errores, con relación',
+      texto: 'La factura tiene un error y YA emitiste la factura correcta que la sustituye. Necesitas el folio fiscal (UUID) de la nueva. Ojo: este sistema solo permite una factura vigente por cobro, así que normalmente solo aplica si la sustituta se emitió fuera de aquí.' },
+    { id: '03', titulo: '03 · No se llevó a cabo la operación',
+      texto: 'La venta o el servicio no se concretó (por ejemplo, el alumno no se inscribió) y la factura no debió existir.' },
+    { id: '04', titulo: '04 · Operación nominativa relacionada en una factura global',
+      texto: 'Se usa cuando una factura al público en general (global) se cancela porque el cliente pidió su factura con nombre. Casi nunca aplica a un colegio. Requiere el UUID de la factura que la sustituye.' }
+  ];
+  const [cancelCobro, setCancelCobro] = useState(null);
+  const [cancelMotivo, setCancelMotivo] = useState('02');
+  const [cancelUuid, setCancelUuid] = useState('');
+  const [cancelErr, setCancelErr] = useState('');
+  const [cancelando, setCancelando] = useState(false);
+  const [actualizandoCanc, setActualizandoCanc] = useState(null);
+  const [canceladas, setCanceladas] = useState([]);
+  const [cancAviso, setCancAviso] = useState(null);
+  const ESTADO_CANC = { canceled: 'Cancelada', pending: 'Pendiente de aceptación', rejected: 'Rechazada (sigue vigente)', expired: 'Vencida (sigue vigente)' };
+  const llamarApi = async (accion, cuerpo) => {
+    const res = await fetch('api.php?action=' + accion, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (AuthController.getToken() || '') },
+      body: JSON.stringify(cuerpo)
+    });
+    return res.json();
+  };
+  const cargarCanceladas = React.useCallback(() => {
+    if (!escuela?.id || !puedeCancelar) return;
+    llamarApi('cfdi_cancelaciones_listar', { escuela_id: escuela.id }).then(j => {
+      if (!j || !j.success) return;
+      setCanceladas(j.cancelaciones || []);
+      setCancAviso(j.aviso || null);
+    }).catch(() => {});
+  }, [escuela?.id, puedeCancelar]);
+  React.useEffect(() => { cargarCanceladas(); }, [cargarCanceladas]);
+  // Refleja el estado nuevo en la lista local sin recargar todo.
+  const aplicarEstadoCancelacion = (cobroId, estado) => {
+    const nuevos = data.cobros.map(c => {
+      if (c.id !== cobroId) return c;
+      if (estado === 'canceled') {
+        const { factura_cfdi, ...resto } = c;
+        return { ...resto, factura: false, facturapi_id: '', factura_cancelacion_estado: null };
+      }
+      return c.factura_cfdi ? { ...c, factura_cfdi: { ...c.factura_cfdi, cancelacion_estado: estado === 'pending' ? 'pendiente' : null } } : c;
+    });
+    const nd = { ...data, cobros: nuevos };
+    setData(nd);
+    AppModel.save(nd);
+  };
+  const abrirCancelar = cobro => {
+    setCancelCobro(cobro);
+    setCancelMotivo('02');
+    setCancelUuid('');
+    setCancelErr('');
+    setModal(null);
+    setComplementosVisor(null);
+  };
+  const confirmarCancelar = async () => {
+    const necesitaUuid = cancelMotivo === '01' || cancelMotivo === '04';
+    if (necesitaUuid && !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(cancelUuid.trim())) {
+      setCancelErr('Con el motivo ' + cancelMotivo + ' escribe el folio fiscal (UUID) completo de la factura que sustituye a esta.');
+      return;
+    }
+    setCancelando(true);
+    setCancelErr('');
+    try {
+      const j = await llamarApi('cancelar_cfdi', {
+        cobro_id: cancelCobro.id,
+        motivo: cancelMotivo,
+        uuid_sustitucion: necesitaUuid ? cancelUuid.trim() : ''
+      });
+      if (!j || !j.success) throw new Error((j && j.error) || 'No se pudo cancelar la factura.');
+      aplicarEstadoCancelacion(cancelCobro.id, j.estado);
+      cargarCanceladas();
+      cargarComplementos();
+      setCancelCobro(null);
+      alert(j.mensaje || 'Solicitud enviada.');
+    } catch (e) {
+      setCancelErr(e.message);
+    } finally {
+      setCancelando(false);
+    }
+  };
+  const actualizarCancelacion = async cobro => {
+    setActualizandoCanc(cobro.id);
+    try {
+      const j = await llamarApi('cancelar_cfdi_actualizar', { cobro_id: cobro.id });
+      if (!j || !j.success) { alert((j && j.error) || 'No se pudo consultar el estado.'); return; }
+      aplicarEstadoCancelacion(cobro.id, j.estado);
+      cargarCanceladas();
+      cargarComplementos();
+      alert(j.mensaje || '');
+    } catch (e) {
+      alert('No se pudo consultar el estado: ' + e.message);
+    } finally {
+      setActualizandoCanc(null);
+    }
+  };
+
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const [formFact, setFormFact] = useState({
@@ -261,6 +370,7 @@ function Facturacion({
       });
       const cfdi = await res.json();
       if (!cfdi.success) throw new Error(cfdi.error || 'Error al generar CFDI');
+      if (cfdi.advertencia) alert(cfdi.advertencia); // [OF-2] total timbrado distinto al del cobro
       const newCobros = data.cobros.map(c => c.id === cobroSel.id ? {
         ...c,
         factura: true,
@@ -353,6 +463,81 @@ function Facturacion({
   const emitFiltradas = filtrar(emitidas);
   const pgPend = usePaginacion(pendFiltrados, 25);
   const pgEmit = usePaginacion(emitFiltradas, 25);
+  // [OF-2] Vista previa del IVA del comprobante. Si los renglones del cobro
+  // traen su tasa (snapshot), solo los de 16% causan IVA y las becas se
+  // reparten en proporción; sin snapshot es lo de siempre (todo al 16%). Es
+  // aproximado: el cálculo real, al centavo, lo hace el servidor al timbrar.
+  const vistaIvaTodos16 = cobro => {
+    const its = cobro.items || [];
+    return !its.length || its.some(i => i.iva_tasa == null) || its.every(i => String(i.iva_tasa) === '16');
+  };
+  const vistaIva = cobro => {
+    const its = cobro.items || [];
+    if (vistaIvaTodos16(cobro)) return cobro.total - cobro.total / 1.16;
+    const pos = its.filter(i => Number(i.subtotal) > 0);
+    const posSuma = pos.reduce((a, i) => a + Number(i.subtotal), 0);
+    const desc = its.filter(i => Number(i.subtotal) < 0).reduce((a, i) => a - Number(i.subtotal), 0);
+    if (posSuma <= 0) return 0;
+    const bruto16 = pos.filter(i => String(i.iva_tasa) === '16').reduce((a, i) => a + Number(i.subtotal), 0) * (1 - desc / posSuma);
+    return bruto16 - bruto16 / 1.16;
+  };
+  // [OF-2] Modal "Cancelar factura": explica los 4 motivos del SAT en lenguaje claro.
+  const cancelModalEl = cancelCobro && /*#__PURE__*/_jsxDEV("div", {
+    className: "modal-backdrop",
+    onClick: e => e.target === e.currentTarget && !cancelando && setCancelCobro(null),
+    children: /*#__PURE__*/_jsxDEV("div", {
+      className: "modal modal-lg",
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        className: "modal-header",
+        children: /*#__PURE__*/_jsxDEV("div", {
+          children: [/*#__PURE__*/_jsxDEV("div", { className: "modal-title", children: "Cancelar factura" }, 't', false),
+          /*#__PURE__*/_jsxDEV("div", {
+            style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 },
+            children: [cancelCobro.folio, ' · ', cancelCobro.cliente, ' · ', cancelCobro.factura_cfdi?.uuid]
+          }, 's', true)]
+        }, void 0, true)
+      }, 'h', false), /*#__PURE__*/_jsxDEV("div", {
+        className: "modal-body",
+        children: [/*#__PURE__*/_jsxDEV("div", {
+          style: { padding: '10px 14px', marginBottom: 12, background: 'var(--bg-2, rgba(0,0,0,.04))', borderRadius: 'var(--radius-sm)', fontSize: 12.5, lineHeight: 1.5 },
+          children: "Cancelar la factura ante el SAT NO cancela el cobro ni mueve dinero: el cobro queda como está y podrás facturarlo de nuevo. Según el caso, el receptor tendrá que aceptar la cancelación; mientras no lo haga, la factura sigue vigente. Si ya emitiste complementos de pago de esta factura, primero hay que cancelarlos."
+        }, 'aviso', false), cancelErr && /*#__PURE__*/_jsxDEV("div", {
+          style: { marginBottom: 12, padding: '10px 14px', background: 'var(--red-glow)', border: '1px solid var(--red)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--red)' },
+          children: cancelErr
+        }, 'err', false), /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 6 }, children: "¿Por qué se cancela?" }, 'q', false),
+        MOTIVOS_CANCELACION.map(m => /*#__PURE__*/_jsxDEV("label", {
+          style: {
+            display: 'block', cursor: 'pointer', padding: '8px 10px', marginBottom: 6, borderRadius: 'var(--radius-sm)',
+            border: '1px solid ' + (cancelMotivo === m.id ? 'var(--accent, #bdcf00)' : 'var(--border, #e5e7eb)')
+          },
+          children: [/*#__PURE__*/_jsxDEV("input", {
+            type: "radio", name: "motivo_cancelacion", checked: cancelMotivo === m.id,
+            onChange: () => setCancelMotivo(m.id), style: { marginRight: 8 }
+          }, 'r', false), /*#__PURE__*/_jsxDEV("strong", { style: { fontSize: 13 }, children: m.titulo }, 'n', false),
+          /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 3, marginLeft: 22, lineHeight: 1.45 }, children: m.texto }, 'd', false)]
+        }, m.id, true)),
+        (cancelMotivo === '01' || cancelMotivo === '04') && /*#__PURE__*/_jsxDEV("div", {
+          className: "form-group",
+          style: { marginTop: 8 },
+          children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Folio fiscal (UUID) de la factura que la sustituye *" }, 'l', false),
+          /*#__PURE__*/_jsxDEV("input", {
+            className: "form-input", style: { fontFamily: 'var(--mono)', fontSize: 12 },
+            placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            value: cancelUuid, onChange: e => setCancelUuid(e.target.value)
+          }, 'i', false)]
+        }, 'uuid', true)]
+      }, 'b', true), /*#__PURE__*/_jsxDEV("div", {
+        className: "modal-footer",
+        children: [/*#__PURE__*/_jsxDEV("button", {
+          className: "btn btn-secondary", disabled: cancelando,
+          onClick: () => setCancelCobro(null), children: "No cancelar"
+        }, 'no', false), /*#__PURE__*/_jsxDEV("button", {
+          className: "btn btn-primary", disabled: cancelando,
+          onClick: confirmarCancelar, children: cancelando ? 'Enviando al SAT…' : 'Cancelar factura'
+        }, 'si', false)]
+      }, 'f', true)]
+    }, void 0, true)
+  }, 'modal-cancelar', false);
   return /*#__PURE__*/_jsxDEV("div", {
     children: [
     // ── Franja de cabecera ───────────────────────────────────────────────
@@ -449,7 +634,9 @@ function Facturacion({
       children: [
         { id: 'pendientes', label: 'Por facturar', n: pendientesFact.length },
         { id: 'emitidas',   label: 'Emitidas',     n: emitidas.length },
-        { id: 'complementos', label: 'Complementos pendientes', n: complementos.length }
+        { id: 'complementos', label: 'Complementos pendientes', n: complementos.length },
+        // [OF-2] Historial de facturas canceladas (solo admin / superadmin).
+        ...(puedeCancelar ? [{ id: 'canceladas', label: 'Canceladas', n: canceladas.length }] : [])
       ].map(t => /*#__PURE__*/_jsxDEV("button", {
         className: 'btn btn-sm ' + (tab === t.id ? 'btn-primary' : 'btn-secondary'),
         onClick: () => setTab(t.id),
@@ -795,14 +982,72 @@ function Facturacion({
                     onClick: () => verComplementosCobro(c),
                     title: "Ver los complementos de pago (CFDI de pago) ya emitidos para los abonos de este cobro",
                     children: "Complementos"
-                  }, void 0, false)]
+                  }, void 0, false),
+                  // [OF-2] Cancelación: pendiente → badge + actualizar; si no → botón cancelar.
+                  puedeCancelar && c.factura_cfdi?.cancelacion_estado === 'pendiente' && /*#__PURE__*/_jsxDEV("span", {
+                    style: { fontSize: 11, color: 'var(--amber)', alignSelf: 'center', whiteSpace: 'nowrap' },
+                    title: "El SAT espera que el receptor acepte la cancelación; la factura sigue vigente.",
+                    children: "Cancelación pendiente"
+                  }, 'cp', false),
+                  puedeCancelar && c.factura_cfdi?.cancelacion_estado === 'pendiente' && /*#__PURE__*/_jsxDEV("button", {
+                    className: "btn btn-ghost btn-sm",
+                    disabled: actualizandoCanc === c.id,
+                    onClick: () => actualizarCancelacion(c),
+                    children: actualizandoCanc === c.id ? '…' : 'Actualizar estado'
+                  }, 'ua', false),
+                  puedeCancelar && c.factura_cfdi?.cancelacion_estado !== 'pendiente' && /*#__PURE__*/_jsxDEV("button", {
+                    className: "btn btn-ghost btn-sm",
+                    style: { color: 'var(--red)' },
+                    onClick: () => abrirCancelar(c),
+                    title: "Cancela la factura ante el SAT. No cancela el cobro ni mueve dinero.",
+                    children: "Cancelar factura"
+                  }, 'cc', false)]
                 }, void 0, true)
               }, void 0, false)]
             }, c.id, true))]
           }, void 0, true)]
         }, void 0, true)
       }, void 0, false)]
-    }, void 0, true), modal === 'solicitar' && cobroSel && /*#__PURE__*/_jsxDEV("div", {
+    }, void 0, true), tab === 'canceladas' && puedeCancelar && /*#__PURE__*/_jsxDEV("div", {
+      // [OF-2] Historial de facturas canceladas (incluye solicitudes pendientes).
+      className: "card",
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        className: "card-header",
+        children: [/*#__PURE__*/_jsxDEV("div", { className: "card-title", children: "Facturas canceladas" }, 't', false),
+        /*#__PURE__*/_jsxDEV("div", { className: "card-sub", children: "Cancelar una factura no cancela el cobro ni mueve dinero." }, 's', false)]
+      }, 'h', true), cancAviso && /*#__PURE__*/_jsxDEV("div", {
+        style: { padding: '8px 14px', fontSize: 12, color: 'var(--amber)' },
+        children: cancAviso
+      }, 'av', false), /*#__PURE__*/_jsxDEV("div", {
+        className: "table-wrap cards-mobile",
+        children: /*#__PURE__*/_jsxDEV("table", {
+          children: [/*#__PURE__*/_jsxDEV("thead", {
+            children: /*#__PURE__*/_jsxDEV("tr", {
+              children: ['Fecha', 'Cobro', 'Folio fiscal', 'Receptor', 'Total', 'Motivo', 'Estado', 'Usuario']
+                .map(h => /*#__PURE__*/_jsxDEV("th", { children: h }, h, false))
+            }, void 0, false)
+          }, 'th', false), /*#__PURE__*/_jsxDEV("tbody", {
+            children: [canceladas.length === 0 && /*#__PURE__*/_jsxDEV("tr", {
+              children: /*#__PURE__*/_jsxDEV("td", {
+                colSpan: 8,
+                children: /*#__PURE__*/_jsxDEV("div", { className: "empty-state", children: /*#__PURE__*/_jsxDEV("div", { className: "empty-text", children: "Sin facturas canceladas" }, void 0, false) }, void 0, false)
+              }, void 0, false)
+            }, 'vacio', false), canceladas.map(f => /*#__PURE__*/_jsxDEV("tr", {
+              children: [
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Fecha", style: { fontSize: 12, color: 'var(--ink-3)' }, children: (f.cancelada_en || '').slice(0, 16) }, 'a', false),
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Cobro", style: { fontFamily: 'var(--mono)', fontSize: 12 }, children: f.cobro_folio || ('#' + f.cobro_id) }, 'b', false),
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Folio fiscal", style: { fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--ink-3)' }, title: f.uuid || '', children: (f.uuid || '').slice(0, 18) + '…' }, 'c', false),
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Receptor", style: { fontFamily: 'var(--mono)', fontSize: 11 }, children: f.rfc_receptor || '' }, 'd', false),
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Total", style: { fontFamily: 'var(--mono)' }, children: f.total != null ? fmt(f.total) : '' }, 'e', false),
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Motivo", style: { fontSize: 12 }, title: f.sustitucion_uuid ? 'Sustituida por ' + f.sustitucion_uuid : '', children: f.motivo + (f.sustitucion_uuid ? ' → ' + f.sustitucion_uuid.slice(0, 8) + '…' : '') }, 'f', false),
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Estado", style: { fontSize: 12, color: f.estado === 'canceled' ? 'var(--green)' : 'var(--amber)' }, children: ESTADO_CANC[f.estado] || f.estado }, 'g', false),
+                /*#__PURE__*/_jsxDEV("td", { "data-label": "Usuario", style: { fontSize: 12, color: 'var(--ink-3)' }, children: f.usuario || '' }, 'h', false)
+              ]
+            }, f.id, true))]
+          }, 'tb', true)]
+        }, void 0, true)
+      }, 'tbl', false)]
+    }, 'canceladas', true), modal === 'solicitar' && cobroSel && /*#__PURE__*/_jsxDEV("div", {
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && setModal(null),
       children: /*#__PURE__*/_jsxDEV("div", {
@@ -1128,10 +1373,10 @@ function Facturacion({
               },
               children: [{
                 l: 'Subtotal',
-                v: fmt(cobroSel.total / 1.16)
+                v: fmt(cobroSel.total - vistaIva(cobroSel))
               }, {
-                l: 'IVA 16%',
-                v: fmt(cobroSel.total - cobroSel.total / 1.16)
+                l: vistaIvaTodos16(cobroSel) ? 'IVA 16%' : 'IVA (aprox.)',
+                v: fmt(vistaIva(cobroSel))
               }, {
                 l: 'Total',
                 v: fmt(cobroSel.total),
@@ -1473,6 +1718,6 @@ function Facturacion({
           }, void 0, false)
         }, void 0, false)]
       }, void 0, true)
-    }, void 0, false)]
+    }, void 0, false), cancelModalEl]
   }, void 0, true);
 }
