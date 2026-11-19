@@ -328,7 +328,9 @@ if (isset($usuario_actual) && $usuario_actual && !empty($usuario_actual['escuela
         // [F4] Coordinación académica y dirección también son personal del
         // colegio. 'alumno' NO va aquí: es como 'familia' (cliente del colegio,
         // no nuestro), así que su portal sigue abierto aunque el colegio venza.
-        'control_escolar', 'direccion'], true)
+        'control_escolar', 'direccion',
+        // [F6] La tiendita también es personal del colegio.
+        'tienda'], true)
     && !in_array($action, $ACCIONES_PERMITIDAS_VENCIDO, true)) {
     $estadoSus = suscripcion_estado($pdo, $usuario_actual['escuela_id']);
     if ($estadoSus['vencida']) {

@@ -22,7 +22,10 @@
         // El cobro debe pertenecer a ESTE mismo alumno — antes solo se
         // validaba folio+pendiente, permitiendo saldar el adeudo de un alumno
         // cobrando la tarjeta domiciliada de otro completamente distinto.
-        $stmtCob = $pdo->prepare("SELECT id, total, monto_pagado FROM cobros WHERE folio = ? AND estado = 'pendiente' AND cliente_id = ?");
+        // [F6] La domiciliación nunca cobra una recarga de monedero (la recarga
+        // se paga solo con su liga de tarjeta o su referencia de efectivo).
+        $f6_sin_recargas = (function_exists('cobros_col_recarga_monedero') && cobros_col_recarga_monedero($pdo)) ? ' AND es_recarga_monedero = 0' : '';
+        $stmtCob = $pdo->prepare("SELECT id, total, monto_pagado FROM cobros WHERE folio = ? AND estado = 'pendiente' AND cliente_id = ?{$f6_sin_recargas}");
         $stmtCob->execute([$folio, $cliente_id]);
         $cobroRow = $stmtCob->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'No existe un cobro pendiente con ese folio para este alumno']);

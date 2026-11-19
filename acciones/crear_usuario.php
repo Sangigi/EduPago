@@ -68,7 +68,7 @@
         // [F4] Roles de colegio nuevos: sin escuela quedarían sueltos (y un
         // superadmin podría olvidar elegirla). Cuenta de alumno: además exige el
         // alumno, y su cliente_id es lo único que lo ata a SU información.
-        if (in_array($rol, ['control_escolar', 'direccion', 'alumno'], true) && !$esc_id) {
+        if (in_array($rol, ['control_escolar', 'direccion', 'alumno', 'tienda' /* [F6] */], true) && !$esc_id) {
             respond(['success' => false, 'error' => 'Selecciona el colegio de esta cuenta.']);
         }
         if ($rol !== 'alumno') {

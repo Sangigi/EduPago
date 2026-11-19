@@ -21,11 +21,13 @@
         // devuelve cuánto se ha abonado sobre cobros que SIGUEN abiertos:
         //   abonado > 0  => hubo un pago parcial, falta lo que falta
         //   abonado == 0 => lo que quede son otros conceptos intactos
+        // [F6] Una recarga de monedero con abono parcial no es parte del adeudo.
+        $f6_sin_recargas = (function_exists('cobros_col_recarga_monedero') && cobros_col_recarga_monedero($pdo)) ? ' AND es_recarga_monedero = 0' : '';
         $stmtAbono = $pdo->prepare(
             "SELECT COALESCE(SUM(monto_pagado), 0)          AS abonado,
                     COALESCE(SUM(total - monto_pagado), 0)  AS falta
                FROM cobros
-              WHERE cliente_id = ? AND estado = 'pendiente' AND monto_pagado > 0"
+              WHERE cliente_id = ? AND estado = 'pendiente' AND monto_pagado > 0{$f6_sin_recargas}"
         );
         $stmtAbono->execute([$cliente_id_saldo]);
         $rowAbono = $stmtAbono->fetch() ?: ['abonado' => 0, 'falta' => 0];

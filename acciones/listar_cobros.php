@@ -28,6 +28,8 @@
         if (($usuario_actual['rol'] ?? '') === 'familia') {
             $where .= ' AND cl.familia_id = ?';
             $params[] = $usuario_actual['familia_id'] ?? -1;
+            // [F6] La familia no ve sus recargas de monedero como cobros (se ven en su sección Monedero).
+            if (cobros_col_recarga_monedero($pdo)) $where .= ' AND co.es_recarga_monedero = 0';
         }
         if (in_array($estado_lc, ['pagado', 'pendiente', 'cancelado'])) {
             $where .= ' AND co.estado = ?';

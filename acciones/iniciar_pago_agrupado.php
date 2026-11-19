@@ -38,6 +38,10 @@ $cobro_ids = array_values(array_unique(array_map('intval', $cobro_ids)));
 // Se relee cada cobro desde la BD -- nunca se confía en el total que venga
 // del navegador (mismo criterio que ya usan generar_liga.php y crear_cobro.php).
 $in = implode(',', array_fill(0, count($cobro_ids), '?'));
+// [F6] Una recarga de monedero no es adeudo ni se paga "todo junto": si llegara
+// aquí mezclada, no coincidiría el conteo de abajo y se rechaza el pago agrupado
+// completo (cada recarga se paga sola, con su propia liga/referencia).
+$f6_sin_recargas = (function_exists('cobros_col_recarga_monedero') && cobros_col_recarga_monedero($pdo)) ? ' AND es_recarga_monedero = 0' : '';
 $stmt = $pdo->prepare(
     // (total - monto_pagado) AS total (21-sep-2026): lo que se agrupa para
     // cobrar es lo que FALTA de cada cobro, no su importe original. Si un
@@ -45,7 +49,7 @@ $stmt = $pdo->prepare(
     // se le cobraría de más a la familia. El alias mantiene intacto el resto
     // del archivo, que sigue leyendo $c['total'].
     "SELECT id, cliente_id, escuela_id, (total - monto_pagado) AS total, folio FROM cobros
-      WHERE id IN ($in) AND estado = 'pendiente'"
+      WHERE id IN ($in) AND estado = 'pendiente'{$f6_sin_recargas}"
 );
 $stmt->execute($cobro_ids);
 $cobros = $stmt->fetchAll();

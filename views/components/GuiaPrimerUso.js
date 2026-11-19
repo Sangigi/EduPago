@@ -572,6 +572,12 @@ var GUIA_PASOS_POR_ROL = {
     { id: '_a2', titulo: 'Tus calificaciones', texto: 'En Calificaciones aparece tu boleta con lo que tu colegio ya publicó, y tu kárdex.' },
     { id: '_a3', titulo: 'Tu asistencia', texto: 'En Asistencia ves tus faltas y retardos del ciclo.' },
   ],
+  // [F6] Tiendita del colegio.
+  tienda: [
+    { id: '_t1', titulo: 'Busca al alumno', texto: 'Escribe su matrícula o su nombre. Verás su foto, su saldo y cuánto puede gastar hoy.' },
+    { id: '_t2', titulo: 'Arma la compra', texto: 'Toca los productos, o escribe un monto libre. Si el monedero tiene NIP, pídeselo al alumno antes de cobrar.' },
+    { id: '_t3', titulo: 'Cancela un error', texto: 'En Ventas de hoy puedes cancelar tus propias ventas del día: el dinero regresa al monedero.' },
+  ],
   familia: [
     { id: '_f1', titulo: 'Lo que debes', texto: 'Aquí ves cada cobro de tus hijos: qué es, cuánto y para cuándo.' },
     { id: '_f2', titulo: 'Paga como te acomode', texto: 'Tarjeta, transferencia o referencia para pagar en tiendas. El colegio lo ve al instante.' },

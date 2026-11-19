@@ -25,7 +25,7 @@
     // solo con docentes y alumnos de su escuela.
     $autorizado = $rol_actual === 'superadmin'
         || ($rol_actual === 'admin'
-            && in_array($u['rol'], ['cajero', 'familia', 'docente', 'control_escolar', 'direccion', 'alumno'], true)
+            && in_array($u['rol'], ['cajero', 'familia', 'docente', 'control_escolar', 'direccion', 'alumno', 'tienda' /* [F6] */], true)
             && intval($u['escuela_id']) === intval($usuario_actual['escuela_id'] ?? -1))
         || ($rol_actual === 'control_escolar'
             && in_array($u['rol'], ['docente', 'alumno'], true)
