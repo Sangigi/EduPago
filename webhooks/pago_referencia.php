@@ -101,7 +101,7 @@ function log_ref_pago($msg) {
 
 
 
-if (!ip_permitida_pago_sin_token()) {
+if (!webhook_origen_permitido()) { // [OF-1] secreto en la ruta o, si no, lista de IPs (lib/webhook_helpers.php)
     log_ref_pago("RECHAZADO por IP no permitida: " . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     responder_pago(40, 'No autorizado');
 }

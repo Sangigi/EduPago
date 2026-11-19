@@ -29,7 +29,7 @@ header('Content-Type: application/json; charset=UTF-8');
 
 $ts  = date('Y-m-d H:i:s');
 
-if (!ip_permitida_pago_sin_token()) {
+if (!webhook_origen_permitido()) { // [OF-1] secreto en la ruta o, si no, lista de IPs (lib/webhook_helpers.php)
     if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, '❌ WEBHOOK LIGA rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     header('Content-Type: application/json; charset=UTF-8');
     webhook_responder(['success' => false, 'mensaje' => 'No autorizado']);

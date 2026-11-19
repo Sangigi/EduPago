@@ -44,7 +44,7 @@ function log_ref($msg) {
 
 // Control de origen (21-sep-2026). Ver la nota en consulta_clabe.php: con la
 // lista vacía no bloquea, y sirve para descubrir las IPs reales del proveedor.
-if (!ip_permitida_pago_sin_token()) {
+if (!webhook_origen_permitido()) { // [OF-1] secreto en la ruta o, si no, lista de IPs (lib/webhook_helpers.php)
     log_ref('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     responder_consulta(40, 'No autorizado');
 }

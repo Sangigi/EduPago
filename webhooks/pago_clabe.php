@@ -42,7 +42,7 @@ function log_pago_clabe($msg) {
 // abierto. Con IPS_PERMITIDAS_PAGOS_SIN_TOKEN vacía esto NO bloquea nada
 // todavía (mismo comportamiento que antes), pero ya deja registrada la IP de
 // cada llamada en ips_webhooks_log.txt para poder armar la lista blanca.
-if (!ip_permitida_pago_sin_token()) {
+if (!webhook_origen_permitido()) { // [OF-1] secreto en la ruta o, si no, lista de IPs (lib/webhook_helpers.php)
     log_pago_clabe('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     responder_pago_clabe(40, 'No autorizado');
 }

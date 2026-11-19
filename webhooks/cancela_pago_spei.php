@@ -33,7 +33,7 @@ function log_cancela_spei($msg) {
 // aplicado, así que merece el mismo control que los demás. Con la lista
 // IPS_PERMITIDAS_PAGOS_SIN_TOKEN vacía no bloquea nada (igual que antes);
 // sirve para registrar los orígenes reales en ips_webhooks_log.txt.
-if (!ip_permitida_pago_sin_token()) {
+if (!webhook_origen_permitido()) { // [OF-1] secreto en la ruta o, si no, lista de IPs (lib/webhook_helpers.php)
     log_cancela_spei('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     responder_cancela_spei(40, 'No autorizado');
 }

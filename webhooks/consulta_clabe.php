@@ -50,7 +50,7 @@ function log_clabe($msg) {
 // no bloquea nada; está aquí sobre todo porque la consulta es el endpoint más
 // llamado (la tienda/banco consulta antes de cada pago), así que es la mejor
 // fuente para descubrir las IPs reales del proveedor en ips_webhooks_log.txt.
-if (!ip_permitida_pago_sin_token()) {
+if (!webhook_origen_permitido()) { // [OF-1] secreto en la ruta o, si no, lista de IPs (lib/webhook_helpers.php)
     log_clabe('rechazado por IP no permitida: ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     responder_consulta_clabe(40, 'No autorizado');
 }
