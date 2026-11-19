@@ -183,7 +183,14 @@
             "product" => [
                 "description" => $descripcion,
                 "product_key" => "86101800", // Servicios educativos
-                "price"       => $subtotal,
+                // [OF-2] Antes: "price" => $subtotal SIN tax_included. La doc de
+                // Facturapi dice que tax_included vale true por defecto, así que
+                // el subtotal se tomaba como precio YA con IVA y la factura
+                // salía por total/1.16 (16% menos de lo pagado). Mandar el
+                // TOTAL con tax_included explícito da el importe correcto sea
+                // cual sea el default: Facturapi desglosa el IVA por dentro.
+                "price"        => $total,
+                "tax_included" => true,
                 "taxes"       => [
                     [
                         "type" => "IVA",
