@@ -6,16 +6,17 @@
 // "Identifier already declared" y ese error tumba toda la aplicacion.
 var hC = React.createElement;
 
-var SERIE_COLORES = ['#6c5af0', '#4fd8f0', '#d860f0', '#49af54', '#d97706', '#e5484d'];
+// [OF-UI] Paleta categorica de OF: marca, pizarra, info, ambar, rojo y lima.
+var SERIE_COLORES = ['#49af54', '#5b7384', '#1a7499', '#c58a14', '#c23b2e', '#7fc241'];
 
 // Pareja de color para el degradado de cada serie (inicio -> fin)
 var SERIE_GRAD = {
-  '#6c5af0': ['#8b7cf6', '#5b46e0'],
-  '#4fd8f0': ['#7ce6f7', '#28bcd8'],
-  '#d860f0': ['#e88ff7', '#c23fd8'],
+  '#5b7384': ['#7f97a6', '#46596a'],
+  '#1a7499': ['#4aa3c4', '#125a78'],
+  '#c58a14': ['#e0a63a', '#9c6c0c'],
   '#49af54': ['#6fd07a', '#2f9440'],
-  '#d97706': ['#f0a63a', '#b45f04'],
-  '#e5484d': ['#f2777a', '#c62f34']
+  '#c23b2e': ['#dd6a5f', '#9d2d22'],
+  '#7fc241': ['#a2d86a', '#5f9a2c']
 };
 
 // ── Mide el ancho real del contenedor para dibujar 1:1 y evitar deformación ──

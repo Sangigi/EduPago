@@ -40,7 +40,7 @@ function Reportes({
     Otro: 'info'
   };
   const metodoColors = {
-    TC: 'var(--violet)',
+    TC: 'var(--lf-pizarra)',
     SPEI: 'var(--cyan)',
     Efectivo: 'var(--green)',
     EfectivoRef: 'var(--red)',
@@ -252,7 +252,7 @@ function Reportes({
           style: { display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' },
           children: (() => {
             /* Dona con la misma información que antes mostraban las barras */
-            const paleta = { TC: 'var(--violet)', SPEI: 'var(--cyan)', Efectivo: 'var(--green)', EfectivoRef: 'var(--red)', Cheque: 'var(--amber)', Otro: 'var(--ink-4)' };
+            const paleta = { TC: 'var(--lf-pizarra)', SPEI: 'var(--cyan)', Efectivo: 'var(--green)', EfectivoRef: 'var(--red)', Cheque: 'var(--amber)', Otro: 'var(--ink-4)' };
             const etiquetas = { TC: 'Tarjeta', SPEI: 'SPEI', Efectivo: 'Efectivo', EfectivoRef: 'Efectivo en tienda', Cheque: 'Cheque', Otro: 'Sin clasificar' };
             const serie = porMetodo
               .filter(m => m.total > 0)
