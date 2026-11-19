@@ -60,6 +60,9 @@ $resumen = [];
 require_once __DIR__ . '/lib/helpers_alcance_producto.php';
 // [OF-2] Snapshot de IVA / clave SAT / unidad en cobro_items.
 require_once __DIR__ . '/lib/helpers_impuestos.php';
+// [OF-3] Becas por alumno (alumno_becas): el bloque 0 las aplica al generar
+// el cobro recurrente (un renglón negativo por cada beca).
+require_once __DIR__ . '/lib/helpers_becas.php';
 
 // ══════════════════════════════════════════════════════════════════════════
 // 0) PAGOS RECURRENTES: genera el cobro del periodo (colegiatura mensual/
@@ -112,10 +115,45 @@ try {
         if (!$alumnosAlcance && $filtroAlcance['alcance'] !== 'todos') {
             $resumen[] = "AVISO: concepto recurrente #{$prod['id']} ({$prod['nombre']}) con alcance '{$filtroAlcance['alcance']}' no alcanzó a ningún alumno activo este periodo.";
         }
+        // [OF-3] Becas activas de la escuela (una consulta por concepto). Sin la
+        // tabla alumno_becas (migración sin correr) queda [] y todo es como antes.
+        $becasEsc = becas_mapa_escuela($pdo, intval($prod['escuela_id']));
+        $precioCents = becas_centavos($prod['precio']);
+        $conceptoBeca = ['id' => intval($prod['id']), 'categoria' => $prod['categoria'] ?? ''];
         foreach ($alumnosAlcance as $al) { // [F5] antes: todos los activos de la escuela
             $chkGen = $pdo->prepare("SELECT 1 FROM pagos_recurrentes_generados WHERE producto_id = ? AND cliente_id = ? AND periodo = ?");
             $chkGen->execute([$prod['id'], $al['id'], $mesActual]);
             if ($chkGen->fetch()) continue; // este alumno ya tiene su cobro de este periodo
+
+            // [OF-3] Descuento de las becas del alumno para ESTE concepto en
+            // esta fecha. El renglón del concepto va a precio completo y cada
+            // beca se agrega como renglón negativo; el total del cobro es
+            // precio − descuento. cobros.total NUNCA es negativo (tope: el precio).
+            $beca = ['descuento_c' => 0, 'final_c' => $precioCents, 'detalle' => []];
+            if (!empty($becasEsc[intval($al['id'])]) && $precioCents > 0) {
+                $beca = becas_calcular_descuento($becasEsc[intval($al['id'])], $conceptoBeca, $precioCents, $hoyStr);
+            }
+            $totalCobro = $beca['final_c'] / 100;
+
+            // [OF-3] Beca del 100%: NO se crea cobro (un cobro de $0 estorbaría
+            // en listados, recordatorios y facturación), pero el periodo se
+            // marca en pagos_recurrentes_generados con cobro_id NULL para que
+            // este alumno no se reintente (ver migracion_..._of3_cobranza.sql,
+            // bloque 5). Si esa tabla aún no admite NULL, el INSERT falla: no se
+            // crea nada y se avisa en el resumen. El periodo queda sin marcar,
+            // pero tampoco hay cobro, así que no hay nada que duplicar.
+            if ($beca['descuento_c'] > 0 && $beca['final_c'] <= 0) {
+                $nombresBeca = implode(', ', array_column($beca['detalle'], 'nombre'));
+                try {
+                    $pdo->prepare(
+                        "INSERT INTO pagos_recurrentes_generados (producto_id, cliente_id, periodo, cobro_id) VALUES (?, ?, ?, NULL)"
+                    )->execute([$prod['id'], $al['id'], $mesActual]);
+                    $resumen[] = "OK beca 100% ({$nombresBeca}): no se generó cobro de {$prod['nombre']} para el alumno #{$al['id']} ({$al['nombre']}); periodo {$mesActual} marcado.";
+                } catch (\PDOException $eBeca100) {
+                    $resumen[] = "AVISO: beca 100% ({$nombresBeca}) en {$prod['nombre']} para el alumno #{$al['id']}: no se generó cobro, pero NO se pudo marcar el periodo (¿pagos_recurrentes_generados.cobro_id no admite NULL? corre migracion_2026_11_19_of3_cobranza.sql, bloque 5): " . $eBeca100->getMessage();
+                }
+                continue;
+            }
 
             $cntStmt = $pdo->prepare("SELECT COUNT(*) AS n FROM cobros WHERE escuela_id = ?");
             $cntStmt->execute([$prod['escuela_id']]);
@@ -126,7 +164,7 @@ try {
                 $pdo->prepare(
                     "INSERT INTO cobros (escuela_id, cliente_id, folio, total, metodo, estado, fecha)
                      VALUES (?, ?, ?, ?, 'Pendiente', 'pendiente', CURDATE())"
-                )->execute([$prod['escuela_id'], $al['id'], $folio, $prod['precio']]);
+                )->execute([$prod['escuela_id'], $al['id'], $folio, $totalCobro]); // [OF-3] antes: $prod['precio']
                 $cobroId = intval($pdo->lastInsertId());
                 $pdo->prepare(
                     "INSERT INTO pagos_recurrentes_generados (producto_id, cliente_id, periodo, cobro_id) VALUES (?, ?, ?, ?)"
@@ -135,6 +173,11 @@ try {
                     // [OF-2] Con snapshot de IVA / clave SAT / unidad del concepto
                     // (si la migración ya corrió); si no, el INSERT de siempre.
                     impuestos_insertar_item($pdo, $prod['escuela_id'], $cobroId, $prod['id'], $prod['nombre'], 1, $prod['precio'], $prod['precio']);
+                    // [OF-3] Un renglón negativo por cada beca que descontó algo
+                    // (cfdi_armar_renglones lo convierte en descuento al facturar).
+                    foreach ($beca['detalle'] as $lineaBeca) {
+                        becas_insertar_item($pdo, $prod['escuela_id'], $cobroId, $prod['id'], $lineaBeca['etiqueta'], $lineaBeca['monto_c']);
+                    }
                 } catch (\PDOException $eItem) { /* cobro_items es opcional (ver crear_cobro), no crítico */ }
                 // CRÍTICO: Portal Familia no lee `cobros` en vivo, muestra
                 // `clientes.saldo_pendiente` (igual que hace crear_cobro en
@@ -149,11 +192,14 @@ try {
                     $emailAl = $famStmt->fetch()['email'] ?? null;
                 }
                 if ($emailAl) {
-                    $totalFmt = '$' . number_format((float)$prod['precio'], 2) . ' MXN';
+                    $totalFmt = '$' . number_format((float)$totalCobro, 2) . ' MXN'; // [OF-3] ya con beca
                     $asunto = "Nuevo cobro: " . $prod['nombre'];
+                    $avisoBeca = $beca['detalle']
+                        ? ' (precio $' . number_format($precioCents / 100, 2) . ' con un descuento de $' . number_format($beca['descuento_c'] / 100, 2) . ' por beca)'
+                        : '';
                     $html = "
                         <p>Hola,</p>
-                        <p>Se generó el cobro de <strong>" . htmlspecialchars($prod['nombre']) . "</strong> por <strong>$totalFmt</strong> para " . htmlspecialchars($al['nombre']) . ".</p>
+                        <p>Se generó el cobro de <strong>" . htmlspecialchars($prod['nombre']) . "</strong> por <strong>$totalFmt</strong>" . $avisoBeca . " para " . htmlspecialchars($al['nombre']) . ".</p>
                         <p>Tienes del día {$prod['dia_ventana_inicio']} al {$prod['dia_ventana_fin']} de este mes para pagarlo sin recargo.</p>
                         <p>— Pagalaescuela</p>
                     ";
@@ -233,6 +279,10 @@ try {
     );
     foreach ($stmtPend->fetchAll() as $row) {
         if ($hoyDiaMes <= intval($row['dia_ventana_fin'])) continue; // todavía dentro de la ventana sin recargo
+        // [OF-3] Recargo y becas: `co.total` YA es el total con beca (precio −
+        // descuento), así que un recargo en PORCENTAJE se calcula sobre lo que
+        // la familia de verdad debe, no sobre el precio de lista. Un recargo de
+        // monto fijo no cambia. La beca no se aplica sobre el recargo.
         $recargo = $row['penalizacion_tipo'] === 'porcentaje'
             ? round(floatval($row['total']) * floatval($row['penalizacion_valor']) / 100, 2)
             : floatval($row['penalizacion_valor']);
