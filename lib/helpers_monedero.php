@@ -317,7 +317,13 @@ function monedero_bloquear(PDO $pdo, int $cliente_id): array
 /** Saldo según el LIBRO (fuente de verdad), en centavos. */
 function monedero_saldo_libro_c(PDO $pdo, int $cliente_id): int
 {
-    $st = $pdo->prepare("SELECT COALESCE(SUM(signo * monto), 0) FROM monedero_movimientos WHERE cliente_id = ?");
+    // LOCK IN SHARE MODE = lectura con candado: lee SIEMPRE lo último
+    // confirmado. Una lectura normal dentro de una transacción REPEATABLE READ
+    // (el default de MySQL) ve la foto tomada en la PRIMERA lectura de esa
+    // transacción; si alguna acción leyera algo antes de monedero_bloquear(),
+    // aquí vería un saldo viejo y una recarga podría "borrar" un consumo
+    // concurrente. Con el candado, el cálculo no depende de ese orden.
+    $st = $pdo->prepare("SELECT COALESCE(SUM(signo * monto), 0) FROM monedero_movimientos WHERE cliente_id = ? LOCK IN SHARE MODE");
     $st->execute([$cliente_id]);
     return monedero_c($st->fetchColumn());
 }
