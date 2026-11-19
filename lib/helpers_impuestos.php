@@ -287,6 +287,7 @@ function cfdi_armar_renglones(array $items, float $total_cobro, ?array $iedu = n
 
     $pos = [];       // renglones positivos
     $negativo = 0;   // centavos de descuento (positivo)
+    $neg_por_tasa = []; // [OF-3] descuento agrupado por la tasa del renglón negativo
     $suma_bruta = 0;
     foreach ($items as $i => $it) {
         $tasa = impuestos_normalizar_tasa($it['iva_tasa'] ?? null);
@@ -303,6 +304,7 @@ function cfdi_armar_renglones(array $items, float $total_cobro, ?array $iedu = n
         $cat = strtolower(trim((string) ($it['categoria'] ?? '')));
         if ($linea < 0) {
             $negativo += -$linea;
+            $neg_por_tasa[$tasa] = ($neg_por_tasa[$tasa] ?? 0) + (-$linea);
             continue;
         }
         if ($cat === 'beca' && $linea > 0) {
@@ -328,14 +330,31 @@ function cfdi_armar_renglones(array $items, float $total_cobro, ?array $iedu = n
     $suma_pos = array_sum(array_column($pos, 'linea'));
     if ($negativo >= $suma_pos) return ['ok' => false, 'motivo' => 'los descuentos igualan o superan los renglones positivos'];
     if ($negativo > 0) {
-        $repartido = 0;
-        $mayor = 0;
-        foreach ($pos as $k => $p) {
-            $pos[$k]['desc'] = intdiv($negativo * $p['linea'], $suma_pos);
-            $repartido += $pos[$k]['desc'];
-            if ($p['linea'] > $pos[$mayor]['linea']) $mayor = $k;
+        // [OF-3] Cada descuento se reparte SOLO entre los renglones de su misma
+        // tasa de IVA (el renglón de beca copia el snapshot del concepto al que
+        // se aplica). Así la beca de una colegiatura exenta rebaja la base
+        // exenta y no la del uniforme al 16% que viaja en el mismo cobro. Si
+        // no hay ningún renglón positivo con esa tasa (p. ej. un concepto
+        // "beca" viejo capturado al 16% sobre una colegiatura exenta), se
+        // reparte entre todos, como antes.
+        foreach ($neg_por_tasa as $tasa_neg => $monto_neg) {
+            $destino = [];
+            foreach ($pos as $k => $p) {
+                if ($p['tasa'] === $tasa_neg) $destino[] = $k;
+            }
+            if (!$destino) $destino = array_keys($pos);
+            $suma_destino = 0;
+            foreach ($destino as $k) $suma_destino += $pos[$k]['linea'];
+            $repartido = 0;
+            $mayor = $destino[0];
+            foreach ($destino as $k) {
+                $parte = intdiv($monto_neg * $pos[$k]['linea'], $suma_destino);
+                $pos[$k]['desc'] += $parte;
+                $repartido += $parte;
+                if ($pos[$k]['linea'] > $pos[$mayor]['linea']) $mayor = $k;
+            }
+            $pos[$mayor]['desc'] += $monto_neg - $repartido; // residuo al renglón mayor del grupo
         }
-        $pos[$mayor]['desc'] += $negativo - $repartido; // residuo al renglón mayor
         foreach ($pos as $k => $p) {
             if ($p['desc'] >= $p['linea']) return ['ok' => false, 'motivo' => 'un descuento repartido cubre todo un renglón'];
         }

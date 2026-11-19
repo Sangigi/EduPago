@@ -267,7 +267,8 @@ try {
     // --- Recargo por pago tardío (único, no escalable — se aplica una sola vez) ---
     $stmtPend = $pdo->query(
         "SELECT co.id, co.total, co.escuela_id, co.cliente_id, cl.email AS cliente_email, cl.nombre AS cliente_nombre, fa.email AS familia_email,
-                p.nombre AS producto_nombre, p.dia_ventana_fin, p.penalizacion_tipo, p.penalizacion_valor
+                p.nombre AS producto_nombre, p.dia_ventana_fin, p.penalizacion_tipo, p.penalizacion_valor,
+                prg.producto_id
          FROM cobros co
          JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
          JOIN productos p ON p.id = prg.producto_id
@@ -299,6 +300,32 @@ try {
         if ($stmtRecargo->rowCount() === 0) {
             $resumen[] = "AVISO: cobro #{$row['id']} ya no era pendiente/sin recargo al momento de aplicarlo (otro proceso lo adelantó) — se omite.";
             continue;
+        }
+        // [OF-3] El recargo también va como renglón del cobro, con la tasa de
+        // IVA del concepto al que se le aplica. Sin este renglón el total ya no
+        // cuadra con la suma de cobro_items y generar_cfdi caía a un solo
+        // renglón al 16%, aunque el concepto fuera exento. producto_id va en
+        // NULL a propósito: no es una venta más del concepto (no debe contar
+        // en reportes por concepto). Si falla, el cobro queda como antes (la
+        // factura sale en un renglón) y no se toca el recargo ya aplicado.
+        try {
+            $snapRec = impuestos_items_listos($pdo)
+                ? impuestos_snapshot_producto($pdo, $row['producto_id'], $row['escuela_id'])
+                : null;
+            if ($snapRec) {
+                $pdo->prepare(
+                    "INSERT INTO cobro_items (cobro_id, producto_id, nombre, cantidad, precio_unitario, subtotal, iva_tasa, clave_sat, clave_unidad)
+                     VALUES (?, NULL, ?, 1, ?, ?, ?, ?, ?)"
+                )->execute([$row['id'], 'Recargo por pago tardío · ' . $row['producto_nombre'], $recargo, $recargo,
+                            $snapRec['iva_tasa'], $snapRec['clave_sat'], $snapRec['clave_unidad']]);
+            } else {
+                $pdo->prepare(
+                    "INSERT INTO cobro_items (cobro_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
+                     VALUES (?, NULL, ?, 1, ?, ?)"
+                )->execute([$row['id'], 'Recargo por pago tardío · ' . $row['producto_nombre'], $recargo, $recargo]);
+            }
+        } catch (\Throwable $eRecItem) {
+            $resumen[] = "AVISO: cobro #{$row['id']}: el recargo se aplicó pero no se pudo agregar su renglón ({$eRecItem->getMessage()}); su factura saldrá en un solo renglón.";
         }
         if ($row['cliente_id']) {
             // El recargo sube `cobros.total` — hay que refrescar el saldo
