@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS alumno_becas (
 -- 2. Notas de cobranza por familia.
 --    · cliente_id        NULL = nota de toda la familia; con valor = de ese hijo.
 --    · fecha_compromiso  fecha en que la familia prometió pagar (opcional).
---    · cumplido          NULL = sin compromiso o sin resolver; 1 = cumplido.
+--    · cumplido          NULL = la nota no es un compromiso; 0 = compromiso sin
+--                        cumplir; 1 = cumplido. (Los listados tratan NULL y 0 igual.)
 --    · eliminado         baja lógica (la nota queda en la base).
 CREATE TABLE IF NOT EXISTS familia_notas (
   id                INT UNSIGNED  NOT NULL AUTO_INCREMENT,

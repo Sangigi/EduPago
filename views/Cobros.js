@@ -57,6 +57,13 @@ function Cobros({
   const [cancelando, setCancelando] = useState(false);
   const [errorCancelar, setErrorCancelar] = useState('');
   const puedeCancelarCobro = rol === 'admin' || rol === 'cajero' || rol === 'superadmin';
+  // [OF-3] Notas de cobranza desde el detalle de un cobro (familia del alumno del cobro).
+  const [notasFamCobro, setNotasFamCobro] = useState(null);
+  const familiaDeDetalle = c => {
+    const alumno = (data.clientes || []).find(x => x.id === c.cliente_id);
+    const fam = alumno && alumno.familia_id ? (data.familias || []).find(f => f.id === alumno.familia_id) : null;
+    return fam ? { id: fam.id, nombre: fam.nombre } : null;
+  };
   // Depósitos que llegaron por webhook pero no se pudieron aplicar a ningún
   // cobro (monto distinto, referencia desconocida, CLABE reciclada, cargo de
   // tarjeta huérfano). Antes se descartaban sin dejar rastro en BD; ahora se
@@ -1279,7 +1286,12 @@ function Cobros({
               size: 15,
               color: "currentColor"
             }, void 0, false), " Marcar cheque rebotado"]
-          }, void 0, true), puedeCancelarCobro && (detalle.estado === 'pendiente' || detalle.estado === 'pagado') && _jsxDEV("button", {
+          }, void 0, true), puedeCancelarCobro && typeof NotasCobranza !== 'undefined' && familiaDeDetalle(detalle) && _jsxDEV("button", {
+            // [OF-3] Notas de cobranza de la familia de este cobro.
+            className: "btn btn-secondary",
+            onClick: () => setNotasFamCobro(familiaDeDetalle(detalle)),
+            children: "Notas de cobranza"
+          }, 'of3-notas', false), puedeCancelarCobro && (detalle.estado === 'pendiente' || detalle.estado === 'pagado') && _jsxDEV("button", {
             // [OF-3] Cancelar con motivo (acciones/cancelar_cobro.php).
             className: "btn btn-danger",
             onClick: () => abrirCancelar(detalle),
@@ -1291,7 +1303,11 @@ function Cobros({
           }, void 0, false)]
         }, void 0, true)]
       }, void 0, true)
-    }, void 0, false), cancelModal && _jsxDEV("div", {
+    }, void 0, false), notasFamCobro && typeof NotasCobranza !== 'undefined' && _jsxDEV(NotasCobranza, { // [OF-3]
+      familia: notasFamCobro,
+      alumnos: (data.clientes || []).filter(x => x.familia_id === notasFamCobro.id),
+      onCerrar: () => setNotasFamCobro(null)
+    }, 'of3-notas-' + notasFamCobro.id, false), cancelModal && _jsxDEV("div", {
       // [OF-3] Modal "Cancelar cobro": motivo obligatorio y avisos de dinero recibido / factura.
       className: "modal-backdrop",
       onClick: e => e.target === e.currentTarget && !cancelando && cerrarCancelar(),

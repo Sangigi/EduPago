@@ -91,6 +91,9 @@ function Familias({
   const [avisoApellido, setAvisoApellido] = useState(null);
 
   const [fichaTutor, setFichaTutor] = useState(null);
+  // [OF-3] Notas de cobranza de la familia (solo admin, cajero y superadmin; el servidor lo valida).
+  const puedeNotasCobranza = rol === 'admin' || rol === 'cajero' || rol === 'superadmin';
+  const [notasFamilia, setNotasFamilia] = useState(null);
 
   const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — solo si falló el correo al dar acceso al portal
 
@@ -1052,7 +1055,17 @@ function Familias({
 
                 children: [_jsxDEV(Icon, { name: 'usuarios', size: 13, color: 'currentColor' }, 'i', false), " Ficha"]
 
-              }, 'fichaTutor', true), _jsxDEV("button", {
+              }, 'fichaTutor', true), puedeNotasCobranza && typeof NotasCobranza !== 'undefined' && _jsxDEV("button", {
+
+                className: "btn btn-secondary btn-sm",
+
+                title: "Notas de cobranza: llamadas, acuerdos y compromisos de pago de esta familia",
+
+                onClick: e => { e.stopPropagation(); setNotasFamilia(fam); }, // [OF-3]
+
+                children: "Notas de cobranza"
+
+              }, 'of3-notas', false), _jsxDEV("button", {
 
                 className: "btn btn-secondary btn-sm",
 
@@ -2259,7 +2272,11 @@ function Familias({
 
       }, void 0, true)
 
-    }, void 0, false), fichaTutor && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
+    }, void 0, false), puedeNotasCobranza && notasFamilia && typeof NotasCobranza !== 'undefined' && _jsxDEV(NotasCobranza, { // [OF-3]
+      familia: notasFamilia,
+      alumnos: (data.clientes || []).filter(c => c.familia_id === notasFamilia.id),
+      onCerrar: () => setNotasFamilia(null)
+    }, 'of3-notas-' + notasFamilia.id, false), fichaTutor && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
 
       tipo: 'tutor',
 

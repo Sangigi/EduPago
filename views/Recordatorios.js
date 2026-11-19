@@ -30,6 +30,15 @@ function Recordatorios({ data, setData, escuela }) {
   const [copiado, setCopiado] = useState(null);
   const [enLote, setEnLote] = useState(false);
   const [enviandoId, setEnviandoId] = useState(null);
+  // [OF-3] Notas de cobranza: familia cuyas notas están abiertas y contador para
+  // recargar el bloque de compromisos tras cambiar algo en el modal.
+  const [notasFam, setNotasFam] = useState(null);
+  const [recargaCompromisos, setRecargaCompromisos] = useState(0);
+  const familiaDeCobro = c => {
+    const alumno = (data.clientes || []).find(x => x.id === c.cliente_id);
+    const fam = alumno && alumno.familia_id ? (data.familias || []).find(f => f.id === alumno.familia_id) : null;
+    return fam ? { id: fam.id, nombre: fam.nombre } : null;
+  };
 
   // Medianoche local de hoy (no new Date() a secas): compara dia calendario
   // contra dia calendario, sin la hora del momento metiendo ruido.
@@ -370,6 +379,14 @@ function Recordatorios({ data, setData, escuela }) {
         children: "El sistema ya envía un correo automático 3 días antes de vencer, el día que vence y 1 día después. Usa este panel para el seguimiento manual: contactar por WhatsApp o correo y llevar registro de a quién ya le diste seguimiento."
       }, 'desc', false),
 
+      // [OF-3] Compromisos de pago con fecha de hoy o vencidos y sin cumplir
+      // (se oculta solo si no hay ninguno o falta la migración).
+      typeof CompromisosPago !== 'undefined' ? _jsxDEV(CompromisosPago, {
+        escuelaId: escuela && escuela.id,
+        refrescar: recargaCompromisos,
+        onAbrirFamilia: (id, nombre) => setNotasFam({ id, nombre })
+      }, 'of3-compromisos', false) : null,
+
       // ── Buscador, filtros y orden ──
       _jsxDEV("div", {
         className: "search-bar",
@@ -579,6 +596,14 @@ function Recordatorios({ data, setData, escuela }) {
                         ]
                       }, 'em', true) : null,
 
+                      // [OF-3] Notas de cobranza de la familia de este cobro.
+                      (typeof NotasCobranza !== 'undefined' && familiaDeCobro(c)) ? _jsxDEV("button", {
+                        className: "btn btn-secondary btn-sm",
+                        onClick: () => setNotasFam(familiaDeCobro(c)),
+                        title: 'Notas de cobranza y compromisos de pago de esta familia',
+                        children: 'Notas'
+                      }, 'of3-notas', false) : null,
+
                       _jsxDEV("button", {
                         className: "btn btn-secondary btn-sm",
                         onClick: () => copiarMensaje(c),
@@ -616,7 +641,15 @@ function Recordatorios({ data, setData, escuela }) {
 
       (typeof Paginador !== 'undefined' && filtrados.length > 0)
         ? _jsxDEV(Paginador, { ctrl: pag, etiqueta: 'cobros' }, 'pag', false)
-        : null
+        : null,
+
+      // [OF-3] Modal de notas de cobranza de una familia.
+      (notasFam && typeof NotasCobranza !== 'undefined') ? _jsxDEV(NotasCobranza, {
+        familia: notasFam,
+        alumnos: (data.clientes || []).filter(x => x.familia_id === notasFam.id),
+        onCambio: () => setRecargaCompromisos(n => n + 1),
+        onCerrar: () => setNotasFam(null)
+      }, 'of3-notas-' + notasFam.id, false) : null
     ]
   }, void 0, true);
 }
