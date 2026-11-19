@@ -98,6 +98,73 @@ function monedero_log(string $msg): void
         date('Y-m-d H:i:s') . ' | MONEDERO ' . $msg . PHP_EOL, FILE_APPEND);
 }
 
+/**
+ * ¿El colegio activó el monedero? (escuelas.monedero_activo, apagado por
+ * defecto). Si la columna todavía no existe (falta la sentencia 8 de la
+ * migración) se trata como apagado: es el lado seguro, nadie puede recargar
+ * ni vender.
+ */
+function monedero_activo(PDO $pdo, int $escuela_id): bool
+{
+    try {
+        $st = $pdo->prepare("SELECT monedero_activo FROM escuelas WHERE id = ?");
+        $st->execute([$escuela_id]);
+        return (bool) intval($st->fetchColumn());
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Responde al navegador con el error de una operación del monedero.
+ * MonederoError trae un mensaje pensado para el usuario ("Saldo insuficiente...")
+ * y se muestra tal cual; cualquier otra excepción (PDOException, etc.) se
+ * registra y se responde algo genérico, para no filtrar nombres de tablas.
+ * Quien llama ya debe haber hecho rollBack().
+ */
+function monedero_fallo(\Throwable $e, string $contexto): void
+{
+    if ($e instanceof MonederoError) {
+        respond(['success' => false, 'error' => $e->getMessage()]);
+    }
+    monedero_log("{$contexto}: " . get_class($e) . ' ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+    respond(['success' => false, 'error' => 'No se pudo completar la operación del monedero. Intenta de nuevo; si el problema sigue, avisa al colegio.']);
+}
+
+/** ¿El alumno tiene saldo o algún movimiento? (para no esconder dinero con el módulo apagado) */
+function monedero_tiene_historial(PDO $pdo, int $cliente_id): bool
+{
+    $st = $pdo->prepare("SELECT 1 FROM monedero_movimientos WHERE cliente_id = ? LIMIT 1");
+    $st->execute([$cliente_id]);
+    if ($st->fetchColumn()) return true;
+    $st = $pdo->prepare("SELECT saldo FROM monederos WHERE cliente_id = ?");
+    $st->execute([$cliente_id]);
+    $s = $st->fetchColumn();
+    return $s !== false && monedero_c($s) !== 0;
+}
+
+/**
+ * Estado del monedero para mostrar (saldo, límite, NIP, bloqueo, consumo de hoy
+ * y lo que le queda por gastar hoy). No escribe nada. Un alumno sin renglón en
+ * `monederos` se muestra en ceros.
+ */
+function monedero_estado(PDO $pdo, int $cliente_id): array
+{
+    $st = $pdo->prepare("SELECT * FROM monederos WHERE cliente_id = ?");
+    $st->execute([$cliente_id]);
+    $m = $st->fetch() ?: null;
+    $pub = monedero_publico($m);
+    $saldo_c = monedero_c($pub['saldo']);
+    $consumido_c = monedero_consumido_hoy_c($pdo, $cliente_id);
+    $disp_c = $saldo_c;
+    if ($pub['limite_diario'] !== null) {
+        $disp_c = min($saldo_c, max(0, monedero_c($pub['limite_diario']) - $consumido_c));
+    }
+    $pub['consumido_hoy'] = monedero_p($consumido_c);
+    $pub['disponible_hoy'] = monedero_p($disp_c);
+    return $pub;
+}
+
 // ═════════════════════════════ ACCESO (solo api.php) ═════════════════════
 
 /**
@@ -134,9 +201,21 @@ function monedero_ctx(PDO $pdo, array $usuario_actual, array $input, array $role
         respond(['success' => false, 'error' => 'El monedero aún no está instalado en la base de datos (falta correr migracion_2026_11_18_f6_monedero.sql).']);
     }
 
-    if ($escritura && $rol !== 'superadmin' && function_exists('requerir_seccion_habilitada')) {
-        requerir_seccion_habilitada($pdo, 'admin', $escuela_id, ['monedero'],
-            'El monedero no está habilitado para este colegio.');
+    if ($escritura) {
+        // Interruptor propio del monedero (escuelas.monedero_activo, apagado por
+        // defecto). Sustituye a "secciones_deshabilitadas" como puerta de las
+        // escrituras: esa lista es opt-out, así que el monedero habría quedado
+        // encendido en todos los colegios de golpe. Aplica también al
+        // superadmin (que solo se salta esto para activar, que no pasa por aquí).
+        if (!monedero_activo($pdo, $escuela_id)) {
+            respond(['success' => false, 'error' => 'El monedero no está activado para este colegio.']);
+        }
+        // Además, la sección 'monedero' que el superadmin puede apagar desde el
+        // panel de plataforma (api.php) sigue siendo un interruptor maestro.
+        if ($rol !== 'superadmin' && function_exists('requerir_seccion_habilitada')) {
+            requerir_seccion_habilitada($pdo, 'admin', $escuela_id, ['monedero'],
+                'El monedero no está habilitado para este colegio.');
+        }
     }
 
     return [

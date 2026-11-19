@@ -162,3 +162,15 @@ ALTER TABLE cobros ADD COLUMN es_recarga_monedero TINYINT(1) NOT NULL DEFAULT 0;
 --    para la cancelación automática de recargas viejas en el cron.
 --    (Si falla con "Duplicate key name", ya existe: sáltalo.)
 ALTER TABLE cobros ADD INDEX idx_cobros_recarga_monedero (es_recarga_monedero, estado, cliente_id);
+
+-- 8. Interruptor del monedero POR COLEGIO, apagado por defecto. (NO idempotente:
+--    MySQL 5.7 no soporta ADD COLUMN IF NOT EXISTS; si falla con "Duplicate
+--    column name 'monedero_activo'", ya estaba: sáltala.)
+--    Las secciones del sistema son opt-out (escuelas.secciones_deshabilitadas),
+--    así que sin esta columna el monedero aparecería de golpe en TODOS los
+--    colegios. Ningún colegio lo tiene hasta que su admin lo active desde
+--    Monedero > Configuración (acción monedero_activar), o a mano:
+--        UPDATE escuelas SET monedero_activo = 1 WHERE id = <colegio>;
+--    Apagarlo corta recargas y ventas; NO esconde saldos ni impide cancelar
+--    ventas (devolver dinero) ni los ajustes del admin.
+ALTER TABLE escuelas ADD COLUMN monedero_activo TINYINT(1) NOT NULL DEFAULT 0;
