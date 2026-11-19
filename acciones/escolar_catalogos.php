@@ -2,7 +2,7 @@
         // Catálogos del control escolar en UNA petición: ciclos (con sus
         // periodos), aulas, materias, docentes y los grupos del ciclo pedido.
         // Para docente: solo SUS grupos y SUS materias asignadas.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin', 'docente']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, array_merge(ESCOLAR_ROLES_LECTURA, ['docente']));
         $eid = $ctx['escuela_id'];
         $esDocente = $ctx['rol'] === 'docente';
 
@@ -17,12 +17,14 @@
             $p['id'] = intval($p['id']);
             $p['orden'] = intval($p['orden']);
             $p['cerrado'] = (bool) $p['cerrado'];
+            $p['publicado'] = (bool) $p['publicado']; // [F3]
             $periodosPorCiclo[intval($p['ciclo_id'])][] = $p;
         }
         $ciclo_actual_id = null;
         foreach ($ciclos as &$c) {
             $c['id'] = intval($c['id']);
             $c['actual'] = (bool) $c['actual'];
+            $c['cerrado'] = (bool) $c['cerrado']; // [F3]
             foreach (['escala_min', 'escala_max', 'calif_aprobatoria'] as $k) $c[$k] = floatval($c[$k]);
             $c['periodos'] = $periodosPorCiclo[$c['id']] ?? [];
             if ($c['actual'] && !$ciclo_actual_id) $ciclo_actual_id = $c['id'];
@@ -78,7 +80,7 @@
             $st->execute($params);
             $grupos = array_map(function ($g) use ($ctx) {
                 foreach (['id', 'ciclo_id', 'num_alumnos', 'num_materias'] as $k) $g[$k] = intval($g[$k]);
-                foreach (['aula_id', 'tutor_id', 'cupo'] as $k) $g[$k] = $g[$k] !== null ? intval($g[$k]) : null;
+                foreach (['aula_id', 'tutor_id', 'cupo', 'grado_id'] as $k) $g[$k] = $g[$k] !== null ? intval($g[$k]) : null; // [F3] grado_id
                 $g['activo'] = (bool) $g['activo'];
                 $g['soy_tutor'] = $g['tutor_id'] === $ctx['user_id'];
                 return $g;
@@ -108,7 +110,8 @@
             $asignaciones = array_map(function ($a) use ($ctx) {
                 foreach (['id', 'grupo_id', 'materia_id'] as $k) $a[$k] = intval($a[$k]);
                 $a['docente_id'] = $a['docente_id'] !== null ? intval($a['docente_id']) : null;
-                $a['puedo_calificar'] = $ctx['rol'] !== 'docente' || $a['docente_id'] === $ctx['user_id'];
+                // [F3] 'direccion' solo lee: no puede calificar.
+                $a['puedo_calificar'] = escolar_es_gestor($ctx) || ($ctx['rol'] === 'docente' && $a['docente_id'] === $ctx['user_id']);
                 return $a;
             }, $st->fetchAll());
         }
@@ -124,4 +127,8 @@
             'grupos'          => $grupos,
             'asignaciones'    => $asignaciones,
             'puede_gestionar' => escolar_es_gestor($ctx),
+            'puede_ver_kardex' => $ctx['rol'] !== 'docente', // [F3] el docente no tiene kárdex (ver escolar_kardex.php)
+            // [F3] Catálogo de grados de la escuela (para el selector del grupo,
+            // el asistente de mapeo y la promoción).
+            'grados'          => escolar_grados($pdo, $eid),
         ]);

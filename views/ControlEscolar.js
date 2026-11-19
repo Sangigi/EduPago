@@ -8,6 +8,9 @@
  *   'calificaciones'  → sábana de calificaciones por materia/periodo y
  *                       reporte académico del grupo (alumnos en riesgo);
  *   'config'          → ciclos escolares y periodos, materias y aulas.
+ *   [F3] Además en 'config': catálogo de grados (con asistente para ligar a
+ *   los alumnos), publicar periodos, cerrar ciclo, promoción de fin de ciclo
+ *   (con vista previa) y kárdex del alumno (desde la lista del grupo).
  *
  * La misma vista la reusa el panel del docente (views/PortalDocente.js): el
  * servidor responde `puede_gestionar: false` y aquí se esconden los botones
@@ -431,6 +434,25 @@ function EscConfig(props) {
   var s3 = R.useState(''), err = s3[0], setErr = s3[1];
   var cerrar = function () { setModal(null); };
   var guardado = function () { setModal(null); props.recargar(); };
+  // [F3] Publicar periodos y cerrar/reabrir el ciclo.
+  var s4 = R.useState(''), okMsg = s4[0], setOkMsg = s4[1];
+  var publicarPeriodo = async function (p) {
+    setErr(''); setOkMsg('');
+    try { await api('escolar_publicar_periodo', { periodo_id: p.id, publicado: !p.publicado }); props.recargar(); }
+    catch (e) { setErr(e.message); }
+  };
+  var cerrarCiclo = async function (c, cerrar) {
+    var texto = cerrar
+      ? 'Se cerrará el ciclo ' + c.nombre + ': se calcula el historial de cada alumno y YA NO se podrán capturar calificaciones ni asistencias, ni inscribir o editar grupos. Todos los periodos deben estar cerrados. ¿Continuar?'
+      : '¿Reabrir el ciclo ' + c.nombre + '? Volverá a permitir capturas; al terminar tendrás que cerrarlo otra vez para actualizar el historial.';
+    if (!confirm(texto)) return;
+    setErr(''); setOkMsg('');
+    try {
+      var r = await api('escolar_cerrar_ciclo', { ciclo_id: c.id, cerrado: cerrar });
+      setOkMsg(cerrar ? 'Ciclo cerrado: ' + r.resumen.aprobado + ' aprobados, ' + r.resumen.reprobado + ' reprobados, ' + r.resumen.sin_calificar + ' sin calificar.' + (r.aviso ? ' ' + r.aviso : '') : 'Ciclo reabierto.' + (r.aviso ? ' ' + r.aviso : ''));
+      props.recargar();
+    } catch (e) { setErr(e.message); }
+  };
 
   var togglePeriodo = async function (p) {
     setErr('');
@@ -469,25 +491,40 @@ function EscConfig(props) {
               _hE('div', { style: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
                 _hE('div', { style: { fontWeight: 700, fontSize: 15, color: 'var(--ink)' } }, c.nombre),
                 c.actual ? _hE('span', { className: 'badge badge-blue' }, 'En curso') : null,
+                c.cerrado ? _hE('span', { className: 'badge badge-gray' }, 'Cerrado') : null, // [F3]
                 _hE('div', { style: { fontSize: 12, color: 'var(--ink-3)' } }, escFmtFecha(c.fecha_inicio) + ' – ' + escFmtFecha(c.fecha_fin) + ' · escala ' + c.escala_min + '–' + c.escala_max + ', aprueba con ' + c.calif_aprobatoria),
                 _hE('div', { style: { marginLeft: 'auto', display: 'flex', gap: 6 } },
                   !c.actual ? _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { marcarActual(c); } }, 'Marcar en curso') : null,
-                  _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { setModal({ tipo: 'ciclo', ciclo: c }); } }, _hE(Icon, { name: 'edit', size: 14, color: 'currentColor' }), ' Editar')
+                  // [F3] Cerrar / reabrir y promover. Un ciclo cerrado no se edita.
+                  !c.cerrado ? _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { cerrarCiclo(c, true); } }, 'Cerrar ciclo') : null,
+                  c.cerrado ? _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { cerrarCiclo(c, false); } }, 'Reabrir') : null,
+                  c.cerrado ? _hE('button', { className: 'btn btn-primary btn-sm', onClick: function () { setModal({ tipo: 'promocion', origenId: c.id }); } }, 'Promover alumnos') : null,
+                  !c.cerrado ? _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { setModal({ tipo: 'ciclo', ciclo: c }); } }, _hE(Icon, { name: 'edit', size: 14, color: 'currentColor' }), ' Editar') : null
                 )
               ),
               _hE('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 } },
                 c.periodos.map(function (p) {
-                  return _hE('button', {
-                    key: p.id, className: 'badge ' + (p.cerrado ? 'badge-gray' : 'badge-green'),
-                    style: { cursor: 'pointer', textTransform: 'none' },
-                    title: p.cerrado ? 'Cerrado — clic para reabrir' : 'Abierto — clic para cerrar',
-                    onClick: function () { togglePeriodo(p); }
-                  }, (p.cerrado ? '🔒 ' : '') + p.nombre);
+                  // [F3] Cada periodo: cerrar/reabrir y publicar/ocultar a las familias.
+                  return _hE('span', { key: p.id, style: { display: 'inline-flex', gap: 3 } },
+                    _hE('button', {
+                      className: 'badge ' + (p.cerrado ? 'badge-gray' : 'badge-green'),
+                      style: { cursor: 'pointer', textTransform: 'none' },
+                      title: p.cerrado ? 'Cerrado — clic para reabrir' : 'Abierto — clic para cerrar',
+                      onClick: function () { togglePeriodo(p); }
+                    }, (p.cerrado ? '🔒 ' : '') + p.nombre),
+                    _hE('button', {
+                      className: 'badge ' + (p.publicado ? 'badge-blue' : 'badge-amber'),
+                      style: { cursor: 'pointer', textTransform: 'none' },
+                      title: p.publicado ? 'Las familias ya ven este periodo — clic para ocultarlo' : 'Las familias NO ven este periodo — clic para publicarlo',
+                      onClick: function () { publicarPeriodo(p); }
+                    }, p.publicado ? 'Publicado' : 'Sin publicar'));
                 })
               )
             );
           })
     );
+  } else if (tab === 'grados') {
+    contenido = _hE(EscGrados, { cat: cat, api: api, recargar: props.recargar }); // [F3]
   } else {
     var esMateria = tab === 'materias';
     var lista = esMateria ? cat.materias : cat.aulas;
@@ -527,12 +564,370 @@ function EscConfig(props) {
         _hE('div', { className: 'card-sub' }, cat.ciclos.length + ' ciclos · ' + cat.materias.filter(function (m) { return m.activo; }).length + ' materias · ' + cat.aulas.filter(function (a) { return a.activo; }).length + ' aulas')
       )
     ),
-    _hE(EscTabs, { valor: tab, onCambio: setTab, tabs: [{ id: 'ciclos', label: 'Ciclos y periodos' }, { id: 'materias', label: 'Materias' }, { id: 'aulas', label: 'Aulas' }] }),
-    _hE(EscError, { msg: err }),
+    _hE(EscTabs, { valor: tab, onCambio: setTab, tabs: [{ id: 'ciclos', label: 'Ciclos y periodos' }, { id: 'grados', label: 'Grados' }, { id: 'materias', label: 'Materias' }, { id: 'aulas', label: 'Aulas' }] }),
+    _hE(EscError, { msg: err }), _hE(EscOk, { msg: okMsg }),
     contenido,
+    modal && modal.tipo === 'promocion' ? _hE(EscPromocion, { cat: cat, api: api, origenId: modal.origenId, recargar: props.recargar, onCerrar: cerrar }) : null, // [F3]
     modal && modal.tipo === 'ciclo' ? _hE(EscCicloForm, { api: api, ciclo: modal.ciclo, onCerrar: cerrar, onGuardado: guardado }) : null,
     modal && modal.tipo === 'materias' ? _hE(EscCatalogoForm, { api: api, accion: 'escolar_guardar_materia', nombreTipo: 'materia', campos: CAMPOS_MATERIA, inicial: modal.item, onCerrar: cerrar, onGuardado: guardado }) : null,
     modal && modal.tipo === 'aulas' ? _hE(EscCatalogoForm, { api: api, accion: 'escolar_guardar_aula', nombreTipo: 'aula', campos: CAMPOS_AULA, inicial: modal.item, onCerrar: cerrar, onGuardado: guardado }) : null
+  );
+}
+
+/* ───────────────────────── [F3] Catálogo de grados, promoción y kárdex ───────────────────────── */
+
+var ESC_RESULTADOS = {
+  aprobado:      { label: 'Aprobado',      clase: 'badge-green' },
+  reprobado:     { label: 'Reprobado',     clase: 'badge-red' },
+  sin_calificar: { label: 'Sin calificar', clase: 'badge-gray' }
+};
+var ESC_ACCIONES_PROMO = {
+  promover:      { label: 'Pasa de grado',   clase: 'badge-green' },
+  egresar:       { label: 'Egresa',          clase: 'badge-blue' },
+  repetir:       { label: 'Repite grado',    clase: 'badge-red' },
+  revisar:       { label: 'Revisar',         clase: 'badge-gray' },
+  excluido:      { label: 'Excluido',        clase: 'badge-gray' },
+  ya_procesado:  { label: 'Ya procesado',    clase: 'badge-gray' },
+  sin_historial: { label: 'Sin historial',   clase: 'badge-gray' },
+  sin_grado:     { label: 'Sin grado',       clase: 'badge-gray' }
+};
+
+// Alta/edición de un grado del catálogo (nivel, grado, nombre, siguiente).
+function EscGradoForm(props) {
+  var R = React;
+  var s1 = R.useState(Object.assign({ nivel: '', grado: '', nombre_corto: '', orden: '', siguiente_id: '', activo: true }, props.grado || {})), f = s1[0], setF = s1[1];
+  var s2 = R.useState(''), err = s2[0], setErr = s2[1];
+  var s3 = R.useState(false), guardando = s3[0], setGuardando = s3[1];
+  var set = function (k, v) { setF(function (o) { var n = Object.assign({}, o); n[k] = v; return n; }); };
+  var guardar = async function () {
+    setErr(''); setGuardando(true);
+    try {
+      await props.api('escolar_guardar_grado', Object.assign({}, f, { siguiente_id: f.siguiente_id ? Number(f.siguiente_id) : 0 }));
+      props.onGuardado();
+    } catch (e) { setErr(e.message); } finally { setGuardando(false); }
+  };
+  var otros = props.grados.filter(function (g) { return g.id !== f.id; });
+  return _hE(EscModal, {
+    titulo: (f.id ? 'Editar' : 'Nuevo') + ' grado', onCerrar: props.onCerrar,
+    footer: [
+      _hE('button', { key: 'c', className: 'btn btn-secondary', onClick: props.onCerrar }, 'Cancelar'),
+      _hE('button', { key: 'g', className: 'btn btn-primary', disabled: guardando || !String(f.nivel).trim() || !String(f.grado).trim(), onClick: guardar }, guardando ? 'Guardando…' : 'Guardar')
+    ]
+  },
+    _hE('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
+      _hE(EscCampo, { label: 'Nivel *' }, _hE('input', { className: 'form-input', list: 'esc-niveles', placeholder: 'Primaria', value: f.nivel, onChange: function (e) { set('nivel', e.target.value); } })),
+      _hE(EscCampo, { label: 'Grado *' }, _hE('input', { className: 'form-input', placeholder: '3', value: f.grado, onChange: function (e) { set('grado', e.target.value); } })),
+      _hE(EscCampo, { label: 'Nombre que se muestra' }, _hE('input', { className: 'form-input', placeholder: '3° Primaria', value: f.nombre_corto || '', onChange: function (e) { set('nombre_corto', e.target.value); } })),
+      _hE(EscCampo, { label: 'Orden' }, _hE('input', { className: 'form-input', type: 'number', min: 0, value: f.orden === null || f.orden === undefined ? '' : f.orden, onChange: function (e) { set('orden', e.target.value); } }))
+    ),
+    _hE('datalist', { id: 'esc-niveles' }, ESC_NIVELES.map(function (n) { return _hE('option', { key: n, value: n }); })),
+    _hE(EscCampo, { label: 'Al aprobar pasa a' },
+      _hE('select', { className: 'form-select', value: f.siguiente_id || '', onChange: function (e) { set('siguiente_id', e.target.value); } },
+        _hE('option', { value: '' }, 'Ninguno (el alumno egresa)'),
+        otros.map(function (g) { return _hE('option', { key: g.id, value: g.id }, g.nombre_corto); }))),
+    _hE('label', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)' } },
+      _hE('input', { type: 'checkbox', checked: !!f.activo, onChange: function (e) { set('activo', e.target.checked); } }), 'Activo'),
+    _hE(EscError, { msg: err })
+  );
+}
+
+// Asistente: liga el texto libre de cada alumno ("3er Primaria") con un grado del catálogo.
+function EscMapeoGrados(props) {
+  var R = React;
+  var s1 = R.useState(null), datos = s1[0], setDatos = s1[1];
+  var s2 = R.useState({}), elegido = s2[0], setElegido = s2[1];   // texto(minúsculas) → grado_id
+  var s3 = R.useState(''), err = s3[0], setErr = s3[1];
+  var s4 = R.useState(false), guardando = s4[0], setGuardando = s4[1];
+  R.useEffect(function () {
+    props.api('escolar_mapear_grados', { modo: 'vista_previa' }).then(function (r) {
+      setDatos(r);
+      var ini = {};
+      r.textos.forEach(function (t) { if (t.sugerido_id) ini[t.texto.toLowerCase()] = t.sugerido_id; });
+      setElegido(ini);
+    }).catch(function (e) { setErr(e.message); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  var aplicar = async function () {
+    var pares = [];
+    datos.alumnos.forEach(function (a) {
+      var g = elegido[a.grado_texto.toLowerCase()];
+      if (g) pares.push({ cliente_id: a.cliente_id, grado_id: Number(g) });
+    });
+    if (!pares.length) { setErr('Elige al menos un grado para ligar.'); return; }
+    setErr(''); setGuardando(true);
+    try { var r = await props.api('escolar_mapear_grados', { modo: 'aplicar', pares: pares }); props.onListo(r.aplicados); }
+    catch (e) { setErr(e.message); } finally { setGuardando(false); }
+  };
+  var nElegidos = datos ? datos.textos.reduce(function (s, t) { return s + (elegido[t.texto.toLowerCase()] ? t.alumnos : 0); }, 0) : 0;
+  return _hE(EscModal, {
+    titulo: 'Ligar alumnos al catálogo de grados', onCerrar: props.onCerrar, grande: true,
+    footer: [
+      _hE('button', { key: 'c', className: 'btn btn-secondary', onClick: props.onCerrar }, 'Cerrar'),
+      _hE('button', { key: 'g', className: 'btn btn-primary', disabled: guardando || !datos || !nElegidos, onClick: aplicar }, guardando ? 'Guardando…' : 'Ligar ' + nElegidos + ' alumno(s)')
+    ]
+  },
+    !datos ? (err ? _hE(EscError, { msg: err }) : _hE('div', { style: { padding: 24, textAlign: 'center', color: 'var(--ink-3)' } }, 'Analizando los grados capturados…'))
+    : datos.total === 0 ? _hE(EscVacio, { icon: 'alumnos', titulo: 'No hay alumnos pendientes', sub: 'Todos los alumnos activos ya tienen su grado del catálogo.' })
+    : _hE('div', {},
+        _hE('div', { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 10 } },
+          'Los alumnos activos traen el grado como texto libre. Revisa la sugerencia de cada texto (las marcadas “revisar” son menos seguras) y corrige lo que haga falta. No se cambia lo que escribió el colegio: solo se liga con el catálogo.'),
+        _hE('div', { className: 'table-wrap' }, _hE('table', {},
+          _hE('thead', {}, _hE('tr', {}, _hE('th', {}, 'Texto capturado'), _hE('th', {}, 'Alumnos'), _hE('th', {}, 'Grado del catálogo'))),
+          _hE('tbody', {}, datos.textos.map(function (t) {
+            var k = t.texto.toLowerCase();
+            return _hE('tr', { key: k || '_vacio' },
+              _hE('td', { style: { fontWeight: 600, color: 'var(--ink)' } }, t.texto || '(sin grado capturado)',
+                t.confianza === 'baja' ? _hE('span', { className: 'badge badge-amber', style: { marginLeft: 6 } }, 'revisar') : null),
+              _hE('td', {}, t.alumnos),
+              _hE('td', {}, _hE('select', {
+                className: 'form-select', style: { minWidth: 200 }, value: elegido[k] || '',
+                onChange: function (e) { var v = e.target.value; setElegido(function (o) { var n = Object.assign({}, o); if (v) n[k] = v; else delete n[k]; return n; }); }
+              }, _hE('option', { value: '' }, 'No ligar por ahora'),
+                datos.grados.filter(function (g) { return g.activo; }).map(function (g) { return _hE('option', { key: g.id, value: g.id }, g.nombre_corto); }))));
+          }))
+        )),
+        datos.total >= 5000 ? _hE('div', { style: { fontSize: 12, color: 'var(--amber)', marginTop: 8 } }, 'Se muestran los primeros 5000 alumnos; vuelve a abrir el asistente para continuar con el resto.') : null
+      ),
+    datos ? _hE(EscError, { msg: err }) : null
+  );
+}
+
+// Pestaña "Grados" de la configuración.
+function EscGrados(props) {
+  var R = React;
+  var cat = props.cat, api = props.api;
+  var grados = cat.grados || [];
+  var s1 = R.useState(null), modal = s1[0], setModal = s1[1];
+  var s2 = R.useState(''), err = s2[0], setErr = s2[1];
+  var s3 = R.useState(''), ok = s3[0], setOk = s3[1];
+  var s4 = R.useState(false), ocupado = s4[0], setOcupado = s4[1];
+  var porId = {};
+  grados.forEach(function (g) { porId[g.id] = g; });
+  var cargarEstandar = async function () {
+    if (!confirm('Se agregarán Preescolar 1-3, Primaria 1-6, Secundaria 1-3 y Preparatoria 1-3 (los que ya existan no se tocan). ¿Continuar?')) return;
+    setErr(''); setOk(''); setOcupado(true);
+    try {
+      var r = await api('escolar_cargar_catalogo_grados', {});
+      setOk(r.creados ? r.creados + ' grado(s) agregados.' : 'El catálogo estándar ya estaba completo.');
+      props.recargar();
+    } catch (e) { setErr(e.message); } finally { setOcupado(false); }
+  };
+  return _hE('div', {},
+    _hE('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 10, flexWrap: 'wrap' } },
+      _hE('div', { style: { fontSize: 12.5, color: 'var(--ink-3)', maxWidth: 560 } }, 'El catálogo de grados define a qué grado pasa cada alumno al cerrar el ciclo. “Al aprobar pasa a” vacío significa que el alumno egresa.'),
+      _hE('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+        _hE('button', { className: 'btn btn-secondary btn-sm', disabled: ocupado, onClick: cargarEstandar }, 'Cargar catálogo estándar'),
+        _hE('button', { className: 'btn btn-secondary btn-sm', disabled: !grados.length, title: grados.length ? '' : 'Primero carga el catálogo', onClick: function () { setModal({ tipo: 'mapeo' }); } }, 'Ligar alumnos al catálogo'),
+        _hE('button', { className: 'btn btn-primary btn-sm', onClick: function () { setModal({ tipo: 'grado', grado: {} }); } }, '+ Nuevo grado')
+      )
+    ),
+    _hE(EscError, { msg: err }), _hE(EscOk, { msg: ok }),
+    grados.length === 0
+      ? _hE(EscVacio, { titulo: 'Sin catálogo de grados', sub: 'Carga el catálogo estándar (Preescolar a Preparatoria) y ajústalo a tu colegio.' })
+      : _hE('div', { className: 'table-wrap', style: { marginTop: 10 } }, _hE('table', {},
+          _hE('thead', {}, _hE('tr', {}, _hE('th', {}, 'Orden'), _hE('th', {}, 'Grado'), _hE('th', {}, 'Nivel'), _hE('th', {}, 'Al aprobar pasa a'), _hE('th', {}, 'Estado'), _hE('th', {}, ''))),
+          _hE('tbody', {}, grados.map(function (g) {
+            return _hE('tr', { key: g.id, style: { opacity: g.activo ? 1 : 0.55 } },
+              _hE('td', { style: { color: 'var(--ink-4)' } }, g.orden),
+              _hE('td', { style: { fontWeight: 600, color: 'var(--ink)' } }, g.nombre_corto),
+              _hE('td', {}, g.nivel),
+              _hE('td', {}, g.siguiente_id && porId[g.siguiente_id] ? porId[g.siguiente_id].nombre_corto : _hE('span', { style: { color: 'var(--ink-4)' } }, 'Egresa')),
+              _hE('td', {}, _hE('span', { className: 'badge ' + (g.activo ? 'badge-green' : 'badge-gray') }, g.activo ? 'Activo' : 'Inactivo')),
+              _hE('td', { style: { textAlign: 'right' } }, _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { setModal({ tipo: 'grado', grado: g }); } }, _hE(Icon, { name: 'edit', size: 14, color: 'currentColor' })))
+            );
+          }))
+        )),
+    modal && modal.tipo === 'grado' ? _hE(EscGradoForm, { api: api, grado: modal.grado, grados: grados, onCerrar: function () { setModal(null); }, onGuardado: function () { setModal(null); props.recargar(); } }) : null,
+    modal && modal.tipo === 'mapeo' ? _hE(EscMapeoGrados, { api: api, onCerrar: function () { setModal(null); }, onListo: function (n) { setModal(null); setOk(n + ' alumno(s) ligados al catálogo de grados.'); } }) : null
+  );
+}
+
+// Asistente de promoción: elegir ciclos y mapeo de grupos, VISTA PREVIA y, solo
+// después de revisarla, aplicar (el servidor exige el token de esa vista previa).
+function EscPromocion(props) {
+  var R = React;
+  var cat = props.cat, api = props.api;
+  var cerrados = cat.ciclos.filter(function (c) { return c.cerrado; });
+  var s1 = R.useState(props.origenId || (cerrados[0] ? cerrados[0].id : '')), origenId = s1[0], setOrigenId = s1[1];
+  var s2 = R.useState(''), destinoId = s2[0], setDestinoId = s2[1];
+  var s3 = R.useState({ o: [], d: [] }), grupos = s3[0], setGrupos = s3[1];
+  var s4 = R.useState({}), mapeo = s4[0], setMapeo = s4[1];
+  var s5 = R.useState({}), excluir = s5[0], setExcluir = s5[1];
+  var s6 = R.useState({}), forzar = s6[0], setForzar = s6[1];
+  var s7 = R.useState(null), plan = s7[0], setPlan = s7[1];
+  var s8 = R.useState(true), vencida = s8[0], setVencida = s8[1];
+  var s9 = R.useState(false), ocupado = s9[0], setOcupado = s9[1];
+  var s10 = R.useState(''), err = s10[0], setErr = s10[1];
+  var s11 = R.useState(null), resultado = s11[0], setResultado = s11[1];
+
+  var origen = cat.ciclos.find(function (c) { return c.id === Number(origenId); });
+  var destinos = cat.ciclos.filter(function (c) { return !c.cerrado && origen && c.fecha_inicio > origen.fecha_inicio; });
+  var gradoPorId = {};
+  (cat.grados || []).forEach(function (g) { gradoPorId[g.id] = g; });
+
+  // Al elegir los dos ciclos se traen sus grupos y se propone un mapeo: cada
+  // grupo de origen va al grupo destino del grado siguiente (misma letra si hay).
+  R.useEffect(function () {
+    setPlan(null); setResultado(null); setMapeo({}); setExcluir({}); setForzar({});
+    if (!origenId || !destinoId) { setGrupos({ o: [], d: [] }); return; }
+    Promise.all([api('escolar_catalogos', { ciclo_id: Number(origenId) }), api('escolar_catalogos', { ciclo_id: Number(destinoId) })]).then(function (r) {
+      var go = r[0].grupos.filter(function (g) { return g.activo; }), gd = r[1].grupos.filter(function (g) { return g.activo; });
+      setGrupos({ o: go, d: gd });
+      var m = {};
+      go.forEach(function (g) {
+        var gr = g.grado_id ? gradoPorId[g.grado_id] : null;
+        var objetivo = gr && gr.siguiente_id ? gr.siguiente_id : null;
+        if (!objetivo) return;
+        var cand = gd.filter(function (x) { return x.grado_id === objetivo; });
+        if (!cand.length) return;
+        var letra = String(g.nombre).trim().slice(-1).toUpperCase();
+        var igual = cand.filter(function (x) { return String(x.nombre).trim().slice(-1).toUpperCase() === letra; });
+        m[g.id] = (igual[0] || cand[0]).id;
+      });
+      setMapeo(m);
+    }).catch(function (e) { setErr(e.message); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origenId, destinoId]);
+
+  var ids = function (o) { return Object.keys(o).filter(function (k) { return o[k]; }).map(Number); };
+  var cuerpo = function (dry) {
+    var m = {};
+    Object.keys(mapeo).forEach(function (k) { if (mapeo[k]) m[k] = Number(mapeo[k]); });
+    var c = { dry_run: dry, ciclo_origen: Number(origenId), ciclo_destino: Number(destinoId), mapeo: m, excluir: ids(excluir), forzar: ids(forzar) };
+    if (!dry) c.token = plan.token;
+    return c;
+  };
+  var vistaPrevia = async function () {
+    setErr(''); setOcupado(true);
+    try { var r = await api('escolar_promover', cuerpo(true)); setPlan(r); setVencida(false); }
+    catch (e) { setErr(e.message); } finally { setOcupado(false); }
+  };
+  var aplicar = async function () {
+    var n = plan.resumen;
+    if (!confirm('Se aplicará la promoción: ' + (n.promover || 0) + ' pasan de grado, ' + (n.repetir || 0) + ' repiten, ' + (n.egresar || 0) + ' egresan. Esto cambia el grado de los alumnos. ¿Continuar?')) return;
+    setErr(''); setOcupado(true);
+    try { var r = await api('escolar_promover', cuerpo(false)); setResultado(r); setPlan(null); props.recargar(); }
+    catch (e) { setErr(e.message); setVencida(true); } finally { setOcupado(false); }
+  };
+  var marca = function (setter, id, v) {
+    setter(function (o) { var n = Object.assign({}, o); n[id] = v; return n; });
+    setVencida(true);
+  };
+  var hayAccion = plan && ((plan.resumen.promover || 0) + (plan.resumen.repetir || 0) + (plan.resumen.egresar || 0)) > 0;
+
+  var pasoCiclos = _hE('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
+    _hE(EscCampo, { label: 'Ciclo que se cierra (origen)' }, _hE('select', { className: 'form-select', value: origenId || '', onChange: function (e) { setOrigenId(e.target.value); setDestinoId(''); } },
+      cerrados.length ? null : _hE('option', { value: '' }, 'No hay ciclos cerrados'),
+      cerrados.map(function (c) { return _hE('option', { key: c.id, value: c.id }, c.nombre); }))),
+    _hE(EscCampo, { label: 'Ciclo nuevo (destino)' }, _hE('select', { className: 'form-select', value: destinoId || '', onChange: function (e) { setDestinoId(e.target.value); } },
+      _hE('option', { value: '' }, destinos.length ? 'Elige el ciclo…' : 'Crea primero el ciclo nuevo'),
+      destinos.map(function (c) { return _hE('option', { key: c.id, value: c.id }, c.nombre); })))
+  );
+
+  var pasoMapeo = destinoId && grupos.o.length ? _hE('div', { style: { marginBottom: 12 } },
+    _hE('div', { style: { fontWeight: 700, fontSize: 13, color: 'var(--ink)', marginBottom: 6 } }, 'Grupos del ciclo nuevo (opcional)'),
+    _hE('div', { style: { fontSize: 12, color: 'var(--ink-3)', marginBottom: 8 } }, 'Si eliges un grupo destino, los alumnos que pasen de grado se inscriben en él. Sin grupo destino solo cambia su grado y los inscribes después a mano. Los que repiten de grado no se inscriben solos si el grupo destino es de otro grado.'),
+    grupos.o.map(function (g) {
+      return _hE('div', { key: g.id, style: { display: 'grid', gridTemplateColumns: '1fr 24px 1fr', gap: 8, alignItems: 'center', marginBottom: 6 } },
+        _hE('div', { style: { fontSize: 13, color: 'var(--ink)' } }, g.nombre, g.grado_id && gradoPorId[g.grado_id] ? _hE('span', { style: { color: 'var(--ink-4)' } }, ' · ' + gradoPorId[g.grado_id].nombre_corto) : null),
+        _hE('div', { style: { textAlign: 'center', color: 'var(--ink-4)' } }, '→'),
+        _hE('select', { className: 'form-select', value: mapeo[g.id] || '', onChange: function (e) { var v = e.target.value; setMapeo(function (o) { var n = Object.assign({}, o); n[g.id] = v; return n; }); setVencida(true); } },
+          _hE('option', { value: '' }, 'No inscribir en grupo'),
+          grupos.d.map(function (x) { return _hE('option', { key: x.id, value: x.id }, x.nombre + (x.grado_id && gradoPorId[x.grado_id] ? ' · ' + gradoPorId[x.grado_id].nombre_corto : '')); })));
+    })
+  ) : null;
+
+  var pasoPlan = plan ? _hE('div', {},
+    _hE('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 } },
+      Object.keys(plan.resumen).map(function (k) {
+        var a = ESC_ACCIONES_PROMO[k] || { label: k, clase: 'badge-gray' };
+        return _hE('span', { key: k, className: 'badge ' + a.clase, style: { textTransform: 'none' } }, a.label + ': ' + plan.resumen[k]);
+      })),
+    plan.egreso_automatico === false ? _hE('div', { style: { fontSize: 12, color: 'var(--amber)', marginBottom: 8 } }, 'El expediente de alumnos aún no está instalado: los alumnos que egresan NO cambiarán de estatus automáticamente (se reportarán al aplicar).') : null,
+    _hE('div', { className: 'table-wrap', style: { maxHeight: 340, overflow: 'auto' } }, _hE('table', {},
+      _hE('thead', {}, _hE('tr', {}, _hE('th', {}, 'Alumno'), _hE('th', {}, 'Resultado'), _hE('th', {}, 'Qué pasa'), _hE('th', {}, 'Grupo nuevo'), _hE('th', { style: { textAlign: 'center' } }, 'Excluir'), _hE('th', { style: { textAlign: 'center' } }, 'Forzar paso'))),
+      _hE('tbody', {}, plan.filas.map(function (f) {
+        var a = ESC_ACCIONES_PROMO[f.accion] || { label: f.accion, clase: 'badge-gray' };
+        var r = f.resultado ? ESC_RESULTADOS[f.resultado] : null;
+        var puedeForzar = f.accion === 'repetir' || f.accion === 'revisar';
+        return _hE('tr', { key: f.cliente_id },
+          _hE('td', {}, _hE('div', { style: { fontWeight: 600, color: 'var(--ink)' } }, f.nombre), _hE('div', { style: { fontSize: 11, color: 'var(--ink-4)' } }, f.grupo_origen + (f.grado_actual ? ' · ' + f.grado_actual : ''))),
+          _hE('td', {}, r ? _hE('span', { className: 'badge ' + r.clase }, r.label) : '—', f.promedio !== null ? _hE('span', { style: { marginLeft: 6, fontSize: 12, color: 'var(--ink-3)' } }, escFmtCal(f.promedio)) : null),
+          _hE('td', {}, _hE('span', { className: 'badge ' + a.clase, style: { textTransform: 'none' } }, a.label), f.grado_nuevo ? _hE('span', { style: { marginLeft: 6, fontSize: 12 } }, '→ ' + f.grado_nuevo) : null,
+            f.aviso ? _hE('div', { style: { fontSize: 11, color: 'var(--amber)', marginTop: 2 } }, f.aviso) : null),
+          _hE('td', {}, f.grupo_destino || '—'),
+          _hE('td', { style: { textAlign: 'center' } }, _hE('input', { type: 'checkbox', checked: !!excluir[f.cliente_id], onChange: function (e) { marca(setExcluir, f.cliente_id, e.target.checked); } })),
+          _hE('td', { style: { textAlign: 'center' } }, puedeForzar || forzar[f.cliente_id]
+            ? _hE('input', { type: 'checkbox', checked: !!forzar[f.cliente_id], onChange: function (e) { marca(setForzar, f.cliente_id, e.target.checked); } }) : null)
+        );
+      }))
+    ))
+  ) : null;
+
+  var pasoResultado = resultado ? _hE('div', {},
+    _hE(EscOk, { msg: 'Promoción aplicada: ' + resultado.aplicados.promovido + ' pasaron de grado, ' + resultado.aplicados.repite + ' repiten, ' + resultado.aplicados.egresado + ' egresaron.' }),
+    resultado.aviso ? _hE('div', { style: { marginTop: 8, fontSize: 12.5, color: 'var(--amber)' } }, resultado.aviso) : null,
+    resultado.errores && resultado.errores.length ? _hE(EscError, { msg: resultado.errores.length + ' alumno(s) con error: ' + resultado.errores.map(function (x) { return x.nombre + ' (' + x.error + ')'; }).join('; ') }) : null
+  ) : null;
+
+  return _hE(EscModal, {
+    titulo: 'Promoción de fin de ciclo', onCerrar: props.onCerrar, grande: true,
+    footer: resultado ? [_hE('button', { key: 'c', className: 'btn btn-primary', onClick: props.onCerrar }, 'Listo')] : [
+      _hE('button', { key: 'c', className: 'btn btn-secondary', onClick: props.onCerrar }, 'Cancelar'),
+      _hE('button', { key: 'v', className: 'btn btn-secondary', disabled: ocupado || !origenId || !destinoId, onClick: vistaPrevia }, plan ? 'Actualizar vista previa' : 'Vista previa'),
+      _hE('button', { key: 'a', className: 'btn btn-primary', disabled: ocupado || !plan || vencida || !hayAccion, title: vencida && plan ? 'Actualiza la vista previa antes de aplicar' : '', onClick: aplicar }, ocupado ? 'Procesando…' : 'Aplicar promoción')
+    ]
+  },
+    resultado ? pasoResultado : _hE('div', {},
+      _hE('div', { style: { fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 10 } }, 'Primero revisa la vista previa: no se cambia nada hasta que aprietes “Aplicar promoción”. Los aprobados pasan al grado siguiente del catálogo, los reprobados repiten y quien ya no tiene grado siguiente egresa.'),
+      pasoCiclos, pasoMapeo, pasoPlan, _hE(EscError, { msg: err })
+    )
+  );
+}
+
+// Kárdex: trayectoria del alumno ciclo por ciclo.
+function EscKardexModal(props) {
+  var R = React;
+  var s1 = R.useState(null), d = s1[0], setD = s1[1];
+  var s2 = R.useState(''), err = s2[0], setErr = s2[1];
+  R.useEffect(function () {
+    props.api('escolar_kardex', { cliente_id: props.clienteId }).then(setD).catch(function (e) { setErr(e.message); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.clienteId]);
+  var ESTADOS = { en_curso: 'En curso', sin_cerrar: 'Sin cerrar', en_revision: 'En revisión' };
+  return _hE(EscModal, {
+    titulo: d ? 'Kárdex — ' + d.alumno.nombre : 'Kárdex', onCerrar: props.onCerrar, ancho: 860,
+    footer: [_hE('button', { key: 'c', className: 'btn btn-secondary', onClick: props.onCerrar }, 'Cerrar')]
+  },
+    err ? _hE(EscError, { msg: err })
+    : !d ? _hE('div', { style: { padding: 24, textAlign: 'center', color: 'var(--ink-3)' } }, 'Cargando kárdex…')
+    : _hE('div', {},
+        _hE('div', { style: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 } },
+          _hE(EscStat, { label: 'Grado actual', valor: d.alumno.grado_actual || '—' }),
+          _hE(EscStat, { label: 'Promedio de ciclos cerrados', valor: escFmtCal(d.promedio_global) }),
+          _hE(EscStat, { label: 'Ciclos', valor: d.ciclos.length })),
+        d.ciclos.length === 0
+          ? _hE(EscVacio, { icon: 'escuelas', titulo: 'Sin historial académico', sub: 'Aparecerá cuando el alumno esté inscrito en un grupo y se cierre su primer ciclo.' })
+          : _hE('div', { className: 'table-wrap' }, _hE('table', {},
+              _hE('thead', {}, _hE('tr', {}, _hE('th', {}, 'Ciclo'), _hE('th', {}, 'Grado'), _hE('th', {}, 'Grupo'), _hE('th', { style: { textAlign: 'center' } }, 'Promedio'), _hE('th', {}, 'Resultado'))),
+              _hE('tbody', {}, d.ciclos.map(function (c) {
+                var r = c.resultado ? ESC_RESULTADOS[c.resultado] : null;
+                return [
+                  _hE('tr', { key: c.ciclo_id },
+                    _hE('td', { style: { fontWeight: 600, color: 'var(--ink)' } }, c.ciclo),
+                    _hE('td', {}, c.grado || '—'),
+                    _hE('td', {}, c.grupo || '—'),
+                    _hE('td', { style: { textAlign: 'center', fontWeight: 700, color: escColorCal(c.promedio, c.calif_aprobatoria) } }, escFmtCal(c.promedio)),
+                    _hE('td', {}, r ? _hE('span', { className: 'badge ' + r.clase }, r.label) : _hE('span', { className: 'badge badge-gray' }, ESTADOS[c.estado] || c.estado),
+                      c.promocion ? _hE('span', { style: { marginLeft: 6, fontSize: 11.5, color: 'var(--ink-3)' } }, c.promocion === 'promovido' ? 'Promovido' : c.promocion === 'repite' ? 'Repite' : c.promocion === 'egresado' ? 'Egresado' : c.promocion) : null)
+                  ),
+                  c.materias && c.materias.length ? _hE('tr', { key: 'm' + c.ciclo_id },
+                    _hE('td', { colSpan: 5, style: { fontSize: 11.5, color: 'var(--ink-3)', paddingTop: 0 } },
+                      c.materias.map(function (m) { return m.nombre + ' ' + escFmtCal(m.final); }).join(' · '))) : null
+                ];
+              }))
+            ))
+      )
   );
 }
 
@@ -546,6 +941,16 @@ function EscGrupoForm(props) {
   var s3 = R.useState(false), guardando = s3[0], setGuardando = s3[1];
   var set = function (k, v) { setF(function (o) { var n = Object.assign({}, o); n[k] = v; return n; }); };
   var docentes = cat.docentes.filter(function (d) { return d.activo; });
+  // [F3] Al elegir el grado del catálogo se rellenan nivel y grado si estaban vacíos.
+  var setGradoCat = function (v) {
+    var g = (cat.grados || []).find(function (x) { return x.id === Number(v); });
+    setF(function (o) {
+      var n = Object.assign({}, o, { grado_id: v ? Number(v) : 0 });
+      if (g && !n.nivel) n.nivel = g.nivel;
+      if (g && !n.grado) n.grado = g.grado;
+      return n;
+    });
+  };
   var guardar = async function () {
     setErr(''); setGuardando(true);
     try { var r = await props.api('escolar_guardar_grupo', f); props.onGuardado(r.id); }
@@ -565,6 +970,10 @@ function EscGrupoForm(props) {
       _hE(EscCampo, { label: 'Nivel' }, _hE('select', { className: 'form-select', value: f.nivel || '', onChange: function (e) { set('nivel', e.target.value); } },
         _hE('option', { value: '' }, '—'), ESC_NIVELES.map(function (n) { return _hE('option', { key: n, value: n }, n); }))),
       _hE(EscCampo, { label: 'Grado' }, _hE('input', { className: 'form-input', placeholder: '3°', value: f.grado || '', onChange: function (e) { set('grado', e.target.value); } })),
+      // [F3] Grado del catálogo: de aquí sale a qué grado pasan los alumnos al promover.
+      _hE(EscCampo, { label: 'Grado del catálogo' }, _hE('select', { className: 'form-select', value: f.grado_id || '', onChange: function (e) { setGradoCat(e.target.value); } },
+        _hE('option', { value: '' }, (cat.grados || []).length ? 'Sin grado del catálogo' : 'Carga el catálogo en Configuración'),
+        (cat.grados || []).filter(function (g) { return g.activo || g.id === Number(f.grado_id); }).map(function (g) { return _hE('option', { key: g.id, value: g.id }, g.nombre_corto); }))),
       _hE(EscCampo, { label: 'Turno' }, _hE('select', { className: 'form-select', value: f.turno || '', onChange: function (e) { set('turno', e.target.value); } },
         _hE('option', { value: '' }, '—'), ESC_TURNOS.map(function (n) { return _hE('option', { key: n, value: n }, n); }))),
       _hE(EscCampo, { label: 'Cupo máximo' }, _hE('input', { className: 'form-input', type: 'number', min: 1, value: f.cupo || '', onChange: function (e) { set('cupo', e.target.value); } })),
@@ -750,6 +1159,7 @@ function EscGrupoDetalle(props) {
               _hE('td', {}, escFmtFecha(a.fecha_alta)),
               _hE('td', { style: { textAlign: 'right', whiteSpace: 'nowrap' } },
                 _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { setModal({ boleta: a.id }); } }, 'Boleta'),
+                cat.puede_ver_kardex ? _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { setModal({ kardex: a.id }); } }, 'Kárdex') : null, // [F3]
                 gestor ? _hE('button', {
                   className: 'btn btn-ghost btn-sm', title: 'Dar de baja del grupo',
                   onClick: function () { if (confirm('¿Dar de baja a ' + a.nombre + ' de este grupo? Su historial se conserva.')) accion('escolar_baja_alumno_grupo', { grupo_id: g.id, cliente_id: a.id }, 'Alumno dado de baja del grupo.'); }
@@ -832,7 +1242,8 @@ function EscGrupoDetalle(props) {
     }) : null,
     modal === 'horario' ? _hE(EscHorarioForm, { api: api, materias: det.materias, aulas: cat.aulas, onCerrar: function () { setModal(null); }, onGuardado: function (seguir) { cargar(); if (!seguir) setModal(null); } }) : null,
     modal === 'editar' ? _hE(EscGrupoForm, { api: api, cat: cat, grupo: g, onCerrar: function () { setModal(null); }, onGuardado: function () { setModal(null); cargar(); props.recargar(); } }) : null,
-    modal && modal.boleta ? _hE(EscBoletaModal, { api: api, clienteId: modal.boleta, cicloId: g.ciclo_id, onCerrar: function () { setModal(null); } }) : null
+    modal && modal.boleta ? _hE(EscBoletaModal, { api: api, clienteId: modal.boleta, cicloId: g.ciclo_id, onCerrar: function () { setModal(null); } }) : null,
+    modal && modal.kardex ? _hE(EscKardexModal, { api: api, clienteId: modal.kardex, onCerrar: function () { setModal(null); } }) : null // [F3]
   );
 }
 
@@ -961,7 +1372,7 @@ function EscPaseLista(props) {
     setErr(''); setOk(''); setGuardando(true);
     try {
       var r = await api('escolar_asistencia_guardar', { grupo_id: grupoId, fecha: fecha, registros: lista.map(function (a) { return { cliente_id: a.id, estado: a.estado, observacion: a.observacion || '' }; }) });
-      setOk('Asistencia guardada (' + r.guardados + ' alumnos).'); setSucio(false); setCapturada(true);
+      setOk('Asistencia guardada (' + r.guardados + ' alumnos).' + (r.aviso ? ' ' + r.aviso : '')); setSucio(false); setCapturada(true);
     } catch (e) { setErr(e.message); } finally { setGuardando(false); }
   };
 
@@ -1367,9 +1778,17 @@ function ControlEscolar(props) {
     cuerpo = _hE(EscGrupos, sub);
   }
 
+  // [F3] Ciclo cerrado: se consulta pero no se captura (el servidor también lo impide).
+  var cicloVisto = cat.ciclos.find(function (c) { return c.id === cat.ciclo_id; });
+  var avisoCerrado = cicloVisto && cicloVisto.cerrado && seccion !== 'config'
+    ? _hE('div', { style: { marginBottom: 12, padding: '9px 12px', fontSize: 12.5, borderRadius: 'var(--radius-sm)', color: 'var(--ink-2)', background: 'var(--amber-glow)', border: '1px solid rgba(217,119,6,.2)' } },
+        'El ciclo ' + cicloVisto.nombre + ' está cerrado: solo se puede consultar. La administración puede reabrirlo desde Ciclos, materias y aulas.')
+    : null;
+
   return _hE('div', {},
     error ? _hE(EscError, { msg: error }) : null,
     selectorCiclo,
+    avisoCerrado,
     // key por ciclo: al cambiar de ciclo se reinician los selectores internos
     // (grupo elegido, materia elegida) en vez de apuntar a ids de otro ciclo.
     _hE('div', { key: 'c' + (cat.ciclo_id || 0) + seccion }, cuerpo)

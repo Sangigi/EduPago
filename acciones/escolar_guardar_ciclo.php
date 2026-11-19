@@ -3,7 +3,7 @@
         // evaluación. Los periodos llegan como lista completa: los que traen id
         // se actualizan, los nuevos se insertan y los que ya no vienen se
         // borran — salvo que tengan calificaciones capturadas.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin'], ['escolar_config']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ESCOLAR_ROLES_GESTOR, ['escolar_config']);
         $eid = $ctx['escuela_id'];
 
         $id     = intval($input['id'] ?? 0);
@@ -36,7 +36,9 @@
         $pdo->beginTransaction();
         try {
             if ($id) {
-                escolar_ciclo($pdo, $eid, $id);
+                // [F3] Un ciclo cerrado ya tiene su historial calculado: cambiar
+                // fechas, escala o periodos lo dejaría incoherente. Hay que reabrirlo.
+                escolar_requerir_ciclo_abierto(escolar_ciclo($pdo, $eid, $id), 'editar sus datos');
                 $pdo->prepare("UPDATE ciclos_escolares SET nombre=?, fecha_inicio=?, fecha_fin=?, escala_min=?, escala_max=?, calif_aprobatoria=? WHERE id=? AND escuela_id=?")
                     ->execute([$nombre, $ini, $fin, $emin, $emax, $apr, $id, $eid]);
             } else {

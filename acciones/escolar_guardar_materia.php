@@ -1,5 +1,5 @@
 <?php
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin'], ['escolar_config', 'escolar_grupos']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ESCOLAR_ROLES_GESTOR, ['escolar_config', 'escolar_grupos']);
         $eid = $ctx['escuela_id'];
         $id     = intval($input['id'] ?? 0);
         $nombre = trim($input['nombre'] ?? '');

@@ -1,7 +1,7 @@
 <?php
         // Horario semanal de un docente en el ciclo actual (o el pedido).
         // El docente solo puede ver el suyo; la administración, el de cualquiera.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin', 'docente'], ['escolar_grupos']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, array_merge(ESCOLAR_ROLES_LECTURA, ['docente']), ['escolar_grupos']);
         $eid = $ctx['escuela_id'];
         $docente_id = $ctx['rol'] === 'docente' ? $ctx['user_id'] : intval($input['docente_id'] ?? 0);
         if (!$docente_id) respond(['success' => false, 'error' => 'Elige un docente.']);

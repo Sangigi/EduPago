@@ -5,7 +5,7 @@
         //   2. el DOCENTE ya está dando clase en otro grupo a esa hora;
         //   3. el AULA ya está ocupada por otro grupo a esa hora.
         // Todo dentro del mismo ciclo escolar.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin'], ['escolar_grupos']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ESCOLAR_ROLES_GESTOR, ['escolar_grupos']);
         $eid = $ctx['escuela_id'];
         $id = intval($input['id'] ?? 0);
 

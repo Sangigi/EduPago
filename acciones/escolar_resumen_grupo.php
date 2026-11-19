@@ -3,7 +3,7 @@
         // materias reprobadas, % de asistencia en el ciclo) y por materia
         // (promedio del grupo, reprobados). Sirve para detectar alumnos en
         // riesgo antes de la junta de consejo técnico.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin', 'docente'], ['escolar_calificaciones', 'escolar_asistencias']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, array_merge(ESCOLAR_ROLES_LECTURA, ['docente']), ['escolar_calificaciones', 'escolar_asistencias']);
         $eid = $ctx['escuela_id'];
         $g = escolar_grupo($pdo, $ctx, $input['grupo_id'] ?? 0);
         $ciclo = escolar_ciclo($pdo, $eid, $g['ciclo_id']);

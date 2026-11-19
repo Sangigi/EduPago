@@ -12,5 +12,16 @@
         $chkNombre->execute([$id]);
         $objetivoInfo = $chkNombre->fetch();
         $pdo->prepare("DELETE FROM usuarios WHERE id = ?")->execute([$id]);
+        // [F3] Sin FOREIGN KEY no hay SET NULL automático: un grupo o una materia
+        // seguiría apuntando a un docente que ya no existe (y el id podría
+        // reutilizarse). Se deja sin tutor/docente; la coordinación reasigna.
+        // Try/catch: si el módulo escolar no está instalado, borrar al usuario
+        // no debe fallar por esto.
+        try {
+            $pdo->prepare("UPDATE grupos SET tutor_id = NULL WHERE tutor_id = ?")->execute([$id]);
+            $pdo->prepare("UPDATE grupo_materias SET docente_id = NULL WHERE docente_id = ?")->execute([$id]);
+        } catch (\PDOException $e) {
+            log_api("eliminar_usuario: no se pudo limpiar tutor/docente escolar del usuario #$id -> " . $e->getMessage());
+        }
         registrar_log($pdo, $usuario_actual, 'usuario_eliminado', "Usuario #$id eliminado: " . ($objetivoInfo['nombre'] ?? '') . ' (' . ($objetivoInfo['email'] ?? '') . ')');
         respond(['success' => true]);

@@ -1,5 +1,5 @@
 <?php
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin'], ['escolar_grupos']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ESCOLAR_ROLES_GESTOR, ['escolar_grupos']);
         $eid = $ctx['escuela_id'];
         $id       = intval($input['id'] ?? 0);
         $ciclo_id = intval($input['ciclo_id'] ?? 0);
@@ -11,7 +11,19 @@
         $activo   = array_key_exists('activo', $input) ? (!empty($input['activo']) ? 1 : 0) : 1;
         if ($nombre === '') respond(['success' => false, 'error' => 'El nombre del grupo es obligatorio (ej. 3° A).']);
         $nombre = mb_substr($nombre, 0, 60);
-        escolar_ciclo($pdo, $eid, $ciclo_id);
+        $cicloGrupo = escolar_ciclo($pdo, $eid, $ciclo_id);
+        // [F3] No se crean ni se mueven grupos en un ciclo ya cerrado.
+        escolar_requerir_ciclo_abierto($cicloGrupo, 'crear ni modificar grupos');
+
+        // [F3] Grado del catálogo que cursa el grupo. Se valida contra
+        // niveles_grados DE ESTA ESCUELA (no basta con que el id exista: sería
+        // ligar el grupo al catálogo de otro colegio). Si la petición no trae
+        // la clave, al editar se conserva el que ya tenía.
+        $grado_id = null;
+        $trae_grado = array_key_exists('grado_id', $input);
+        if ($trae_grado && intval($input['grado_id'] ?? 0)) {
+            $grado_id = escolar_grado($pdo, $eid, $input['grado_id'])['id'];
+        }
 
         $aula_id = intval($input['aula_id'] ?? 0) ?: null;
         if ($aula_id) {
@@ -29,10 +41,17 @@
             escolar_grupo($pdo, $ctx, $id);
             $st = $pdo->prepare("UPDATE grupos SET ciclo_id=?, nombre=?, nivel=?, grado=?, turno=?, aula_id=?, tutor_id=?, cupo=?, activo=? WHERE id=? AND escuela_id=?");
             $st->execute([$ciclo_id, $nombre, $nivel, $grado, $turno, $aula_id, $tutor_id, $cupo, $activo, $id, $eid]);
+            // [F3] Aparte para que, sin la clave en la petición, no se borre el grado.
+            if ($trae_grado) {
+                $pdo->prepare("UPDATE grupos SET grado_id = ? WHERE id = ? AND escuela_id = ?")->execute([$grado_id, $id, $eid]);
+            }
         } else {
             $st = $pdo->prepare("INSERT INTO grupos (escuela_id, ciclo_id, nombre, nivel, grado, turno, aula_id, tutor_id, cupo, activo) VALUES (?,?,?,?,?,?,?,?,?,?)");
             $st->execute([$eid, $ciclo_id, $nombre, $nivel, $grado, $turno, $aula_id, $tutor_id, $cupo, $activo]);
             $id = intval($pdo->lastInsertId());
+            if ($grado_id) { // [F3]
+                $pdo->prepare("UPDATE grupos SET grado_id = ? WHERE id = ? AND escuela_id = ?")->execute([$grado_id, $id, $eid]);
+            }
 
             // Copiar materias de otro grupo (típico: 3°B lleva lo mismo que 3°A).
             $copiar_de = intval($input['copiar_materias_de'] ?? 0);
@@ -44,4 +63,4 @@
             }
         }
         registrar_log($pdo, $usuario_actual, 'escolar_grupo_guardado', "Grupo #{$id}: {$nombre}", $eid);
-        respond(['success' => true, 'id' => $id]);
+        respond(['success' => true, 'id' => $id, 'grado_id' => $grado_id]);

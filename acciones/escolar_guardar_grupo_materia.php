@@ -2,7 +2,7 @@
         // Asigna una materia a un grupo (y su docente), o cambia el docente de
         // una asignación existente. Con 'quitar' => true elimina la asignación,
         // solo si todavía no tiene calificaciones capturadas.
-        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ['superadmin', 'admin'], ['escolar_grupos']);
+        $ctx = escolar_ctx($pdo, $usuario_actual, $input, ESCOLAR_ROLES_GESTOR, ['escolar_grupos']);
         $eid = $ctx['escuela_id'];
 
         if (!empty($input['quitar'])) {
