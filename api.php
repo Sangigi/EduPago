@@ -673,6 +673,9 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'detalle_cobro', 'listar_usuarios', 'listar_gastos',
         'listar_pagos_no_aplicados', 'planteles_de_escuela', 'listar_zonas',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+        // [OF-4a] Detector de incoherencias (solo lectura; exige superadmin o
+        // soporte por dentro). Pantalla views/Diagnostico.js.
+        'diagnostico_incoherencias',
         // Para poder aclarar con el cliente AL MOMENTO (25-sep-2026). Sin
         // estas tres, soporte tenía que pedirle al superadmin que mirara por
         // él justo las tres preguntas más frecuentes: "¿qué pagué de mi

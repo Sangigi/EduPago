@@ -41,6 +41,8 @@ $familia_estricta = in_array('--familia-estricta', $argv ?? [], true);
 const SOLO_SUPERADMIN = [
     'cambiar_plan_escuela', 'comisiones_cerrar_periodo', 'crear_escuela', 'crear_zona',
     'editar_escuela', 'editar_zona', 'eliminar_escuela', 'invitacion_resolver',
+    'listar_clabes_pool', // [OF-4] ya exige superadmin por dentro
+    'migraciones_aplicar', 'migraciones_estado', // [OF-4a]
     'mantenimiento_activar', 'mantenimiento_desactivar', 'mantenimiento_estado',
     'renovar_suscripcion', 'simular_spei',
     'superadmin_editar_referido', 'superadmin_listar_referidos',
@@ -53,7 +55,7 @@ const SOLO_SUPERADMIN = [
 // comparación inline): hoy solo las protege el allowlist. Quedan "declaradas"
 // aquí a propósito y salen también en la sección 3, para no olvidarlas. Si
 // alguna recibe un requerir_rol(['superadmin']), muévela a SOLO_SUPERADMIN.
-const SUPERADMIN_POR_ALLOWLIST = ['listar_clabes_pool'];
+const SUPERADMIN_POR_ALLOWLIST = [];
 
 function fallar($msg) { fwrite(STDERR, "ERROR: $msg\n"); exit(2); }
 

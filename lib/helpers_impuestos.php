@@ -93,7 +93,14 @@ function impuestos_sugerencia_categoria(string $categoria): array
  */
 function impuestos_normalizar_tasa($valor): ?string
 {
-    if (is_int($valor) || is_float($valor)) $valor = (string) intval($valor);
+    // [OF-4] Un número solo vale si es EXACTAMENTE 0 o 16. Antes se hacía
+    // intval(): 0.16 (16% escrito como fracción) se volvía tasa '0' y 16.9 se
+    // volvía '16'. Ahora cualquier otro número se rechaza (null).
+    if (is_int($valor) || is_float($valor)) {
+        if ((float) $valor === 0.0) return '0';
+        if ((float) $valor === 16.0) return '16';
+        return null;
+    }
     $v = strtolower(trim(str_replace('%', '', (string) $valor)));
     return in_array($v, IMPUESTO_TASAS, true) ? $v : null;
 }
