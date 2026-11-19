@@ -24,6 +24,10 @@ function Alumnos({
   // [F4] Quién administra la cuenta de acceso de un alumno (coincide con crear_usuario.php).
   const puedeAccesoAlumno = rol === 'admin' || rol === 'superadmin' || rol === 'control_escolar';
   const [modalAcceso, setModalAcceso] = useState(null); // [F4] alumno cuyo "Acceso del alumno" está abierto
+  // [OF-3] Becas por alumno: solo admin y superadmin (el servidor lo vuelve a validar).
+  const puedeBecas = (rol === 'admin' || rol === 'superadmin') && !soloLectura;
+  const [becasAlumno, setBecasAlumno] = useState(null);   // [OF-3] alumno cuyas becas se editan
+  const [becasColegioAbierto, setBecasColegioAbierto] = useState(false); // [OF-3] vista "Becas del colegio"
   const EMPTY = {
     tipo: 'alumno',
     nombre: '',
@@ -464,6 +468,16 @@ function Alumnos({
         clientes: (prev.clientes || []).map(x => String(x.id) === String(p.id) ? { ...x, ...p } : x)
       }))
     }, 'f2-expediente', false),
+    // [OF-3] Becas del alumno y "Becas del colegio" (views/components/BecasAlumno.js).
+    puedeBecas && becasAlumno && typeof BecasAlumno !== 'undefined' && _jsxDEV(BecasAlumno, {
+      alumno: becasAlumno,
+      productos: data.productos || [],
+      onCerrar: () => setBecasAlumno(null)
+    }, 'of3-becas-' + becasAlumno.id, false),
+    puedeBecas && becasColegioAbierto && typeof BecasColegio !== 'undefined' && _jsxDEV(BecasColegio, {
+      escuelaId: escuela_id,
+      onCerrar: () => setBecasColegioAbierto(false)
+    }, 'of3-becas-colegio', false),
     // [F4] Modal "Acceso del alumno" (crear la cuenta del portal, reenviar activación, desactivar).
     modalAcceso && _jsxDEV(AlumnoAccesoModalF4, {
       alumno: modalAcceso,
@@ -516,7 +530,13 @@ function Alumnos({
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
           style: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-          children: [!soloLectura && _jsxDEV("button", {
+          children: [puedeBecas && typeof BecasColegio !== 'undefined' && _jsxDEV("button", {
+            className: "btn btn-secondary",
+            disabled: !escuela_id,
+            title: !escuela_id ? 'Selecciona una escuela arriba' : 'Todas las becas activas del colegio y el descuento mensual estimado', // [OF-3]
+            onClick: () => setBecasColegioAbierto(true),
+            children: "Becas del colegio"
+          }, 'of3-becas-colegio-btn', false), !soloLectura && _jsxDEV("button", {
             className: "btn btn-secondary",
             disabled: !escuela_id,
             title: !escuela_id ? 'Selecciona una escuela arriba antes de importar' : undefined,
@@ -866,6 +886,14 @@ function Alumnos({
                     style: { fontSize: 11.5 },
                     children: "Expediente"
                   }, 'f2-exp', false),
+                  // [OF-3] Becas del alumno (solo admin y superadmin).
+                  puedeBecas && typeof BecasAlumno !== 'undefined' && _jsxDEV("button", {
+                    className: "btn btn-ghost btn-sm",
+                    onClick: () => setBecasAlumno(c),
+                    title: "Becas y descuentos guardados en el alumno",
+                    style: { fontSize: 11.5 },
+                    children: "Becas"
+                  }, 'of3-becas', false),
                   // [F4] Cuenta de acceso del alumno al portal (crear, reenviar activación, desactivar).
                   puedeAccesoAlumno && c.activo && _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",

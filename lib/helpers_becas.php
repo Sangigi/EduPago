@@ -341,3 +341,79 @@ function becas_insertar_item(PDO $pdo, $escuela_id, $cobro_id, $producto_id_conc
          VALUES (?, NULL, ?, 1, ?, ?)"
     )->execute([$cobro_id, $etiqueta, $monto, $monto]);
 }
+
+/** Fila de alumno_becas lista para el navegador (tipos reales, alcance_ids como arreglo). */
+function becas_fila_publica(array $f): array
+{
+    $alcance = (string) ($f['alcance'] ?? '');
+    return [
+        'id'            => intval($f['id']),
+        'cliente_id'    => intval($f['cliente_id']),
+        'nombre'        => (string) $f['nombre'],
+        'tipo'          => (string) $f['tipo'],
+        'valor'         => floatval($f['valor']),
+        'alcance'       => $alcance,
+        'alcance_ids'   => becas_alcance_ids($f['alcance_ids'] ?? null, $alcance),
+        'vigente_desde' => $f['vigente_desde'] ?: null,
+        'vigente_hasta' => $f['vigente_hasta'] ?: null,
+        'activo'        => intval($f['activo']) === 1,
+        'notas'         => $f['notas'] ?: null,
+        'creado_en'     => $f['creado_en'] ?? null,
+    ];
+}
+
+/**
+ * Descuento MENSUAL estimado de un conjunto de becas activas del colegio, para
+ * la vista "Becas del colegio". Es una estimación: para cada concepto
+ * recurrente activo se calcula el descuento que se aplicaría HOY a cada alumno
+ * activo al que el concepto le llega (mismo filtro de alcance que usa el cron,
+ * lib/helpers_alcance_producto.php) y se divide entre la periodicidad
+ * (un concepto semestral con $600 de descuento pesa $100 al mes).
+ *
+ * $becas_por_alumno: [cliente_id => [filas de alumno_becas]] (becas activas).
+ * Devuelve ['total' => pesos, 'por_beca' => [beca_id => pesos]].
+ * Nunca lanza: ante un error de consulta de un concepto, lo omite.
+ */
+function becas_estimado_mensual(PDO $pdo, int $escuela_id, array $becas_por_alumno, string $hoy): array
+{
+    require_once __DIR__ . '/helpers_alcance_producto.php';
+    $out = ['total' => 0.0, 'por_beca' => []];
+    if (!$becas_por_alumno) return $out;
+    $ids_alumnos = array_map('intval', array_keys($becas_por_alumno));
+    try {
+        $st = $pdo->prepare("SELECT * FROM productos WHERE escuela_id = ? AND tipo = 'recurrente' AND activo = 1");
+        $st->execute([$escuela_id]);
+        $productos = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        return $out;
+    }
+    $total_c = 0.0;
+    $por_beca_c = [];
+    $in = implode(',', array_fill(0, count($ids_alumnos), '?'));
+    foreach ($productos as $p) {
+        $meses = intval($p['periodicidad_meses'] ?? 0);
+        if ($meses <= 0 || empty($p['fecha_inicio'])) continue;
+        $precio_c = becas_centavos($p['precio'] ?? 0);
+        if ($precio_c <= 0) continue;
+        $f = producto_alcance_filtro_sql($p, 'clientes');
+        try {
+            $s2 = $pdo->prepare("SELECT id FROM clientes WHERE escuela_id = ? AND tipo = 'alumno' AND activo = 1 AND id IN ($in)" . $f['sql']);
+            $s2->execute(array_merge([$escuela_id], $ids_alumnos, $f['params']));
+            $alcanzados = $s2->fetchAll(PDO::FETCH_COLUMN);
+        } catch (\Throwable $e) {
+            continue;
+        }
+        $concepto = ['id' => intval($p['id']), 'categoria' => $p['categoria'] ?? ''];
+        foreach ($alcanzados as $cid) {
+            $r = becas_calcular_descuento($becas_por_alumno[intval($cid)] ?? [], $concepto, $precio_c, $hoy);
+            foreach ($r['detalle'] as $d) {
+                $mensual = $d['monto_c'] / $meses;
+                $total_c += $mensual;
+                $por_beca_c[$d['beca_id']] = ($por_beca_c[$d['beca_id']] ?? 0) + $mensual;
+            }
+        }
+    }
+    $out['total'] = round($total_c) / 100;
+    foreach ($por_beca_c as $id => $c) $out['por_beca'][$id] = round($c) / 100;
+    return $out;
+}

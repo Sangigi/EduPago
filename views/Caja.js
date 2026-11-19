@@ -20,6 +20,10 @@ function Caja({
   } = React;
   const [carrito, setCarrito] = useState([]);
   const [clienteSel, setClienteSel] = useState(null);
+  // [OF-3] Becas ACTIVAS del alumno seleccionado (alumno_becas_listar) y las
+  // que el cajero ya quitó del carrito ({ 'becaId:conceptoId': true }).
+  const [becasAlumno, setBecasAlumno] = useState([]);
+  const [becasQuitadas, setBecasQuitadas] = useState({});
   const [metodo, setMetodo] = useState('TC');
   // Candado de corte de caja: el POS exige un turno abierto (cajero/admin) —
   // antes se podía cobrar todo el día sin abrir caja nunca, y aunque se
@@ -219,7 +223,46 @@ function Caja({
     ...i,
     qty
   } : i));
-  const removeItem = id => setCarrito(prev => prev.filter(i => i.id !== id));
+  // [OF-3] Quitar un renglón de beca lo recuerda para que no se vuelva a
+  // proponer solo (mientras siga el mismo alumno y haya carrito).
+  const removeItem = id => {
+    const it = carrito.find(i => i.id === id);
+    if (it && it.esBeca) setBecasQuitadas(prev => ({ ...prev, [it.llave]: true }));
+    setCarrito(prev => prev.filter(i => i.id !== id));
+  };
+
+  /* ── [OF-3] BECAS DEL ALUMNO ──
+     Al seleccionar un alumno se traen sus becas activas. Por cada concepto del
+     carrito que entre en el alcance de una beca vigente hoy se agrega solo un
+     renglón NEGATIVO "Beca: <nombre> (<%|$>)", visible y con su nombre; el
+     cajero lo puede quitar con la X. crear_cobro del servidor NO aplica becas
+     por su cuenta: lo que se manda es exactamente lo que se ve en el carrito, así
+     no se descuenta dos veces. El cálculo es becasCalcular() (BecasAlumno.js),
+     espejo de lib/helpers_becas.php. Sin migración o sin becas, no pasa nada. */
+  useEffect(() => {
+    setBecasQuitadas({});
+    setBecasAlumno([]);
+    const rolCaja = user?.rol;
+    if (!clienteSel || !(rolCaja === 'admin' || rolCaja === 'cajero' || rolCaja === 'superadmin')) return;
+    let cancelado = false;
+    ApiClient.post('alumno_becas_listar', { cliente_id: clienteSel.id }).then(r => {
+      if (!cancelado && r && r.success) setBecasAlumno((r.becas || []).filter(b => b.activo));
+    }).catch(() => {});
+    return () => { cancelado = true; };
+  }, [clienteSel?.id]);
+  const firmaCarritoBecas = carrito.filter(i => !i.esBeca).map(i => i.id + ':' + i.qty + ':' + i.precio).join('|');
+  useEffect(() => {
+    if (!carrito.some(i => !i.esBeca) && Object.keys(becasQuitadas).length) { setBecasQuitadas({}); return; }
+    if (typeof becasLineasCaja !== 'function') return;
+    setCarrito(prev => {
+      const base = prev.filter(i => !i.esBeca);
+      const auto = becasLineasCaja(base, becasAlumno, becasQuitadas, becasHoyISO());
+      const actuales = prev.filter(i => i.esBeca);
+      const firma = l => l.map(x => x.id + ':' + x.precio).join('|');
+      if (firma(actuales) === firma(auto)) return prev;
+      return [...base, ...auto];
+    });
+  }, [firmaCarritoBecas, becasAlumno, becasQuitadas]);
 
   /* ── INICIAR COBRO ── */
   const cobrar = async () => {
@@ -248,7 +291,8 @@ function Caja({
     const escuela_id = escuela?.id ?? data.escuelas?.[0]?.id ?? 1;
     let cobro;
     try {
-      cobro = await CobroController.iniciarCobro({ carrito, cliente: clienteSel, metodo, escuela_id, caja_id: cajaAbierta?.id, sucursal_id: sucursalId });
+      // [OF-3] Los renglones de beca viajan con id null (no son un concepto del catálogo).
+      cobro = await CobroController.iniciarCobro({ carrito: carrito.map(i => i.esBeca ? { ...i, id: null } : i), cliente: clienteSel, metodo, escuela_id, caja_id: cajaAbierta?.id, sucursal_id: sucursalId });
     } catch(err) {
       alert('Error al crear cobro: ' + err.message);
       return;
@@ -970,7 +1014,12 @@ function Caja({
             children: [/*#__PURE__*/_jsxDEV("div", {
               className: "cart-item-name",
               children: item.nombre
-            }, void 0, false), /*#__PURE__*/_jsxDEV("div", {
+            }, void 0, false), item.esBeca ? /*#__PURE__*/_jsxDEV("div", {
+              // [OF-3] Renglón de beca automático: sin cantidad; la X lo quita.
+              className: "cart-item-qty",
+              style: { fontSize: 11, color: 'var(--green)' },
+              children: "Beca del alumno (automática) · quítala con la ✕ si no aplica"
+            }, void 0, false) : /*#__PURE__*/_jsxDEV("div", {
               className: "cart-item-qty",
               children: [/*#__PURE__*/_jsxDEV("button", {
                 className: "qty-btn",
