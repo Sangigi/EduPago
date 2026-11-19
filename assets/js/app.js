@@ -391,6 +391,14 @@ const NAV_ITEMS = [{
 
   roles: ['superadmin', 'soporte']
 
+}, {
+  id: 'diagnostico',
+  label: 'Diagnóstico',
+  icon: 'reportes',
+  section: 'superadmin',
+  // [OF-4a] Incoherencias de datos (superadmin y soporte, solo lectura) y, solo
+  // para superadmin, el estado/aplicacion de migraciones de la base de datos.
+  roles: ['superadmin', 'soporte']
 }];
 
 
@@ -442,6 +450,7 @@ const TITLES = {
   soporte_escuela: 'Ficha de colegio',
 
   superreportes: 'Métricas Globales',
+  diagnostico: 'Diagnóstico',
 
   usuarios: 'Gestión de Usuarios',
 
@@ -2772,6 +2781,9 @@ function App() {
 
 
 
+      // [OF-4a] Diagnostico: incoherencias (superadmin y soporte) y base de datos (superadmin).
+      case 'diagnostico':
+        return _jsxDEV(Diagnostico, { data: data, user: user }, void 0, false);
       case 'superreportes':
 
 
@@ -5269,9 +5281,11 @@ function App() {
 
 
 
-                  children:
-
-                    renderView()
+                  children: [
+                    // [OF-4a] Aviso al superadmin de pasos de migracion pendientes.
+                    user && user.rol === 'superadmin' && view !== 'diagnostico' ? _jsxDEV(AvisoMigraciones, { key: 'avisomig', onIr: function () { setView('diagnostico'); } }, void 0, false) : null,
+                    _jsxDEV(React.Fragment, { key: 'vista', children: renderView() }, void 0, false)
+                  ]
 
                 },
 
