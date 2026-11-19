@@ -149,7 +149,7 @@ function Login({
           mensajeRecuperar && /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'flex', alignItems: 'center', gap: 8,
-              background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.22)',
+              background: 'rgba(255,255,255,.14)', border: '1px solid rgba(255,255,255,.22)',
               borderRadius: 'var(--radius-sm)', padding: '9px 12px', marginBottom: 14
             },
             children: /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12.5, color: 'var(--ink-2)' }, children: mensajeRecuperar }, void 0, false)
@@ -157,10 +157,10 @@ function Login({
           errorRecuperar && /*#__PURE__*/_jsxDEV("div", {
             style: {
               display: 'flex', alignItems: 'center', gap: 8,
-              background: 'rgba(239,68,68,.10)', border: '1px solid rgba(239,68,68,.22)',
+              background: 'rgba(194,59,46,.38)', border: '1px solid rgba(255,255,255,.22)',
               borderRadius: 'var(--radius-sm)', padding: '9px 12px', marginBottom: 14
             },
-            children: /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12.5, color: '#f87171' }, children: errorRecuperar }, void 0, false)
+            children: /*#__PURE__*/_jsxDEV("span", { style: { fontSize: 12.5, color: '#ffd9d4' }, children: errorRecuperar }, void 0, false)
           }, void 0, false),
           /*#__PURE__*/_jsxDEV("button", {
             className: "login-btn",
@@ -192,7 +192,7 @@ function Login({
               children: [/*#__PURE__*/_jsxDEV(Icon, {
                 name: "emails",
                 size: 16,
-                color: "var(--ink-4)",
+                color: "var(--lf-tinta-3)",
                 style: {
                   position: 'absolute',
                   left: 12,
@@ -232,7 +232,7 @@ function Login({
               children: [/*#__PURE__*/_jsxDEV(Icon, {
                 name: "shield",
                 size: 16,
-                color: "var(--ink-4)",
+                color: "var(--lf-tinta-3)",
                 style: {
                   position: 'absolute',
                   left: 12,
@@ -266,7 +266,7 @@ function Login({
                   border: 'none',
                   cursor: 'pointer',
                   padding: 4,
-                  color: 'var(--ink-4)',
+                  color: 'var(--lf-tinta-3)',
                   display: 'flex',
                   alignItems: 'center'
                 },
@@ -313,7 +313,7 @@ function Login({
                 width: 15,
                 height: 15,
                 cursor: 'pointer',
-                accentColor: 'var(--lime)'
+                accentColor: '#ffffff'
               }
             }, void 0, false), "Recordar sesión en este dispositivo"]
           }, void 0, true), err && /*#__PURE__*/_jsxDEV("div", {
@@ -321,8 +321,8 @@ function Login({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              background: 'rgba(239,68,68,.10)',
-              border: '1px solid rgba(239,68,68,.22)',
+              background: 'rgba(194,59,46,.38)',
+              border: '1px solid rgba(255,255,255,.22)',
               borderRadius: 'var(--radius-sm)',
               padding: '9px 12px',
               marginBottom: 14
@@ -330,11 +330,11 @@ function Login({
             children: [/*#__PURE__*/_jsxDEV(Icon, {
               name: "warning",
               size: 15,
-              color: "#f87171"
+              color: "#ffd9d4"
             }, void 0, false), /*#__PURE__*/_jsxDEV("span", {
               style: {
                 fontSize: 12.5,
-                color: '#f87171'
+                color: '#ffd9d4'
               },
               children: err
             }, void 0, false)]

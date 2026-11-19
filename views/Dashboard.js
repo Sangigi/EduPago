@@ -1455,7 +1455,7 @@ function Dashboard({
 
             const serie = [
 
-              { label: 'Tarjeta',   valor: stats.cobradosPorMetodo.TC       || 0, color: 'var(--violet)' },
+              { label: 'Tarjeta',   valor: stats.cobradosPorMetodo.TC       || 0, color: 'var(--lf-pizarra)' },
 
               { label: 'SPEI',      valor: stats.cobradosPorMetodo.SPEI     || 0, color: 'var(--cyan)' },
 

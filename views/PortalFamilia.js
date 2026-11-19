@@ -880,7 +880,7 @@ function PortalFamilia({
       overflowY: 'auto',
       overflowX: 'hidden',
       background: 'var(--bg-main)',
-      fontFamily: "'DM Sans',system-ui,sans-serif",
+      fontFamily: 'var(--font)',
       color: 'var(--ink)'
     },
     // Blindaje: overflowX:'hidden' solo bloquea el scroll MANUAL del

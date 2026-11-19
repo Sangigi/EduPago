@@ -31,9 +31,18 @@
 
 
 
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<!-- [OF-UI] Tipografía de OF: Google Sans (texto) + JetBrains Mono (cifras).
+     Misma URL que usa OF en su layout. La CSP del .htaccess ya permite
+     fonts.googleapis.com (style-src) y fonts.gstatic.com (font-src). -->
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/logo_icon.png" sizes="32x32">
-<link rel="stylesheet" href="assets/css/main.css?v=1790700000">
+<!-- [OF-UI] Tema oscuro SIN parpadeo blanco. OF lo resuelve con un <script>
+     en línea en el <head>; aquí la CSP prohíbe 'unsafe-inline' en scripts,
+     así que es un archivo propio, SIN defer, que corre antes de que el
+     navegador pinte nada. Aplica la misma regla que app.js y PortalFamilia.js
+     (preferencia guardada en 'edupago_theme'; sin ella, el sistema). -->
+<script src="assets/js/tema-temprano.js?v=1795700000"></script>
+<link rel="stylesheet" href="assets/css/main.css?v=1795700000">
 
 
 
@@ -360,7 +369,7 @@
 
 
 
-    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Google Sans', system-ui, -apple-system, sans-serif;
 
 
 
@@ -488,7 +497,7 @@
 
 
 
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'Google Sans', system-ui, sans-serif;
 
 
 
@@ -818,7 +827,7 @@
 
 
 
-<script defer src="views/components/Charts.js?v=1787360000"></script>
+<script defer src="views/components/Charts.js?v=1795700000"></script>
 
 
 
@@ -872,9 +881,9 @@
 
 
 
-<script defer src="views/Login.js?v=1787370000"></script>
+<script defer src="views/Login.js?v=1795700000"></script>
 
-<script defer src="views/Dashboard.js?v=1790700000"></script>
+<script defer src="views/Dashboard.js?v=1795700000"></script>
 
 <script defer src="views/components/CodigoBarras.js?v=1789100000"></script>
 
@@ -920,7 +929,7 @@
 
 
 
-<script defer src="views/Reportes.js?v=1790700000"></script>
+<script defer src="views/Reportes.js?v=1795700000"></script>
 
 
 
@@ -970,7 +979,7 @@
 <script defer src="views/components/MonederoFamilia.js?v=1795600000"></script>
 <script defer src="views/Tienda.js?v=1795600000"></script>
 
-<script defer src="views/PortalFamilia.js?v=1795600000"></script>
+<script defer src="views/PortalFamilia.js?v=1795700000"></script>
 
 <script defer src="views/Distribuidor.js?v=1790373295"></script>
 
