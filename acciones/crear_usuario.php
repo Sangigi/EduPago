@@ -79,7 +79,7 @@
             // puede ligar la cuenta: se dice claro en vez de un error de MySQL.
             try {
                 $pdo->query("SELECT cliente_id FROM usuarios LIMIT 0");
-            } catch (PDOException $e) {
+            } catch (\PDOException $e) {
                 respond(['success' => false, 'error' => 'Falta correr la migración migracion_2026_11_18_f4_roles.sql para crear cuentas de alumno.']);
             }
             // Mismo colegio, alumno de verdad y activo. Filtrar por escuela_id en

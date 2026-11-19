@@ -98,8 +98,13 @@ const AuthController = (() => {
     // de $roles_validos en acciones/crear_usuario.php: el backend es quien
     // manda, así que un rol que falte aquí simplemente no se puede dar de alta
     // desde la interfaz aunque el backend lo acepte.
-    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','docente','familia','distribuidor','contador','soporte','provision','tesoreria','promotor'];
-    if (user?.rol === 'admin')      return ['cajero','docente','familia'];
+    // [F4] control_escolar, direccion y alumno. El backend (crear_usuario.php)
+    // acepta 'alumno', pero NO se ofrece aquí: esa cuenta exige elegir al alumno
+    // (cliente_id) y se crea desde Alumnos > "Acceso del alumno".
+    if (user?.rol === 'superadmin') return ['superadmin','admin','cajero','docente','familia','control_escolar','direccion','distribuidor','contador','soporte','provision','tesoreria','promotor'];
+    if (user?.rol === 'admin')      return ['cajero','docente','familia','control_escolar','direccion'];
+    // [F4] La coordinación solo da de alta docentes (y alumnos, desde Alumnos).
+    if (user?.rol === 'control_escolar') return ['docente'];
     return [];
   }
 

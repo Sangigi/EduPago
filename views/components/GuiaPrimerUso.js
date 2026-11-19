@@ -566,6 +566,12 @@ var GUIA_PASOS_POR_ROL = {
     { id: '_d2', titulo: 'Pasa lista', texto: 'Marca presente, falta, retardo o justificada. Puedes corregir hasta 7 días atrás.' },
     { id: '_d3', titulo: 'Califica', texto: 'Captura las notas de tus materias por periodo. Cuando la escuela cierra un periodo, ya no se puede modificar.' },
   ],
+  // [F4] Portal del alumno.
+  alumno: [
+    { id: '_a1', titulo: 'Tu horario', texto: 'En Inicio ves tu grupo, tu promedio y tu horario de la semana.' },
+    { id: '_a2', titulo: 'Tus calificaciones', texto: 'En Calificaciones aparece tu boleta con lo que tu colegio ya publicó, y tu kárdex.' },
+    { id: '_a3', titulo: 'Tu asistencia', texto: 'En Asistencia ves tus faltas y retardos del ciclo.' },
+  ],
   familia: [
     { id: '_f1', titulo: 'Lo que debes', texto: 'Aquí ves cada cobro de tus hijos: qué es, cuánto y para cuándo.' },
     { id: '_f2', titulo: 'Paga como te acomode', texto: 'Tarjeta, transferencia o referencia para pagar en tiendas. El colegio lo ve al instante.' },

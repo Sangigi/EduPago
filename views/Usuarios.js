@@ -45,6 +45,18 @@ var ROL_INFO = {
   // donde es tutor o imparte materia. No ve nada de cobros ni saldos.
   docente:      { label: 'Docente',      icon: 'escuelas', color: '#0ea5e9',       bg: 'rgba(14,165,233,.15)', badge: 'badge-blue', deColegio: true,
                   desc: 'Pasa lista y captura calificaciones de sus grupos y materias. Sin acceso a cobros ni saldos.' },
+  // [F4] Coordinación académica: alumnos, familias y control escolar. Sin
+  // cobranza, caja, facturación ni gastos.
+  control_escolar: { label: 'Control escolar', icon: 'escuelas', color: '#14b8a6',   bg: 'rgba(20,184,166,.15)', badge: 'badge-green', deColegio: true,
+                  desc: 'Coordinación académica: alumnos, familias, grupos, calificaciones y ciclos. Da de alta docentes y alumnos. Sin acceso a cobros, caja ni facturación.' },
+  // [F4] Dirección: consulta de solo lectura (alumnos y control escolar).
+  direccion:    { label: 'Dirección',    icon: 'info',     color: '#d946ef',       bg: 'rgba(217,70,239,.15)', badge: 'badge-purple', deColegio: true,
+                  desc: 'Consulta de alumnos, asistencias, calificaciones y kárdex. Solo lectura: no edita nada ni ve cobros.' },
+  // [F4] Cuenta de acceso de un alumno (portal del alumno). No es "de colegio"
+  // para el listado de equipo: se crea y se administra desde Alumnos >
+  // "Acceso del alumno", y listar_usuarios.php no la devuelve salvo que se pida.
+  alumno:       { label: 'Alumno',       icon: 'alumnos',  color: '#f59e0b',       bg: 'rgba(245,158,11,.15)', badge: 'badge-amber',
+                  desc: 'Portal del alumno: su horario, asistencia y calificaciones publicadas (y su monedero). No ve cobros de su familia.' },
   familia:      { label: 'Familia',      icon: 'home',     color: '#a855f7',       bg: 'rgba(168,85,247,.15)', badge: 'badge-purple', deColegio: true,
                   desc: 'Portal Autogestionable. Consulta estados de cuenta dinámicos y realiza pagos en línea.' },
   // Refiere colegios y cobra comisión. Su rama del formulario es propia porque
@@ -727,6 +739,11 @@ function Usuarios({ user, data }) {
     if (!objetivo) return false;
     if (esSuper) return true;
     if (user.rol === 'admin' && (objetivo.rol === 'cajero' || objetivo.rol === 'familia') && objetivo.escuela_id === user.escuela_id) return true;
+    // [F4] El admin también administra a su personal académico (docente,
+    // control escolar y dirección) de su escuela; el backend ya lo permitía.
+    if (user.rol === 'admin' && ['docente', 'control_escolar', 'direccion'].includes(objetivo.rol) && objetivo.escuela_id === user.escuela_id) return true;
+    // [F4] La coordinación solo administra docentes de su escuela.
+    if (user.rol === 'control_escolar' && objetivo.rol === 'docente' && objetivo.escuela_id === user.escuela_id) return true;
     return false;
   };
 
@@ -869,9 +886,13 @@ function Usuarios({ user, data }) {
                       const info = ROL_INFO[u.rol];
                       const puedeAcc = puedeEditar(u);
                       const esUnoMismo = u.id === user.id;
+                      // [F4] La coordinación solo activa/desactiva y reenvía la activación de los
+                      // docentes: editar, cerrar sesiones y eliminar son del admin (el servidor
+                      // también lo niega). Sin esto verían botones que responden 403.
+                      const esCoord = user.rol === 'control_escolar';
                       return _jsxDEV("tr", {
-                        onClick: (puedeAcc || esUnoMismo) ? () => abrirEditar(u) : undefined,
-                        style: (puedeAcc || esUnoMismo) ? { cursor: 'pointer' } : undefined,
+                        onClick: ((puedeAcc && !esCoord) || esUnoMismo) ? () => abrirEditar(u) : undefined,
+                        style: ((puedeAcc && !esCoord) || esUnoMismo) ? { cursor: 'pointer' } : undefined,
                         children: [
                           _jsxDEV("td", {
                             "data-label": "Usuario",
@@ -930,7 +951,7 @@ function Usuarios({ user, data }) {
                               children: [
                                 (puedeAcc || esUnoMismo) && _jsxDEV(_Fragment, {
                                   children: [
-                                    _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(u), title: esUnoMismo ? "Editar mi perfil / cambiar mi contraseña" : "Editar", children: _jsxDEV(Icon, { name: "edit", size: 14, color: "currentColor" }, void 0, false) }, void 0, false),
+                                    (!esCoord || esUnoMismo) && _jsxDEV("button", { className: "btn btn-ghost btn-sm", onClick: () => abrirEditar(u), title: esUnoMismo ? "Editar mi perfil / cambiar mi contraseña" : "Editar", children: _jsxDEV(Icon, { name: "edit", size: 14, color: "currentColor" }, void 0, false) }, void 0, false),
                                     puedeAcc && !u.es_semilla && !esUnoMismo && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => setConfirm({ tipo: 'toggle', userId: u.id }),
@@ -939,7 +960,7 @@ function Usuarios({ user, data }) {
                                         ? _jsxDEV(Icon, { name: "eyeOff", size: 14, color: "currentColor" }, void 0, false)
                                         : _jsxDEV(Icon, { name: "shield", size: 14, color: "currentColor" }, void 0, false)
                                     }, void 0, false),
-                                    puedeAcc && !esUnoMismo && _jsxDEV("button", {
+                                    puedeAcc && !esCoord && !esUnoMismo && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => cerrarSesiones(u),
                                       title: "Cerrar sus sesiones activas (forzar a iniciar sesión de nuevo)",
@@ -952,7 +973,7 @@ function Usuarios({ user, data }) {
                                       title: "Generar una contraseña nueva y reenviarla por correo (por si el correo original no le llegó)",
                                       children: _jsxDEV(Icon, { name: "history", size: 14, color: "currentColor" }, void 0, false)
                                     }, void 0, false),
-                                    puedeAcc && !u.es_semilla && !esUnoMismo && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
+                                    puedeAcc && !esCoord && !u.es_semilla && !esUnoMismo && (u.creado_por === user.id || esSuper) && _jsxDEV("button", {
                                       className: "btn btn-ghost btn-sm",
                                       onClick: () => setConfirm({ tipo: 'eliminar', userId: u.id }),
                                       title: "Eliminar",

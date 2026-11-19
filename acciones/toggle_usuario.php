@@ -22,7 +22,7 @@
                 $stmtDup->execute([$filaAl['cliente_id'], $id]);
                 if ($stmtDup->fetch()) respond(['success' => false, 'error' => 'Este alumno ya tiene otra cuenta activa.']);
             }
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             // migracion_2026_11_18_f4_roles.sql sin correr: no hay cuentas de alumno que revisar.
         }
         $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");

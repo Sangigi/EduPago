@@ -33,14 +33,16 @@ var _jsxDEV = function(type, props, key, _s, _src, _self) {
 // omisión). Si agregas un rol al menú, revisa si necesita una entrada aquí:
 // aterrizar en una sección que su propio menú no incluye se ve como una
 // pantalla en blanco, sin ningún mensaje de error que lo explique.
-const VISTA_INICIAL_POR_ROL = { soporte: 'busqueda_global' };
+// [F4] control_escolar y direccion no tienen Dashboard (es de cobranza): su primera sección es Alumnos.
+const VISTA_INICIAL_POR_ROL = { soporte: 'busqueda_global', control_escolar: 'alumnos', direccion: 'alumnos' };
 // Roles de plataforma cuyos paneles traen su propia información y NUNCA leen
 // `data` (sus ramas de render devuelven antes del guard `if (!data)`). Pedir
 // cargar_datos para ellos era trabajo de servidor tirado a la basura en cada
 // carga de página. Ver el efecto de restauración de sesión.
 // 'docente' (13-nov-2026): su panel trae todo con acciones escolar_*; además
 // cargar_datos le está vedado en api.php (le mandaría saldos y cobros).
-const ROLES_SIN_CARGAR_DATOS = ['contador', 'provision', 'distribuidor', 'promotor', 'tesoreria', 'docente'];
+// [F4] 'alumno' igual: su portal usa alumno_resumen y escolar_*; cargar_datos le está vedado.
+const ROLES_SIN_CARGAR_DATOS = ['contador', 'provision', 'distribuidor', 'promotor', 'tesoreria', 'docente', 'alumno'];
 
 const NAV_ITEMS = [{
 
@@ -132,7 +134,7 @@ const NAV_ITEMS = [{
 
   section: 'principal',
 
-  roles: ['cajero', 'admin']
+  roles: ['cajero', 'admin', 'control_escolar', 'direccion'] /* [F4] control_escolar edita; direccion solo consulta */
 
 }, {
 
@@ -144,7 +146,7 @@ const NAV_ITEMS = [{
 
   section: 'principal',
 
-  roles: ['admin']
+  roles: ['admin', 'control_escolar'] /* [F4] */
 
 }, {
   // ── Control escolar (13-nov-2026). views/ControlEscolar.js. Los ids
@@ -155,25 +157,25 @@ const NAV_ITEMS = [{
   label: 'Grupos y horarios',
   icon: 'escuelas',
   section: 'control escolar',
-  roles: ['admin']
+  roles: ['admin', 'control_escolar', 'direccion'] /* [F4] */
 }, {
   id: 'escolar_asistencias',
   label: 'Asistencias',
   icon: 'check',
   section: 'control escolar',
-  roles: ['admin']
+  roles: ['admin', 'control_escolar', 'direccion'] /* [F4] */
 }, {
   id: 'escolar_calificaciones',
   label: 'Calificaciones',
   icon: 'reportes',
   section: 'control escolar',
-  roles: ['admin']
+  roles: ['admin', 'control_escolar', 'direccion'] /* [F4] */
 }, {
   id: 'escolar_config',
   label: 'Ciclos, materias y aulas',
   icon: 'settings',
   section: 'control escolar',
-  roles: ['admin']
+  roles: ['admin', 'control_escolar'] /* [F4] direccion no: es solo configuración */
 }, {
 
   id: 'productos',
@@ -324,7 +326,7 @@ const NAV_ITEMS = [{
 
   section: 'configuración',
 
-  roles: ['admin']
+  roles: ['admin', 'control_escolar'] /* [F4] la coordinación da de alta docentes y activa/desactiva docentes y alumnos */
 
 }, {
 
@@ -1538,6 +1540,17 @@ function App() {
     ));
   }
 
+  // * PORTAL DEL ALUMNO (F4) * Autónomo como el del docente: no usa cargar_datos y
+  // no muestra nada de cobranza. Ver views/PortalAlumno.js.
+  if (user.rol === 'alumno') {
+    return conGuia(_jsxDEV(
+      PortalAlumno,
+      { user: user, onLogout: handleLogout, menuPerfil: menuPerfilPlataforma },
+      void 0,
+      false
+    ));
+  }
+
   if (user.rol === 'tesoreria') {
 
     return conGuia(_jsxDEV(
@@ -1582,7 +1595,10 @@ function App() {
   // que esta pantalla NO aparece y el backend igual contesta 402 — que es
   // exactamente el síntoma que se está arreglando.
   var _sus = data && data.suscripcion;
-  if (_sus && _sus.vencida && (user.rol === 'admin' || user.rol === 'cajero') && view !== 'mi_suscripcion') {
+  // [F4] control_escolar y direccion también quedan fuera si el colegio venció (el
+  // servidor ya les responde 402); no pueden renovar, así que no se les ofrece el botón.
+  var _puedeRenovar = user.rol === 'admin' || user.rol === 'cajero';
+  if (_sus && _sus.vencida && (_puedeRenovar || user.rol === 'control_escolar' || user.rol === 'direccion') && view !== 'mi_suscripcion') {
     return _jsxDEV('div', {
       style: {
         minHeight: '100vh', display: 'flex', alignItems: 'center',
@@ -1614,7 +1630,10 @@ function App() {
             style: { fontSize: 12, color: 'var(--ink-4)', marginBottom: 16, fontFamily: 'var(--mono)' },
             children: (_sus.en_demo ? 'Terminó el ' : 'Venció el ') + _sus.limite
           }, 'f', false) : null,
-          _jsxDEV('button', {
+          !_puedeRenovar ? _jsxDEV('div', {
+            style: { fontSize: 13, color: 'var(--ink-2)', marginBottom: 4 },
+            children: 'Pide a la administración del colegio que renueve la suscripción.'
+          }, 'b', false) : _jsxDEV('button', {
             className: 'btn btn-primary',
             // Manda a la ÚNICA sección que sigue funcionando. Es el motivo por
             // el que 'mi_suscripcion' está excluida del guard de arriba: dejar
@@ -2377,7 +2396,9 @@ function App() {
 
             rol:
 
-              user?.rol
+              user?.rol,
+            // [F4] Dirección consulta, no edita: Alumnos.js esconde los botones de edición.
+            soloLectura: user?.rol === 'direccion'
 
           },
 
@@ -2427,7 +2448,9 @@ function App() {
 
             escuela_id:
 
-              escuelaActiva
+              escuelaActiva,
+            // [F4] Familias.js esconde lo financiero (CLABE, saldo, cuenta de portal) a la coordinación.
+            rol: user?.rol
 
           },
 
@@ -2498,7 +2521,9 @@ function App() {
             user: user,
             // 'escolar_grupos' → 'grupos', 'escolar_config' → 'config', etc.
             seccion: view.replace('escolar_', ''),
-            onIrA: setView
+            onIrA: setView,
+            // [F4] Dirección consulta, no captura: ControlEscolar esconde lo que escribe.
+            soloLectura: user?.rol === 'direccion'
           },
           // key por sección: cada ítem del menú arranca con su propio estado.
           view,

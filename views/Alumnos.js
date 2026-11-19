@@ -10,12 +10,20 @@ function Alumnos({
   data,
   setData,
   escuela_id,
-  rol
+  rol,
+  soloLectura // [F4] dirección: consulta, no edita (lo pasa app.js)
 }) {
   const {
     useState
   } = React;
-  const puedeEditar = rol !== 'cajero'; // el cajero puede dar de alta pero no editar/desactivar
+  // [F4] soloLectura = dirección: ve alumnos y expediente, no edita nada.
+  const puedeEditar = rol !== 'cajero' && !soloLectura; // el cajero puede dar de alta pero no editar/desactivar
+  // [F4] control_escolar y direccion no ven dinero: cargar_datos ya no les manda CLABE ni saldo, y
+  // aquí se esconden esas columnas y los botones de CLABE (el servidor los rechazaría con 403).
+  const sinFinanzas = rol === 'control_escolar' || rol === 'direccion';
+  // [F4] Quién administra la cuenta de acceso de un alumno (coincide con crear_usuario.php).
+  const puedeAccesoAlumno = rol === 'admin' || rol === 'superadmin' || rol === 'control_escolar';
+  const [modalAcceso, setModalAcceso] = useState(null); // [F4] alumno cuyo "Acceso del alumno" está abierto
   const EMPTY = {
     tipo: 'alumno',
     nombre: '',
@@ -391,7 +399,7 @@ function Alumnos({
       setForm(EMPTY);
       setQFamilia('');
       // Generar CLABE SPEI real de inmediato
-      await asignarClabeDesdePool(alumnoNuevo, newData);
+      if (!sinFinanzas) await asignarClabeDesdePool(alumnoNuevo, newData); // [F4] la CLABE la genera quien ve cobranza
     } catch (e) { alert('Error al dar de alta alumno: ' + e.message); }
   };
 
@@ -423,7 +431,7 @@ function Alumnos({
     AppModel.save(newData);
     // Reingreso de un alumno al que en su baja se le liberó la CLABE: se le
     // genera una nueva, como hacía el botón anterior. Si la conservó, nada.
-    if (res.estatus_nuevo === 'activo' && actualizado.id && !actualizado.clabe_individual) {
+    if (!sinFinanzas && res.estatus_nuevo === 'activo' && actualizado.id && !actualizado.clabe_individual) { // [F4]
       const alumnoActualizado = newData.clientes.find(c => c.id === actualizado.id);
       if (alumnoActualizado) await asignarClabeDesdePool(alumnoActualizado, newData);
     }
@@ -456,7 +464,16 @@ function Alumnos({
         clientes: (prev.clientes || []).map(x => String(x.id) === String(p.id) ? { ...x, ...p } : x)
       }))
     }, 'f2-expediente', false),
+    // [F4] Modal "Acceso del alumno" (crear la cuenta del portal, reenviar activación, desactivar).
+    modalAcceso && _jsxDEV(AlumnoAccesoModalF4, {
+      alumno: modalAcceso,
+      escuelaId: escuela_id || modalAcceso.escuela_id,
+      familia: (data.familias || []).find(f => f.id === modalAcceso.familia_id) || null,
+      apiPost: _apiPost,
+      onCerrar: () => setModalAcceso(null)
+    }, 'f4-acceso-' + modalAcceso.id, false),
     ficha && typeof FichaTecnica !== 'undefined' && _jsxDEV(FichaTecnica, {
+      puedeEditar: !soloLectura, // [F4] dirección no cambia la foto (subir_foto_cliente le daría 403)
       tipo: 'alumno',
       registro: ficha,
       extra: {
@@ -499,7 +516,7 @@ function Alumnos({
           }, void 0, true)]
         }, void 0, true), _jsxDEV("div", {
           style: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-          children: [_jsxDEV("button", {
+          children: [!soloLectura && _jsxDEV("button", {
             className: "btn btn-secondary",
             disabled: !escuela_id,
             title: !escuela_id ? 'Selecciona una escuela arriba antes de importar' : undefined,
@@ -511,7 +528,7 @@ function Alumnos({
               setModalImport('upload');
             },
             children: [_jsxDEV(Icon, { name: "download", size: 14, color: "currentColor" }, void 0, false), " Importar CSV"]
-          }, void 0, true), _jsxDEV("button", {
+          }, void 0, true), !soloLectura && !sinFinanzas && _jsxDEV("button", {
             className: "btn btn-secondary",
             disabled: !escuela_id || asignandoClabesMasivo,
             title: !escuela_id ? 'Selecciona una escuela arriba' : 'Genera una CLABE SPEI real a todos los alumnos que aún no tienen una',
@@ -519,7 +536,7 @@ function Alumnos({
             children: asignandoClabesMasivo
               ? _jsxDEV("span", { style: { display: 'flex', alignItems: 'center', gap: 6 }, children: [_jsxDEV("span", { className: "spinner", style: { width: 12, height: 12 } }, void 0, false), " Asignando…"] }, void 0, true)
               : "Generar CLABE a todos"
-          }, void 0, true), _jsxDEV("button", {
+          }, void 0, true), !soloLectura && _jsxDEV("button", {
             className: "btn btn-primary",
             disabled: !escuela_id,
             title: !escuela_id ? 'Selecciona una escuela arriba antes de dar de alta un alumno' : undefined,
@@ -587,9 +604,9 @@ function Alumnos({
                 children: "Grado"
               }, void 0, false), _jsxDEV("th", {
                 children: "Familia"
-              }, void 0, false), _jsxDEV("th", {
+              }, void 0, false), !sinFinanzas && _jsxDEV("th", {
                 children: "CLABE SPEI individual"
-              }, void 0, false), _jsxDEV("th", {
+              }, void 0, false), !sinFinanzas && _jsxDEV("th", {
                 children: "Saldo pendiente"
               }, void 0, false), _jsxDEV("th", {
                 children: "Estado"
@@ -600,7 +617,7 @@ function Alumnos({
           }, void 0, false), _jsxDEV("tbody", {
             children: [lista.length === 0 && _jsxDEV("tr", {
               children: _jsxDEV("td", {
-                colSpan: 8,
+                colSpan: sinFinanzas ? 6 : 8,
                 children: _jsxDEV("div", {
                   className: "empty-state",
                   children: [_jsxDEV("div", {
@@ -684,7 +701,7 @@ function Alumnos({
                   },
                   children: "—"
                 }, void 0, false)
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), !sinFinanzas && _jsxDEV("td", {
                 "data-label": "CLABE SPEI individual",
                 children: clabeLoadingId === c.id ? _jsxDEV("span", {
                   style: {
@@ -770,7 +787,7 @@ function Alumnos({
                   },
                   children: "—"
                 }, void 0, false)
-              }, void 0, false), _jsxDEV("td", {
+              }, void 0, false), !sinFinanzas && _jsxDEV("td", {
                 "data-label": "Saldo pendiente",
                 children: c.saldo_pendiente > 0 ? _jsxDEV("span", {
                   style: {
@@ -797,7 +814,7 @@ function Alumnos({
                 children: alumnoBadgeEstatusF1(c)
               }, void 0, false), _jsxDEV("td", {
                 "data-label": "Acciones",
-                children: !puedeEditar ? _jsxDEV("span", {
+                children: (!puedeEditar && !soloLectura) ? _jsxDEV("span", {
                   style: { fontSize: 11, color: 'var(--ink-4)' },
                   children: "Sin edición"
                 }, void 0, false) : _jsxDEV("div", {
@@ -805,7 +822,7 @@ function Alumnos({
                     display: 'flex',
                     gap: 5
                   },
-                  children: [_jsxDEV("button", {
+                  children: [puedeEditar && _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     onClick: () => {
                       setForm({
@@ -825,7 +842,7 @@ function Alumnos({
                       size: 14,
                       color: "currentColor"
                     }, void 0, false)
-                  }, void 0, false), _jsxDEV("button", {
+                  }, void 0, false), puedeEditar && _jsxDEV("button", {
                     className: "btn btn-ghost btn-sm",
                     // [F1] Abre el modal "Cambiar estatus" (antes: toggle que liberaba la CLABE).
                     onClick: () => abrirCambioEstatus(c),
@@ -848,7 +865,15 @@ function Alumnos({
                     title: "Expediente: datos personales y médicos, tutores y documentos",
                     style: { fontSize: 11.5 },
                     children: "Expediente"
-                  }, 'f2-exp', false)]
+                  }, 'f2-exp', false),
+                  // [F4] Cuenta de acceso del alumno al portal (crear, reenviar activación, desactivar).
+                  puedeAccesoAlumno && c.activo && _jsxDEV("button", {
+                    className: "btn btn-ghost btn-sm",
+                    onClick: () => setModalAcceso(c),
+                    title: "Crear o administrar la cuenta con la que el alumno entra a su portal",
+                    style: { fontSize: 11.5 },
+                    children: "Acceso del alumno"
+                  }, 'f4-acceso', false)]
                 }, void 0, true)
               }, void 0, false)]
             }, c.id, true))]
@@ -1754,5 +1779,162 @@ function HistorialAlumnoF1({ clienteId, apiPost }) {
             ]
           }, m.id, true)) }, 'l', false)
     ]
+  }, void 0, true);
+}
+
+// [F4] Acceso del alumno al portal (views/PortalAlumno.js). Una cuenta por alumno, con su propio
+// correo o con el de un tutor; entra con un enlace de activación por correo (igual que el resto
+// de las cuentas) y desde ahí ve SU horario, asistencia y calificaciones publicadas (y su
+// monedero). No ve adeudos ni cobranza de la familia.
+//
+// Todo lo valida el servidor (crear_usuario / reenviar_credenciales / toggle_usuario / listar_usuarios):
+// aquí solo se arma la pantalla. Si el correo elegido ya tiene otra cuenta (p. ej. el tutor ya entra
+// a su portal con él), crear_usuario responde "El correo ya está registrado": hay que usar otro.
+function AlumnoAccesoModalF4({ alumno, escuelaId, familia, apiPost, onCerrar }) {
+  const { useState, useEffect } = React;
+  const [cargando, setCargando] = useState(true);
+  const [cuentas, setCuentas] = useState([]);       // cuentas de alumno de ESTE alumno (puede haber una desactivada)
+  const [correos, setCorreos] = useState([]);       // opciones: alumno, familia, tutores
+  const [correoSel, setCorreoSel] = useState('');
+  const [correoOtro, setCorreoOtro] = useState('');
+  const [trabajando, setTrabajando] = useState(false);
+  const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [liga, setLiga] = useState('');             // enlace de activación si el correo no salió
+
+  const cargar = async () => {
+    setCargando(true);
+    try {
+      const r = await apiPost('listar_usuarios', { solo_alumnos: true });
+      if (r && r.success) {
+        setCuentas((r.usuarios || []).filter(u => Number(u.cliente_id) === Number(alumno.id)));
+      } else {
+        setError((r && r.error) || 'No se pudo consultar la cuenta del alumno.');
+      }
+    } catch (e) { setError('No se pudo consultar la cuenta del alumno.'); }
+    setCargando(false);
+  };
+  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [alumno.id]);
+
+  // Opciones de correo: el del alumno, el de su familia y los de sus tutores (si el expediente existe).
+  useEffect(() => {
+    let vivo = true;
+    const base = [];
+    const agrega = (email, etiqueta) => {
+      const e = (email || '').trim();
+      if (e && !base.some(x => x.email.toLowerCase() === e.toLowerCase())) base.push({ email: e, etiqueta: etiqueta + ' · ' + e });
+    };
+    agrega(alumno.email, 'Alumno');
+    if (familia) agrega(familia.email, 'Familia ' + (familia.nombre || ''));
+    setCorreos(base.slice());
+    setCorreoSel(base[0] ? base[0].email : '__otro__');
+    apiPost('alumno_tutores_listar', { cliente_id: alumno.id }).then(r => {
+      if (!vivo || !r || !r.success) return;
+      (r.tutores || []).forEach(t => agrega(t.email, 'Tutor ' + (t.nombre || '')));
+      setCorreos(base.slice());
+    }).catch(() => {});
+    return () => { vivo = false; };
+    // eslint-disable-next-line
+  }, [alumno.id]);
+
+  const cuenta = cuentas.find(u => u.activo) || cuentas[0] || null;
+
+  const ejecutar = async (fn) => {
+    setTrabajando(true); setError(''); setAviso(''); setLiga('');
+    try { await fn(); } catch (e) { setError('Error de conexión: ' + e.message); }
+    setTrabajando(false);
+  };
+  const crear = () => ejecutar(async () => {
+    const email = (correoSel === '__otro__' ? correoOtro : correoSel).trim();
+    if (!email) { setError('Elige o escribe el correo con el que entrará el alumno.'); return; }
+    const r = await apiPost('crear_usuario', {
+      nombre: alumno.nombre, email, rol: 'alumno', cliente_id: alumno.id, escuela_id: escuelaId,
+    });
+    if (!r.success) { setError(r.error || 'No se pudo crear la cuenta.'); return; }
+    setAviso(r.correo_enviado === false
+      ? 'La cuenta se creó, pero el correo no salió: comparte este enlace con el alumno.'
+      : 'Cuenta creada. Se envió el enlace de activación a ' + email + ' (vence en 72 horas).');
+    if (r.correo_enviado === false && r.activacion_liga) setLiga(r.activacion_liga);
+    await cargar();
+  });
+  const reenviar = () => ejecutar(async () => {
+    const r = await apiPost('reenviar_credenciales', { id: cuenta.id });
+    if (!r.success) { setError(r.error || 'No se pudo reenviar la activación.'); return; }
+    setAviso(r.correo_enviado === false
+      ? 'El correo no salió: comparte este enlace con el alumno.'
+      : 'Se reenvió el enlace de activación a ' + r.email + '.');
+    if (r.correo_enviado === false && r.activacion_liga) setLiga(r.activacion_liga);
+  });
+  const alternar = () => {
+    if (!window.confirm(cuenta.activo ? '¿Desactivar el acceso de este alumno? Ya no podrá entrar a su portal.' : '¿Reactivar el acceso de este alumno?')) return;
+    return ejecutar(async () => {
+      const r = await apiPost('toggle_usuario', { id: cuenta.id });
+      if (!r.success) { setError(r.error || 'No se pudo cambiar el estado de la cuenta.'); return; }
+      await cargar();
+    });
+  };
+
+  const nota = { fontSize: 12, color: 'var(--ink-3)', marginTop: 4, lineHeight: 1.5 };
+  const cuerpo = cargando
+    ? [_jsxDEV("div", { key: 'cg', style: nota, children: "Consultando…" }, void 0, false)]
+    : [
+        cuenta
+          ? _jsxDEV("div", { key: 'cta', children: [
+              _jsxDEV("div", { key: 'e', style: { fontSize: 13, marginBottom: 6 }, children: ["Cuenta: ", _jsxDEV("strong", { children: cuenta.email }, void 0, false)] }, void 0, true),
+              _jsxDEV("div", { key: 's', style: { marginBottom: 10 }, children: _jsxDEV("span", { className: 'badge ' + (cuenta.activo ? 'badge-green' : 'badge-gray'), children: cuenta.activo ? 'Activa' : 'Desactivada' }, void 0, false) }, void 0, false),
+              _jsxDEV("div", { key: 'n', style: nota, children: "El alumno entra con ese correo y la contraseña que cree desde el enlace de activación. Si no le llegó, reenvíalo." }, void 0, false)
+            ] }, void 0, true)
+          : _jsxDEV("div", { key: 'nueva', children: [
+              _jsxDEV("div", { key: 'i', style: { fontSize: 13, marginBottom: 10 }, children: "Este alumno todavía no tiene acceso. Elige con qué correo entrará; se le enviará un enlace para crear su contraseña." }, void 0, false),
+              _jsxDEV("div", { key: 'c', className: "form-group", children: [
+                _jsxDEV("label", { key: 'l', className: "form-label", children: "Correo" }, void 0, false),
+                _jsxDEV("select", {
+                  key: 's', className: "form-select", value: correoSel, onChange: e => setCorreoSel(e.target.value),
+                  children: correos.map(c => _jsxDEV("option", { value: c.email, children: c.etiqueta }, c.email, false))
+                    .concat([_jsxDEV("option", { value: '__otro__', children: "Otro correo…" }, '__otro__', false)])
+                }, void 0, false)
+              ] }, void 0, true),
+              correoSel === '__otro__' && _jsxDEV("div", { key: 'o', className: "form-group", children: _jsxDEV("input", {
+                className: "form-input", type: "email", value: correoOtro, placeholder: "correo@ejemplo.com",
+                onChange: e => setCorreoOtro(e.target.value)
+              }, void 0, false) }, void 0, false),
+              _jsxDEV("div", { key: 'n', style: nota, children: "Si el correo ya tiene otra cuenta (por ejemplo, el del tutor que ya entra a su portal), el sistema lo rechazará: usa el del alumno u otro distinto." }, void 0, false)
+            ] }, void 0, true),
+        error && _jsxDEV("div", { key: 'err', style: { marginTop: 10, fontSize: 12.5, color: 'var(--red)' }, children: error }, void 0, false),
+        aviso && _jsxDEV("div", { key: 'ok', style: { marginTop: 10, fontSize: 12.5, color: 'var(--green)' }, children: aviso }, void 0, false),
+        liga && _jsxDEV("div", { key: 'liga', style: { marginTop: 8, display: 'flex', gap: 6, alignItems: 'center' }, children: [
+          _jsxDEV("input", { key: 'i', className: "form-input", readOnly: true, value: liga, onFocus: e => e.target.select() }, void 0, false),
+          _jsxDEV("button", { key: 'b', className: "btn btn-secondary btn-sm", onClick: () => navigator.clipboard && navigator.clipboard.writeText(liga), children: "Copiar" }, void 0, false)
+        ] }, void 0, true)
+      ];
+
+  return _jsxDEV("div", {
+    className: "modal-backdrop",
+    onClick: e => e.target === e.currentTarget && !trabajando && onCerrar(),
+    children: _jsxDEV("div", {
+      className: "modal",
+      children: [
+        _jsxDEV("div", {
+          key: 'h', className: "modal-header",
+          children: [
+            _jsxDEV("div", { key: 't', className: "modal-title", children: "Acceso del alumno: " + alumno.nombre }, void 0, false),
+            _jsxDEV("button", {
+              key: 'x', className: "btn btn-ghost btn-sm", onClick: onCerrar, disabled: trabajando,
+              children: _jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false)
+            }, void 0, false)
+          ]
+        }, void 0, true),
+        _jsxDEV("div", { key: 'b', className: "modal-body", children: cuerpo }, void 0, false),
+        _jsxDEV("div", {
+          key: 'f', className: "modal-footer",
+          children: [
+            _jsxDEV("button", { key: 'c', className: "btn btn-secondary", onClick: onCerrar, disabled: trabajando, children: "Cerrar" }, void 0, false),
+            !cargando && cuenta && _jsxDEV("button", { key: 't', className: "btn btn-ghost", onClick: alternar, disabled: trabajando, children: cuenta.activo ? 'Desactivar acceso' : 'Reactivar acceso' }, void 0, false),
+            !cargando && cuenta && cuenta.activo && _jsxDEV("button", { key: 'r', className: "btn btn-primary", onClick: reenviar, disabled: trabajando, children: "Reenviar activación" }, void 0, false),
+            !cargando && !cuenta && _jsxDEV("button", { key: 'n', className: "btn btn-primary", onClick: crear, disabled: trabajando, children: trabajando ? 'Creando…' : 'Crear acceso' }, void 0, false)
+          ]
+        }, void 0, true)
+      ]
+    }, void 0, true)
   }, void 0, true);
 }

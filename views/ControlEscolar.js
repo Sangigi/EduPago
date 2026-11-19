@@ -1347,6 +1347,7 @@ function EscPaseLista(props) {
   var s6 = R.useState(''), ok = s6[0], setOk = s6[1];
   var s7 = R.useState(false), guardando = s7[0], setGuardando = s7[1];
   var s8 = R.useState(false), capturada = s8[0], setCapturada = s8[1];
+  var sl = !!props.soloLectura; // [F4] dirección consulta la lista: no marca ni guarda
 
   R.useEffect(function () {
     if (!grupoId) return;
@@ -1356,8 +1357,8 @@ function EscPaseLista(props) {
         setCapturada(r.capturada);
         // Sin captura previa: todos arrancan como "presente" (lo normal es
         // marcar solo las excepciones).
-        setLista(r.alumnos.map(function (a) { return Object.assign({}, a, { estado: a.estado || 'presente' }); }));
-        if (!r.capturada && r.alumnos.length) setSucio(true);
+        setLista(r.alumnos.map(function (a) { return Object.assign({}, a, { estado: a.estado || (sl ? '' : 'presente') }); })); // [F4] en solo lectura no se inventa un 'presente'
+        if (!r.capturada && r.alumnos.length && !sl) setSucio(true);
       })
       .catch(function (e) { setErr(e.message); setLista([]); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1385,7 +1386,7 @@ function EscPaseLista(props) {
       _hE(EscCampo, { label: 'Grupo', style: { margin: 0, flex: '1 1 200px' } }, _hE('select', { className: 'form-select', value: grupoId, onChange: function (e) { setGrupoId(Number(e.target.value)); } },
         grupos.map(function (g) { return _hE('option', { key: g.id, value: g.id }, g.nombre + (g.nivel ? ' · ' + g.nivel : '')); }))),
       _hE(EscCampo, { label: 'Fecha', style: { margin: 0 } }, _hE('input', { className: 'form-input', type: 'date', max: escHoy(), value: fecha, onChange: function (e) { setFecha(e.target.value); } })),
-      _hE('div', { style: { display: 'flex', gap: 6 } },
+      sl ? null : _hE('div', { style: { display: 'flex', gap: 6 } },
         _hE('button', { className: 'btn btn-ghost btn-sm', onClick: function () { todos('presente'); } }, 'Todos presentes'))
     ),
     lista && lista.length ? _hE('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' } },
@@ -1407,9 +1408,9 @@ function EscPaseLista(props) {
                 Object.keys(ESC_ESTADOS).map(function (k) {
                   var activo = a.estado === k, e = ESC_ESTADOS[k];
                   return _hE('button', {
-                    key: k, title: e.label, onClick: function () { setEstado(a.id, 'estado', k); },
+                    key: k, title: e.label, disabled: sl, onClick: function () { if (!sl) setEstado(a.id, 'estado', k); },
                     style: {
-                      width: 34, height: 30, borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                      width: 34, height: 30, borderRadius: 8, cursor: sl ? 'default' : 'pointer', fontWeight: 700, fontSize: 12,
                       border: '1px solid ' + (activo ? e.color : 'var(--border-glow)'),
                       background: activo ? e.bg : 'transparent', color: activo ? e.color : 'var(--ink-4)'
                     }
@@ -1417,13 +1418,13 @@ function EscPaseLista(props) {
                 }))),
               _hE('td', {}, _hE('input', {
                 className: 'form-input', style: { minWidth: 160, padding: '6px 10px' }, placeholder: a.estado === 'justificada' ? 'Motivo…' : '',
-                value: a.observacion || '', onChange: function (e) { setEstado(a.id, 'observacion', e.target.value); }
+                value: a.observacion || '', readOnly: sl, onChange: function (e) { if (!sl) setEstado(a.id, 'observacion', e.target.value); }
               }))
             );
           }))
         )),
     _hE(EscError, { msg: err }), _hE(EscOk, { msg: ok }),
-    lista && lista.length ? _hE('div', { style: { display: 'flex', justifyContent: 'flex-end', marginTop: 12 } },
+    lista && lista.length && !sl ? _hE('div', { style: { display: 'flex', justifyContent: 'flex-end', marginTop: 12 } },
       _hE('button', { className: 'btn btn-primary', disabled: guardando || !sucio, onClick: guardar }, guardando ? 'Guardando…' : 'Guardar asistencia')) : null
   );
 }
@@ -1749,7 +1750,9 @@ function ControlEscolar(props) {
 
   var seccion = props.seccion || 'grupos';
   var sinCiclo = cat.ciclos.length === 0 && seccion !== 'config';
-  var sub = { cat: cat, api: api, recargar: recargar, user: props.user };
+  // [F4] soloLectura (dirección): las secciones esconden lo que captura. El servidor
+  // también lo niega (allowlist de api.php y escolar_ctx).
+  var sub = { cat: cat, api: api, recargar: recargar, user: props.user, soloLectura: !!props.soloLectura };
 
   var selectorCiclo = cat.ciclos.length > 1 && seccion !== 'config'
     ? _hE('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, justifyContent: 'flex-end' } },

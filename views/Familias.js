@@ -20,6 +20,8 @@ function Familias({
 
   setData,
 
+  rol, // [F4] 'control_escolar' no ve finanzas (lo pasa app.js)
+
   escuela_id
 
 }) {
@@ -144,6 +146,10 @@ function Familias({
 
 
 
+  // [F4] La coordinación académica gestiona familias pero no ve dinero: cargar_datos ya no le manda
+  // CLABE, saldo ni datos fiscales; aquí se esconden esos bloques y las llamadas de CLABE.
+  const sinFinanzas = rol === 'control_escolar';
+
   const escuela = data.escuelas.find(e => e.id === escuela_id);
 
   // Cada etiqueta debe coincidir (Y lógica). Se busca en los datos de la
@@ -236,6 +242,7 @@ function Familias({
   // momento).
   const asignarClabeDesdePool = async (alumno, dataBase) => {
 
+    if (sinFinanzas) return; // [F4] generar_clabe_individual es de caja: la CLABE la genera admin/cajero
     const eid = escuela_id || dataBase.escuelas?.[0]?.id;
 
     if (!eid || !alumno?.id) return;
@@ -777,7 +784,7 @@ function Familias({
 
         const hijos = hijosDeFamily(fam.id);
 
-        const saldo = saldoFamily(fam.id);
+        const saldo = sinFinanzas ? null : saldoFamily(fam.id); // [F4] null: ni 'pendiente' ni 'al corriente'
 
         const isOpen = expanded[fam.id];
 
@@ -1241,7 +1248,7 @@ function Familias({
 
                   }, void 0, false)]
 
-                }, void 0, true), _jsxDEV("div", {
+                }, void 0, true), !sinFinanzas && _jsxDEV("div", {
 
                   style: {
 
@@ -1391,7 +1398,7 @@ function Familias({
 
                 style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
 
-                children: [hijo.saldo_pendiente > 0 ? _jsxDEV("span", {
+                children: [sinFinanzas ? null : hijo.saldo_pendiente > 0 ? _jsxDEV("span", {
 
                 className: "fam-hijo-saldo",
 
@@ -1899,7 +1906,7 @@ function Familias({
 
           }, void 0, true),
 
-          !formFam.id && _jsxDEV("label", {
+          !formFam.id && !sinFinanzas && _jsxDEV("label", {
             style: {
               display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 4,
               fontSize: 12.5, color: 'var(--ink-3)', cursor: 'pointer', userSelect: 'none'
@@ -1916,7 +1923,7 @@ function Familias({
             children: "Falta el correo electrónico para poder crear su acceso."
           }, void 0, false),
 
-          _jsxDEV("div", {
+          !sinFinanzas && _jsxDEV("div", {
 
             style: {
 
