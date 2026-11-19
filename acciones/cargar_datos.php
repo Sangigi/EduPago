@@ -16,6 +16,20 @@
             $escuela_id_usuario = $urow['escuela_id'];
             $rol = $urow['rol'];
         }
+        // [F4] 'alumno' y 'tienda' NO usan cargar_datos (igual que 'docente'): sus
+        // paneles traen lo suyo con acciones propias, y esta respuesta les
+        // mandaría alumnos, familias y cobros de toda la escuela. El allowlist de
+        // api.php ya los deja fuera; esto es la segunda capa (el rol se relee
+        // fresco de la base arriba, no del token).
+        if (in_array($rol, ['alumno', 'tienda'], true)) {
+            http_response_code(403);
+            respond(['success' => false, 'error' => 'Tu cuenta no tiene acceso a esta información.']);
+        }
+        // [F4] Coordinación académica y dirección reciben los datos del colegio
+        // SIN nada financiero (cobros, abonos, CLABEs, tokens de tarjeta, saldos,
+        // datos fiscales, gastos/proveedores, productos). Cada bloque de abajo
+        // que lo toca lo omite o lo limpia con $sin_finanzas.
+        $sin_finanzas = rol_sin_finanzas($rol);
         // Paginación de clientes (alumnos)
         $pagina_clientes    = max(1, intval($input['pagina_clientes'] ?? $_GET['pagina_clientes'] ?? 1));
         $por_pagina_clientes = intval($input['por_pagina_clientes'] ?? $_GET['por_pagina_clientes'] ?? 25);
@@ -67,13 +81,24 @@
         } catch (\PDOException $e) {
             // config_sistema todavia no migrada: se comporta como "nada apagado".
         }
-        $escuelas = array_map(function($e) use ($metodosGlobal, $seccionesGlobal) {
+        $escuelas = array_map(function($e) use ($metodosGlobal, $seccionesGlobal, $sin_finanzas) {
             $propiasSecciones = json_decode($e['secciones_deshabilitadas'] ?? '', true) ?: [];
             $e['secciones_deshabilitadas'] = array_values(array_unique(array_merge($propiasSecciones, $seccionesGlobal)));
             // Rutas y nombres de archivos de contrato: internos, no viajan a ningún rol del colegio.
             unset($e['contrato_ruta'], $e['contrato_nombre'], $e['contrato_firmado_ruta'], $e['contrato_firmado_nombre'], $e['contrato_firmado_mime']);
             $propios = json_decode($e['metodos_pago_deshabilitados'] ?? '', true) ?: [];
             $e['metodos_pago_deshabilitados'] = array_values(array_unique(array_merge($propios, $metodosGlobal)));
+            // [F4] Sin finanzas: de la escuela solo viaja lo que el navegador
+            // necesita para pintarse (nombre, logo, contacto, secciones). Es una
+            // lista BLANCA a propósito: `SELECT *` trae RFC, razón social, plan,
+            // CLABEs y datos de pago, y una columna nueva no debe filtrarse sola.
+            if ($sin_finanzas) {
+                $e = array_intersect_key($e, array_flip([
+                    'id', 'nombre', 'clave', 'rvoe', 'telefono', 'email', 'direccion',
+                    'logo_emoji', 'logo_url', 'activa', 'es_plantel', 'escuela_padre_id',
+                    'secciones_deshabilitadas',
+                ]));
+            }
             return $e;
         }, $stmt->fetchAll());
         // ── Resumen liviano por escuela (siempre se manda, sirve para el dashboard
@@ -200,7 +225,7 @@
         );
         $stmt->execute($params_cli);
         $clientes_raw = $stmt->fetchAll();
-        $clientes = array_map(function($c) {
+        $clientes = array_map(function($c) use ($sin_finanzas) {
             $c['activo']          = (bool)$c['activo'];
             $c['saldo_pendiente'] = floatval($c['saldo_pendiente']);
             $c['familia_id']      = $c['familia_id'] ? intval($c['familia_id']) : null;
@@ -208,6 +233,8 @@
             // lee `tel`, pero la columna real es `telefono` — sin este alias
             // el teléfono del alumno se mostraba vacío en todas las vistas.
             $c['tel'] = $c['telefono'] ?? null;
+            // [F4] Sin finanzas: fuera CLABE, tokens de tarjeta, saldo y demás.
+            if ($sin_finanzas) $c = quitar_campos_financieros($c);
             return $c;
         }, $clientes_raw);
         // [F2] Expediente (18-nov-2026): los datos médicos y las observaciones
@@ -223,15 +250,17 @@
         $stmt = $pdo->prepare("SELECT * FROM planteles WHERE escuela_id = ? ORDER BY id");
         $stmt->execute([$escuela_id_ver]);
         $planteles_raw = $stmt->fetchAll();
-        $planteles = array_map(function($p) {
+        $planteles = array_map(function($p) use ($sin_finanzas) {
             $p['activo'] = (bool)$p['activo'];
+            if ($sin_finanzas) $p = quitar_campos_financieros($p); // [F4]
             return $p;
         }, $planteles_raw);
         // ── Métricas por plantel (alumnos + cobros 90 días de su escuela-cuenta
         //    hija). Disponible para admin/superadmin, no solo superadmin, para
         //    que el dashboard de cada escuela vea sus propios planteles. ──
         $resumen_planteles = [];
-        if (!empty($planteles)) {
+        // [F4] Estas métricas son de cobranza (cobrado/pendiente a 90 días): sin finanzas no se calculan.
+        if (!empty($planteles) && !$sin_finanzas) {
             $ids_hijos = array_column($planteles, 'escuela_plantel_id');
             $ids_hijos = array_values(array_unique(array_filter($ids_hijos)));
             if (!empty($ids_hijos)) {
@@ -273,14 +302,21 @@
             $stmt->execute([$escuela_id_ver]);
         }
         $familias_raw = $stmt->fetchAll();
-        $familias = array_map(function($f) {
+        $familias = array_map(function($f) use ($sin_finanzas) {
             $f['activa'] = (bool)$f['activa'];
+            // [F4] Sin finanzas: fuera los datos fiscales (RFC, razón social, régimen...) y saldos.
+            if ($sin_finanzas) $f = quitar_campos_financieros($f);
             return $f;
         }, $familias_raw);
         // ── Productos ──
-        $stmt = $pdo->prepare("SELECT * FROM productos WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
-        $stmt->execute([$escuela_id_ver]);
-        $productos_raw = $stmt->fetchAll();
+        // [F4] Sin finanzas no se consulta: conceptos y precios son cobranza.
+        if ($sin_finanzas) {
+            $productos_raw = [];
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM productos WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
+            $stmt->execute([$escuela_id_ver]);
+            $productos_raw = $stmt->fetchAll();
+        }
         $productos = array_map(function($p) {
             $p['activo'] = (bool)$p['activo'];
             $p['precio'] = floatval($p['precio']);
@@ -288,12 +324,16 @@
         }, $productos_raw);
         // ── Proveedores ── (catálogo chico, igual patrón que Productos;
         // los Gastos en sí se consultan bajo demanda vía listar_gastos.php)
-        $stmtProv = $pdo->prepare("SELECT * FROM proveedores WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
-        $stmtProv->execute([$escuela_id_ver]);
-        $proveedores = array_map(function($p) {
-            $p['activo'] = (bool)$p['activo'];
-            return $p;
-        }, $stmtProv->fetchAll());
+        // [F4] Sin finanzas no se consulta (los proveedores son de gastos).
+        $proveedores = [];
+        if (!$sin_finanzas) {
+            $stmtProv = $pdo->prepare("SELECT * FROM proveedores WHERE escuela_id = ? ORDER BY nombre LIMIT $MAX_FILA");
+            $stmtProv->execute([$escuela_id_ver]);
+            $proveedores = array_map(function($p) {
+                $p['activo'] = (bool)$p['activo'];
+                return $p;
+            }, $stmtProv->fetchAll());
+        }
         // ── Cobros (últimos 90 días, con tope duro adicional) ──
         // Nota: este campo alimenta también Dashboard.js y el badge de
         // "pendientes" en app.js, que necesitan el conjunto agregado, no una
@@ -308,15 +348,20 @@
             $where_co_familia = ' AND cl.familia_id = ?';
             $params_co[] = $usuario_actual['familia_id'] ?? -1;
         }
-        $stmt = $pdo->prepare(
-            "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
-             FROM cobros co
-             LEFT JOIN clientes cl ON cl.id = co.cliente_id
-             WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY){$where_co_familia}
-             ORDER BY co.id DESC LIMIT $MAX_FILA"
-        );
-        $stmt->execute($params_co);
-        $cobros_raw = $stmt->fetchAll();
+        // [F4] Sin finanzas: ni cobros ni su resumen. No se consultan (no es solo
+        // ocultarlos al final) para que un cambio futuro no los vuelva a mandar.
+        $cobros_raw = [];
+        if (!$sin_finanzas) {
+            $stmt = $pdo->prepare(
+                "SELECT co.*, COALESCE(cl.nombre, 'Cliente general') AS cliente
+                 FROM cobros co
+                 LEFT JOIN clientes cl ON cl.id = co.cliente_id
+                 WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY){$where_co_familia}
+                 ORDER BY co.id DESC LIMIT $MAX_FILA"
+            );
+            $stmt->execute($params_co);
+            $cobros_raw = $stmt->fetchAll();
+        }
         $cobros = array_map(function($c) {
             $c['total']   = floatval($c['total']);
             $c['factura'] = (bool)$c['factura'];
@@ -384,10 +429,13 @@
              WHERE co.escuela_id = ? AND co.fecha >= DATE_SUB(CURDATE(), INTERVAL 90 DAY){$where_co_familia}
              GROUP BY co.estado"
         );
-        $res_co->execute($params_co);
         $cobros_resumen = ['pagado' => ['n'=>0,'suma'=>0], 'pendiente' => ['n'=>0,'suma'=>0], 'cancelado' => ['n'=>0,'suma'=>0]];
-        foreach ($res_co->fetchAll() as $row) {
-            $cobros_resumen[$row['estado']] = ['n' => intval($row['n']), 'suma' => floatval($row['suma'])];
+        // [F4] Sin finanzas el resumen se queda en ceros (no se ejecuta la consulta).
+        if (!$sin_finanzas) {
+            $res_co->execute($params_co);
+            foreach ($res_co->fetchAll() as $row) {
+                $cobros_resumen[$row['estado']] = ['n' => intval($row['n']), 'suma' => floatval($row['suma'])];
+            }
         }
         // ── Recordatorios (últimos 60 días, ya reales desde la BD) ──
         // Envuelto en try/catch: si la tabla `recordatorios` (ver
@@ -395,13 +443,16 @@
         // no se debe caer completo por eso.
         $recordatorios = [];
         try {
-            $stmt = $pdo->prepare(
-                "SELECT id, escuela_id, cobro_id, cliente, fecha, canal, usuario_id
-                 FROM recordatorios WHERE escuela_id = ? AND fecha >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
-                 ORDER BY fecha DESC LIMIT $MAX_FILA"
-            );
-            $stmt->execute([$escuela_id_ver]);
-            $recordatorios = $stmt->fetchAll();
+            // [F4] Sin finanzas no se consultan: los recordatorios son de cobranza.
+            if (!$sin_finanzas) {
+                $stmt = $pdo->prepare(
+                    "SELECT id, escuela_id, cobro_id, cliente, fecha, canal, usuario_id
+                     FROM recordatorios WHERE escuela_id = ? AND fecha >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
+                     ORDER BY fecha DESC LIMIT $MAX_FILA"
+                );
+                $stmt->execute([$escuela_id_ver]);
+                $recordatorios = $stmt->fetchAll();
+            }
         } catch (\PDOException $e) {
             // log_api y no file_put_contents(__DIR__...): __DIR__ aqui es acciones/,
             // asi que esto escribia en acciones/api_log.txt — un archivo aparte que
@@ -412,7 +463,8 @@
             'success'           => true,
             // Tabla de planes desde lib/planes.php: las pantallas ya no
             // llevan su propia copia de los precios (ver ese archivo).
-            'planes'            => planes_tabla(),
+            // [F4] La tabla de precios de planes es de la relación colegio-plataforma.
+            'planes'            => $sin_finanzas ? [] : planes_tabla(),
             // Ver la nota de la otra respuesta de este archivo.
             'suscripcion'       => suscripcion_estado($pdo, $escuela_id_ver),
             'escuelas'          => $escuelas,

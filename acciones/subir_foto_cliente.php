@@ -6,7 +6,9 @@
 
 $rol_actual = $usuario_actual['rol'] ?? '';
 // El cajero no edita alumnos (mismo criterio que editar_cliente.php).
-requerir_rol($rol_actual, ['superadmin', 'admin', 'familia'],
+// [F4] 'control_escolar' sube fotos de alumnos de SU escuela (la pertenencia la
+// valida requerir_escuela_propia() más abajo).
+requerir_rol($rol_actual, ['superadmin', 'admin', 'familia', 'control_escolar'],
     'No tienes permiso para cambiar la foto de este alumno.');
 
 $id = intval($_POST['id'] ?? 0);

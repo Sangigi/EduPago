@@ -27,6 +27,12 @@
         // admin/superadmin, igual que en editar_cliente.
         // 'foto_url' y 'etiquetas' se agregan a ambas listas: el tutor puede
         // poner su propia foto desde el portal familiar.
+        // [F4] La coordinación académica NO toca los datos fiscales de la familia: no
+        // los recibe (cargar_datos los quita), así que su formulario los mandaría
+        // vacíos y borraría el RFC y la razón social. Se descartan del UPDATE.
+        if (rol_sin_finanzas($rol_actual_fam)) {
+            foreach (['rfc_factura', 'razon_social_factura', 'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto'] as $k_fiscal) unset($input[$k_fiscal]);
+        }
         $campos = $es_familia_propia
             ? ['contacto', 'email', 'telefono', 'rfc_factura', 'razon_social_factura',
                'cp_factura', 'domicilio_factura', 'regimen_factura', 'uso_cfdi_defecto',
@@ -58,4 +64,6 @@
         $stmt2->execute([$id]);
         $familiaActualizada = $stmt2->fetch(PDO::FETCH_ASSOC);
         $familiaActualizada['activa'] = (bool)($familiaActualizada['activa'] ?? true);
+        // [F4] Sin finanzas: la fila trae datos fiscales (RFC, razón social...) que la coordinación no ve.
+        if (rol_sin_finanzas($rol_actual_fam)) $familiaActualizada = quitar_campos_financieros($familiaActualizada);
         respond(['success' => true, 'familia' => $familiaActualizada]);

@@ -6,7 +6,8 @@
     // aprobar una escuela — la contraseña actual del usuario NO se toca hasta
     // que de verdad entre a ese enlace y ponga una nueva.
     $rol_actual = $usuario_actual['rol'] ?? '';
-    requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para reenviar credenciales.');
+    // [F4] 'control_escolar' solo con docentes y alumnos de su escuela (ver $autorizado).
+    requerir_rol($rol_actual, ['superadmin', 'admin', 'control_escolar'], 'No tienes permiso para reenviar credenciales.');
     requerir_seccion_habilitada($pdo, $rol_actual, $usuario_actual['escuela_id'] ?? null, ['miequipo']);
 
     $id = intval($input['id'] ?? 0);
@@ -18,10 +19,16 @@
     if (!$u) respond(['success' => false, 'error' => 'Usuario no encontrado']);
 
     // Mismo criterio que puedeEditar() en Usuarios.js: superadmin puede con
-    // cualquiera; un admin solo con cajero/familia de su propia escuela.
+    // cualquiera; un admin solo con el personal y las cuentas de su propia escuela.
+    // [F4] Se suman docente, control_escolar, dirección y alumno (los crea el
+    // admin, así que también debe poder reenviarles su activación). control_escolar
+    // solo con docentes y alumnos de su escuela.
     $autorizado = $rol_actual === 'superadmin'
         || ($rol_actual === 'admin'
-            && in_array($u['rol'], ['cajero', 'familia'], true)
+            && in_array($u['rol'], ['cajero', 'familia', 'docente', 'control_escolar', 'direccion', 'alumno'], true)
+            && intval($u['escuela_id']) === intval($usuario_actual['escuela_id'] ?? -1))
+        || ($rol_actual === 'control_escolar'
+            && in_array($u['rol'], ['docente', 'alumno'], true)
             && intval($u['escuela_id']) === intval($usuario_actual['escuela_id'] ?? -1));
     if (!$autorizado) {
         http_response_code(403);

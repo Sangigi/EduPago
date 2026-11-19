@@ -1,8 +1,12 @@
 <?php
         $rol_actual = $usuario_actual['rol'] ?? '';
-        requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para importar alumnos.');
+        // [F4] 'control_escolar' (coordinación académica) también importa alumnos.
+        requerir_rol($rol_actual, ['superadmin', 'admin', 'control_escolar'], 'No tienes permiso para importar alumnos.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
-        if ($rol_actual === 'admin') $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
+        // [F4] La escuela se fuerza a la propia para admin Y control_escolar: si
+        // solo fuera admin, control_escolar podría importar a OTRO colegio
+        // mandando escuela_id en la petición.
+        if (in_array($rol_actual, ['admin', 'control_escolar'], true)) $escuela_id = intval($usuario_actual['escuela_id'] ?? 0);
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
         requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, ['alumnos']);
         $filas = $input['filas'] ?? [];

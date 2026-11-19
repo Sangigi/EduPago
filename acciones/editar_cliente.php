@@ -108,4 +108,7 @@
         $clienteActualizado['familia_id'] = $clienteActualizado['familia_id'] ? intval($clienteActualizado['familia_id']) : null;
         $clienteActualizado['activo']     = (bool)$clienteActualizado['activo'];
         $clienteActualizado['tel']        = $clienteActualizado['telefono'] ?? null;
+        // [F4] La coordinación académica no ve dinero: la fila que regresa este
+        // SELECT * trae CLABE, saldo y tokens, así que se limpia igual que en cargar_datos.
+        if (rol_sin_finanzas($rol_actual)) $clienteActualizado = quitar_campos_financieros($clienteActualizado);
         respond(['success' => true, 'cliente' => $clienteActualizado]);

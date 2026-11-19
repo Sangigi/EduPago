@@ -296,6 +296,11 @@ function alumno_fila_para_respuesta(PDO $pdo, int $cliente_id): ?array
     $c['tel']             = $c['telefono'] ?? null;
     if (!isset($c['estatus'])) $c['estatus'] = $c['activo'] ? 'activo' : 'baja_temporal';
     unset($c['token_tarjeta']);
+    // [F4] Coordinación y dirección no ven dinero: sin CLABE, saldo ni tokens.
+    // El rol sale del usuario en curso (api.php); fuera de una petición no aplica.
+    if (function_exists('rol_sin_finanzas') && rol_sin_finanzas($GLOBALS['usuario_actual']['rol'] ?? '')) {
+        $c = quitar_campos_financieros($c);
+    }
     return $c;
 }
 

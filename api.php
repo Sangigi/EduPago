@@ -217,8 +217,22 @@ function verificar_token_auth() {
     }
     // El rol y estado se leen siempre frescos de la BD (no del token),
     // así reflejan cualquier cambio (ej. desactivación) inmediatamente.
-    $stmt = $pdo->prepare("SELECT id, rol, escuela_id, familia_id, activo, sesion_valida_desde FROM usuarios WHERE id = ?");
-    $stmt->execute([intval($user_id)]);
+    // [F4] cliente_id liga una cuenta 'alumno' con su fila de clientes. Se lee
+    // fresco aquí (como el rol) para que requerir_alumno_propio() nunca confíe
+    // en lo que mande el navegador. Si la migración
+    // migracion_2026_11_18_f4_roles.sql todavía no corrió, la columna no existe
+    // y el SELECT truena: se reintenta SIN ella. Tumbar el login de TODOS los
+    // roles por una columna nueva sería mucho peor que no poder usar el rol
+    // alumno unos minutos (sin la columna cliente_id queda null y
+    // requerir_alumno_propio() rechaza a las cuentas de alumno: fail-closed).
+    try {
+        $stmt = $pdo->prepare("SELECT id, rol, escuela_id, familia_id, cliente_id, activo, sesion_valida_desde FROM usuarios WHERE id = ?");
+        $stmt->execute([intval($user_id)]);
+    } catch (\PDOException $e) {
+        log_api("AUTH: usuarios.cliente_id no existe (¿falta migracion_2026_11_18_f4_roles.sql?), se reintenta sin la columna");
+        $stmt = $pdo->prepare("SELECT id, rol, escuela_id, familia_id, activo, sesion_valida_desde FROM usuarios WHERE id = ?");
+        $stmt->execute([intval($user_id)]);
+    }
     $usuario = $stmt->fetch();
     if (!$usuario || !$usuario['activo']) {
         log_api("AUTH FALLÓ ({$accionLog}) -> user_id={$user_id} " . (!$usuario ? 'no existe en usuarios' : 'activo=0'));
@@ -251,7 +265,9 @@ function verificar_token_auth() {
             exit;
         }
     }
-    return ['user_id' => intval($usuario['id']), 'rol' => $usuario['rol'], 'escuela_id' => $usuario['escuela_id'], 'familia_id' => $usuario['familia_id'] ? intval($usuario['familia_id']) : null];
+    return ['user_id' => intval($usuario['id']), 'rol' => $usuario['rol'], 'escuela_id' => $usuario['escuela_id'], 'familia_id' => $usuario['familia_id'] ? intval($usuario['familia_id']) : null,
+        // [F4] Solo las cuentas 'alumno' lo traen lleno. Ver requerir_alumno_propio().
+        'cliente_id' => !empty($usuario['cliente_id']) ? intval($usuario['cliente_id']) : null];
 }
 
 $action = $_GET['action'] ?? '';
@@ -300,7 +316,11 @@ $ACCIONES_PERMITIDAS_VENCIDO = [
 
 if (isset($usuario_actual) && $usuario_actual && !empty($usuario_actual['escuela_id'])
     // 'docente' (13-nov-2026) es personal del colegio igual que admin/cajero.
-    && in_array($usuario_actual['rol'] ?? '', ['admin', 'cajero', 'docente'], true)
+    && in_array($usuario_actual['rol'] ?? '', ['admin', 'cajero', 'docente',
+        // [F4] Coordinación académica y dirección también son personal del
+        // colegio. 'alumno' NO va aquí: es como 'familia' (cliente del colegio,
+        // no nuestro), así que su portal sigue abierto aunque el colegio venza.
+        'control_escolar', 'direccion'], true)
     && !in_array($action, $ACCIONES_PERMITIDAS_VENCIDO, true)) {
     $estadoSus = suscripcion_estado($pdo, $usuario_actual['escuela_id']);
     if ($estadoSus['vencida']) {
@@ -392,6 +412,9 @@ function requerir_rol($rol_actual, array $roles_permitidos, $mensaje = 'No tiene
 // plataforma que corre ANTES del despacho, al final de este archivo. Si
 // agregas un rol de plataforma, su seguridad viene de estar en ese allowlist,
 // no de omitirlo en las listas de requerir_rol().
+// [F4] Los roles nuevos ('control_escolar', 'direccion', 'alumno', y 'tienda' de
+// la F6) NO van aquí: todos tienen escuela_id y solo ven la suya. Revisado el
+// 18-nov-2026; no hace falta tocar esta función para ellos.
 function rol_alcance_global($rol_actual) {
     return in_array($rol_actual, ['superadmin', 'soporte'], true);
 }
@@ -406,6 +429,8 @@ function rol_alcance_global($rol_actual) {
 // plataforma nuevo es tocar ESTA función y nada más del lado del servidor.
 // El espejo en el navegador es ROL_INFO (views/Usuarios.js), donde el campo
 // equivalente se llama `sinEscuela`.
+// [F4] Tampoco los roles nuevos: control_escolar, direccion y alumno pertenecen
+// a un colegio (crear_usuario les exige escuela_id).
 function rol_sin_escuela($rol) {
     return in_array($rol, ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'], true);
 }
@@ -437,7 +462,9 @@ function requerir_escuela_propia($rol_actual, $escuela_id_fila, $usuario_actual,
 // (ej. generar_cfdi lo usan tanto 'caja' como 'facturacion') con solo
 // apagar una de las dos.
 function requerir_seccion_habilitada($pdo, $rol_actual, $escuela_id, $secciones, $mensaje = 'Esta sección no está disponible para tu cuenta.') {
-    if ($rol_actual !== 'admin' && $rol_actual !== 'cajero') return;
+    // [F4] control_escolar y direccion son personal del colegio igual que admin y
+    // cajero: si el super admin apagó una sección para el colegio, también se les corta.
+    if (!in_array($rol_actual, ['admin', 'cajero', 'control_escolar', 'direccion'], true)) return;
     // Mantenimiento GLOBAL primero: afecta a todas las escuelas sin importar
     // su propio secciones_deshabilitadas. Vive en lib/helpers_pagos.php
     // porque cron_recordatorios.php y webhooks/webhook_liga.php tambien lo
@@ -496,6 +523,77 @@ function requerir_familia_propia($familia_id_fila, $usuario_actual, $mensaje, $e
         http_response_code(403);
         respond(['success' => false, 'error' => $mensaje]);
     }
+}
+// [F4] Equivalente de requerir_familia_propia() para el rol 'alumno': la fila
+// (un clientes.id) tiene que ser la del propio alumno. Compara contra
+// usuarios.cliente_id, que verificar_token_auth() lee FRESCO de la base en
+// cada petición, nunca contra algo que mande el navegador.
+//
+// Una cuenta sin cliente_id (migración pendiente o cuenta mal creada) se
+// rechaza siempre: sin vínculo no hay "propio".
+function requerir_alumno_propio($cliente_id_fila, $usuario_actual, $mensaje = 'Solo puedes consultar tu propia información.') {
+    $propio = intval($usuario_actual['cliente_id'] ?? 0);
+    if ($propio <= 0 || intval($cliente_id_fila ?? -1) !== $propio) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => $mensaje]);
+    }
+}
+// [F4] ¿La acción está en el allowlist de un rol? Una entrada con forma
+// 'prefijo_*' admite cualquier acción que empiece con 'prefijo_' (ej.
+// 'escolar_*' cubre escolar_boleta, escolar_promover...). Las entradas sin '*'
+// se comparan EXACTO, igual que antes, así que las listas que ya existían no
+// cambian de comportamiento.
+//
+// OJO: un comodín también abre las acciones FUTURAS con ese prefijo. Solo se
+// usa para roles cuyo módulo completo es suyo (control_escolar con escolar_* y
+// alumno_*); esas acciones validan rol y escuela por dentro. Para roles que no
+// deben heredar nada nuevo ('alumno', 'direccion') la lista es explícita.
+function accion_en_allowlist($accion, array $lista) {
+    if (in_array($accion, $lista, true)) return true;
+    foreach ($lista as $entrada) {
+        if (strlen($entrada) > 2 && substr($entrada, -2) === '_*'
+            && strpos($accion, substr($entrada, 0, -1)) === 0) {
+            return true;
+        }
+    }
+    return false;
+}
+// [F4] Equivalente de validar_admin_sobre_usuario() para 'control_escolar': su
+// "Mi equipo" se limita a docentes y cuentas de alumno de SU escuela. Una cuenta
+// de admin, cajero, dirección u otra coordinación no se toca (y un id de otro
+// colegio responde igual que uno inexistente). No hace nada para otros roles.
+function validar_control_escolar_sobre_usuario($pdo, $rol_actual, $usuario_actual, $id, $mensaje = 'No tienes permiso para esta acción.') {
+    if ($rol_actual !== 'control_escolar') return;
+    $chk = $pdo->prepare("SELECT escuela_id, rol FROM usuarios WHERE id = ?");
+    $chk->execute([$id]);
+    $objetivo = $chk->fetch();
+    if (!$objetivo || !in_array($objetivo['rol'], ['docente', 'alumno'], true)
+        || intval($objetivo['escuela_id']) !== intval($usuario_actual['escuela_id'] ?? -1)) {
+        http_response_code(403);
+        respond(['success' => false, 'error' => $mensaje]);
+    }
+}
+// [F4] Roles del colegio que operan alumnos/familias/control escolar pero NO ven
+// dinero: coordinación académica y dirección. cargar_datos y las respuestas de
+// editar_cliente/editar_familia/alumno_fila_para_respuesta los usan para no
+// mandarles cobros, CLABEs, tokens de tarjeta, saldos ni datos fiscales.
+function rol_sin_finanzas($rol) {
+    return in_array($rol, ['control_escolar', 'direccion'], true);
+}
+// [F4] Quita de una fila (alumno, familia, plantel) las columnas financieras.
+// Es una lista NEGRA por nombre de columna, a propósito: las filas vienen de
+// SELECT * y aquí no se conoce el esquema completo; cualquier columna que huela
+// a dinero o a datos fiscales (CLABE, token de tarjeta, CAI/domiciliación,
+// saldo, RFC, razón social, régimen, factura/CFDI, cobros, pagos, bancos) sale.
+// Una columna financiera nueva con un nombre que no encaje aquí SÍ se filtraría:
+// al agregar una a clientes/familias, revisa este patrón.
+function quitar_campos_financieros(array $fila) {
+    foreach (array_keys($fila) as $k) {
+        if (preg_match('/clabe|token|tarjeta|(^|_)cai(_|$)|saldo|rfc|razon_social|regimen|factura|cfdi|cobro|pago|banco|comision|colegiatura/i', (string) $k)) {
+            unset($fila[$k]);
+        }
+    }
+    return $fila;
 }
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 // El switch gigante de 79 casos se reemplazó por un despacho a archivos
@@ -647,6 +745,51 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'alumno_aviso_privacidad_aceptar', 'escolar_kardex',
         'monedero_saldo', 'monedero_movimientos', 'monedero_recargar', 'monedero_config_guardar',
     ],
+    // [F4] Roles nuevos del colegio (18-nov-2026). Ninguno es de plataforma
+    // (todos tienen escuela_id) pero van en este allowlist por la misma razón que
+    // 'docente': un rol nuevo no debe heredar el hueco de las ~25 acciones que
+    // escriben sin llamar a requerir_rol(). Son listas CERRADAS: lo que no esté
+    // aquí se niega con 403 antes de despachar. (La coincidencia por 'prefijo_*'
+    // la resuelve accion_en_allowlist().)
+    //
+    // Alumno: su propio portal (views/PortalAlumno.js). Lista EXPLÍCITA, sin
+    // comodines: cada acción valida por dentro que el alumno sea él mismo
+    // (requerir_alumno_propio / escolar_requerir_alumno_visible). Sin cargar_datos
+    // ni nada de cobranza: no ve adeudos de su familia.
+    'alumno' => [
+        'alumno_resumen', 'escolar_boleta', 'escolar_kardex',
+        'monedero_saldo', 'monedero_movimientos', // F6: si esa fase aún no se integra, responde "Acción no reconocida"
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    ],
+    // Coordinación académica: alumnos, familias, expediente y control escolar.
+    // NADA de cobranza, caja, facturación, gastos ni productos; cargar_datos le
+    // llega sin información financiera (ver acciones/cargar_datos.php). Los
+    // comodines cubren el módulo escolar y el expediente (F1/F2/F3), cuyas
+    // acciones validan rol y escuela por dentro. Ojo: abren también las acciones
+    // FUTURAS 'escolar_*' / 'alumno_*' -- si alguna es de cobranza, no la nombres así.
+    // alumno_resumen cae en 'alumno_*' pero exige rol 'alumno' por dentro.
+    'control_escolar' => [
+        'escolar_*', 'alumno_*',
+        'cargar_datos',
+        'crear_cliente', 'editar_cliente', 'toggle_cliente_activo', 'importar_alumnos', 'subir_foto_cliente',
+        'crear_familia', 'editar_familia',
+        // Mi equipo, limitado a docentes y cuentas de alumno de su escuela (lo
+        // validan crear_usuario / listar_usuarios / toggle_usuario /
+        // reenviar_credenciales por dentro).
+        'listar_usuarios', 'crear_usuario', 'toggle_usuario', 'reenviar_credenciales',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    ],
+    // Dirección: SOLO LECTURA académica y de alumnos. Lista explícita a propósito
+    // (sin comodines): un 'escolar_*' le abriría también las acciones que escriben.
+    'direccion' => [
+        'cargar_datos',
+        'escolar_catalogos', 'escolar_grupo_detalle', 'escolar_asistencia_obtener',
+        'escolar_asistencia_reporte', 'escolar_calificaciones_obtener',
+        'escolar_resumen_grupo', 'escolar_boleta', 'escolar_kardex', 'escolar_horario_docente',
+        'alumno_expediente_obtener', 'alumno_tutores_listar', 'alumno_documentos_listar',
+        'alumno_documento_descargar', 'alumno_movimientos_listar',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    ],
 ];
 // [F0] Modo registro de la allowlist de 'familia'. A diferencia de los roles
 // nuevos, 'familia' lleva meses en producción y su lista se armó con grep, no
@@ -676,12 +819,12 @@ $rol_plataforma_actual = $usuario_actual['rol'] ?? '';
 // para ESTA petición vaciando $rol_plataforma_actual, así el candado genérico
 // de abajo no la corta y su código no tuvo que cambiar.
 if ($rol_plataforma_actual === 'familia' && !ALLOWLIST_FAMILIA_ESTRICTA
-    && !in_array($action, $ACCIONES_POR_ROL_PLATAFORMA['familia'], true)) {
+    && !accion_en_allowlist($action, $ACCIONES_POR_ROL_PLATAFORMA['familia'])) { // [F4] admite 'prefijo_*'
     log_api("FAMILIA_FUERA_ALLOWLIST accion={$action} user_id=" . ($usuario_actual['user_id'] ?? '?'));
     $rol_plataforma_actual = '';
 }
 if (isset($ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual])
-    && !in_array($action, $ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual], true)) {
+    && !accion_en_allowlist($action, $ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual])) { // [F4] admite 'prefijo_*'
     log_api("BLOQUEADO por allowlist de plataforma -> rol={$rol_plataforma_actual} accion={$action} user_id=" . ($usuario_actual['user_id'] ?? '?'));
     http_response_code(403);
     respond(['success' => false, 'error' => 'Tu rol no tiene acceso a esta acción.']);
