@@ -402,6 +402,8 @@
                     'xml'            => '',
                     'qr_url'         => $c['factura_qr_url'],
                     'facturapi_id'   => $c['facturapi_id'],
+                    // [OF-2] 'pendiente' = cancelación esperando al receptor (NULL si no hay ninguna).
+                    'cancelacion_estado' => $c['factura_cancelacion_estado'] ?? null,
                 ];
             }
             return $c;

@@ -27,6 +27,11 @@ function facturapi_request($ruta, $metodo = 'GET', $payload = null) {
         $opts[CURLOPT_POST] = true;
         $opts[CURLOPT_POSTFIELDS] = json_encode($payload);
         $opts[CURLOPT_HTTPHEADER][] = 'Content-Type: application/json';
+    } elseif ($metodo === 'DELETE') {
+        // [OF-2] Cancelar factura: DELETE /v2/invoices/{id}?motive=..&substitution=..
+        // Los parámetros viajan en la ruta (query string), sin cuerpo. Ver
+        // acciones/cancelar_cfdi.php.
+        $opts[CURLOPT_CUSTOMREQUEST] = 'DELETE';
     } else {
         // Descarga de XML/PDF (descargar_cfdi, enviar_factura_correo):
         // Facturapi puede responder con una redirección al binario real.
