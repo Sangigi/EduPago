@@ -286,5 +286,8 @@ Con la migración corrida, en un colegio de pruebas con un concepto recurrente d
   para el aviso y para `cancelado_monto_recibido`.
 * **Descuento mensual estimado** de "Becas del colegio": es una estimación (becas vigentes hoy × conceptos
   recurrentes activos × alcance del concepto, dividido entre la periodicidad); no es lo facturado.
-* **No se pudo ejecutar contra MySQL** (ver el reporte): la migración, las consultas y los flujos de la
-  interfaz se probaron solo con lint y pruebas unitarias de las funciones puras.
+* **Qué se probó y qué no:** la migración (incluido el bloque 5 y el backfill de folios), `cancelar_cobro`,
+  los folios de abono, las funciones de becas y las 5 acciones de notas se corrieron contra un MySQL
+  **8.4** local con un esquema mínimo; el cálculo de becas se comparó PHP contra JS con los mismos casos.
+  **No** se probó en MySQL 5.7 (el de producción), ni el cron completo, ni la interfaz en un navegador,
+  ni el timbrado real de una factura con renglones de beca.
