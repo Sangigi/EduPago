@@ -3,6 +3,8 @@
         // verificación de pertenencia de escuela -- cualquier sesión válida
         // (incluida una familia, o un admin de OTRO colegio) podía timbrar
         // el cobro de cualquier colegio, consumiendo timbres reales.
+        // [OF-2] IVA por concepto: un renglón por concepto en vez de uno solo al 16%.
+        require_once __DIR__ . '/../lib/helpers_impuestos.php';
         $rol_cfdi = $usuario_actual['rol'] ?? '';
         requerir_rol($rol_cfdi, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para facturar.');
 
@@ -48,13 +50,15 @@
         // timbrando "99 Por definir" en una factura que sí se pagó.
         $cobroCubierto = true;
         if ($cobro_id) {
+            // [OF-2] es_recarga_monedero solo se pide si la columna existe (F6).
+            $selRecargaCfdi = cobros_col_recarga_monedero($pdo) ? ', cb.es_recarga_monedero AS cobro_es_recarga' : '';
             $stmtAl = $pdo->prepare(
                 "SELECT c.nombre AS alumno_nombre, c.curp, c.nivel_educativo_sat,
                         e.rvoe AS escuela_rvoe, e.id AS escuela_id, e.es_plantel,
                         cb.escuela_id AS cobro_escuela_id, cb.factura AS cobro_ya_facturado,
                         cb.metodo AS cobro_metodo, cb.cc_type AS cobro_cc_type,
                         cb.total AS cobro_total, cb.monto_pagado AS cobro_monto_pagado,
-                        cb.estado AS cobro_estado
+                        cb.estado AS cobro_estado{$selRecargaCfdi}
                  FROM cobros cb
                  JOIN clientes c ON c.id = cb.cliente_id
                  JOIN escuelas e ON e.id = c.escuela_id
@@ -70,6 +74,12 @@
             // COBRO -- nunca compara contra la escuela del usuario. Este es
             // el check de pertenencia que faltaba.
             requerir_escuela_propia($rol_cfdi, $al['cobro_escuela_id'], $usuario_actual, 'No tienes permiso para facturar cobros de otra escuela.');
+            // [OF-2] Una recarga de monedero es dinero prepagado del alumno, no
+            // la venta de un bien o servicio: aún no hay nada que facturar (el
+            // CFDI se emite cuando el saldo se consume, no cuando se deposita).
+            if (!empty($al['cobro_es_recarga'])) {
+                respond(['success' => false, 'error' => 'Las recargas de monedero no se facturan: es dinero prepagado del alumno, no la venta de un bien o servicio.']);
+            }
             // NEGOCIO INDEPENDIENTE: cobra pero NO factura (23-sep-2026).
             //
             // Este if tiene que estar aquí, explícito, y no resolverse
@@ -185,6 +195,73 @@
         if ($iedu_complement) {
             $item_producto['complement'] = $iedu_complement;
         }
+        $items_payload = [$item_producto];
+        $iva_cfdi      = round($total - $subtotal, 2);
+        $total_cfdi    = $total;
+        $desglose_cfdi = null; // se guarda en cobros.factura_impuestos_json (lo usa el complemento de pago)
+
+        // ── [OF-2] Un renglón por concepto, con su IVA, clave SAT y unidad ──
+        //
+        // Si el cobro tiene cobro_items con snapshot de impuestos (cobros
+        // creados después de la migración de OF-2), se factura un renglón por
+        // concepto. Las becas (renglones negativos) se vuelven `discount`
+        // repartido entre los renglones positivos, y el complemento IEDU va
+        // SOLO en los renglones educativos (colegiatura, inscripción, anualidad).
+        //
+        // Cualquier otra situación (cobro sin items, renglones sin snapshot,
+        // total que no cuadra, migración sin correr) cae al comportamiento de
+        // siempre —un solo renglón al 16% de arriba— y queda en log_api.
+        //
+        // Payload por renglón (Facturapi API v2, POST /invoices):
+        //   {"quantity":N, "discount":<neto>, "complement":<IEDU solo en educativos>,
+        //    "product":{"description","product_key","unit_key","unit_name","price":<neto>,
+        //               "tax_included":false,"taxability":"02",
+        //               "taxes":[{"type":"IVA","factor":"Tasa","rate":0.16}   // 16%
+        //                        {"type":"IVA","factor":"Tasa","rate":0}      // tasa 0
+        //                        {"type":"IVA","factor":"Exento","rate":0}]}} // exento
+        // Fuentes: https://docs.facturapi.io/api/ (crear factura, producto:
+        // product_key, unit_key, tax_included, taxability, taxes) y el SDK
+        // oficial facturapi-node (enum TaxFactor = "Tasa" | "Cuota" | "Exento";
+        // InvoiceItemInput.discount = "monto total de descuento aplicado a este
+        // concepto"). Detalle del armado y por qué precios netos en
+        // lib/helpers_impuestos.php -> cfdi_armar_renglones().
+        $info_renglones = null;
+        if ($cobro_id && impuestos_items_listos($pdo)) {
+            try {
+                $stmtIt = $pdo->prepare(
+                    "SELECT ci.nombre, ci.cantidad, ci.precio_unitario, ci.subtotal,
+                            ci.iva_tasa, ci.clave_sat, ci.clave_unidad, p.categoria
+                     FROM cobro_items ci
+                     LEFT JOIN productos p ON p.id = ci.producto_id AND p.escuela_id = ?
+                     WHERE ci.cobro_id = ? ORDER BY ci.id"
+                );
+                $stmtIt->execute([$al['cobro_escuela_id'], $cobro_id]);
+                $filas_items = $stmtIt->fetchAll(PDO::FETCH_ASSOC);
+                if ($filas_items) {
+                    $info_renglones = cfdi_armar_renglones($filas_items, floatval($al['cobro_total'] ?? 0), $iedu_complement);
+                    if (!$info_renglones['ok']) {
+                        log_api("generar_cfdi -> un solo renglón (comportamiento anterior) cobro:{$cobro_id} motivo: " . $info_renglones['motivo']);
+                        $info_renglones = null;
+                    }
+                }
+            } catch (\PDOException $e) {
+                log_api("generar_cfdi -> no se pudo leer cobro_items para el desglose por concepto (cobro:{$cobro_id}): " . $e->getMessage());
+                $info_renglones = null;
+            }
+        }
+        if ($info_renglones) {
+            $items_payload = $info_renglones['items'];
+            $subtotal      = $info_renglones['subtotal'];
+            $iva_cfdi      = $info_renglones['iva'];
+            $total_cfdi    = $info_renglones['total'];
+            $desglose_cfdi = $info_renglones['desglose'];
+            if ($iedu_complement && $info_renglones['iedu_renglones'] === 0) {
+                log_api("generar_cfdi -> IEDU omitido: ningún renglón del cobro {$cobro_id} es colegiatura, inscripción o anualidad");
+            }
+            if (!empty($info_renglones['desviacion_centavos'])) {
+                log_api("generar_cfdi -> cobro:{$cobro_id} el CFDI queda {$info_renglones['desviacion_centavos']} centavo(s) por redondeo de IVA al 16% (inherente al CFDI)");
+            }
+        }
         // Forma de pago (catálogo c_FormaPago del SAT). ANTES estaba fija en
         // "03 Transferencia electrónica" para TODO: un cobro pagado en
         // efectivo en OXXO o con tarjeta se facturaba diciéndole al SAT que
@@ -213,7 +290,7 @@
                 "address"    => $customer_address,
                 "email"      => $email ?: null
             ],
-            "items" => [$item_producto],
+            "items" => $items_payload,
             "use"          => $uso,
             // PUE (Pago en Una Exhibición) solo si el cobro YA está cubierto.
             // Si no, PPD (Pago en Parcialidades o Diferido) con forma de pago
@@ -311,7 +388,7 @@
                     $response_data['folio_number'] ?? '',
                     $response_data['created_at'] ?? date('Y-m-d H:i:s'),
                     $subtotal,
-                    round($total - $subtotal, 2),
+                    $iva_cfdi,
                     $rfc,
                     $razon,
                     $uso,
@@ -321,8 +398,30 @@
                     'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($response_data['verification_url'] ?? ''),
                     $cobro_id,
                 ]);
+                // [OF-2] Desglose por tasa de ESTA factura (NULL = un solo
+                // renglón al 16%, como las de antes). El complemento de pago lo
+                // usa para que el impuesto del pago corresponda al de la
+                // factura. UPDATE aparte y con try/catch: sin la migración la
+                // columna no existe y la factura ya timbrada no debe perderse.
+                try {
+                    $pdo->prepare(
+                        "UPDATE cobros SET factura_impuestos_json = ?, factura_cancelacion_estado = NULL WHERE id = ?"
+                    )->execute([$desglose_cfdi ? json_encode($desglose_cfdi) : null, $cobro_id]);
+                } catch (\PDOException $e) {
+                    log_api("generar_cfdi -> no se guardó el desglose de impuestos (¿falta migrar OF-2?) cobro:{$cobro_id}: " . $e->getMessage());
+                }
             }
-            log_api("generar_cfdi -> EXITOSO cobro:{$cobro_id} uuid:{$uuid}");
+            // [OF-2] Cinturón y tirantes: si el PAC devuelve un total distinto al
+            // que armamos (±2 centavos de tolerancia por redondeo), la factura
+            // YA está timbrada, así que no se aborta: se avisa fuerte en el log y
+            // en la respuesta para que el colegio la revise (y la cancele si procede).
+            $advertencia_total = null;
+            if ($desglose_cfdi && isset($response_data['total']) && abs(floatval($response_data['total']) - $total_cfdi) > 0.02) {
+                $advertencia_total = 'El total timbrado ($' . number_format(floatval($response_data['total']), 2)
+                    . ') no coincide con el del cobro ($' . number_format($total_cfdi, 2) . '). Revisa la factura.';
+                log_api("generar_cfdi -> ALERTA total distinto cobro:{$cobro_id} uuid:{$uuid} pac:" . $response_data['total'] . " esperado:{$total_cfdi}");
+            }
+            log_api("generar_cfdi -> EXITOSO cobro:{$cobro_id} uuid:{$uuid}" . ($desglose_cfdi ? ' (un renglón por concepto)' : ''));
             respond([
                 'success'        => true,
                 'facturapi_id'   => $response_data['id'],
@@ -332,8 +431,9 @@
                 'folio'          => $response_data['folio_number'] ?? '',
                 'fecha_timbrado' => $response_data['created_at'] ?? date('Y-m-d\TH:i:s'),
                 'subtotal'       => $subtotal,
-                'iva'            => round($total - $subtotal, 2),
-                'total'          => $total,
+                'iva'            => $iva_cfdi,
+                'total'          => $total_cfdi,
+                'advertencia'    => $advertencia_total,
                 // Facturapi permite descargar el XML con una URL pública si configuras tu cuenta,
                 // o haciendo un GET a https://www.facturapi.io/v2/invoices/{id}/xml
                 'xml'            => '',
