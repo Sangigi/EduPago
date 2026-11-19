@@ -229,7 +229,8 @@ function verificar_token_auth() {
         $stmt = $pdo->prepare("SELECT id, rol, escuela_id, familia_id, cliente_id, activo, sesion_valida_desde FROM usuarios WHERE id = ?");
         $stmt->execute([intval($user_id)]);
     } catch (\PDOException $e) {
-        log_api("AUTH: usuarios.cliente_id no existe (¿falta migracion_2026_11_18_f4_roles.sql?), se reintenta sin la columna");
+        // Sin log_api() a propósito: corre en CADA petición autenticada y llenaría
+        // api_log.txt de líneas iguales hasta que se corra la migración.
         $stmt = $pdo->prepare("SELECT id, rol, escuela_id, familia_id, activo, sesion_valida_desde FROM usuarios WHERE id = ?");
         $stmt->execute([intval($user_id)]);
     }

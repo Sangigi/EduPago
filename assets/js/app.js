@@ -1099,7 +1099,7 @@ function App() {
     // No se pierde ningún pago por esto: el poller es comodidad de interfaz, y
     // la fuente de verdad del SPEI es el webhook (webhooks/webhook_spei.php
     // hace el UPDATE a 'pagado' del lado del servidor).
-    if (!ROLES_SIN_CARGAR_DATOS.includes(u.rol)) {
+    if (!ROLES_SIN_CARGAR_DATOS.includes(u.rol) && !['control_escolar', 'direccion'].includes(u.rol) /* [F4] sin cobros no hay SPEI que vigilar (y verificar_spei no está en su allowlist) */) {
       SpeiPoller.iniciar({
 
 
