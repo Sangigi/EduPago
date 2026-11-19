@@ -18,6 +18,9 @@
 // complementos. Un complemento necesita el UUID de la factura a la que se
 // liga, así que sin ella no hay nada que referenciar.
 
+// [OF-2] Desglose de impuestos por tasa (exento / 0 / 16%) del abono.
+require_once __DIR__ . '/../lib/helpers_impuestos.php';
+
 $rol = $usuario_actual['rol'] ?? '';
 requerir_rol($rol, ['superadmin', 'admin', 'cajero'], 'No tienes permiso para emitir complementos de pago.');
 
@@ -84,6 +87,29 @@ if ($saldoDespues < 0) $saldoDespues = 0.0; // sobrepago: el saldo no baja de ce
 // el cliente pagó), así que se retira con el mismo criterio de siempre
 // (dividir entre 1.16) que usa generar_cfdi.php para el subtotal.
 $baseAbono = round($montoAbono / 1.16, 2);
+
+// [OF-2] Impuestos del pago = los de la FACTURA original. Si la factura se
+// emitió con un renglón por concepto (cobros.factura_impuestos_json), el abono
+// se reparte entre sus tasas (exento / tasa 0 / 16%) en proporción a lo que
+// pesa cada una en el total de la factura. Si no hay desglose guardado (factura
+// de antes de OF-2, o migración sin correr) es un solo renglón al 16%: el
+// resultado es el de siempre (base = abono / 1.16).
+// Fuente del formato: Facturapi API v2, complemento "pago" ->
+// related_documents[].taxes: {base, type, rate, factor: Tasa|Cuota|Exento,
+// withholding} (https://docs.facturapi.io/api/ y SDK facturapi-node).
+$desgloseFactura = null;
+try {
+    $stmtDes = $pdo->prepare("SELECT factura_impuestos_json, factura_cancelacion_estado FROM cobros WHERE id = ?");
+    $stmtDes->execute([$ab['cobro_id']]);
+    $filaDes = $stmtDes->fetch(PDO::FETCH_ASSOC) ?: [];
+    $desgloseFactura = cfdi_desglose_decodificar($filaDes['factura_impuestos_json'] ?? null);
+    if (($filaDes['factura_cancelacion_estado'] ?? '') === 'pendiente') {
+        respond(['success' => false, 'error' => 'La factura de este cobro tiene una cancelación pendiente de aceptación del receptor. Espera a que se resuelva antes de emitir complementos.']);
+    }
+} catch (\PDOException $e) {
+    // Columna nueva: sin la migración se queda en el comportamiento anterior.
+}
+$taxesPago = cfdi_impuestos_pago($desgloseFactura, $montoAbono, $totalCobro);
 
 // Número de parcialidad: cuántos abonos hubo antes de este, más uno.
 $stmtN = $pdo->prepare("SELECT COUNT(*) FROM cobro_abonos WHERE cobro_id = ? AND id <= ?");
@@ -158,7 +184,7 @@ $payload = [
                 'amount'       => $montoAbono,
                 'installment'  => $numParcialidad,
                 'last_balance' => $saldoAntes,
-                'taxes'        => [['type' => 'IVA', 'rate' => 0.16, 'base' => $baseAbono, 'withholding' => false]],
+                'taxes'        => $taxesPago,
             ]],
         ]],
     ]],
