@@ -767,3 +767,58 @@ Módulo académico nuevo, independiente del de cobros. **Antes de subir el códi
 - **Familia** — pestaña "Escolar" en el portal con calificaciones, asistencia, faltas recientes y boleta imprimible de sus hijos.
 - **Superadmin** — las 4 secciones (`escolar_*`) se pueden apagar por colegio o globalmente como cualquier otra.
 - Reglas de acceso centralizadas en `lib/helpers_escolar.php`; acciones en `acciones/escolar_*.php`.
+
+---
+
+## Gestión de estudiantes (nov-2026)
+
+Proyecto en 7 fases, integradas en la rama `est/integracion`. El detalle de cada una (qué cambió, por qué, cómo probarla) está en `docs/estudiantes/f1.md` … `f6.md`; aquí va solo lo necesario para desplegar.
+
+| Fase | Qué agrega | Migración |
+|---|---|---|
+| F0 | Candados de autorización: caja, alta de familias/alumnos, CLABE, recordatorios. Allowlist de familia en modo registro. | — |
+| F1 | Ciclo de vida del alumno: estatus (activo, baja temporal/definitiva, egresado, traslado), historial de movimientos, qué hacer con los adeudos al dar de baja. | `migracion_2026_11_18_f1_ciclo_vida.sql` |
+| F2 | Expediente: datos médicos, tutores, documentos privados, aviso de privacidad. | `migracion_2026_11_18_f2_expediente.sql` |
+| F3 | Catálogo de grados, publicar periodos, cerrar ciclo, promoción y kárdex. | `migracion_2026_11_18_f3_control_escolar.sql` |
+| F4 | Roles `control_escolar`, `direccion` y `alumno` (portal propio del alumno). | `migracion_2026_11_18_f4_roles.sql` |
+| F5 | Conceptos de pago por grado o por grupo (colegiatura distinta por grado). | `migracion_2026_11_18_f5_colegiatura_grado.sql` |
+| F6 | Monedero del alumno, tiendita (rol `tienda`) y recargas. | `migracion_2026_11_18_f6_monedero.sql` |
+
+### Orden de despliegue
+
+1. **Respaldo** de la base desde phpMyAdmin (Exportar → SQL).
+2. En el servidor, **anota el commit actual** antes de tocar nada: `git log -1 --oneline`. Es el punto al que regresas si algo sale mal.
+3. **Migraciones en phpMyAdmin, ANTES del `git pull`, en este orden:** f1 → f2 → f3 → f4 → f5 → f6. Cada archivo trae en su cabecera qué hace y qué cuidar. Producción es MySQL 5.7 (no tiene `ADD COLUMN IF NOT EXISTS`), así que cada columna va en su propia sentencia: si una marca *Duplicate column name* o *Duplicate key name*, ya existía; sáltala y sigue con las demás.
+   - **F2:** corre solo la PARTE 1. La PARTE 2 (crear un tutor por alumno a partir de su familia) es opcional y viene comentada.
+   - **F3 — cuidado con el paso 5b.** El `UPDATE periodos_evaluacion SET publicado = 1` publica todos los periodos existentes, para que las familias sigan viendo lo que ya veían. Córrelo **solo** si el `ALTER` 5a acaba de funcionar. Si el 5a dice *Duplicate column name 'publicado'*, la migración ya se había corrido: **no** corras el UPDATE, porque volvería a publicar periodos que el colegio ocultó a propósito.
+   - **F3 es la que no perdona el orden:** si el código llega antes que esta migración, el módulo escolar completo se detiene (docentes y familias incluidos) con un aviso de "falta correr la migración".
+   - **F6:** el `ALTER TABLE cobros` y el de `escuelas.monedero_activo` no son idempotentes; si ya existen, sáltalos.
+4. `git pull` en el servidor.
+5. Verificación rápida, con un usuario de cada rol:
+   - Admin: Alumnos, Familias, Caja e Historial de cobros cargan como siempre. Con un alumno **de prueba** (no uno real: la baja ofrece cancelar sus adeudos y desactiva su cuenta), cambia el estatus a "baja temporal" y regrésalo a "activo"; debe quedar en su historial.
+   - Cajero: Ingresos y Corte de caja cargan (desde F0 solo ve y mueve su propia caja).
+   - Familia: el portal carga sus adeudos y la pestaña Escolar como siempre.
+   - Revisa `api_log.txt` por errores nuevos.
+
+**Volver atrás:** todas las migraciones son aditivas (tablas nuevas y columnas con valor por defecto), así que el código anterior sigue funcionando con la base ya migrada. Para regresar el código: `git status` (confirma que solo aparezcan archivos locales del servidor, como `config.php`) y luego `git reset --keep <commit-anotado>`. `--keep` no pisa cambios locales; si chocara con alguno, se detiene sin hacer nada.
+
+### Después del despliegue
+
+- **Grados (F3/F5):** en cada colegio, en Control escolar, pestaña *Grados*: cargar el catálogo y usar el asistente "Ligar alumnos al catálogo de grados" para ligar el grado de texto de cada alumno con el catálogo. Hasta hacerlo, la promoción y los cobros por grado no tienen a quién aplicar (un concepto con alcance por grado sin alumnos mapeados no genera nada, a propósito).
+- **Monedero (F6):** nace **apagado** en todos los colegios. Se activa por colegio desde *Monedero → Configuración*. El vendedor de la tiendita se da de alta en *Mi equipo* con el rol "Tiendita".
+- **Allowlist de familia en modo estricto (F0).** Hoy está en modo registro: una familia que llama una acción fuera de su lista pasa, pero queda anotada. Después de ~1 semana en producción:
+  1. `grep FAMILIA_FUERA_ALLOWLIST api_log.txt`
+  2. Si aparece una acción legítima del portal, agrégala a la lista `'familia'` de `api.php` (con un commit).
+  3. Con el log limpio, agrega `define('ALLOWLIST_FAMILIA_ESTRICTA', true);` en `config.php`. Desde ahí, lo que esté fuera de la lista recibe 403. `config.php` está versionado: hazlo con un commit para que el siguiente `git pull` no choque. Para volver al modo registro basta con quitar la línea.
+- **Archivos privados (F2):** los documentos del expediente se guardan en `uploads_privados/escuela_<id>/alumnos/<cliente_id>/`, protegida con `.htaccess` (`Require all denied`). La carpeta debe poder escribirse por PHP. Esos archivos no están en git: nunca hagas `git add -A` en el servidor.
+
+### Roles nuevos
+
+| Rol | Quién lo crea | Qué puede hacer |
+|---|---|---|
+| `control_escolar` | admin | Alumnos, familias, expediente y control escolar. Nada de cobranza, caja ni facturación; `cargar_datos` le llega sin montos. Da de alta docentes y cuentas de alumno. |
+| `direccion` | admin | Solo lectura académica y de alumnos. |
+| `alumno` | admin o control escolar, desde la ficha del alumno ("Acceso del alumno") | Su portal: calificaciones publicadas, kárdex, boleta y su monedero. No ve los adeudos de su familia. La cuenta se desactiva sola cuando el alumno deja de estar activo. |
+| `tienda` | admin | Punto de venta de la tiendita: busca al alumno, cobra con su monedero, ve y cancela sus ventas del día. |
+
+Los cuatro tienen allowlist cerrada en `api.php`: lo que no está en su lista recibe 403 antes de llegar a `acciones/`.
