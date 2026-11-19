@@ -1,6 +1,8 @@
 <?php
         // [F5] Alcance del concepto (todos / grados / grupos): reglas en un solo lugar.
         require_once __DIR__ . '/../lib/helpers_alcance_producto.php';
+        // [OF-2] IVA por concepto, clave SAT y unidad.
+        require_once __DIR__ . '/../lib/helpers_impuestos.php';
         $rol_actual = $usuario_actual['rol'] ?? '';
         requerir_rol($rol_actual, ['superadmin', 'admin'], 'No tienes permiso para editar conceptos de pago.');
         $id = intval($input['id'] ?? 0);
@@ -52,6 +54,24 @@
                 $vals[] = $alc['alcance_ids'];
             } elseif ($alc['alcance'] !== 'todos') {
                 respond(['success' => false, 'error' => 'Para cobrar por grado o por grupo falta correr la migración migracion_2026_11_18_f5_colegiatura_grado.sql. Mientras tanto, guárdalo como "Todos los alumnos".']);
+            }
+        }
+        // [OF-2] IVA / clave SAT / unidad. Solo se tocan los campos que vienen en
+        // el input (un Productos.js viejo en caché no los manda y no debe
+        // regresar a '16' un concepto que ya se marcó como exento). Cambiarlos
+        // NO altera cobros ya creados: sus renglones guardan su propio snapshot.
+        $imp = impuestos_validar_input($input);
+        if (!$imp['ok']) respond(['success' => false, 'error' => $imp['error']]);
+        if ($imp['campos']) {
+            if (impuestos_productos_listos($pdo)) {
+                foreach ($imp['campos'] as $campoImp => $valorImp) {
+                    $sets[] = "`$campoImp` = ?";
+                    $vals[] = $valorImp;
+                }
+            } elseif (($imp['campos']['iva_tasa'] ?? '16') !== '16'
+                || ($imp['campos']['clave_sat'] ?? IMPUESTO_CLAVE_SAT_DEFAULT) !== IMPUESTO_CLAVE_SAT_DEFAULT
+                || ($imp['campos']['clave_unidad'] ?? IMPUESTO_UNIDAD_DEFAULT) !== IMPUESTO_UNIDAD_DEFAULT) {
+                respond(['success' => false, 'error' => 'Para configurar IVA, clave SAT y unidad falta correr la migración migracion_2026_11_19_of2_impuestos.sql.']);
             }
         }
         if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);

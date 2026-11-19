@@ -58,6 +58,8 @@ $resumen = [];
 // filtro que usa el bloque 0 vive ahí, compartido con la vista previa de
 // Productos.js para que lo que ve el colegio sea lo que de verdad se cobra.
 require_once __DIR__ . '/lib/helpers_alcance_producto.php';
+// [OF-2] Snapshot de IVA / clave SAT / unidad en cobro_items.
+require_once __DIR__ . '/lib/helpers_impuestos.php';
 
 // ══════════════════════════════════════════════════════════════════════════
 // 0) PAGOS RECURRENTES: genera el cobro del periodo (colegiatura mensual/
@@ -130,10 +132,9 @@ try {
                     "INSERT INTO pagos_recurrentes_generados (producto_id, cliente_id, periodo, cobro_id) VALUES (?, ?, ?, ?)"
                 )->execute([$prod['id'], $al['id'], $mesActual, $cobroId]);
                 try {
-                    $pdo->prepare(
-                        "INSERT INTO cobro_items (cobro_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
-                         VALUES (?, ?, ?, 1, ?, ?)"
-                    )->execute([$cobroId, $prod['id'], $prod['nombre'], $prod['precio'], $prod['precio']]);
+                    // [OF-2] Con snapshot de IVA / clave SAT / unidad del concepto
+                    // (si la migración ya corrió); si no, el INSERT de siempre.
+                    impuestos_insertar_item($pdo, $prod['escuela_id'], $cobroId, $prod['id'], $prod['nombre'], 1, $prod['precio'], $prod['precio']);
                 } catch (\PDOException $eItem) { /* cobro_items es opcional (ver crear_cobro), no crítico */ }
                 // CRÍTICO: Portal Familia no lee `cobros` en vivo, muestra
                 // `clientes.saldo_pendiente` (igual que hace crear_cobro en

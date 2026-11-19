@@ -157,21 +157,26 @@
         // Envuelto en try/catch: si `cobro_items` aún no existe (falta migrar),
         // el cobro en sí NO debe fallar — es lo crítico.
         try {
-            $stmtItem = $pdo->prepare(
-                "INSERT INTO cobro_items (cobro_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
-                 VALUES (?, ?, ?, ?, ?, ?)"
-            );
+            // [OF-2] Además del nombre/precio, cada renglón guarda el IVA, la
+            // clave SAT y la unidad que tenía su concepto en este momento
+            // (snapshot), para facturar un renglón por concepto. El concepto se
+            // busca SOLO dentro de $escuela_id: el id del carrito viene del
+            // navegador. Sin migración, sin producto o con un concepto ajeno,
+            // el renglón se guarda como siempre (sin snapshot).
+            require_once __DIR__ . '/../lib/helpers_impuestos.php';
             foreach ($carrito as $item) {
                 $precio = floatval($item['precio'] ?? 0);
                 $qty    = intval($item['qty'] ?? 1);
-                $stmtItem->execute([
+                impuestos_insertar_item(
+                    $pdo,
+                    $escuela_id,
                     $cobro_id,
                     intval($item['id'] ?? 0) ?: null,
                     trim($item['nombre'] ?? 'Concepto'),
                     $qty,
                     $precio,
-                    $precio * $qty,
-                ]);
+                    $precio * $qty
+                );
             }
         } catch (\PDOException $e) {
             // Ver la nota en acciones/cargar_datos.php: __DIR__ aqui es acciones/.
