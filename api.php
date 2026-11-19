@@ -568,6 +568,27 @@ function accion_en_allowlist($accion, array $lista) {
     }
     return false;
 }
+// [OF-4b] Decisión del candado por allowlist, como función PURA (sin log, sin
+// respond(), sin tocar globales) para poder probarla fuera de api.php.
+// Devuelve:
+//   'permitir'  el rol no tiene lista, o la acción está en ella;
+//   'registrar' la acción está FUERA de la lista pero el rol está en modo
+//               registro (el llamador la deja pasar y la anota en api_log.txt);
+//   'bloquear'  fuera de la lista y sin modo registro: 403.
+// Modo registro: 'familia' mientras ALLOWLIST_FAMILIA_ESTRICTA sea false, y
+// 'admin', 'cajero', 'contador' y 'distribuidor' mientras ALLOWLIST_ROLES_ESTRICTA
+// sea false. Todos los demás roles con lista (soporte, provision, promotor,
+// tesoreria, docente, alumno, control_escolar, direccion, tienda) son siempre
+// estrictos. 'superadmin' no tiene lista: siempre 'permitir'.
+function decision_allowlist_rol($rol, $accion, array $listas, $familia_estricta, $roles_estricta) {
+    if (!isset($listas[$rol])) return 'permitir';
+    if (accion_en_allowlist($accion, $listas[$rol])) return 'permitir';
+    if ($rol === 'familia') return $familia_estricta ? 'bloquear' : 'registrar';
+    if (in_array($rol, ['admin', 'cajero', 'contador', 'distribuidor'], true)) {
+        return $roles_estricta ? 'bloquear' : 'registrar';
+    }
+    return 'bloquear';
+}
 // [F4] Equivalente de validar_admin_sobre_usuario() para 'control_escolar': su
 // "Mi equipo" se limita a docentes y cuentas de alumno de SU escuela. Una cuenta
 // de admin, cajero, dirección u otra coordinación no se toca (y un id de otro
@@ -635,12 +656,16 @@ if (!preg_match('/^[a-z_]+$/', $action)) {
 // escriba nace insegura otra vez), estos tres roles pasan a un allowlist
 // EXPLÍCITO aquí, antes del despacho. Lo que no esté en su lista, se niega.
 //
-// Deliberadamente NO cambia el comportamiento de los roles que ya existían
+// Deliberadamente NO cambió el comportamiento de los roles que ya existían
 // (admin, cajero, familia, contador, distribuidor): ese hueco es anterior a
 // estos roles y arreglarlo a ciegas rompería endpoints en producción. Queda
 // documentado en PRODUCCION.md como trabajo aparte.
 // [F0] Excepción desde el 18-nov-2026: 'familia' ya tiene lista propia, en
 // modo registro (ver la entrada 'familia' y ALLOWLIST_FAMILIA_ESTRICTA).
+// [OF-4b] Excepción desde el 19-nov-2026: 'admin', 'cajero', 'contador' y
+// 'distribuidor' también tienen lista, en MODO REGISTRO (ver las entradas
+// de esos roles y ALLOWLIST_ROLES_ESTRICTA). Solo 'superadmin' queda SIN lista,
+// a propósito: puede todo.
 $ACCIONES_POR_ROL_PLATAFORMA = [
     // Solo lectura. Su trabajo es mirar cualquier colegio para poder atender.
     'soporte' => [
@@ -755,6 +780,145 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'alumno_aviso_privacidad_aceptar', 'escolar_kardex',
         'monedero_saldo', 'monedero_movimientos', 'monedero_recargar', 'monedero_config_guardar',
     ],
+    // [OF-4b] admin, cajero, contador y distribuidor (19-nov-2026). Son los roles
+    // más viejos y los que más pegan al hueco de las ~25 acciones sin
+    // requerir_rol(): hasta hoy un cajero con su token podía llamar, p. ej.,
+    // listar_usuarios (que le devuelve el equipo del colegio) o cualquier acción
+    // futura que se escriba sin guardia. Estas listas son lo que cada rol usa
+    // HOY desde su pantalla (inventario y método en
+    // docs/mejoras-of/of4-permisos-inventario.md, generado con
+    // herramientas/inventario-permisos.php).
+    //
+    // Arrancan en MODO REGISTRO (ver ALLOWLIST_ROLES_ESTRICTA más abajo): lo que
+    // quede fuera se deja pasar pero se anota "ROL_FUERA_ALLOWLIST" en
+    // api_log.txt. Lo marcado DUDOSA entró por el criterio "ante la duda, se
+    // incluye": el backend admite al rol pero ninguna pantalla suya la llama hoy;
+    // si tras una semana de log nadie la usa, se puede quitar.
+    //
+    // OJO: este allowlist corre ANTES del despacho. Un rol nuevo en el
+    // requerir_rol de una acción NO basta: hay que agregarla aquí también.
+    // Los comodines 'prefijo_*' solo se usan donde TODO el prefijo es del rol
+    // (caja_*, distribuidor_*): abren también las acciones futuras con ese prefijo.
+    //
+    // Admin: todo el colegio (caja, cobranza, facturación, alumnos, control
+    // escolar, equipo, gastos, catálogos, suscripción, monedero y tiendita).
+    'admin' => [
+        // Arranque y cuenta propia.
+        'cargar_datos', 'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+        'editar_logo_escuela',
+        // Caja y corte (todas las caja_* son de admin/cajero).
+        'caja_*',
+        // Cobros: crear, cobrar por cada método, seguimiento y cancelación.
+        'crear_cobro', 'cancelar_cobro', 'marcar_cheque_rebotado', 'confirmar_pago',
+        'verificar_spei', 'detalle_cobro', 'listar_cobros', 'tendencia_cobranza',
+        'generar_liga', 'generar_referencia_efectivo', 'cobrar_cai',
+        'listar_pagos_no_aplicados', 'resolver_pago_no_aplicado',
+        // Domiciliación (en pausa). DUDOSA: ninguna pantalla de admin las llama;
+        // el backend sí lo admite (las pinta el portal de familia).
+        'cancelar_cai', 'iniciar_firma_cai',
+        // Facturación.
+        'generar_cfdi', 'enviar_factura_correo', 'descargar_cfdi', 'descargar_complemento_pago',
+        'generar_complemento_pago', 'abonos_sin_complemento_listar',
+        'cancelar_cfdi', 'cancelar_cfdi_actualizar', 'cfdi_cancelaciones_listar',
+        // CLABEs. DUDOSAS: asignar_clabe_pool, asignar_clabe_pool_masivo,
+        // liberar_clabe_individual (sin llamador) e importar_clabes /
+        // eliminar_clabes_pool (solo las pinta Escuelas.js, de superadmin).
+        'generar_clabe_individual', 'generar_clabes_individual_masivo', 'liberar_clabe_pool',
+        'liberar_clabe_individual', 'asignar_clabe_pool', 'asignar_clabe_pool_masivo',
+        'importar_clabes', 'eliminar_clabes_pool',
+        // Cobranza: notas, compromisos de pago y recordatorios.
+        'compromisos_pago_listar', 'familia_nota_cumplida', 'familia_nota_eliminar',
+        'familia_nota_guardar', 'familia_notas_listar',
+        'enviar_recordatorio_correo', 'marcar_recordatorio',
+        // Alumnos y familias.
+        'crear_cliente', 'editar_cliente', 'toggle_cliente_activo', 'importar_alumnos', 'subir_foto_cliente',
+        'crear_familia', 'editar_familia',
+        // Ciclo de vida del alumno, becas y expediente.
+        'alumno_cambiar_estatus', 'alumno_cobros_pendientes', 'alumno_movimientos_listar',
+        'alumno_beca_desactivar', 'alumno_beca_guardar', 'alumno_becas_listar',
+        'alumno_expediente_guardar', 'alumno_expediente_obtener',
+        'alumno_tutor_eliminar', 'alumno_tutor_guardar', 'alumno_tutores_listar',
+        'alumno_documento_descargar', 'alumno_documento_eliminar', 'alumno_documento_subir',
+        'alumno_documentos_listar',
+        // Control escolar (lista explícita: un 'escolar_*' abriría también las futuras).
+        'escolar_asistencia_guardar', 'escolar_asistencia_obtener', 'escolar_asistencia_reporte',
+        'escolar_baja_alumno_grupo', 'escolar_boleta', 'escolar_buscar_alumnos',
+        'escolar_calificaciones_guardar', 'escolar_calificaciones_obtener',
+        'escolar_cargar_catalogo_grados', 'escolar_catalogos', 'escolar_cerrar_ciclo',
+        'escolar_cerrar_periodo', 'escolar_grupo_detalle', 'escolar_guardar_aula',
+        'escolar_guardar_ciclo', 'escolar_guardar_grado', 'escolar_guardar_grupo',
+        'escolar_guardar_grupo_materia', 'escolar_guardar_horario', 'escolar_guardar_materia',
+        'escolar_horario_docente', 'escolar_inscribir_alumnos', 'escolar_kardex',
+        'escolar_mapear_grados', 'escolar_promover', 'escolar_publicar_periodo',
+        'escolar_resumen_grupo',
+        // Mi equipo.
+        'listar_usuarios', 'crear_usuario', 'toggle_usuario', 'eliminar_usuario',
+        'cerrar_sesiones_usuario', 'reenviar_credenciales', 'listar_zonas',
+        // Gastos, proveedores y conceptos de pago.
+        'listar_gastos', 'crear_gasto', 'editar_gasto', 'eliminar_gasto', 'subir_comprobante_gasto',
+        'crear_proveedor', 'editar_proveedor', 'toggle_proveedor_activo',
+        'crear_producto', 'editar_producto', 'toggle_producto_activo', 'producto_alcance_vista_previa',
+        // Mi colegio: datos, suscripción, documentos y contrato.
+        'escuela_editar_propia', 'escuela_generar_pago_renovacion', 'escuela_guardar_datos_pago',
+        'escuela_obtener_datos_pago', 'suscripcion_pagos_listar',
+        'subir_documento_escuela', 'subir_contrato_firmado', 'listar_documentos_escuela',
+        // DUDOSAS: el backend admite al admin pero su pantalla no las llama (las
+        // usa provisión/contador o la ficha de colegio del superadmin).
+        'descargar_documento_escuela', 'descargar_contrato_firmado',
+        'planteles_de_escuela', 'crear_plantel', 'editar_plantel', 'eliminar_plantel', 'toggle_plantel',
+        // DUDOSAS: invitar colegios (hoy solo Escuelas/Distribuidor/Promotor).
+        'invitacion_crear', 'invitacion_regenerar', 'invitaciones_listar',
+        // Monedero y tiendita. DUDOSAS: monedero_saldo / movimientos / recargar /
+        // config_guardar (el backend admite al admin; su pantalla usa reporte y
+        // ajustes, no estas).
+        'monedero_activar', 'monedero_ajuste', 'monedero_recarga_caja', 'monedero_reporte',
+        'monedero_saldo', 'monedero_movimientos', 'monedero_recargar', 'monedero_config_guardar',
+        'tienda_buscar_alumno', 'tienda_cancelar_venta', 'tienda_producto_guardar',
+        'tienda_productos_listar', 'tienda_vender', 'tienda_ventas_dia',
+    ],
+    // Cajero: caja y cobro del día, más consultar/dar de alta alumnos. NO ve
+    // gastos, facturación en lote, catálogos, equipo ni configuración. Cada
+    // acción valida por dentro (requerir_rol / escuela propia); esta lista solo
+    // corta lo que su pantalla nunca llama. Sin listar_usuarios aunque la
+    // acción no valida rol: Alumnos.js solo la pide con puedeAccesoAlumno.
+    'cajero' => [
+        'cargar_datos', 'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+        // Caja y corte.
+        'caja_*',
+        // Cobros.
+        'crear_cobro', 'cancelar_cobro', 'marcar_cheque_rebotado', 'confirmar_pago',
+        'verificar_spei', 'detalle_cobro', 'listar_cobros', 'tendencia_cobranza',
+        'generar_liga', 'generar_referencia_efectivo', 'cobrar_cai',
+        'generar_cfdi', 'enviar_factura_correo', 'generar_clabe_individual',
+        // DUDOSAS: el backend nombra al cajero pero ninguna pantalla la llama.
+        'iniciar_firma_cai', 'asignar_clabe_pool',
+        // Alta de alumnos y becas (solo lectura).
+        'crear_cliente', 'alumno_becas_listar',
+        // Notas de cobranza.
+        'compromisos_pago_listar', 'familia_nota_cumplida', 'familia_nota_eliminar',
+        'familia_nota_guardar', 'familia_notas_listar',
+        // Monedero: recarga en ventanilla y búsqueda de alumno.
+        'monedero_recarga_caja', 'tienda_buscar_alumno',
+    ],
+    // Contador: revisa los documentos y datos de pago de CUALQUIER colegio
+    // (views/Contador.js). Sin cargar_datos: su panel no lo pide (ROLES_SIN_CARGAR_DATOS).
+    // DUDOSAS fuera de la lista: listar_pagos_no_aplicados y resolver_pago_no_aplicado
+    // (requerir_rol admite al contador pero su panel no las llama) y
+    // asignar_id_externo (Contador.js aún la invoca, pero ya la rechaza requerir_rol).
+    'contador' => [
+        'contador_listar_escuelas', 'listar_documentos_escuela', 'descargar_documento_escuela',
+        'escuela_obtener_datos_pago',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    ],
+    // Distribuidor: su portal de referidos (views/Distribuidor.js) y el panel de
+    // invitaciones. Todas las distribuidor_* son suyas.
+    'distribuidor' => [
+        'distribuidor_*',
+        'invitacion_crear', 'invitaciones_listar', 'invitacion_regenerar',
+        // DUDOSA: el backend admite al distribuidor pero ninguna pantalla la llama.
+        'comisiones_historial_tasas',
+        'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    ],
     // [F4] Roles nuevos del colegio (18-nov-2026). Ninguno es de plataforma
     // (todos tienen escuela_id) pero van en este allowlist por la misma razón que
     // 'docente': un rol nuevo no debe heredar el hueco de las ~25 acciones que
@@ -820,6 +984,32 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
 // puede chocar con esa línea. Lo más limpio es hacerlo con un commit.
 // Para volver al modo registro basta con quitar esa línea.
 if (!defined('ALLOWLIST_FAMILIA_ESTRICTA')) define('ALLOWLIST_FAMILIA_ESTRICTA', false);
+// [OF-4b] Modo registro de 'admin', 'cajero', 'contador' y 'distribuidor'. Misma
+// mecánica y mismo motivo que el de familia: sus listas se armaron leyendo el
+// código del frontend, no con tráfico real, y cortar de golpe una acción que se
+// nos escapó dejaría a un colegio sin poder cobrar. Con false (el valor por
+// omisión), un rol de estos que llame algo fuera de su lista PASA, pero se anota
+//   ROL_FUERA_ALLOWLIST rol=<rol> accion=<accion> user_id=<id>
+// en api_log.txt. Con true recibe 403, igual que los demás roles con allowlist.
+// Se lee con defined() a propósito: NO hace falta tocar config.php para que
+// arranque en registro, y quien lo active lo define allá.
+//
+// CÓMO PASAR A MODO ESTRICTO:
+//   1. Dejar el sistema en uso normal ~1 semana (que pase un corte de caja, una
+//      facturación, un cierre de ciclo: las acciones raras son las que se escapan).
+//   2. Revisar el log (api_log.txt vive en la raíz del proyecto, ver API_LOG_FILE
+//      en config.php):
+//        grep ROL_FUERA_ALLOWLIST api_log.txt | sort | uniq -c
+//   3. Cada línea es una acción que un rol llamó sin estar en su lista. Si es
+//      legítima, agregarla a la lista de ese rol en $ACCIONES_POR_ROL_PLATAFORMA.
+//      Si no lo es, es justo el hueco que el modo estricto va a cerrar.
+//   4. Con el log limpio, agregar en el config.php del servidor:
+//        define('ALLOWLIST_ROLES_ESTRICTA', true);
+//      OJO: config.php está versionado en git; si se edita a mano en el
+//      servidor, el siguiente git pull puede chocar con esa línea. Lo más
+//      limpio es hacerlo con un commit. Para volver al modo registro basta con
+//      quitar la línea. Una sola constante cubre los cuatro roles.
+$allowlist_roles_estricta = defined('ALLOWLIST_ROLES_ESTRICTA') ? (bool) ALLOWLIST_ROLES_ESTRICTA : false;
 // [F6] Tiendita/cafetería (18-nov-2026). Rol del colegio con allowlist
 // OBLIGATORIA, igual que 'docente': fuera queda cargar_datos (saldos y
 // cobros de toda la escuela) y cualquier acción de cobranza. Su panel
@@ -836,16 +1026,21 @@ $ACCIONES_POR_ROL_PLATAFORMA['tienda'] = [
 // ser superadmin/admin O que la fila sea el propio perfil), así que aquí solo
 // hace falta dejarlo pasar para que puedan cambiar su nombre y su contraseña.
 $rol_plataforma_actual = $usuario_actual['rol'] ?? '';
-// [F0] Modo registro de familia: anota y deja pasar. Se "apaga" la allowlist
-// para ESTA petición vaciando $rol_plataforma_actual, así el candado genérico
-// de abajo no la corta y su código no tuvo que cambiar.
-if ($rol_plataforma_actual === 'familia' && !ALLOWLIST_FAMILIA_ESTRICTA
-    && !accion_en_allowlist($action, $ACCIONES_POR_ROL_PLATAFORMA['familia'])) { // [F4] admite 'prefijo_*'
-    log_api("FAMILIA_FUERA_ALLOWLIST accion={$action} user_id=" . ($usuario_actual['user_id'] ?? '?'));
-    $rol_plataforma_actual = '';
-}
-if (isset($ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual])
-    && !accion_en_allowlist($action, $ACCIONES_POR_ROL_PLATAFORMA[$rol_plataforma_actual])) { // [F4] admite 'prefijo_*'
+// [F0] [OF-4b] Una sola decisión para todos los roles (ver
+// decision_allowlist_rol() arriba): 'permitir', 'registrar' (modo registro:
+// anota y deja pasar) o 'bloquear' (403). Familia se rige por
+// ALLOWLIST_FAMILIA_ESTRICTA; admin/cajero/contador/distribuidor, por
+// ALLOWLIST_ROLES_ESTRICTA. Las listas aceptan 'prefijo_*' (accion_en_allowlist).
+$decision_allowlist = decision_allowlist_rol($rol_plataforma_actual, $action, $ACCIONES_POR_ROL_PLATAFORMA,
+    ALLOWLIST_FAMILIA_ESTRICTA, $allowlist_roles_estricta);
+if ($decision_allowlist === 'registrar') {
+    $uid_allowlist = $usuario_actual['user_id'] ?? '?';
+    if ($rol_plataforma_actual === 'familia') {
+        log_api("FAMILIA_FUERA_ALLOWLIST accion={$action} user_id={$uid_allowlist}");
+    } else {
+        log_api("ROL_FUERA_ALLOWLIST rol={$rol_plataforma_actual} accion={$action} user_id={$uid_allowlist}");
+    }
+} elseif ($decision_allowlist === 'bloquear') {
     log_api("BLOQUEADO por allowlist de plataforma -> rol={$rol_plataforma_actual} accion={$action} user_id=" . ($usuario_actual['user_id'] ?? '?'));
     http_response_code(403);
     respond(['success' => false, 'error' => 'Tu rol no tiene acceso a esta acción.']);
