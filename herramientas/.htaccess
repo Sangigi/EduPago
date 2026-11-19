@@ -1,0 +1,4 @@
+# Herramientas de línea de comandos (php herramientas/xxx.php). Nada de aquí
+# debe servirse por web: además cada script se niega a correr si no es CLI.
+Require all denied
+Options -Indexes -ExecCGI
