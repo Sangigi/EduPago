@@ -1,102 +1,163 @@
-/* ══════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════
+   EDUPAGO — SISTEMA DE DISEÑO · lenguaje visual de LibertyFin (OF)
 
-   EDUPAGO — SISTEMA DE DISEÑO (CRM moderno · limpio · profesional)
+   Lienzo gris-verdoso, panel blanco que flota con la esquina superior
+   izquierda en 26 px, sombras muy bajas (la separación la da el color),
+   radios grandes, pastillas, Google Sans + JetBrains Mono para las cifras.
 
-   Marca: navy #282d65 · green #49af54 · lime #bdcf00 (acento)
+   ──────────────────────────────────────────────────────────────────────────
+   COLOR DE MARCA — UNA SOLA LÍNEA
+   ──────────────────────────────────────────────────────────────────────────
+   Cambia  --lf-brand  (primer bloque de :root) y el sistema entero se re-tiñe:
+   hovers, fondos tenues, anillos de foco, texto de marca, el login y las
+   barras se calculan con color-mix().  Ya no hay violeta primario.
 
-   Modo claro por defecto · modo oscuro pulido disponible
+   Modo claro por defecto. El oscuro se activa con <html data-theme="dark">
+   (assets/js/tema-temprano.js lo pone ANTES de pintar, para que no haya
+   parpadeo blanco).
 
-══════════════════════════════════════════════════════ */
-
-
+   Los NOMBRES de variable de EduPago (--ink-3, --red, --border-glow,
+   --violet…) se conservan porque ~2,200 estilos en línea de las vistas los
+   usan: solo cambian sus valores. Los nombres --lf-* son los de OF.
+   Marca del logo (no es la marca de la interfaz): navy #272c64 con padding
+   de 10 px en la clase logo-ple y en los <img> de logo.
+══════════════════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-
-
 :root {
-  /* ══ MARCA EDUPAGO (se conserva para splash, logo y acentos de estado) ══ */
+  /* ══ MARCA ══ cambia SOLO --lf-brand para re-teñir todo ═══════════════ */
+  --lf-brand:       #49af54;
+  /* Texto de marca sobre claro y fondos con texto blanco que además pueden
+     ir sobre un fondo tenue: 5.2:1 sobre blanco, 4.7:1 sobre --lf-brand-soft. */
+  --lf-brand-2:     color-mix(in srgb, var(--lf-brand) 70%, #000);
+  /* Versión oscura SOLO para FONDOS con texto blanco encima (botón
+     primario, pastilla activa): 4.7:1. El color puro da 2.8:1 con blanco. */
+  --lf-brand-d:     color-mix(in srgb, var(--lf-brand) 75%, #000);
+  --lf-brand-dd:    color-mix(in srgb, var(--lf-brand) 62%, #000);   /* hover de esos fondos */
+  --lf-brand-3:     color-mix(in srgb, var(--lf-brand) 65%, #fff);
+  --lf-brand-soft:  color-mix(in srgb, var(--lf-brand) 11%, #fff);
+  --lf-brand-glow:  color-mix(in srgb, var(--lf-brand) 10%, transparent);
+  --lf-brand-ring:  color-mix(in srgb, var(--lf-brand) 22%, transparent);
+
+  /* ══ SEMÁNTICOS (valores de OF, afinados donde el texto no llegaba a 4.5:1) ══ */
+  --lf-lima:     #7fc241;   --lf-lima-ink:   #4a7a22;   --lf-lima-soft:    #eff7e6;
+  --lf-pizarra:  #2c3e50;   --lf-pizarra-soft: #eceff2;
+  --lf-amb:      #c58a14;   --lf-amb-ink:    #8f5f00;   --lf-amb-soft:     #fbf3e0;
+  --lf-rojo:     #c23b2e;                                --lf-rojo-soft:    #fceeec;
+  --lf-info:     #1a7499;                                --lf-info-soft:    #e6f2f7;
+
+  /* ══ SUPERFICIES ══ */
+  --lf-lienzo:   #f1f4f2;
+  --lf-panel:    #ffffff;
+  --lf-sup:      #ffffff;
+  --lf-sup-2:    #f7f9f8;
+  --lf-vidrio:   #f3f6f4;
+
+  /* ══ TINTA Y LÍNEAS ══
+     OF calcula --lf-tinta-3/4 para ≥4.5:1 sobre BLANCO; aquí además sobre
+     el lienzo y la cabecera de tabla (--lf-vidrio), que son más oscuros. */
+  --lf-tinta:    #1b2420;
+  --lf-tinta-2:  #43504a;
+  --lf-tinta-3:  #5a6760;
+  --lf-tinta-4:  #63706a;
+  --lf-linea:    #e6ebe8;
+  --lf-linea-f:  #d4dcd8;
+
+  /* Sombras muy bajas a propósito: la separación la da el color */
+  --lf-s1: 0 1px 2px rgba(27,36,32,.035), 0 2px 8px rgba(27,36,32,.04);
+  --lf-s2: 0 4px 14px rgba(27,36,32,.07), 0 2px 5px rgba(27,36,32,.04);
+  --lf-s3: 0 18px 44px rgba(27,36,32,.13);
+
+  /* Radios: la jerarquía se nota por el tamaño, no por la sombra */
+  --lf-r-xs: 7px; --lf-r-sm: 9px; --lf-r: 12px; --lf-r-lg: 18px;
+  --lf-r-panel: 26px; --lf-r-pill: 999px;
+
+  --lf-font: 'Google Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --lf-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  --lf-side-w: 240px;
+
+  /* ══ MARCA DEL LOGO (no de la interfaz) ══ */
   --navy:        #282d65;
   --navy-dark:   #1c2050;
   --navy-light:  #3a4080;
-  --lime:        #bdcf00;
-  --lime-dark:   #8a9a00;
-  --lime-glow:   rgba(189,207,0,0.14);
-  --green:       #49af54;
-  --green-dark:  #3a9446;
-  --green-glow:  rgba(73,175,84,0.12);
+  --logo-navy:   #272c64;
 
-  /* ══ PALETA "CONCURED" — muestreada del video de referencia ══
-     Violeta primario · cian · magenta. Cambia SOLO estas 3 líneas
-     para re-teñir el sistema completo.                            */
-  --violet:       #6c5af0;
-  --violet-dark:  #5846dd;
-  --violet-light: #8e80f4;
-  --cyan:         #4fd8f0;
-  --magenta:      #d860f0;
+  /* ══ NOMBRES DE EDUPAGO → valores de OF ══ */
+  /* Verdes: --green es texto/relleno legible sobre claro (= --lf-brand-2) */
+  --green:        var(--lf-brand-2);
+  --green-dark:   var(--lf-brand-2);
+  --green-glow:   var(--lf-brand-glow);
+  --lime:         var(--lf-lima-ink);
+  --lime-dark:    var(--lf-lima-ink);
+  --lime-glow:    rgba(127,194,65,.14);
 
-  --violet-soft:  #f1effd;   /* pill de nav activo / fondos teñidos */
-  --cyan-soft:    #e8faff;
-  --magenta-soft: #fbeeff;
+  /* El violeta "Concured" ya no es el primario: sus nombres siguen
+     existiendo (las vistas los usan) pero ahora apuntan a la marca. */
+  --violet:       var(--lf-brand-2);
+  --violet-dark:  var(--lf-brand-dd);
+  --violet-light: var(--lf-brand-3);
+  --violet-soft:  var(--lf-brand-soft);
+  --cyan:         var(--lf-info);
+  --cyan-soft:    var(--lf-info-soft);
+  --magenta:      var(--lf-pizarra);
+  --magenta-soft: var(--lf-pizarra-soft);
 
-  /* --grad-brand:  linear-gradient(115deg, #4fd8f0 0%, #6c5af0 55%, #d860f0 100%);
-  --grad-cool:   linear-gradient(135deg, #4fd8f0 0%, #6c5af0 100%);
-  --grad-warm:   linear-gradient(135deg, #6c5af0 0%, #d860f0 100%); */
+  --grad-brand:   linear-gradient(135deg, var(--lf-brand-d) 0%, var(--lf-brand-dd) 100%);
+  --grad-cool:    var(--grad-brand);
+  --grad-warm:    var(--grad-brand);
 
-  --grad-brand:  linear-gradient(#6c5af0);
-  --grad-cool:   linear-gradient(#6c5af0);
-  --grad-warm:   linear-gradient(#6c5af0);
-
-  /* ══ MODO CLARO (por defecto) ══ */
-  --bg-main:      #f4f5f9;   /* lienzo lavanda de la página */
-  --bg-solid:     #ffffff;
-  --bg-surface:   #ffffff;   /* tarjetas */
-  --bg-surface-2: #fafafd;
-  --bg-panel:     #ffffff;   /* panel principal (lienzo del contenido) */
+  /* Superficies */
+  --bg-main:      var(--lf-lienzo);
+  --bg-solid:     var(--lf-sup);
+  --bg-surface:   var(--lf-sup);
+  --bg-surface-2: var(--lf-sup-2);
+  --bg-panel:     var(--lf-panel);
   --bg-sidebar:   transparent;
 
-  /* ══ SIDEBAR (ahora claro, integrado al lienzo) ══ */
+  /* Sidebar: transparente sobre el lienzo */
   --side-bg:        transparent;
   --side-bg-2:      transparent;
-  --side-border:    rgba(23,26,44,0.06);
-  --side-ink:       #1e2430;   /* texto principal (oscuro sobre claro) */
-  --side-ink-2:     #5b6273;
-  --side-ink-3:     #8d94a5;
-  --side-hover:     rgba(108,90,240,0.06);
-  --side-active-bg: var(--violet-soft);
+  --side-border:    var(--lf-linea);
+  --side-ink:       var(--lf-tinta);
+  --side-ink-2:     var(--lf-tinta-2);
+  --side-ink-3:     var(--lf-tinta-4);
+  --side-hover:     var(--lf-brand-glow);
+  --side-active-bg: var(--lf-brand-soft);
 
-  /* ══ BORDES Y SUPERFICIES ══ */
-  --border-glow:   #ebecf3;
-  --border-active: var(--violet);
-  --glass-light:   #f5f6fa;
-  --glass-hover:   #eeeff6;
-  --glass-dark:    #fafbfd;
-  --shadow-glass:  0 1px 2px rgba(23,26,44,.03), 0 2px 8px rgba(23,26,44,.04);
-  --shadow-md:     0 4px 14px rgba(23,26,44,.07), 0 2px 5px rgba(23,26,44,.04);
-  --shadow-lg:     0 18px 44px rgba(23,26,44,.13);
-  --shadow-violet: 0 8px 22px rgba(108,90,240,.28);
+  /* Bordes y superficies */
+  --border-glow:   var(--lf-linea);
+  --border-strong: var(--lf-linea-f);
+  --border-active: var(--lf-brand);
+  --glass-light:   var(--lf-vidrio);
+  --glass-hover:   #eaefec;
+  --glass-dark:    #fafcfb;
+  --shadow-glass:  var(--lf-s1);
+  --shadow-md:     var(--lf-s2);
+  --shadow-lg:     var(--lf-s3);
+  --shadow-violet: 0 8px 22px color-mix(in srgb, var(--lf-brand) 28%, transparent);
 
-  /* ══ TEXTO ══ */
-  --ink:    #1e2430;
-  --ink-2:  #414958;
-  --ink-3:  #697182;   /* 4.90:1 sobre blanco — cumple WCAG AA */
-  --ink-4:  #8f97a6;   /* solo para texto decorativo/iconos */
+  /* Texto */
+  --ink:    var(--lf-tinta);
+  --ink-2:  var(--lf-tinta-2);
+  --ink-3:  var(--lf-tinta-3);
+  --ink-4:  var(--lf-tinta-4);
 
-  /* ══ ACENTOS ══ */
-  --accent:          var(--violet);
-  --accent-2:        var(--cyan);
-  --accent-gradient: var(--grad-cool);
-  --btn-gradient:    var(--violet);
-  --accent-glow:     rgba(108,90,240,0.09);
+  /* Acentos */
+  --accent:          var(--lf-brand-2);
+  --accent-2:        var(--lf-info);
+  --accent-gradient: var(--lf-brand-d);
+  --btn-gradient:    var(--lf-brand-d);
+  --accent-glow:     var(--lf-brand-glow);
   --on-accent:       #ffffff;
 
-  /* ══ SEMÁNTICOS ══ */
-  --amber:       #d97706;
-  --amber-glow:  rgba(217,119,6,0.10);
-  --red:         #e5484d;
-  --red-glow:    rgba(229,72,77,0.09);
-  --purple:      var(--violet);
-  --purple-glow: rgba(108,90,240,0.10);
+  /* Semánticos */
+  --amber:       var(--lf-amb-ink);
+  --amber-glow:  var(--lf-amb-soft);
+  --red:         var(--lf-rojo);
+  --red-glow:    var(--lf-rojo-soft);
+  --purple:      var(--lf-pizarra);
+  --purple-glow: var(--lf-pizarra-soft);
 
   /* ══ LAYOUT ══ */
   /* Alias de compatibilidad. Varias vistas usan estos nombres, que nunca
@@ -109,86 +170,64 @@
   --ink-1:   var(--ink);
   --surface: var(--bg-surface);
 
-  --radius-sm:    9px;
-  --radius:       12px;
-  --radius-lg:    18px;
-  --radius-panel: 26px;   /* esquina del panel blanco principal */
-  --radius-pill:  999px;
+  --radius-xs:    var(--lf-r-xs);
+  --radius-sm:    var(--lf-r-sm);
+  --radius:       var(--lf-r);
+  --radius-lg:    var(--lf-r-lg);
+  --radius-panel: var(--lf-r-panel);   /* esquina del panel blanco principal */
+  --radius-pill:  var(--lf-r-pill);
   --blur:      blur(12px);
-  --font:      'DM Sans', system-ui, -apple-system, sans-serif;
-  --mono:      'JetBrains Mono', ui-monospace, monospace;
-  --sidebar-w: 244px;
-  --header-h:  66px;
+  --font:      var(--lf-font);
+  --mono:      var(--lf-mono);
+  --sidebar-w: var(--lf-side-w);
+  --header-h:  64px;
 }
 
-/* ══ MODO OSCURO (adaptado a la misma paleta) ══ */
+/* ══ MODO OSCURO · paleta oscura de OF ══
+   Escala de elevación: cuanto más "arriba" está el elemento, más claro
+   (lienzo → panel → tarjeta → tarjeta elevada). Sin esto el panel y las
+   tarjetas serían del mismo tono y se perderían. */
 :root[data-theme="dark"] {
-  /* Escala de elevación: cuanto más "arriba" está el elemento, más claro.
-     Sin esto, panel y tarjetas quedan del mismo tono y las tarjetas se pierden. */
-  --bg-main:      #0b0d18;   /* lienzo — el más oscuro */
-  --bg-panel:     #13162b;   /* panel principal */
-  --bg-surface:   #1b1f39;   /* tarjetas — elevadas sobre el panel */
-  --bg-solid:     #1b1f39;
-  --bg-surface-2: #232848;
-  --bg-sidebar:   transparent;
+  --lf-lienzo:#0c110f; --lf-panel:#141b18; --lf-sup:#1a2320; --lf-sup-2:#202b27;
+  --lf-vidrio:rgba(255,255,255,.05);
+  --lf-tinta:#e9efec; --lf-tinta-2:#c0cbc6; --lf-tinta-3:#9aa8a2; --lf-tinta-4:#86948e;
+  --lf-linea:rgba(255,255,255,.09); --lf-linea-f:rgba(255,255,255,.16);
 
-  --border-glow:   rgba(255,255,255,0.09);
-  --border-active: var(--violet-light);
-  --glass-light:   rgba(255,255,255,0.05);
-  --glass-hover:   rgba(255,255,255,0.08);
-  --glass-dark:    rgba(0,0,0,0.28);
-  --shadow-glass:  0 1px 2px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04);
-  --shadow-md:     0 8px 22px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
-  --shadow-lg:     0 22px 52px rgba(0,0,0,.62);
-  --shadow-violet: 0 8px 26px rgba(108,90,240,.45);
+  --lf-brand-soft:color-mix(in srgb, var(--lf-brand) 18%, #0c110f);
+  /* Texto de marca: más claro que en el tema claro para leerse sobre fondo
+     oscuro con cualquier color de marca. */
+  --lf-brand-2:color-mix(in srgb, var(--lf-brand) 55%, #fff);
+  --lf-brand-dd:color-mix(in srgb, var(--lf-brand) 66%, #000);
 
-  --ink:    #eef1f8;
-  --ink-2:  #c4cad8;
-  --ink-3:  #8b93a7;
-  --ink-4:  #69798f;
+  --lf-lima:#7fc241; --lf-lima-ink:#9acd5e; --lf-lima-soft:rgba(127,194,65,.14);
+  --lf-pizarra:#8fa39a; --lf-pizarra-soft:rgba(255,255,255,.07);
+  --lf-amb:#c58a14; --lf-amb-ink:#f0b429; --lf-amb-soft:rgba(197,138,20,.16);
+  --lf-rojo:#f0857a; --lf-rojo-soft:rgba(207,68,54,.18);
+  --lf-info:#5ab8dc; --lf-info-soft:rgba(29,127,165,.18);
 
-  --side-bg:        transparent;
-  --side-bg-2:      transparent;
-  --side-border:    rgba(255,255,255,0.07);
-  --side-ink:       #eef1f8;
-  --side-ink-2:     #9aa1bb;
-  --side-ink-3:     #6b7290;
-  --side-hover:     rgba(255,255,255,0.05);
-  --side-active-bg: rgba(108,90,240,0.20);
+  --lf-s1:0 1px 2px rgba(0,0,0,.34); --lf-s2:0 8px 22px rgba(0,0,0,.45);
+  --lf-s3:0 22px 52px rgba(0,0,0,.6);
 
-  --violet-soft:  rgba(108,90,240,0.18);
-  --cyan-soft:    rgba(79,216,240,0.14);
-  --magenta-soft: rgba(216,96,240,0.14);
-
-  --accent:          var(--violet-light);
-  /* El degradado cian daba 1.69:1 con texto blanco. Este mantiene 4.6:1+ */
-  --btn-gradient:    linear-gradient(135deg, #6c5af0 0%, #9a4fe0 100%);
-  --accent-glow:     rgba(108,90,240,0.18);
-  --on-accent:       #ffffff;
-  --amber:       #fbbf24;
-  --red:         #f87171;
-  --purple:      var(--violet-light);
+  /* En oscuro el "violeta oscuro" (texto sobre fondo tenue) tiene que ser CLARO */
+  --violet-dark:   var(--lf-brand-2);
+  --glass-hover:   rgba(255,255,255,.08);
+  --glass-dark:    rgba(0,0,0,.28);
+  --lime-glow:     rgba(127,194,65,.16);
+  color-scheme: dark;
 }
-
-
 
 html, body {
-
   height:100%; font-family:var(--font);
-
   background:var(--bg-main); color:var(--ink);
-
   font-size:14px; line-height:1.55;
-
   -webkit-font-smoothing:antialiased;
-
   text-rendering:optimizeLegibility;
-
   overflow:hidden;
-
 }
-
-
+:focus-visible { outline:2px solid var(--lf-brand); outline-offset:2px; }
+::selection { background:var(--lf-brand-ring); }
+/* Toda cifra se lee mejor con cifras tabulares */
+.text-mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
 
 /* ── LAYOUT ── */
 
@@ -196,11 +235,7 @@ html, body {
    direcciones/toolbar colapsada) -- mientras esa barra sigue visible (el caso
    normal), el alto real disponible es MENOR que 100vh, así que .app queda más
    alto que la pantalla real. Como .app tiene overflow:hidden, lo que cae fuera
-   de esa franja no se puede alcanzar ni haciendo scroll. (El bug puntual del
-   botón "Cobrar" de Caja recortado en móvil resultó ser otra cosa -- ver el
-   comentario de .payment-methods más abajo -- pero este mismo problema de
-   fondo puede recortar cualquier otro contenido cerca del borde inferior en
-   cualquier pantalla, así que vale la pena corregirlo aquí también.)
+   de esa franja no se puede alcanzar ni haciendo scroll.
    100dvh (dynamic viewport height) sí se ajusta a la barra visible; se
    declara después de 100vh para que sea solo un override en navegadores que
    lo soportan y no rompa nada donde no. */
@@ -209,133 +244,78 @@ html, body {
 .app  { display:flex; height:100vh; height:100dvh; overflow:hidden; background:var(--bg-main); }
 
 
-
-/* ── SIDEBAR ── */
+/* ── SIDEBAR · 240 px, transparente sobre el lienzo ── */
 
 .sidebar {
-
   width:var(--sidebar-w); flex-shrink:0;
-
   background:transparent;
-
   display:flex; flex-direction:column; overflow:hidden;
-
   border-right:none;
-
 }
-
-.sidebar-brand { padding:22px 24px 20px; border-bottom:none; }
-
+.sidebar-brand { padding:20px 22px 16px; border-bottom:none; }
 .brand-logo    { display:flex; align-items:center; gap:11px; }
-
 .brand-icon {
-
   width:38px; height:38px;
-
-  background:var(--grad-brand);
-
+  background:var(--lf-brand-d);
   border-radius:50%; display:flex; align-items:center; justify-content:center;
-
-  font-size:17px; 
-  /* box-shadow:var(--shadow-violet);  */
-  color:#fff; flex-shrink:0; font-weight:800;
-
+  font-size:16px; color:#fff; flex-shrink:0; font-weight:800;
 }
-
-.brand-name { font-size:16.5px; font-weight:700; color:var(--side-ink); letter-spacing:-.3px; }
-
+.brand-name { font-size:16.5px; font-weight:700; color:var(--side-ink); letter-spacing:-.3px; line-height:1.1; }
 .brand-sub  { font-size:10px; color:var(--side-ink-3); margin-top:1px; font-weight:600; text-transform:uppercase; letter-spacing:.7px; }
 
-
-
-.sidebar-nav { flex:1; overflow-y:auto; padding:14px 12px; }
-
+/* Las entradas necesitan separarse: pegadas, al pasar el ratón sobre
+   una parece que se ilumina media lista. */
+.sidebar-nav { flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:3px; }
 /* El logo es un JPEG rectangular: con width:100% el borde derecho quedaba
    recto. Se recorta a un ancho propio y se redondean las 4 esquinas. */
 .sidebar-brand img {
   border-radius:12px; display:block; width:auto; max-width:100%;
   object-fit:contain; object-position:left center;
 }
-
 .sidebar-nav::-webkit-scrollbar { width:0; }
 
-.nav-section { font-size:10px; font-weight:700; letter-spacing:.9px; text-transform:uppercase; color:var(--side-ink-3); padding:18px 12px 8px; }
+.nav-section { font-size:10px; font-weight:700; letter-spacing:.9px; text-transform:uppercase; color:var(--lf-tinta-4); padding:16px 12px 7px; }
 
+/* Ítem de menú de OF: pastilla de 12 px; el activo se tiñe con la marca y
+   lleva una barrita de 3 px pegada al borde derecho del menú. */
 .nav-item {
-
-  display:flex; align-items:center; gap:12px; padding:12px 24px;
-
-  margin:0 -12px 2px; border-radius:0; cursor:pointer;
-
+  display:flex; align-items:center; gap:12px; padding:10px 12px;
+  margin:0; border-radius:var(--radius); cursor:pointer;
   transition:background .15s, color .15s;
-
-  color:var(--side-ink-2); font-size:13.5px; font-weight:500;
-
-  position:relative;
-
+  color:var(--lf-tinta-2); font-size:13.5px; font-weight:500;
+  position:relative; white-space:nowrap;
 }
-
-.nav-item:hover { background:var(--side-hover); color:var(--side-ink); }
-
-.nav-item.active {
-
-  background:var(--side-active-bg); color:var(--side-ink); font-weight:600;
-
-}
-
-.nav-item.active .nav-icon { color:var(--violet); }
-
+.nav-item:hover { background:var(--lf-brand-glow); color:var(--lf-tinta); }
+.nav-item.active { background:var(--lf-brand-soft); color:var(--lf-brand-2); font-weight:600; }
 .nav-item.active::before {
-
-  content:''; position:absolute; right:0; top:0;
-
-  width:3px; height:100%; border-radius:0; background:var(--violet);
-
+  content:''; position:absolute; right:-12px; top:50%; transform:translateY(-50%);
+  width:3px; height:22px; border-radius:3px 0 0 3px; background:var(--lf-brand);
 }
-
 .nav-icon  { font-size:16px; width:20px; text-align:center; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-
 .nav-badge {
-
-  margin-left:auto; background:var(--red);
-
+  margin-left:auto; background:var(--lf-rojo);
   color:#fff; font-size:10px; font-weight:700;
-
   padding:2px 7px; border-radius:20px;
-
   min-width:20px; height:20px; display:flex; align-items:center; justify-content:center;
-
 }
+:root[data-theme="dark"] .nav-badge { color:#1b1210; }
 
-
-
-.sidebar-footer { border-top:1px solid var(--side-border); padding:14px 12px; }
-
+.sidebar-footer { border-top:1px solid var(--lf-linea); padding:12px; margin:0 12px 10px; }
 .user-card { display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:var(--radius); cursor:default; transition:background .15s; }
-
-.user-card:hover { background:var(--side-hover); }
-
+.user-card:hover { background:var(--lf-vidrio); }
 .avatar {
-
-  width:34px; height:34px; border-radius:9px; display:flex; align-items:center;
-
+  width:34px; height:34px; border-radius:var(--radius-sm); display:flex; align-items:center;
   justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; font-family:var(--mono);
-
+  background:var(--lf-brand-d); color:#fff;
 }
-
 .avatar-super  { background:var(--grad-warm) !important; color:#fff !important; }
-
 .avatar-admin  { background:var(--grad-cool) !important; color:#fff !important; }
-
-.avatar-cajero { background:linear-gradient(135deg, var(--green), var(--green-dark)) !important; color:#fff !important; }
-
+.avatar-cajero { background:var(--grad-brand) !important; color:#fff !important; }
 /* views/components/MenuPerfil.js arma la clase como 'avatar-' + user.rol, así
    que el nombre real que llega es avatar-superadmin (no avatar-super) y existen
-   uno por cada rol. Sin estas reglas, todos los roles salvo admin y cajero
-   pintaban el avatar sin color de fondo — incluido el superadmin, porque
-   .avatar-super de arriba nunca llega a coincidir. Los colores son los mismos
-   de ROL_INFO en views/Usuarios.js, para que la credencial y la etiqueta del
-   rol se vean como la misma cosa en todo el sistema. */
+   uno por cada rol. Los colores de los demás roles son los mismos de ROL_INFO
+   en views/Usuarios.js, para que la credencial y la etiqueta del rol se vean
+   como la misma cosa en todo el sistema (quedan fijos: ver docs/mejoras-of/ui.md). */
 .avatar-superadmin   { background:var(--grad-warm) !important; color:#fff !important; }
 .avatar-familia      { background:linear-gradient(135deg, #a855f7, #7e22ce) !important; color:#fff !important; }
 .avatar-distribuidor { background:linear-gradient(135deg, #84cc16, #4d7c0f) !important; color:#fff !important; }
@@ -346,182 +326,119 @@ html, body {
 .avatar-promotor     { background:linear-gradient(135deg, #8b5cf6, #6d28d9) !important; color:#fff !important; }
 
 .user-info { flex:1; min-width:0; }
-
-.user-name { font-size:13px; font-weight:600; color:var(--side-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-.user-role { font-size:11px; color:var(--side-ink-3); margin-top:1px; }
-
-.logout-btn { font-size:16px; color:var(--side-ink-3); cursor:pointer; padding:6px; border-radius:8px; transition:all .15s; border:none; background:none; display:flex; align-items:center; }
-
-.logout-btn:hover { color:var(--red); background:var(--red-glow); }
+.user-name { font-size:13px; font-weight:600; color:var(--lf-tinta); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.user-role { font-size:11px; color:var(--lf-tinta-4); margin-top:1px; }
+/* Salir: visible siempre, no solo al pasar el ratón (en táctil no hay hover). */
+.logout-btn { font-size:16px; color:var(--lf-tinta-3); cursor:pointer; padding:6px; border-radius:var(--radius-sm); transition:all .15s; border:none; background:none; display:flex; align-items:center; }
+.logout-btn:hover { color:var(--lf-rojo); background:var(--lf-rojo-soft); }
 
 
-
-/* ── MAIN ── */
+/* ── MAIN · el panel blanco que flota sobre el lienzo ── */
 
 .main {
   flex:1; display:flex; flex-direction:column; overflow:hidden;
   background:var(--bg-panel);
   border-radius:var(--radius-panel) 0 0 0;
-  border-left:1px solid var(--border-glow);
-  border-top:1px solid var(--border-glow);
+  border-left:1px solid var(--lf-linea);
+  border-top:1px solid var(--lf-linea);
   margin-top:14px;
 }
 
 .topbar {
-
   height:var(--header-h); background:transparent;
-
   border-bottom:none; display:flex; align-items:center;
-
   padding:0 30px; gap:14px; flex-shrink:0;
-
 }
-
 /* Era un bloque plano: el SVG del icono caía a su propia línea y el título
    quedaba debajo. Como fila flex, el icono se alinea a la izquierda del texto. */
-.topbar-title   {
-  font-size:16px; font-weight:700; color:var(--ink); letter-spacing:-.2px;
+.topbar-title {
+  font-size:17px; font-weight:700; color:var(--lf-tinta); letter-spacing:-.3px;
   display:flex; align-items:center; gap:9px; min-width:0;
 }
 .topbar-title > span { display:inline-flex; align-items:center; flex-shrink:0; }
-.topbar-title svg { display:block; }
-
+.topbar-title svg { display:block; color:var(--lf-brand-2); }
 .topbar-actions { margin-left:auto; display:flex; align-items:center; gap:10px; }
 
-.content { flex:1; overflow-y:auto; padding:14px 30px 34px; animation:fadeIn .25s ease-out; }
-
+.content { flex:1; overflow-y:auto; padding:6px 30px 40px; animation:fadeIn .25s ease-out; }
 .content::-webkit-scrollbar { width:8px; }
-
-.content::-webkit-scrollbar-thumb { background:var(--border-glow); border-radius:20px; }
-
-.content::-webkit-scrollbar-thumb:hover { background:var(--ink-4); }
-
+.content::-webkit-scrollbar-thumb { background:var(--lf-linea-f); border-radius:20px; }
+.content::-webkit-scrollbar-thumb:hover { background:var(--lf-tinta-4); }
 @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 
 
-
-/* ── BOTONES ── */
+/* ── BOTONES · todo en píldora ── */
 
 .btn {
-
   display:inline-flex; align-items:center; justify-content:center; gap:7px;
-
-  padding:10px 18px; border-radius:var(--radius-pill); font-size:13px;
-
+  padding:10px 18px; border-radius:var(--lf-r-pill); font-size:13px;
   font-weight:600; cursor:pointer; border:1px solid transparent;
-
-  transition:all .15s; font-family:var(--font); white-space:nowrap; line-height:1;
-
+  transition:background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .1s;
+  font-family:var(--font); white-space:nowrap; line-height:1;
 }
-
-.btn-primary {
-
-  background:var(--btn-gradient); color:var(--on-accent);
-
-  /* box-shadow:var(--shadow-violet); */
-
-}
-
-.btn-primary:hover { filter:brightness(1.08); box-shadow:var(--shadow-md); }
-
-.btn-secondary { background:var(--bg-solid); border-color:var(--border-glow); color:var(--ink-2); box-shadow:0 1px 2px rgba(16,24,40,.04); }
-
-.btn-secondary:hover { background:var(--glass-light); color:var(--ink); border-color:var(--ink-4); }
-
-.btn-ghost { background:transparent; color:var(--ink-3); padding:8px; border:none; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font); }
-
-.btn-ghost:hover { background:var(--glass-light); color:var(--ink); }
-
-
+.btn:active { transform:translateY(1px); }
+.btn:focus-visible { box-shadow:0 0 0 3px var(--lf-brand-ring); outline:none; }
+.btn-primary { background:var(--lf-brand-d); border-color:var(--lf-brand-d); color:#fff; }
+.btn-primary:hover { background:var(--lf-brand-dd); border-color:var(--lf-brand-dd); color:#fff; }
+.btn-secondary { background:var(--lf-sup); border-color:var(--lf-linea); color:var(--lf-tinta-2); box-shadow:0 1px 2px rgba(27,36,32,.04); }
+.btn-secondary:hover { background:var(--lf-vidrio); border-color:var(--lf-linea-f); color:var(--lf-tinta); }
+.btn-ghost { background:transparent; color:var(--lf-tinta-3); padding:8px; border:none; border-radius:var(--radius-sm); cursor:pointer; font-family:var(--font); }
+.btn-ghost:hover { background:var(--lf-vidrio); color:var(--lf-tinta); }
 
 .emoji-picker-grid {
-
   display:grid; grid-template-columns:repeat(6,1fr); gap:2px;
-
   max-height:170px; overflow-y:auto; padding-right:2px;
-
 }
-
 .emoji-picker-item {
-
   font-size:20px; background:transparent; border:none; cursor:pointer;
-
   border-radius:var(--radius-sm); padding:5px 0; line-height:1;
-
   transition:background .12s;
-
 }
-
 .emoji-picker-item:hover { background:var(--bg-surface-2); }
 
-.btn-danger { background:var(--red-glow); color:var(--red); border-color:rgba(220,38,38,.2); }
-
-.btn-danger:hover { background:rgba(220,38,38,.16); }
-
-.btn-success { background:var(--green-glow); color:var(--green-dark); border-color:rgba(47,158,68,.22); }
-
-:root[data-theme="dark"] .btn-success { color:var(--green); }
-
-.btn-success:hover { background:rgba(47,158,68,.16); }
-
-.btn-sm { padding:6px 11px !important; font-size:12px !important; border-radius:var(--radius-sm) !important; }
-
-.btn:disabled { opacity:.5; cursor:not-allowed; filter:none!important; box-shadow:none!important; }
+.btn-danger { background:var(--lf-rojo-soft); color:var(--lf-rojo); border-color:color-mix(in srgb, var(--lf-rojo) 24%, transparent); }
+.btn-danger:hover { background:color-mix(in srgb, var(--lf-rojo) 18%, var(--lf-sup)); }
+.btn-success { background:var(--lf-brand-soft); color:var(--lf-brand-2); border-color:color-mix(in srgb, var(--lf-brand) 26%, transparent); }
+.btn-success:hover { background:color-mix(in srgb, var(--lf-brand) 20%, var(--lf-sup)); }
+/* Antes forzaba border-radius:var(--radius-sm); en OF .btn-sm sigue siendo
+   píldora. El !important se conserva: algunas vistas fijan padding en línea. */
+.btn-sm { padding:6px 13px !important; font-size:12px !important; border-radius:var(--lf-r-pill) !important; }
+.btn:disabled { opacity:.48; cursor:not-allowed; filter:none!important; box-shadow:none!important; transform:none; }
 
 
-
-/* ── CARDS ── */
+/* ── CARDS · radio 18, borde de 1 px, sombra mínima ── */
 
 .card {
-
   background:var(--bg-surface);
-
-  border:1px solid var(--border-glow); border-radius:var(--radius-lg);
-
-  padding:24px; box-shadow:var(--shadow-glass);
-
+  border:1px solid var(--lf-linea); border-radius:var(--lf-r-lg);
+  padding:22px; box-shadow:var(--lf-s1);
 }
-
 .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:12px; }
-
-.card-title  { font-size:15px; font-weight:700; color:var(--ink); letter-spacing:-.2px; }
-
-.card-sub    { font-size:12px; color:var(--ink-3); margin-top:2px; }
+.card-title  { font-size:15px; font-weight:700; color:var(--lf-tinta); letter-spacing:-.2px; }
+.card-sub    { font-size:12px; color:var(--lf-tinta-3); margin-top:2px; }
 
 
+/* ── STAT CARDS · icono arriba, cifra grande en mono, etiqueta debajo ── */
 
-/* ── STAT CARDS ── */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(214px,1fr)); gap:16px; margin-bottom:22px; }
 
-.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px; margin-bottom:24px; }
-
-.dash-split-grid { display:grid; grid-template-columns:1fr 320px; gap:20px; }
+.dash-split-grid { display:grid; grid-template-columns:1fr 330px; gap:18px; }
 /* Por default un elemento de grid no se encoge por debajo del ancho mínimo
    de su contenido (min-width:auto) -- la tabla de "Cobros recientes" y la
    fila dona+leyenda de "Por método de pago" podían así forzar sus columnas
-   (incluidos los 320px fijos) a crecer más de la cuenta y desbordar toda la
+   (incluidos los 330px fijos) a crecer más de la cuenta y desbordar toda la
    fila. min-width:0 deja que .table-wrap (que ya tiene su propio scroll
    horizontal) y el flex-wrap de la dona hagan su trabajo dentro del ancho
    real de la columna, en vez de ensancharla. */
 .dash-split-grid > .card { min-width:0; }
-
 .stat-card {
-
   background:var(--bg-surface);
-
-  border:1px solid var(--border-glow); border-radius:var(--radius-lg);
-
+  border:1px solid var(--lf-linea); border-radius:var(--lf-r-lg);
   padding:20px 22px; display:flex; flex-direction:column; gap:6px;
-
   position:relative; overflow:hidden;
-
-  box-shadow:var(--shadow-glass); transition:transform .2s, box-shadow .2s, border-color .2s;
-
+  box-shadow:var(--lf-s1); transition:transform .2s, box-shadow .2s, border-color .2s;
 }
-
-.stat-card:hover { transform:translateY(-3px); box-shadow:var(--shadow-md); border-color:#dcdcea; }
-
-/* Jerarquía del video: icono arriba, número grande, etiqueta debajo.
+.stat-card:hover { transform:translateY(-3px); box-shadow:var(--lf-s2); border-color:var(--lf-linea-f); }
+/* Jerarquía de OF: icono arriba, número grande, etiqueta debajo.
    Se reordena por CSS — el marcado de las vistas no se toca. */
 .stat-card > .stat-icon  { order:1; }
 .stat-card > .stat-value { order:2; }
@@ -534,304 +451,184 @@ html, body {
 .stat-card > .stat-value { order:2; }
 .stat-card > .stat-label { order:3; }
 .stat-spark              { order:5; margin-top:10px; width:100%; }
-
 .stat-icon  {
   width:44px; height:44px; border-radius:14px; display:flex; align-items:center;
-  justify-content:center; font-size:19px; margin-bottom:10px; color:var(--violet);
-  background:var(--violet-soft);
+  justify-content:center; font-size:19px; margin-bottom:10px;
+  background:var(--lf-brand-soft); color:var(--lf-brand-2);
 }
-
-.stat-label { font-size:12.5px; color:var(--ink-3); font-weight:500; text-transform:none; letter-spacing:0; }
-
+.stat-label { font-size:12.5px; color:var(--lf-tinta-3); font-weight:500; text-transform:none; letter-spacing:0; }
 .stat-value {
-  font-size:29px; font-weight:700; color:var(--ink); letter-spacing:-1.1px;
-  font-family:var(--font); font-variant-numeric:tabular-nums; line-height:1.12;
-  /* .stat-card tiene overflow:hidden (para el degradado/borde redondeado de
-     la tarjeta destacada) -- sin esto, un monto grande (varios millones)
-     se recortaba en silencio en vez de pasar a una segunda línea. */
+  font-size:29px; font-weight:700; color:var(--lf-tinta); letter-spacing:-1.1px;
+  font-family:var(--mono); font-variant-numeric:tabular-nums; line-height:1.12;
+  /* .stat-card tiene overflow:hidden (para el borde redondeado de la tarjeta
+     destacada) -- sin esto, un monto grande (varios millones) se recortaba en
+     silencio en vez de pasar a una segunda línea. */
   overflow-wrap:anywhere;
 }
-
-.stat-meta  { font-size:12px; color:var(--ink-3); }
-
-.stat-meta.up   { color:var(--green-dark); font-weight:600; }
-
-.stat-meta.down { color:var(--red); font-weight:600; }
+.stat-meta  { font-size:12px; color:var(--lf-tinta-3); }
+.stat-meta.up   { color:var(--lf-brand-2); font-weight:600; }
+.stat-meta.down { color:var(--lf-rojo); font-weight:600; }
 
 
-
-/* ── TABLAS ── */
+/* ── TABLAS · cabecera flotante sobre vidrio, sin borde inferior ── */
 
 .table-wrap { overflow-x:auto; }
-
-table { width:100%; border-collapse:collapse; }
-
+table { width:100%; border-collapse:separate; border-spacing:0; }
 th {
   padding:11px 14px; text-align:left; font-size:11.5px; font-weight:600;
-  color:var(--ink-3); text-transform:none; letter-spacing:.2px;
-  background:var(--glass-light); border-bottom:none; white-space:nowrap;
+  color:var(--lf-tinta-3); text-transform:none; letter-spacing:.2px;
+  background:var(--lf-vidrio); border-bottom:none; white-space:nowrap; vertical-align:middle;
 }
 th:first-child { border-radius:var(--radius-sm) 0 0 var(--radius-sm); }
 th:last-child  { border-radius:0 var(--radius-sm) var(--radius-sm) 0; }
-
-td { padding:13px 14px; border-bottom:1px solid var(--border-glow); font-size:13px; color:var(--ink-2); vertical-align:middle; transition:background .12s; }
-
+td { padding:13px 14px; border-bottom:1px solid var(--lf-linea); font-size:13px; color:var(--lf-tinta-2); vertical-align:middle; transition:background .12s; }
 tr:last-child td { border-bottom:none; }
-
 tbody tr { transition:background .12s; }
-
-tbody tr:hover td { background:var(--violet-soft); color:var(--ink); }
-
-
-
-/* ── BADGES ── */
-
-.badge        { display:inline-flex; align-items:center; gap:4px; padding:4px 11px; border-radius:var(--radius-pill); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
-
-.badge-green  { background:var(--green-glow); color:var(--green-dark); border:1px solid rgba(47,158,68,.2); }
-
-.badge-lime   { background:var(--lime-glow);  color:var(--lime-dark); border:1px solid rgba(189,207,0,.25); }
-
-.badge-amber  { background:var(--amber-glow); color:var(--amber); border:1px solid rgba(217,119,6,.2); }
-
-.badge-red    { background:var(--red-glow);   color:var(--red); border:1px solid rgba(220,38,38,.2); }
-
-.badge-blue   { background:var(--accent-glow); color:var(--violet-dark); border:1px solid rgba(108,90,240,.20); }
-
-.badge-purple { background:var(--magenta-soft); color:#a83fc0; border:1px solid rgba(216,96,240,.22); }
-
-.badge-gray   { background:var(--glass-light); color:var(--ink-3); border:1px solid var(--border-glow); }
-
-:root[data-theme="dark"] .badge-green { color:var(--green); }
-
-:root[data-theme="dark"] .badge-blue  { color:#818ccc; }
+tbody tr:hover td { background:var(--lf-brand-glow); color:var(--lf-tinta); }
+td strong, td b { color:var(--lf-tinta); }
 
 
+/* ── BADGES · píldora, 10.5 px, mayúsculas, borde del mismo tono ── */
 
-/* ── FORMULARIOS ── */
+.badge        { display:inline-flex; align-items:center; gap:4px; padding:4px 11px; border-radius:var(--radius-pill); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; line-height:1.35; }
+.badge-green  { background:var(--lf-brand-soft); color:var(--lf-brand-2); border:1px solid color-mix(in srgb, var(--lf-brand) 22%, transparent); }
+.badge-lime   { background:var(--lf-lima-soft);  color:var(--lf-lima-ink); border:1px solid color-mix(in srgb, var(--lf-lima) 28%, transparent); }
+.badge-amber  { background:var(--lf-amb-soft);   color:var(--lf-amb-ink); border:1px solid color-mix(in srgb, var(--lf-amb) 24%, transparent); }
+.badge-red    { background:var(--lf-rojo-soft);  color:var(--lf-rojo); border:1px solid color-mix(in srgb, var(--lf-rojo) 22%, transparent); }
+.badge-blue   { background:var(--lf-info-soft);  color:var(--lf-info); border:1px solid color-mix(in srgb, var(--lf-info) 22%, transparent); }
+.badge-purple { background:var(--lf-pizarra-soft); color:var(--lf-pizarra); border:1px solid color-mix(in srgb, var(--lf-pizarra) 22%, transparent); }
+.badge-gray   { background:var(--lf-vidrio);     color:var(--lf-tinta-3); border:1px solid var(--lf-linea); }
+
+
+/* ── FORMULARIOS · campos de 12 px de radio, anillo de foco con la marca ── */
 
 .form-group { margin-bottom:16px; }
-
-.form-label { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
-
+.form-label { display:block; font-size:12px; font-weight:600; color:var(--lf-tinta-2); margin-bottom:6px; }
 .form-input, .form-select {
-
-  width:100%; padding:10px 13px; background:var(--bg-solid);
-
-  border:1px solid var(--border-glow); border-radius:var(--radius);
-
-  color:var(--ink); font-size:13.5px; font-family:var(--font);
-
+  width:100%; padding:10px 13px; background:var(--lf-sup);
+  border:1px solid var(--lf-linea); border-radius:var(--lf-r);
+  color:var(--lf-tinta); font-size:13.5px; font-family:var(--font);
   transition:border-color .15s, box-shadow .15s; outline:none;
-
 }
-
 .form-input:focus, .form-select:focus {
-
-  border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow);
-
+  border-color:var(--lf-brand); box-shadow:0 0 0 3px var(--lf-brand-ring);
 }
-
-.form-input::placeholder { color:var(--ink-4); }
-
+.form-input::placeholder { color:var(--lf-tinta-4); }
+/* Los campos de dinero se leen mejor en monoespaciada */
+input[type="number"] { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+input[type="checkbox"], input[type="radio"] { accent-color:var(--lf-brand-d); }
 .form-select {
-
   appearance:none;
-
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23697386' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2363706a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 12px center;
-
   padding-right:32px; cursor:pointer;
-
 }
-
-.form-select option { background:var(--bg-solid); color:var(--ink); }
-
+.form-select option { background:var(--lf-sup); color:var(--lf-tinta); }
 
 
-/* ── MODAL ── */
+/* ── MODAL · radio 26, sombra grande, pie en superficie 2 ── */
 
 .modal-backdrop {
-
-  position:fixed; inset:0; background:rgba(16,19,40,.45); backdrop-filter:blur(4px);
-
+  position:fixed; inset:0; background:rgba(16,22,19,.45); backdrop-filter:blur(4px);
   display:flex; align-items:center; justify-content:center; z-index:1000;
-
   animation:fadeIn .15s ease; padding:20px;
-
   /* Con el modal abierto, el fondo seguía desplazándose por detrás: el backdrop
      es position:fixed y se queda quieto, pero .content (que es el contenedor
-     con scroll de toda la app) nunca se bloqueaba, así que la rueda o el gesto
-     sobre el overlay movían la página de atrás y daba la sensación de "salirse"
-     del modal. No existe bloqueo de scroll en ningún lado del sistema.
-
+     con scroll de toda la app) nunca se bloqueaba.
      overflow-y:auto convierte al overlay en su propio contenedor de scroll, y
      overscroll-behavior:contain evita que ese scroll se ENCADENE al de atrás.
      Como .modal tiene max-height:90vh, el overlay casi nunca desborda: lo que
-     se gana es justamente cortar el encadenamiento. Y si algún día un modal
-     crece de más, ahora se recorre dentro del overlay en vez de quedar fuera
-     de alcance. Va en la clase compartida, así que cubre los 21 modales del
-     sistema y no solo el de Facturación, que fue donde se reportó. */
+     se gana es cortar el encadenamiento. Va en la clase compartida, así que
+     cubre los 21 modales del sistema. */
   overflow-y:auto; overscroll-behavior:contain;
-
 }
-
 .modal {
-
-  background:var(--bg-surface); border:1px solid var(--border-glow);
-
-  border-radius:var(--radius-panel); width:100%; max-width:480px; max-height:90vh;
-
+  background:var(--lf-sup); border:1px solid var(--lf-linea);
+  border-radius:var(--lf-r-panel); width:100%; max-width:480px; max-height:90vh;
   overflow:hidden; display:flex; flex-direction:column;
-
-  box-shadow:var(--shadow-lg);
-
+  box-shadow:var(--lf-s3);
   animation:slideUp .2s ease;
-
 }
-
 .modal-lg  { max-width:680px; }
-
 @keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:none;opacity:1} }
-
-.modal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--border-glow); flex-shrink:0; }
-
-.modal-title  { font-size:16px; font-weight:700; color:var(--ink); }
-
+.modal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--lf-linea); flex-shrink:0; }
+.modal-title  { font-size:16px; font-weight:700; color:var(--lf-tinta); letter-spacing:-.2px; }
 .modal-body   { padding:20px 22px; overflow-y:auto; flex:1; }
+.modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:16px 22px; border-top:1px solid var(--lf-linea); flex-shrink:0; background:var(--lf-sup-2); }
+/* El "✕" de algunos modales (Contador, Escuelas, MiCuenta, Suscripciones) no
+   tenía regla: caía al botón gris del navegador. Mismo botón fantasma redondo
+   que usa OF (.lf-btn-ghost). */
+.modal-close {
+  width:32px; height:32px; border-radius:50%; border:none; background:transparent;
+  color:var(--lf-tinta-3); cursor:pointer; font-size:15px; line-height:1;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-family:var(--font); transition:background .15s, color .15s; flex-shrink:0;
+}
+.modal-close:hover { background:var(--lf-vidrio); color:var(--lf-tinta); }
 
-.modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:16px 22px; border-top:1px solid var(--border-glow); flex-shrink:0; background:var(--bg-main); }
 
-
-
-/* ── LOGIN ── */
-
+/* ── LOGIN · como el de OF: la marca de pared a pared y una tarjeta de
+   verde oscuro. Es la única pantalla que ve alguien que todavía no es nadie,
+   así que NO reutiliza los estilos del sistema: los tokens de texto se
+   re-escriben aquí (claro sobre oscuro) para que las vistas que usan
+   var(--ink…) dentro del login se lean sobre la tarjeta. ── */
 .login-screen {
-
-  height:100vh; display:flex; align-items:center; justify-content:center;
-
-  position:relative; overflow:hidden; padding-bottom:5rem;
-
-  /* ── Colores ORIGINALES de EduPago, aislados del rediseño ──
-     Redefinir los tokens aquí re-tiñe solo el login: el resto
-     del sistema sigue con la paleta del video.                */
-
-  --accent:       var(--lime);
-
-  --accent-glow:  rgba(189,207,0,0.18);
-
-  --btn-gradient: linear-gradient(135deg, #bdcf00 0%, #2f9e44 100%);
-
-  --border-glow:  rgba(255,255,255,0.07);
-
-  --bg-solid:     #272c52;
-
-  --bg-surface:   #272c52;
-
-  --ink:    #eef1f8;
-
-  --ink-2:  #c4cad8;
-
-  --ink-3:  #8b93a7;
-
-  --ink-4:  #69798f;
-
-  background:#272c64;
-
+  height:100vh; height:100dvh; display:flex; align-items:center; justify-content:center;
+  position:relative; overflow-y:auto; padding:32px 0 5rem;
+  --login-card:   color-mix(in srgb, var(--lf-brand) 45%, #000);
+  --login-btn:    color-mix(in srgb, var(--lf-brand) 78%, #6ee36e);
+  --login-btn-ink:#0e2414;
+  --accent:       #ffffff;
+  --accent-glow:  rgba(255,255,255,.22);
+  --border-glow:  rgba(255,255,255,.16);
+  --bg-solid:     var(--login-card);
+  --bg-surface:   var(--login-card);
+  --ink:    #ffffff;
+  --ink-2:  #e6f1e8;
+  --ink-3:  #d2e3d6;
+  --ink-4:  #bcd2c1;
+  --red:    #ffd9d4;
+  background-color:var(--lf-brand);
+  /* Un degradado apenas perceptible: con el verde plano la pantalla
+     se ve impresa, no iluminada. */
+  background-image:radial-gradient(1100px 680px at 50% 38%, color-mix(in srgb, #fff 9%, transparent) 0%, transparent 62%);
 }
-
-.login-screen::before {
-
-  content:''; position:absolute; inset:0;
-
-  background:
-
-    radial-gradient(ellipse 60% 60% at 80% 15%, rgba(189,207,0,.10) 0%, transparent 60%),
-
-    radial-gradient(ellipse 60% 60% at 15% 85%, rgba(73,175,84,.10) 0%, transparent 60%);
-
-  pointer-events:none;
-
-}
-
+/* Esta pantalla no sigue el tema oscuro: la marca manda. */
 .login-card {
-
-  width:390px; background:#272c52; border:1px solid rgba(255,255,255,.07);
-
-  border-radius:var(--radius-lg); padding:34px 32px; box-shadow:0 16px 40px rgba(0,0,0,.5);
-
+  width:390px; background:var(--login-card); border:1px solid rgba(255,255,255,.2);
+  border-radius:16px; padding:34px 32px; box-shadow:0 16px 44px rgba(0,0,0,.38);
   animation:slideUp .3s ease; position:relative; z-index:1;
-
 }
-
 .login-logo    { text-align:center; margin-bottom:30px; }
-
 .login-brand   { font-size:28px; font-weight:800; color:var(--ink); letter-spacing:-1px; }
-
-.login-tagline { font-size:12px; color:var(--green); margin-top:5px; font-weight:600; letter-spacing:.3px; }
-
-.login-label   { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
-
+.login-tagline { font-size:12px; color:var(--ink-3); margin-top:5px; font-weight:600; letter-spacing:.3px; }
+.login-label   { display:block; font-size:12px; font-weight:500; color:var(--ink-2); margin-bottom:7px; }
 .login-input {
-
-  width:100%; padding:11px 14px; 
-
-  /*background:var(--bg-solid);*/
-
-  border:1px solid var(--border-glow); border-radius:var(--radius);
-
-  /*color:var(--ink);*/
-
-  font-size:14px; font-family:var(--font); outline:none;
-
+  width:100%; height:44px; padding:0 14px;
+  background:#ffffff; border:1.5px solid transparent; border-radius:var(--radius-sm);
+  color:var(--lf-tinta); font-size:14px; font-family:var(--font); outline:none;
   transition:border-color .15s, box-shadow .15s;
-
 }
-
-.login-input:focus { border-color:var(--accent); 
-
-box-shadow:0 0 0 3px var(--accent-glow); 
-
-}
-
+.login-input::placeholder { color:#7d8984; }
+.login-input:focus { border-color:#ffffff; box-shadow:0 0 0 3px var(--accent-glow); }
 .login-btn {
-
-  width:100%; margin-top:20px; padding:13px;
-
-  background:var(--btn-gradient);
-
-  color:#fff; font-size:14px; font-weight:700; border:none; border-radius:var(--radius);
-
-  cursor:pointer; transition:all .15s; font-family:var(--font);
-
-  letter-spacing:.2px; box-shadow:0 4px 14px rgba(47,158,68,.28);
-
+  width:100%; margin-top:20px; height:46px; padding:0 13px;
+  background:var(--login-btn); color:var(--login-btn-ink);
+  font-size:14.5px; font-weight:700; border:none; border-radius:var(--radius-sm);
+  cursor:pointer; transition:filter .15s, transform .08s; font-family:var(--font);
 }
-
-.login-btn:hover:not(:disabled) { filter:brightness(1.1); box-shadow:var(--shadow-md); }
-
-.login-btn:disabled { opacity:.6; cursor:not-allowed; }
-
+.login-btn:hover:not(:disabled) { filter:brightness(1.08); }
+.login-btn:active:not(:disabled) { transform:translateY(1px); }
+.login-btn:disabled { opacity:.55; cursor:not-allowed; }
 .login-demo { display:flex; gap:8px; margin-top:16px; }
-
 .demo-pill {
-
-  flex:1; padding:8px 6px; background:var(--bg-solid); border:1px solid var(--border-glow);
-
+  flex:1; padding:8px 6px; background:rgba(255,255,255,.08); border:1px solid var(--border-glow);
   border-radius:var(--radius-sm); cursor:pointer; font-size:11px;
-
   font-weight:500; color:var(--ink-2); text-align:center; transition:all .15s;
-
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-
 }
-
-.demo-pill:hover { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
-
+.demo-pill:hover { background:rgba(255,255,255,.16); border-color:#fff; color:#fff; }
 .login-error { color:var(--red); font-size:12px; margin-top:8px; }
-
-
 
 /* ── POS / CAJA ── */
 
@@ -855,7 +652,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 }
 
-.product-card:hover { border-color:var(--violet); transform:translateY(-3px); box-shadow:var(--shadow-md); }
+.product-card:hover { border-color:var(--lf-brand); transform:translateY(-3px); box-shadow:var(--shadow-md); }
 
 .product-emoji { font-size:26px; margin-bottom:7px; }
 
@@ -953,7 +750,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   color:#fff; font-size:14px; font-weight:700; border:none;
 
-  border-radius:var(--radius); cursor:pointer; transition:all .15s;
+  border-radius:var(--radius-pill); cursor:pointer; transition:all .15s;
 
   font-family:var(--font); box-shadow:0 1px 2px rgba(16,24,40,.12);
 
@@ -1023,7 +820,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .empty-state { text-align:center; padding:40px 20px; }
 
-.empty-icon  { font-size:38px; margin-bottom:10px; opacity:.4; }
+.empty-icon  { font-size:38px; margin-bottom:10px; opacity:.55; color:var(--lf-tinta-4); }
 .empty-icon > svg { display:block; margin:0 auto; }
 
 /* Botones de pago de Mi suscripción (tarjeta / efectivo): cada uno ocupa el
@@ -1091,21 +888,22 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 /* ── THEME TOGGLE ── */
 
+/* Botón redondo de 36 px como el de OF. Muestra el icono de lo que vas a
+   OBTENER (luna en claro, sol en oscuro): lo decide el marcado, no el CSS. */
 .theme-toggle {
-  padding:9px 11px; border-radius:var(--radius-pill); border:1px solid var(--border-glow);
-  background:var(--bg-surface); cursor:pointer; font-size:15px; color:var(--ink-3);
-  transition:all .15s; display:flex; align-items:center; line-height:1;
+  width:36px; height:36px; padding:0; border-radius:50%; border:1px solid var(--lf-linea);
+  background:var(--lf-sup); cursor:pointer; font-size:15px; color:var(--lf-tinta-3);
+  transition:all .15s; display:inline-flex; align-items:center; justify-content:center; line-height:1;
+  flex-shrink:0;
 }
-
-/* Antes esta regla era `display:none`, así que el usuario no podía cambiar de tema. */
-.theme-toggle:hover { background:var(--violet-soft); color:var(--violet); border-color:var(--violet); }
+.theme-toggle:hover { background:var(--lf-brand-glow); color:var(--lf-brand-2); border-color:var(--lf-brand); }
 
 /* ── SWITCH (toggle deslizante) ── */
 /* Uso: <label className="switch"><input type="checkbox" checked={...} onChange={...} /><span className="switch-track"></span></label> */
 .switch { position:relative; display:inline-block; width:40px; height:22px; flex-shrink:0; cursor:pointer; }
 .switch input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
 .switch-track {
-  position:absolute; inset:0; background:var(--border-glow); border-radius:var(--radius-pill);
+  position:absolute; inset:0; background:var(--lf-linea-f); border-radius:var(--radius-pill);
   transition:background .15s;
 }
 .switch-track::before {
@@ -1113,7 +911,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
   background:#fff; border-radius:50%; box-shadow:0 1px 3px rgba(16,24,40,.25);
   transition:transform .15s;
 }
-.switch input:checked + .switch-track { background:var(--violet); }
+.switch input:checked + .switch-track { background:var(--lf-brand-d); }
 .switch input:checked + .switch-track::before { transform:translateX(18px); }
 .switch input:disabled + .switch-track { opacity:.5; cursor:not-allowed; }
 .switch input:focus-visible + .switch-track { outline:2px solid var(--violet); outline-offset:2px; }
@@ -1144,7 +942,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 .progress-bar  { height:6px; background:var(--glass-light); border-radius:10px; overflow:hidden; margin-top:8px; }
 
-.progress-fill { height:100%; border-radius:10px; transition:width 1s ease; background:var(--grad-cool); }
+.progress-fill { height:100%; border-radius:10px; transition:width 1s ease; background:var(--lf-brand); }
 
 
 
@@ -1297,9 +1095,6 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
   .content { padding: 4px 16px 22px; }
 
-  /* La barra de acento vuelve al borde izquierdo dentro del drawer */
-
-  .nav-item.active::before { right:auto; left:0; }
 
 
   .app.nav-open .sidebar { transform: translateX(0); }
@@ -1568,14 +1363,11 @@ box-shadow:0 0 0 3px var(--accent-glow);
 .pill-group { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .pill {
   padding:9px 18px; border-radius:var(--radius-pill); font-size:12.5px; font-weight:600;
-  border:1px solid var(--border-glow); background:var(--bg-surface); color:var(--ink-3);
+  border:1px solid var(--lf-linea); background:var(--lf-sup); color:var(--lf-tinta-2);
   cursor:pointer; transition:all .15s; font-family:var(--font); white-space:nowrap; line-height:1;
 }
-.pill:hover { color:var(--ink); border-color:#dcdcea; }
-.pill.active {
-  background:var(--violet); border-color:var(--violet); color:#fff;
-  /* box-shadow:var(--shadow-violet); */
-}
+.pill:hover { color:var(--lf-tinta); border-color:var(--lf-brand); background:var(--lf-brand-glow); }
+.pill.active { background:var(--lf-brand-d); border-color:var(--lf-brand-d); color:#fff; }
 
 /* ── Tarjeta destacada con degradado (la tarjeta "Bounce Rate") ── */
 .stat-card.is-featured {
@@ -1600,16 +1392,16 @@ box-shadow:0 0 0 3px var(--accent-glow);
 .stat-card.is-featured .stat-delta { color:#fff; }
 
 /* ── Tintes para los azulejos de icono ── */
-.stat-icon.tint-cyan    { background:var(--cyan-soft);    color:#1aa8c4; }
-.stat-icon.tint-magenta { background:var(--magenta-soft); color:#b845d0; }
+.stat-icon.tint-cyan    { background:var(--lf-info-soft);    color:var(--lf-info); }
+.stat-icon.tint-magenta { background:var(--lf-pizarra-soft); color:var(--lf-pizarra); }
 .stat-icon.tint-green   { background:var(--green-glow);   color:var(--green-dark); }
 .stat-icon.tint-amber   { background:var(--amber-glow);   color:var(--amber); }
 .stat-icon.tint-red     { background:var(--red-glow);     color:var(--red); }
 
 /* ── Barras de desplazamiento discretas ── */
 .content::-webkit-scrollbar-thumb,
-.sidebar-nav::-webkit-scrollbar-thumb { background:#dcdde8; border-radius:20px; }
-* { scrollbar-width:thin; scrollbar-color:#dcdde8 transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background:var(--lf-linea-f); border-radius:20px; }
+* { scrollbar-width:thin; scrollbar-color:var(--lf-linea-f) transparent; }
 
 /* ── Encabezado de sección: apila filtros en pantallas angostas ── */
 @media (max-width: 768px) {
@@ -1640,25 +1432,15 @@ box-shadow:0 0 0 3px var(--accent-glow);
 
 /* ── Tarjeta destacada: en oscuro el degradado a full brillo deslumbra ── */
 :root[data-theme="dark"] .stat-card.is-featured {
-  /* background:linear-gradient(115deg, #2ea8c4 0%, #5946d8 55%, #a845c0 100%); */
-  background:linear-gradient(#5946d8);
-  /* box-shadow:0 10px 30px rgba(108,90,240,.35); */
+  background:var(--grad-brand);
 }
 
-/* ── Azulejos de icono: tintes translúcidos en vez de pasteles sólidos ── */
-:root[data-theme="dark"] .stat-icon              { background:rgba(108,90,240,.18); color:var(--violet-light); }
-:root[data-theme="dark"] .stat-icon.tint-cyan    { background:rgba(79,216,240,.15);  color:#6fdcf0; }
-:root[data-theme="dark"] .stat-icon.tint-magenta { background:rgba(216,96,240,.15);  color:#e08cf5; }
-:root[data-theme="dark"] .stat-icon.tint-green   { background:rgba(73,175,84,.16);   color:#5fc96c; }
-:root[data-theme="dark"] .stat-icon.tint-amber   { background:rgba(217,119,6,.16);   color:#f0a63a; }
-:root[data-theme="dark"] .stat-icon.tint-red     { background:rgba(229,72,77,.16);   color:#f2777a; }
-
+/* Azulejos de icono: ya usan tokens (--lf-brand-soft, --lf-info-soft…) que
+   cambian solos en oscuro; no necesitan reglas propias. */
 /* ── Píldora inactiva: la superficie de tarjeta la haría desaparecer ── */
 :root[data-theme="dark"] .pill { background:var(--bg-surface-2); }
-:root[data-theme="dark"] .pill:hover { border-color:rgba(255,255,255,.20); }
-
-/* ── Hover de fila: el violeta sólido es demasiado fuerte sobre oscuro ── */
-:root[data-theme="dark"] tbody tr:hover td { background:rgba(108,90,240,.14); }
+:root[data-theme="dark"] .pill:hover { border-color:var(--lf-brand); }
+:root[data-theme="dark"] .pill.active { background:var(--lf-brand-d); border-color:var(--lf-brand-d); color:#fff; }
 
 /* ── Cabecera de tabla sobre la superficie elevada ── */
 :root[data-theme="dark"] th { background:rgba(255,255,255,.045); color:var(--ink-3); }
@@ -1735,7 +1517,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
   background:var(--bg-surface); border:1px solid var(--border-glow);
   border-radius:var(--radius); transition:border-color .15s, box-shadow .15s;
 }
-.buscador-etiquetas:focus-within { border-color:var(--violet); box-shadow:0 0 0 3px var(--accent-glow); }
+.buscador-etiquetas:focus-within { border-color:var(--lf-brand); box-shadow:0 0 0 3px var(--lf-brand-ring); }
 .be-icono { color:var(--ink-4); display:inline-flex; align-items:center; flex-shrink:0; }
 .be-chip {
   display:inline-flex; align-items:center; gap:6px;
@@ -1745,12 +1527,12 @@ box-shadow:0 0 0 3px var(--accent-glow);
 }
 .be-chip > span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .be-chip-x {
-  border:none; background:rgba(108,90,240,.16); color:inherit; cursor:pointer;
+  border:none; background:var(--lf-brand-ring); color:inherit; cursor:pointer;
   width:17px; height:17px; border-radius:50%; flex-shrink:0; line-height:1;
   font-size:13px; display:flex; align-items:center; justify-content:center;
   font-family:var(--font); padding:0;
 }
-.be-chip-x:hover { background:var(--violet); color:#fff; }
+.be-chip-x:hover { background:var(--lf-brand-d); color:#fff; }
 .be-input {
   flex:1; min-width:130px; border:none; outline:none; background:transparent;
   font-family:var(--font); font-size:13.5px; color:var(--ink); padding:3px 0;
@@ -1763,7 +1545,6 @@ box-shadow:0 0 0 3px var(--accent-glow);
 }
 .be-limpiar:hover { background:var(--glass-light); color:var(--ink); }
 .be-ayuda { font-size:11.5px; color:var(--ink-4); margin-top:6px; }
-:root[data-theme="dark"] .be-chip { background:rgba(108,90,240,.22); color:#b6a9fa; }
 
 /* ══ Menú de perfil (pie del sidebar) ══ */
 .menu-perfil {
@@ -1842,7 +1623,7 @@ box-shadow:0 0 0 3px var(--accent-glow);
   color:var(--ink-2); font-size:12.5px; font-weight:600; cursor:pointer;
   font-family:var(--font); transition:all .12s;
 }
-.pag-btn:hover:not(:disabled) { border-color:var(--violet); color:var(--violet); }
+.pag-btn:hover:not(:disabled) { border-color:var(--lf-brand); color:var(--lf-brand-2); }
 .pag-btn:disabled { opacity:.4; cursor:not-allowed; }
 .pag-btn.activo {
   background:var(--violet); border-color:var(--violet); color:#fff;
