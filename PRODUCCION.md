@@ -792,7 +792,7 @@ Proyecto en 7 fases, integradas en la rama `est/integracion`. El detalle de cada
    - **F2:** corre solo la PARTE 1. La PARTE 2 (crear un tutor por alumno a partir de su familia) es opcional y viene comentada.
    - **F3 — cuidado con el paso 5b.** El `UPDATE periodos_evaluacion SET publicado = 1` publica todos los periodos existentes, para que las familias sigan viendo lo que ya veían. Córrelo **solo** si el `ALTER` 5a acaba de funcionar. Si el 5a dice *Duplicate column name 'publicado'*, la migración ya se había corrido: **no** corras el UPDATE, porque volvería a publicar periodos que el colegio ocultó a propósito.
    - **F3 es la que no perdona el orden:** si el código llega antes que esta migración, el módulo escolar completo se detiene (docentes y familias incluidos) con un aviso de "falta correr la migración".
-   - **F6:** el `ALTER TABLE cobros` y el de `escuelas.monedero_activo` no son idempotentes; si ya existen, sáltalos.
+   - **F6:** los CREATE TABLE se pueden repetir; los tres `ALTER` del final (pasos 6, 7 y 8: columna e índice en `cobros`, y `escuelas.monedero_activo`) no: si alguno ya existe, sáltalo.
 4. `git pull` en el servidor.
 5. Verificación rápida, con un usuario de cada rol:
    - Admin: Alumnos, Familias, Caja e Historial de cobros cargan como siempre. Con un alumno **de prueba** (no uno real: la baja ofrece cancelar sus adeudos y desactiva su cuenta), cambia el estatus a "baja temporal" y regrésalo a "activo"; debe quedar en su historial.
@@ -805,7 +805,7 @@ Proyecto en 7 fases, integradas en la rama `est/integracion`. El detalle de cada
 ### Después del despliegue
 
 - **Grados (F3/F5):** en cada colegio, en Control escolar, pestaña *Grados*: cargar el catálogo y usar el asistente "Ligar alumnos al catálogo de grados" para ligar el grado de texto de cada alumno con el catálogo. Hasta hacerlo, la promoción y los cobros por grado no tienen a quién aplicar (un concepto con alcance por grado sin alumnos mapeados no genera nada, a propósito).
-- **Monedero (F6):** nace **apagado** en todos los colegios. Se activa por colegio desde *Monedero → Configuración*. El vendedor de la tiendita se da de alta en *Mi equipo* con el rol "Tiendita".
+- **Monedero (F6):** nace **apagado** en todos los colegios. Se activa por colegio desde *Monedero → Configuración*. El vendedor de la tiendita se da de alta en *Mi equipo* con el rol "Tiendita (vendedor)". Las recargas en caja necesitan que el cajero tenga su caja abierta, y entran a su corte como cualquier cobro.
 - **Allowlist de familia en modo estricto (F0).** Hoy está en modo registro: una familia que llama una acción fuera de su lista pasa, pero queda anotada. Después de ~1 semana en producción:
   1. `grep FAMILIA_FUERA_ALLOWLIST api_log.txt`
   2. Si aparece una acción legítima del portal, agrégala a la lista `'familia'` de `api.php` (con un commit).
