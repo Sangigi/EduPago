@@ -239,10 +239,13 @@ function alumno_validar_limite_plan(PDO $pdo, int $escuela_id, string $para = 'd
  */
 function alumno_cobros_pendientes(PDO $pdo, int $cliente_id): array
 {
+    // [F6] Las recargas de monedero pendientes no son adeudo: no se ofrecen
+    // para "cobrar o cancelar" al dar de baja al alumno.
+    $f6_sin_recargas = (function_exists('cobros_col_recarga_monedero') && cobros_col_recarga_monedero($pdo)) ? ' AND es_recarga_monedero = 0' : '';
     $st = $pdo->prepare(
         "SELECT id, folio, total, monto_pagado, fecha, referencia
            FROM cobros
-          WHERE cliente_id = ? AND estado = 'pendiente'
+          WHERE cliente_id = ? AND estado = 'pendiente'{$f6_sin_recargas}
           ORDER BY fecha, id"
     );
     $st->execute([$cliente_id]);

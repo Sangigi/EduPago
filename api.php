@@ -23,6 +23,9 @@ require_once __DIR__ . '/lib/helpers_alumnos.php';
 // lib/planes.php. Sigue exponiendo PLANES_LIMITES, PLAN_FALLBACK y
 // limitesDelPlan() con la misma forma de siempre.
 require_once __DIR__ . '/lib/planes.php';
+// [F6] Monedero del alumno y tiendita (18-nov-2026). Libro mayor, acceso y
+// barrido de recargas pagadas: ver la cabecera de ese archivo.
+require_once __DIR__ . '/lib/helpers_monedero.php';
 // ── Secciones del menú que el super admin puede habilitar/deshabilitar por
 // colegio — fuente única de verdad (debe reflejar el mismo listado de ids
 // que NAV_ITEMS en assets/js/app.js para las secciones de admin/cajero).
@@ -43,6 +46,10 @@ const SECCIONES_DISPONIBLES = [
     'recordatorios' => 'Recordatorios',
     'reportes'      => 'Reportes',
     'miequipo'      => 'Mi equipo',
+    // [F6] Monedero y tiendita. Apagarlo esconde el menú del admin/cajero y la
+    // pestaña del portal de familia, y bloquea recargas y ventas (no las
+    // consultas de saldo: apagar el módulo no le esconde a nadie su dinero).
+    'monedero'      => 'Monedero y tiendita',
     // Control escolar (13-nov-2026). Ver lib/helpers_escolar.php.
     'escolar_grupos'         => 'Grupos y horarios',
     'escolar_asistencias'    => 'Asistencias',
@@ -321,7 +328,9 @@ if (isset($usuario_actual) && $usuario_actual && !empty($usuario_actual['escuela
         // [F4] Coordinación académica y dirección también son personal del
         // colegio. 'alumno' NO va aquí: es como 'familia' (cliente del colegio,
         // no nuestro), así que su portal sigue abierto aunque el colegio venza.
-        'control_escolar', 'direccion'], true)
+        'control_escolar', 'direccion',
+        // [F6] La tiendita también es personal del colegio.
+        'tienda'], true)
     && !in_array($action, $ACCIONES_PERMITIDAS_VENCIDO, true)) {
     $estadoSus = suscripcion_estado($pdo, $usuario_actual['escuela_id']);
     if ($estadoSus['vencida']) {
@@ -811,6 +820,17 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
 // puede chocar con esa línea. Lo más limpio es hacerlo con un commit.
 // Para volver al modo registro basta con quitar esa línea.
 if (!defined('ALLOWLIST_FAMILIA_ESTRICTA')) define('ALLOWLIST_FAMILIA_ESTRICTA', false);
+// [F6] Tiendita/cafetería (18-nov-2026). Rol del colegio con allowlist
+// OBLIGATORIA, igual que 'docente': fuera queda cargar_datos (saldos y
+// cobros de toda la escuela) y cualquier acción de cobranza. Su panel
+// (views/Tienda.js) trae todo con estas acciones, que además validan por
+// dentro escuela, alumno activo, saldo, límite diario y NIP
+// (lib/helpers_monedero.php).
+$ACCIONES_POR_ROL_PLATAFORMA['tienda'] = [
+    'tienda_buscar_alumno', 'tienda_productos_listar', 'tienda_vender',
+    'tienda_ventas_dia', 'tienda_cancelar_venta',
+    'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+];
 // 'editar_usuario' y 'cambiar_password_propio' van en las tres listas porque
 // son de autoservicio: editar_usuario ya se defiende solo por dentro (exige
 // ser superadmin/admin O que la fila sea el propio perfil), así que aquí solo

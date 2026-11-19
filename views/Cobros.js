@@ -694,7 +694,8 @@ function Cobros({
                     fontFamily: 'var(--mono)',
                     fontSize: 12
                   },
-                  children: c.folio
+                  // [F6] Las recargas de monedero se distinguen en la tabla.
+                  children: c.folio + (Number(c.es_recarga_monedero) ? ' · Recarga monedero' : '')
                 }, void 0, false)
               }, void 0, false), _jsxDEV("td", {
                 "data-label": "Fecha",

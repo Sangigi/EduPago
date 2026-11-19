@@ -88,6 +88,9 @@
             unset($e['contrato_ruta'], $e['contrato_nombre'], $e['contrato_firmado_ruta'], $e['contrato_firmado_nombre'], $e['contrato_firmado_mime']);
             $propios = json_decode($e['metodos_pago_deshabilitados'] ?? '', true) ?: [];
             $e['metodos_pago_deshabilitados'] = array_values(array_unique(array_merge($propios, $metodosGlobal)));
+            // [F6] Interruptor del monedero por colegio (apagado por defecto). El
+            // SELECT * ya trae la columna si la migración corrió; si no, 0.
+            $e['monedero_activo'] = !empty($e['monedero_activo']) ? 1 : 0;
             // [F4] Sin finanzas: de la escuela solo viaja lo que el navegador
             // necesita para pintarse (nombre, logo, contacto, secciones). Es una
             // lista BLANCA a propósito: `SELECT *` trae RFC, razón social, plan,
@@ -343,9 +346,19 @@
         // los cobros (folios, montos, método, qué se compró) de TODAS las
         // familias de la escuela, filtrado solo en el frontend.
         $where_co_familia = '';
+        // [F6] Las recargas de monedero NO viajan aquí: una pendiente no es
+        // adeudo (no debe contar en pendientes, dashboard, recordatorios ni en
+        // el portal de familia) y una pagada es dinero que el colegio CUSTODIA,
+        // no ingreso por cobranza (ensuciaría "cobrado" del dashboard). Se ven
+        // en Monedero > Saldos y reporte; el corte de caja sí las suma porque
+        // lee los cobros directo de la BD. Sin la migración la columna no
+        // existe y no se filtra nada.
+        if (cobros_col_recarga_monedero($pdo)) {
+            $where_co_familia .= ' AND co.es_recarga_monedero = 0';
+        }
         $params_co = [$escuela_id_ver];
         if ($rol === 'familia') {
-            $where_co_familia = ' AND cl.familia_id = ?';
+            $where_co_familia .= ' AND cl.familia_id = ?';
             $params_co[] = $usuario_actual['familia_id'] ?? -1;
         }
         // [F4] Sin finanzas: ni cobros ni su resumen. No se consultan (no es solo

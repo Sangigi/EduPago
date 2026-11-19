@@ -52,6 +52,10 @@ var ROL_INFO = {
   // [F4] Dirección: consulta de solo lectura (alumnos y control escolar).
   direccion:    { label: 'Dirección',    icon: 'info',     color: '#d946ef',       bg: 'rgba(217,70,239,.15)', badge: 'badge-purple', deColegio: true,
                   desc: 'Consulta de alumnos, asistencias, calificaciones y kárdex. Solo lectura: no edita nada ni ve cobros.' },
+  // [F6] Vendedor de la tiendita/cafetería: solo cobra contra el monedero de los
+  // alumnos (pantalla propia, sin menú de cobranza).
+  tienda:       { label: 'Tiendita (vendedor)', icon: 'productos', color: '#f97316', bg: 'rgba(249,115,22,.15)', badge: 'badge-amber', deColegio: true,
+                  desc: 'Vende en la tiendita: busca al alumno, cobra con su monedero y cancela sus ventas del día. Sin acceso a cobros, caja ni datos de familias.' },
   // [F4] Cuenta de acceso de un alumno (portal del alumno). No es "de colegio"
   // para el listado de equipo: se crea y se administra desde Alumnos >
   // "Acceso del alumno", y listar_usuarios.php no la devuelve salvo que se pida.
@@ -741,7 +745,7 @@ function Usuarios({ user, data }) {
     if (user.rol === 'admin' && (objetivo.rol === 'cajero' || objetivo.rol === 'familia') && objetivo.escuela_id === user.escuela_id) return true;
     // [F4] El admin también administra a su personal académico (docente,
     // control escolar y dirección) de su escuela; el backend ya lo permitía.
-    if (user.rol === 'admin' && ['docente', 'control_escolar', 'direccion'].includes(objetivo.rol) && objetivo.escuela_id === user.escuela_id) return true;
+    if (user.rol === 'admin' && ['docente', 'control_escolar', 'direccion', 'tienda' /* [F6] */].includes(objetivo.rol) && objetivo.escuela_id === user.escuela_id) return true;
     // [F4] La coordinación solo administra docentes de su escuela.
     if (user.rol === 'control_escolar' && objetivo.rol === 'docente' && objetivo.escuela_id === user.escuela_id) return true;
     return false;

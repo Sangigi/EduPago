@@ -31,6 +31,9 @@ require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/mailer.php';
 require_once __DIR__ . '/lib/helpers_pagos.php';
 require_once __DIR__ . '/lib/helpers_comisiones.php';
+// [F6] Monedero del alumno: cancelación de recargas vencidas y barrido de
+// recargas pagadas (bloque [F6] al final de este archivo).
+require_once __DIR__ . '/lib/helpers_monedero.php';
 
 // Dias de aviso previo antes de aplicar un cargo automatico. Define
 // CAI_DIAS_AVISO en config.php para cambiarlo sin tocar este archivo.
@@ -603,6 +606,9 @@ try {
          LEFT JOIN familias fa ON fa.id = cl.familia_id
          LEFT JOIN pagos_recurrentes_generados prg ON prg.cobro_id = co.id
          WHERE co.estado = 'pendiente' AND prg.id IS NULL"
+        // [F6] Una recarga de monedero pendiente NO es adeudo: no se le manda
+        // "recordatorio de pago" a la familia por una recarga que ella misma pidió.
+        . (cobros_col_recarga_monedero($pdo) ? " AND co.es_recarga_monedero = 0" : '')
         // [F1] Sin recordatorios para alumnos dados de baja (activo = 0). Los
         // cobros sin alumno (cliente general, cliente_id NULL) siguen igual.
         . " AND (co.cliente_id IS NULL OR cl.activo = 1)"
@@ -780,6 +786,25 @@ try {
     }
 } catch (\Throwable $e) {
     $resumen[] = 'Comisiones: no se pudo cerrar (' . $e->getMessage() . ')';
+}
+// [F6] MONEDERO. Va en su propio try/catch: un fallo aquí no debe frenar nada de
+// lo demás (el cron manda correos de dinero). Orden a propósito:
+//   1) cancelar las recargas EN LÍNEA que nadie pagó en MONEDERO_RECARGA_VIGENCIA_DIAS
+//      días (solo las que no recibieron ni un centavo y cuya referencia ya venció);
+//   2) barrer las recargas ya pagadas que todavía no son saldo (los webhooks de
+//      pago no tocan el monedero) y revertir las acreditadas cuyo cobro se canceló.
+// El barrido es idempotente: correr el cron dos veces, o a la vez que alguien
+// consulta su saldo, no acredita nada dos veces. Las recargas NO entran a los
+// bloques de recargos ni de cargo automático de arriba porque esos exigen un
+// renglón en pagos_recurrentes_generados, que una recarga nunca tiene.
+try {
+    $f6_canceladas = monedero_cancelar_recargas_vencidas($pdo);
+    $f6_acreditadas = monedero_acreditar_recargas($pdo);
+    if ($f6_canceladas || $f6_acreditadas) {
+        $resumen[] = "Monedero: {$f6_canceladas} recarga(s) vencida(s) cancelada(s), {$f6_acreditadas} recarga(s) pagada(s) acreditada(s)";
+    }
+} catch (\Throwable $e) {
+    $resumen[] = 'Monedero: no se pudo procesar (' . $e->getMessage() . ')';
 }
 $lineaLog = date('Y-m-d H:i:s') . " | Cron recordatorios:\n  " . (empty($resumen) ? '(sin novedades)' : implode("\n  ", $resumen)) . "\n\n";
 file_put_contents(CORREOS_LOG_FILE, $lineaLog, FILE_APPEND);

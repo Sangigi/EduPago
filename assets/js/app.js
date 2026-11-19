@@ -42,7 +42,8 @@ const VISTA_INICIAL_POR_ROL = { soporte: 'busqueda_global', control_escolar: 'al
 // 'docente' (13-nov-2026): su panel trae todo con acciones escolar_*; además
 // cargar_datos le está vedado en api.php (le mandaría saldos y cobros).
 // [F4] 'alumno' igual: su portal usa alumno_resumen y escolar_*; cargar_datos le está vedado.
-const ROLES_SIN_CARGAR_DATOS = ['contador', 'provision', 'distribuidor', 'promotor', 'tesoreria', 'docente', 'alumno'];
+// [F6] 'tienda' igual: su punto de venta usa solo acciones tienda_*; cargar_datos le está vedado.
+const ROLES_SIN_CARGAR_DATOS = ['contador', 'provision', 'distribuidor', 'promotor', 'tesoreria', 'docente', 'alumno', 'tienda'];
 
 const NAV_ITEMS = [{
 
@@ -176,6 +177,22 @@ const NAV_ITEMS = [{
   icon: 'settings',
   section: 'control escolar',
   roles: ['admin', 'control_escolar'] /* [F4] direccion no: es solo configuración */
+}, {
+  // [F6] Monedero del alumno (views/Monedero.js): recarga en caja, saldos,
+  // productos, ajustes y activación. El cajero solo ve la recarga en caja.
+  id: 'monedero',
+  label: 'Monedero',
+  icon: 'pay',
+  section: 'principal',
+  roles: ['admin', 'cajero']
+}, {
+  // [F6] Punto de venta de la tiendita para el admin (views/Tienda.js). Se
+  // esconde mientras el colegio no active el monedero (ver seccionesDeshabilitadas).
+  id: 'tienda',
+  label: 'Tiendita',
+  icon: 'productos',
+  section: 'principal',
+  roles: ['admin']
 }, {
 
   id: 'productos',
@@ -402,6 +419,8 @@ const TITLES = {
   escolar_asistencias: 'Asistencias',
   escolar_calificaciones: 'Calificaciones',
   escolar_config: 'Ciclos, materias y aulas',
+  monedero: 'Monedero',
+  tienda: 'Tiendita',
 
   facturacion: 'Facturación',
 
@@ -1551,6 +1570,17 @@ function App() {
     ));
   }
 
+  // [F6] * PUNTO DE VENTA DE LA TIENDITA * Autónomo como el del alumno: no usa
+  // cargar_datos ni muestra cobranza. Ver views/Tienda.js.
+  if (user.rol === 'tienda') {
+    return conGuia(_jsxDEV(
+      Tienda,
+      { user: user, onLogout: handleLogout, menuPerfil: menuPerfilPlataforma },
+      void 0,
+      false
+    ));
+  }
+
   if (user.rol === 'tesoreria') {
 
     return conGuia(_jsxDEV(
@@ -2067,6 +2097,14 @@ function App() {
     if (escuela?.tipo_persona === 'negocio' && !base.includes('facturacion')) {
       base.push('facturacion');
     }
+    // [F6] La Tiendita del admin solo aparece con el monedero ACTIVADO en el
+    // colegio (escuelas.monedero_activo, apagado por defecto) y mientras el
+    // super admin no haya apagado la sección 'monedero'. "Monedero" sí queda
+    // visible apagado: es donde el admin lo activa. Capa visual; el servidor
+    // corta las ventas por su cuenta.
+    if ((base.includes('monedero') || !(escuela && Number(escuela.monedero_activo))) && !base.includes('tienda')) {
+      base.push('tienda');
+    }
     return base;
   })();
 
@@ -2529,6 +2567,27 @@ function App() {
           view,
           false
         );
+
+      // [F6] Monedero del alumno (admin y cajero) y punto de venta embebido (admin).
+      case 'monedero':
+        return _jsxDEV(
+          Monedero,
+          {
+            user: user,
+            escuela: escuela,
+            // Refleja el interruptor en `data` para que el menú (Tiendita) y el
+            // portal de familia lo vean sin recargar la página.
+            onCambioActivo: v => setData(prev => ({
+              ...prev,
+              escuelas: (prev.escuelas || []).map(e => e.id === escuelaActiva ? { ...e, monedero_activo: v ? 1 : 0 } : e)
+            }))
+          },
+          'monedero',
+          false
+        );
+
+      case 'tienda':
+        return _jsxDEV(Tienda, { user: user, embebido: true }, 'tienda', false);
 
       case 'proveedores':
 

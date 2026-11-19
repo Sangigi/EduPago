@@ -76,15 +76,24 @@ try {
 
     // Suma de TODOS los cobros pendientes de ese alumno (una CLABE puede cubrir
     // varios cobros a lo largo del ciclo escolar; se cobran todos de un jalón).
-    $stmtCob = $pdo->prepare(
-        // SUM(total - monto_pagado) y no SUM(total) (22-sep-2026): este es el
-        // importe que se le cotiza al proveedor para el depósito SPEI. Con
-        // SUM(total) pelón, a quien ya hubiera abonado parte de su adeudo se le
-        // volvía a pedir el importe original completo — el mismo bug que se
-        // corrigió en el portal, pero en el lado del banco.
-        "SELECT COUNT(*) AS n, COALESCE(SUM(total - monto_pagado),0) AS total FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'"
-    );
-    $stmtCob->execute([$cliente['cliente_id']]);
+    // SUM(total - monto_pagado) y no SUM(total) (22-sep-2026): este es el
+    // importe que se le cotiza al proveedor para el depósito SPEI. Con
+    // SUM(total) pelón, a quien ya hubiera abonado parte de su adeudo se le
+    // volvía a pedir el importe original completo — el mismo bug que se
+    // corrigió en el portal, pero en el lado del banco.
+    $sql_cob = "SELECT COUNT(*) AS n, COALESCE(SUM(total - monto_pagado),0) AS total FROM cobros WHERE cliente_id = ? AND estado = 'pendiente'";
+    // [F6] Una recarga de monedero pendiente no se paga por SPEI:
+    // aplicar_abono_a_cliente() nunca le reparte un depósito. Si se cotizara
+    // aquí, la familia transferiría ese monto y el dinero quedaría sin
+    // aplicar. Sin la migración de F6 la columna no existe: se cae a la
+    // consulta de siempre.
+    try {
+        $stmtCob = $pdo->prepare($sql_cob . " AND es_recarga_monedero = 0");
+        $stmtCob->execute([$cliente['cliente_id']]);
+    } catch (\PDOException $e) {
+        $stmtCob = $pdo->prepare($sql_cob);
+        $stmtCob->execute([$cliente['cliente_id']]);
+    }
     $resumen = $stmtCob->fetch();
 
     if (!$resumen || intval($resumen['n']) === 0) {

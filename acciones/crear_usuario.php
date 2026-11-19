@@ -29,9 +29,12 @@
         if ($rol_actual === 'superadmin') { $roles_validos[] = 'superadmin'; $roles_validos[] = 'distribuidor'; $roles_validos[] = 'contador'; $roles_validos[] = 'soporte'; $roles_validos[] = 'provision'; $roles_validos[] = 'tesoreria'; $roles_validos[] = 'promotor'; }
         // [F4] Roles nuevos del colegio: 'control_escolar' (coordinación
         // académica), 'direccion' (consulta) y 'alumno' (portal del alumno).
-        // Los crea admin (y superadmin). 'tienda' es de la F6 y NO se agrega aquí.
+        // Los crea admin (y superadmin). 'tienda' (F6) también lo crean solo admin y superadmin.
         if (in_array($rol_actual, ['superadmin', 'admin'], true)) {
             $roles_validos[] = 'control_escolar'; $roles_validos[] = 'direccion'; $roles_validos[] = 'alumno';
+            // [F6] 'tienda': vendedor de la tiendita/cafetería del colegio. Solo
+            // vende con el monedero de los alumnos (allowlist en api.php).
+            $roles_validos[] = 'tienda';
         }
         // [F4] La coordinación NO puede crear cuentas con más poder que la suya:
         // solo docentes y alumnos (se sobrescribe la lista, no se suma).
@@ -65,7 +68,7 @@
         // [F4] Roles de colegio nuevos: sin escuela quedarían sueltos (y un
         // superadmin podría olvidar elegirla). Cuenta de alumno: además exige el
         // alumno, y su cliente_id es lo único que lo ata a SU información.
-        if (in_array($rol, ['control_escolar', 'direccion', 'alumno'], true) && !$esc_id) {
+        if (in_array($rol, ['control_escolar', 'direccion', 'alumno', 'tienda' /* [F6] */], true) && !$esc_id) {
             respond(['success' => false, 'error' => 'Selecciona el colegio de esta cuenta.']);
         }
         if ($rol !== 'alumno') {

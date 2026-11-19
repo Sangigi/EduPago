@@ -108,8 +108,13 @@
             // libera solo al terminar la petición (la conexión se cierra).
             $lockKeyCobro = "crear_cobro_{$cliente_id}_{$metodo}_" . number_format($total, 2, '.', '');
             $pdo->prepare("SELECT GET_LOCK(?, 10)")->execute([$lockKeyCobro]);
+            // [F6] Nunca reciclar una RECARGA de monedero pendiente: si la
+            // familia pidió recargar $100 y el cajero cobra hoy otro concepto
+            // de $100 con tarjeta, sin esto la liga del cajero pagaba la
+            // recarga y el concepto real se quedaba sin cobrar.
+            $f6_sin_recargas = (function_exists('cobros_col_recarga_monedero') && cobros_col_recarga_monedero($pdo)) ? ' AND es_recarga_monedero = 0' : '';
             $stmtDup = $pdo->prepare(
-                "SELECT * FROM cobros WHERE cliente_id = ? AND metodo = ? AND estado = 'pendiente'
+                "SELECT * FROM cobros WHERE cliente_id = ? AND metodo = ? AND estado = 'pendiente'{$f6_sin_recargas}
                  AND ABS(total - ?) < 0.01 ORDER BY id DESC LIMIT 1"
             );
             $stmtDup->execute([$cliente_id, $metodo, $total]);
