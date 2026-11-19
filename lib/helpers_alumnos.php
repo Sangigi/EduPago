@@ -494,6 +494,23 @@ function alumno_cambiar_estatus(PDO $pdo, int $cliente_id, string $estatus_nuevo
             $pdo->prepare("UPDATE clientes SET activo = ? WHERE id = ?")->execute([$activo_nuevo, $cliente_id]);
         }
 
+        // [F4] La cuenta de alumno (portal y monedero) sigue al estatus: al dar
+        // de baja, egresar o trasladar se desactiva y se cierran sus sesiones
+        // abiertas (sesion_valida_desde); al reactivar vuelve a quedar activa.
+        // Sin esto, un alumno dado de baja seguía entrando a su portal.
+        // Sin la migración de F4 (usuarios.cliente_id) no hay cuentas de
+        // alumno que ajustar: el error de columna se ignora (en MySQL un
+        // error de sentencia no aborta la transacción en curso).
+        try {
+            if ($reactivar) {
+                $pdo->prepare("UPDATE usuarios SET activo = 1 WHERE cliente_id = ? AND rol = 'alumno'")->execute([$cliente_id]);
+            } else {
+                $pdo->prepare("UPDATE usuarios SET activo = 0, sesion_valida_desde = NOW() WHERE cliente_id = ? AND rol = 'alumno'")->execute([$cliente_id]);
+            }
+        } catch (\PDOException $e) {
+            // usuarios.cliente_id aún no existe: nada que ajustar.
+        }
+
         // ── Cobros a cancelar (solo los elegidos, solo sin abonos) ──
         $cancelados = [];
         foreach ($ids_cancelar as $cid) {
