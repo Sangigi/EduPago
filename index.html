@@ -776,7 +776,7 @@
 
 
 
-<script defer src="controllers/AuthController.js?v=1795500000"></script>
+<script defer src="controllers/AuthController.js?v=1795600000"></script>
 
 
 
@@ -827,7 +827,7 @@
 
 
 <script defer src="views/components/MenuPerfil.js?v=1794600000"></script>
-<script defer src="views/components/GuiaPrimerUso.js?v=1795500000"></script>
+<script defer src="views/components/GuiaPrimerUso.js?v=1795600000"></script>
 
 
 
@@ -898,7 +898,7 @@
 
 
 
-<script defer src="views/Cobros.js?v=1790700000"></script>
+<script defer src="views/Cobros.js?v=1795600000"></script>
 <script defer src="views/Gastos.js?v=1790600000"></script>
 
 
@@ -932,7 +932,7 @@
 
 
 
-<script defer src="views/Usuarios.js?v=1795500000"></script>
+<script defer src="views/Usuarios.js?v=1795600000"></script>
 
 
 
@@ -963,8 +963,14 @@
 <script defer src="views/PortalDocente.js?v=1794600000"></script>
 <!-- [F4] Portal del alumno: usa los globales de ControlEscolar.js (cargado antes). -->
 <script defer src="views/PortalAlumno.js?v=1795500000"></script>
+<!-- [F6] Monedero del alumno y tiendita. Monedero.js PRIMERO: define los ayudantes
+     mn* (mnApi, mnFmt, mnLlave...) que usan Tienda.js y MonederoFamilia.js; los
+     tres usan EscModal/EscStat/... de ControlEscolar.js (cargado antes). -->
+<script defer src="views/Monedero.js?v=1795600000"></script>
+<script defer src="views/components/MonederoFamilia.js?v=1795600000"></script>
+<script defer src="views/Tienda.js?v=1795600000"></script>
 
-<script defer src="views/PortalFamilia.js?v=1794600000"></script>
+<script defer src="views/PortalFamilia.js?v=1795600000"></script>
 
 <script defer src="views/Distribuidor.js?v=1790373295"></script>
 
@@ -978,7 +984,7 @@
 
 
 
-<script defer src="assets/js/app.js?v=1795500000"></script>
+<script defer src="assets/js/app.js?v=1795600000"></script>
 
 
 
