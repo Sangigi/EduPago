@@ -810,6 +810,7 @@ Proyecto en 7 fases, integradas en la rama `est/integracion`. El detalle de cada
   1. `grep FAMILIA_FUERA_ALLOWLIST api_log.txt`
   2. Si aparece una acción legítima del portal, agrégala a la lista `'familia'` de `api.php` (con un commit).
   3. Con el log limpio, agrega `define('ALLOWLIST_FAMILIA_ESTRICTA', true);` en `config.php`. Desde ahí, lo que esté fuera de la lista recibe 403. `config.php` está versionado: hazlo con un commit para que el siguiente `git pull` no choque. Para volver al modo registro basta con quitar la línea.
+- **Allowlist de admin, cajero, contador y distribuidor en modo estricto (OF-4b).** Arrancan en modo registro, igual que familia: lo que llamen fuera de su lista pasa pero deja `ROL_FUERA_ALLOWLIST rol=X accion=Y user_id=Z` en `api_log.txt` (`grep ROL_FUERA_ALLOWLIST api_log.txt | sed 's/.*ROL_FUERA_ALLOWLIST //; s/ user_id=.*//' | sort | uniq -c | sort -rn`). Después de ~1 semana: agrega a la lista del rol lo legítimo y, con el log limpio, define `ALLOWLIST_ROLES_ESTRICTA` en `config.php` (una sola constante para los cuatro roles). Detalle, acciones dudosas y huecos sin `requerir_rol` en `docs/mejoras-of/of4-permisos.md`; comprobador: `php herramientas/revisar-permisos.php`.
 - **Archivos privados (F2):** los documentos del expediente se guardan en `uploads_privados/escuela_<id>/alumnos/<cliente_id>/`, protegida con `.htaccess` (`Require all denied`). La carpeta debe poder escribirse por PHP. Esos archivos no están en git: nunca hagas `git add -A` en el servidor.
 
 ### Roles nuevos

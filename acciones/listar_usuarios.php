@@ -1,6 +1,12 @@
 <?php
         $rol_actual = $usuario_actual['rol']       ?? '';
         $esc_actual = $usuario_actual['escuela_id'] ?? null;
+        // [OF-4] Antes la rama final le entregaba el equipo del colegio
+        // (nombres, correos y roles) a CUALQUIER rol con escuela: un cajero, o
+        // una familia mientras su allowlist siga en modo registro. Solo lo usan
+        // "Mi equipo" (admin), las cuentas de alumno (admin y control escolar)
+        // y soporte; getUsuarios() en AuthController ya trata el error como [].
+        requerir_rol($rol_actual, ['superadmin', 'admin', 'control_escolar', 'soporte'], 'No tienes permiso para ver el equipo del colegio.');
         requerir_seccion_habilitada($pdo, $rol_actual, $esc_actual, ['miequipo']);
         // [F4] Las cuentas de alumno pueden ser cientos: "Mi equipo" no las
         // lista salvo que se pidan (solo_alumnos = true, lo usa la vista de

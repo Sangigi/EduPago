@@ -1,5 +1,10 @@
 <?php
         // Recibe: { escuela_id }
+        // [OF-4] No validaba nada: cualquier usuario con sesión (incluida una
+        // familia) podía listar el pool de CLABEs de CUALQUIER colegio, con el
+        // nombre y la matrícula del alumno de cada una. Solo lo usa
+        // views/Escuelas.js, que es de superadmin.
+        requerir_rol($usuario_actual['rol'] ?? '', ['superadmin'], 'No tienes permiso para ver el pool de CLABEs.');
         $escuela_id = intval($input['escuela_id'] ?? 0);
         if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
         $stmt = $pdo->prepare(
