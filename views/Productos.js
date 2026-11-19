@@ -5,6 +5,33 @@ var _jsxDEV = function(type,props,key,_s,_src,_self){
        : Array.isArray(ch) ? React.createElement(type,p,...ch)
        : React.createElement(type,p,ch);
 };
+// [OF-2] IVA, clave SAT y unidad por concepto.
+// El precio capturado es SIEMPRE el precio final (con impuesto incluido); estas
+// opciones solo definen cómo se DESGLOSA en la factura (CFDI). La tasa correcta
+// la decide el contador del colegio. Espejo de impuestos_sugerencia_categoria()
+// en lib/helpers_impuestos.php.
+const _IVA_OPCIONES = [
+  { value: 'exento', label: 'Exento' },
+  { value: '0', label: 'Tasa 0%' },
+  { value: '16', label: '16% (incluido en el precio)' }
+];
+const _IVA_CORTO = { exento: 'IVA exento', '0': 'IVA tasa 0%', '16': 'IVA 16%' };
+const _CLAVE_SAT_DEFECTO = '86101800';
+const _UNIDADES_COMUNES = [
+  { value: 'E48', label: 'E48 · Servicio' },
+  { value: 'H87', label: 'H87 · Pieza' }
+];
+function _prodSugerenciaImpuestos(categoria) {
+  if (['colegiatura', 'inscripcion', 'anualidad', 'examen'].includes(categoria)) return { iva_tasa: 'exento', clave_unidad: 'E48' };
+  if (categoria === 'uniforme') return { iva_tasa: '16', clave_unidad: 'H87' };
+  return { iva_tasa: '16', clave_unidad: 'E48' };
+}
+// Aviso de "revisa tus tasas": se oculta solo cuando algún concepto ya tiene
+// una tasa distinta de 16 (señal de que alguien ya lo revisó) o si el admin lo
+// cierra (se recuerda por colegio en este navegador).
+function _prodAvisoCerrado(escuelaId) {
+  try { return localStorage.getItem('of2_aviso_iva_' + escuelaId) === '1'; } catch (e) { return false; }
+}
 /* views/Productos.jsx v2 */
 function Productos({
   data,
@@ -29,7 +56,22 @@ function Productos({
     penalizacion_valor: 0,
     // [F5] A quién se le genera el cobro recurrente: 'todos' | 'grados' | 'grupos'.
     alcance: 'todos',
-    alcance_ids: []
+    alcance_ids: [],
+    // [OF-2] Sugerencia para la categoría inicial (colegiatura → exento). Se
+    // vuelve a sugerir al cambiar la categoría mientras el admin no toque el IVA.
+    iva_tasa: 'exento',
+    clave_sat: _CLAVE_SAT_DEFECTO,
+    clave_unidad: 'E48',
+    _impTocado: false,
+    _unidadOtra: false
+  };
+  const rolSesion = (typeof AuthController !== 'undefined' && AuthController.getSession && (AuthController.getSession() || {}).rol) || '';
+  const [avisoCerrado, setAvisoCerrado] = useState(() => _prodAvisoCerrado(escuela_id));
+  const hayTasaEditada = (data.productos || []).some(p => p.iva_tasa !== undefined && p.iva_tasa !== null && String(p.iva_tasa) !== '16');
+  const mostrarAvisoIva = rolSesion === 'admin' && !avisoCerrado && !hayTasaEditada;
+  const cerrarAvisoIva = () => {
+    try { localStorage.setItem('of2_aviso_iva_' + escuela_id, '1'); } catch (e) { /* sin almacenamiento: solo se cierra ahora */ }
+    setAvisoCerrado(true);
   };
   const PERIODICIDADES = [
     { value: 1, label: 'Mensual' },
@@ -100,7 +142,14 @@ function Productos({
     penalizacion_tipo: p.penalizacion_tipo || '',
     penalizacion_valor: p.penalizacion_valor || 0,
     alcance: p.alcance || 'todos',
-    alcance_ids: _prodAlcanceIds(p.alcance_ids)
+    alcance_ids: _prodAlcanceIds(p.alcance_ids),
+    // [OF-2] Un concepto anterior a la migración no trae estos campos: se
+    // muestra con lo que se facturaba antes (16%, 86101800, E48), no con la sugerencia.
+    iva_tasa: p.iva_tasa != null ? String(p.iva_tasa) : '16',
+    clave_sat: p.clave_sat || _CLAVE_SAT_DEFECTO,
+    clave_unidad: p.clave_unidad || 'E48',
+    _impTocado: true,
+    _unidadOtra: !!p.clave_unidad && !_UNIDADES_COMUNES.some(u => u.value === p.clave_unidad)
   });
   const lista = data.productos.filter(p => !q || p.nombre.toLowerCase().includes(q.toLowerCase()) || p.categoria.toLowerCase().includes(q.toLowerCase()));
   const guardar = async () => {
@@ -118,11 +167,19 @@ function Productos({
     // [F5] El alcance solo aplica a recurrentes; un concepto único va siempre a 'todos'.
     const esRecurrente = form.tipo === 'recurrente';
     const alcanceEnvio = esRecurrente ? (form.alcance || 'todos') : 'todos';
-    const payload = { ...form, alcance: alcanceEnvio, alcance_ids: alcanceEnvio === 'todos' ? [] : idsForm };
+    // [OF-2] Validación de los campos fiscales (el servidor vuelve a validar).
+    const claveSat = String(form.clave_sat || '').trim();
+    const unidad = String(form.clave_unidad || '').trim().toUpperCase();
+    if (!/^[0-9]{8}$/.test(claveSat)) return setErrForm('La clave SAT debe tener exactamente 8 dígitos (por ejemplo 86101800).');
+    if (!/^[A-Z0-9]{2,3}$/.test(unidad)) return setErrForm('La unidad debe ser una clave SAT de 2 o 3 caracteres (por ejemplo E48 o H87).');
+    const { _impTocado, _unidadOtra, ...formLimpio } = form;
+    const payload = { ...formLimpio, clave_sat: claveSat, clave_unidad: unidad, alcance: alcanceEnvio, alcance_ids: alcanceEnvio === 'todos' ? [] : idsForm };
     setGuardando(true);
+    let lastAviso = ''; // [OF-2] aviso del servidor (p. ej. falta correr la migración)
     try {
       if (form.id) {
         const res = await ProductosController.editar(payload); // [F5] antes: form
+        lastAviso = res.aviso || '';
         const newData = {
           ...data,
           productos: data.productos.map(p => p.id === form.id ? { ...p, ...res.producto } : p)
@@ -131,6 +188,7 @@ function Productos({
         AppModel.save(newData);
       } else {
         const res = await ProductosController.crear({ ...payload, escuela_id }); // [F5] antes: form
+        lastAviso = res.aviso || '';
         const newData = {
           ...data,
           productos: [...data.productos, res.producto]
@@ -140,6 +198,7 @@ function Productos({
       }
       setModal(null);
       setForm(EMPTY);
+      if (lastAviso) alert(lastAviso);
     } catch (e) {
       alert('No se pudo guardar el concepto: ' + e.message);
     } finally {
@@ -173,7 +232,22 @@ function Productos({
     otro: 'Otro'
   };
   return /*#__PURE__*/_jsxDEV("div", {
-    children: [/*#__PURE__*/_jsxDEV("div", {
+    children: [mostrarAvisoIva && /*#__PURE__*/_jsxDEV("div", {
+      // [OF-2] Solo admin; se va solo cuando algún concepto ya tiene otra tasa, o al cerrarlo.
+      style: {
+        display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14, padding: '12px 14px',
+        background: 'var(--yellow-glow, rgba(245,158,11,.12))', border: '1px solid var(--yellow, #f59e0b)',
+        borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--ink)'
+      },
+      children: [/*#__PURE__*/_jsxDEV("div", {
+        style: { flex: 1 },
+        children: "Hoy todos tus conceptos se facturan con IVA 16%. Revisa con tu contador cuáles van exentos o a tasa 0 y ajústalos aquí."
+      }, 't', false), /*#__PURE__*/_jsxDEV("button", {
+        className: "btn btn-ghost btn-sm",
+        onClick: cerrarAvisoIva,
+        children: "Cerrar"
+      }, 'x', false)]
+    }, 'aviso-iva', true), /*#__PURE__*/_jsxDEV("div", {
       className: "card",
       children: [/*#__PURE__*/_jsxDEV("div", {
         className: "card-header",
@@ -294,7 +368,11 @@ function Productos({
                   marginTop: 1
                 },
                 children: CAT_LABELS[p.categoria] || p.categoria
-              }, void 0, false), p.tipo === 'recurrente' && /*#__PURE__*/_jsxDEV("div", {
+              }, void 0, false), p.iva_tasa != null && /*#__PURE__*/_jsxDEV("div", {
+                // [OF-2] Cómo se factura este concepto.
+                style: { fontSize: 10.5, color: 'var(--ink-3)', marginTop: 2 },
+                children: (_IVA_CORTO[String(p.iva_tasa)] || p.iva_tasa) + ' · ' + (p.clave_unidad || 'E48')
+              }, void 0, false), p.tipo === 'recurrente' &&/*#__PURE__*/_jsxDEV("div", {
                 style: { fontSize: 10.5, color: 'var(--accent, #bdcf00)', marginTop: 2, fontWeight: 600 },
                 children: "🔁 " + (PERIODICIDADES.find(pe => pe.value === p.periodicidad_meses)?.label || 'Recurrente') + ` · día ${p.dia_ventana_inicio}-${p.dia_ventana_fin}`
               }, void 0, false), p.tipo === 'recurrente' && /*#__PURE__*/_jsxDEV("div", {
@@ -431,7 +509,10 @@ function Productos({
                 value: form.categoria,
                 onChange: e => setForm(f => ({
                   ...f,
-                  categoria: e.target.value
+                  categoria: e.target.value,
+                  // [OF-2] Al CREAR, la categoría sugiere IVA y unidad mientras el admin no los toque.
+                  ...(!f.id && !f._impTocado ? _prodSugerenciaImpuestos(e.target.value) : {}),
+                  ...(!f.id && !f._impTocado ? { _unidadOtra: false } : {})
                 })),
                 children: CATS.map(c => /*#__PURE__*/_jsxDEV("option", {
                   value: c,
@@ -458,6 +539,59 @@ function Productos({
               }, void 0, false)]
             }, void 0, true)]
           }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+            // [OF-2] Datos fiscales del concepto (cómo se desglosa en la factura).
+            style: { marginTop: 12, padding: 12, border: '1px solid var(--border, #e5e7eb)', borderRadius: 'var(--radius-sm)' },
+            children: [/*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 12, fontWeight: 600, marginBottom: 8 },
+              children: "Facturación (CFDI)"
+            }, 'ft', false), /*#__PURE__*/_jsxDEV("div", {
+              style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+              children: [/*#__PURE__*/_jsxDEV("div", {
+                className: "form-group",
+                children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "IVA" }, 'l', false),
+                /*#__PURE__*/_jsxDEV("select", {
+                  className: "form-select",
+                  value: form.iva_tasa,
+                  onChange: e => setForm(f => ({ ...f, iva_tasa: e.target.value, _impTocado: true })),
+                  children: _IVA_OPCIONES.map(o => /*#__PURE__*/_jsxDEV("option", { value: o.value, children: o.label }, o.value, false))
+                }, 's', false)]
+              }, 'iva', true), /*#__PURE__*/_jsxDEV("div", {
+                className: "form-group",
+                children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Unidad" }, 'l', false),
+                /*#__PURE__*/_jsxDEV("select", {
+                  className: "form-select",
+                  value: (form._unidadOtra || !_UNIDADES_COMUNES.some(u => u.value === form.clave_unidad)) ? 'otra' : form.clave_unidad,
+                  onChange: e => setForm(f => e.target.value === 'otra'
+                    ? { ...f, _unidadOtra: true, _impTocado: true, clave_unidad: '' }
+                    : { ...f, _unidadOtra: false, _impTocado: true, clave_unidad: e.target.value }),
+                  children: _UNIDADES_COMUNES.map(u => /*#__PURE__*/_jsxDEV("option", { value: u.value, children: u.label }, u.value, false))
+                    .concat([/*#__PURE__*/_jsxDEV("option", { value: 'otra', children: 'Otra (escribir clave)' }, 'otra', false)])
+                }, 's', false), (form._unidadOtra || !_UNIDADES_COMUNES.some(u => u.value === form.clave_unidad)) && /*#__PURE__*/_jsxDEV("input", {
+                  className: "form-input",
+                  style: { marginTop: 6, fontFamily: 'var(--mono)', textTransform: 'uppercase' },
+                  placeholder: "Clave de 2 o 3 caracteres (ej. ACT)",
+                  maxLength: 3,
+                  value: form.clave_unidad,
+                  onChange: e => setForm(f => ({ ...f, clave_unidad: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''), _impTocado: true }))
+                }, 'u', false)]
+              }, 'uni', true)]
+            }, 'g', true), /*#__PURE__*/_jsxDEV("div", {
+              className: "form-group",
+              children: [/*#__PURE__*/_jsxDEV("label", { className: "form-label", children: "Clave SAT (8 dígitos)" }, 'l', false),
+              /*#__PURE__*/_jsxDEV("input", {
+                className: "form-input",
+                style: { fontFamily: 'var(--mono)' },
+                inputMode: "numeric",
+                maxLength: 8,
+                placeholder: _CLAVE_SAT_DEFECTO,
+                value: form.clave_sat,
+                onChange: e => setForm(f => ({ ...f, clave_sat: e.target.value.replace(/[^0-9]/g, ''), _impTocado: true }))
+              }, 'i', false)]
+            }, 'cs', true), /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 6, lineHeight: 1.4 },
+              children: "El precio que capturas es siempre el precio final: el IVA se desglosa dentro de él, no se suma. Qué tasa corresponde a cada concepto lo decide el contador del colegio. La clave SAT se toma del catálogo c_ClaveProdServ (86101800 = servicios educativos)."
+            }, 'nota', false)]
+          }, 'fiscal', true), /*#__PURE__*/_jsxDEV("div", {
             className: "form-group",
             style: { marginTop: 12 },
             children: [/*#__PURE__*/_jsxDEV("label", {

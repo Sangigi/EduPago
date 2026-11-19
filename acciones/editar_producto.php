@@ -62,6 +62,7 @@
         // NO altera cobros ya creados: sus renglones guardan su propio snapshot.
         $imp = impuestos_validar_input($input);
         if (!$imp['ok']) respond(['success' => false, 'error' => $imp['error']]);
+        $avisoImp = null;
         if ($imp['campos']) {
             if (impuestos_productos_listos($pdo)) {
                 foreach ($imp['campos'] as $campoImp => $valorImp) {
@@ -71,10 +72,11 @@
             } elseif (($imp['campos']['iva_tasa'] ?? '16') !== '16'
                 || ($imp['campos']['clave_sat'] ?? IMPUESTO_CLAVE_SAT_DEFAULT) !== IMPUESTO_CLAVE_SAT_DEFAULT
                 || ($imp['campos']['clave_unidad'] ?? IMPUESTO_UNIDAD_DEFAULT) !== IMPUESTO_UNIDAD_DEFAULT) {
-                respond(['success' => false, 'error' => 'Para configurar IVA, clave SAT y unidad falta correr la migración migracion_2026_11_19_of2_impuestos.sql.']);
+                // No se bloquea el guardado del resto del concepto: se avisa.
+                $avisoImp = 'El concepto se guardó, pero el IVA, la clave SAT y la unidad NO: falta correr la migración migracion_2026_11_19_of2_impuestos.sql.';
             }
         }
-        if (empty($sets)) respond(['success' => false, 'error' => 'Sin campos a actualizar']);
+        if (empty($sets)) respond(['success' => false, 'error' => $avisoImp ?: 'Sin campos a actualizar']);
         $vals[] = $id;
         $stmt = $pdo->prepare("UPDATE productos SET " . implode(', ', $sets) . " WHERE id = ?");
         $stmt->execute($vals);
@@ -88,4 +90,4 @@
         if (array_key_exists('alcance_ids', $productoActualizado)) {
             $productoActualizado['alcance_ids'] = producto_alcance_ids($productoActualizado['alcance_ids']);
         }
-        respond(['success' => true, 'producto' => $productoActualizado]);
+        respond(['success' => true, 'producto' => $productoActualizado, 'aviso' => $avisoImp]);
