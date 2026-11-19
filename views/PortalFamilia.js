@@ -25,6 +25,12 @@ function PortalFamilia({
   const [misHijos, setMisHijos] = useState([]);
   const [misCobros, setMisCobros] = useState([]);
   const [saldoTotal, setSaldoTotal] = useState(0);
+  // [F6] Pestaña Monedero: visible si el colegio lo activó (y el super admin no
+  // apagó la sección) o si algún hijo ya tiene saldo/movimientos (apagar el
+  // módulo no esconde el dinero de nadie).
+  const [monederoConSaldo, setMonederoConSaldo] = useState(false);
+  const monederoActivoColegio = !!(escuela && Number(escuela.monedero_activo))
+    && !(Array.isArray(escuela.secciones_deshabilitadas) && escuela.secciones_deshabilitadas.includes('monedero'));
   const [metodo, setMetodo] = useState('SPEI');
   // Consentimiento explícito para domiciliar la tarjeta (Cargo Automático).
   // Desde que generar_liga.php migró a PLE_URL_LIGA_TOKEN, CUALQUIER pago con
@@ -509,13 +515,24 @@ function PortalFamilia({
     if (user.familia_id) {
       const hijos = data.clientes.filter(c => c.familia_id === user.familia_id && c.activo);
       const ids = hijos.map(h => h.id);
-      const cobros = data.cobros.filter(c => ids.includes(c.cliente_id));
+      // [F6] Una recarga de monedero no es adeudo ni historial de cobranza (se ve en su pestaña).
+      const cobros = data.cobros.filter(c => ids.includes(c.cliente_id) && !Number(c.es_recarga_monedero));
       const saldo = hijos.reduce((a, c) => a + (c.saldo_pendiente || 0), 0);
       setMisHijos(hijos);
       setMisCobros(cobros);
       setSaldoTotal(saldo);
     }
   }, [data, user.familia_id]);
+  // [F6] Si el colegio no lo tiene activo, se consulta (una vez por hijo) si
+  // alguno conserva saldo o movimientos para seguir mostrándole la pestaña.
+  const idsHijosMonedero = misHijos.map(h => h.id).join(',');
+  useEffect(() => {
+    if (monederoActivoColegio || !misHijos.length || typeof mfHayMonedero !== 'function') return;
+    let vivo = true;
+    mfHayMonedero(misHijos).then(v => { if (vivo) setMonederoConSaldo(v); });
+    return () => { vivo = false; };
+  }, [monederoActivoColegio, idsHijosMonedero]);
+  const monederoVisible = monederoActivoColegio || monederoConSaldo;
   const copiar = (text, key) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(key);
@@ -1082,6 +1099,8 @@ function PortalFamilia({
               // apagadas todas las secciones escolares (el servidor también
               // lo bloquea en escolar_familia_resumen.php).
               escolarHabilitado ? tabBtn('escolar', 'Escolar', 'reportes') : null,
+              // [F6] Monedero de la tiendita del colegio.
+              (monederoVisible && typeof MonederoFamilia !== 'undefined') ? tabBtn('monedero', 'Monedero', 'pay') : null,
               tabBtn('historial', 'Historial', 'history'),
               tabBtn('pagar', 'Pagar en línea', 'card'),
               tabBtn('facturas', 'Facturas', 'facturacion2'),
@@ -2756,7 +2775,11 @@ function PortalFamilia({
       }, void 0, true)
     }, void 0, false), tab === 'escolar' && typeof EscolarFamilia !== 'undefined' && _jsxDEV(EscolarFamilia, {
         escuela: escuela
-      }, 'escolar', false), tab === 'facturas' && _jsxDEV("div", {
+      }, 'escolar', false), tab === 'monedero' && monederoVisible && typeof MonederoFamilia !== 'undefined' && _jsxDEV(MonederoFamilia, {
+        hijos: misHijos,
+        escuela: escuela,
+        familia: miFamilia
+      }, 'monedero', false), tab === 'facturas' && _jsxDEV("div", {
         children: [_jsxDEV("div", {
           style: { fontSize: 13, color: PLC.muted, marginBottom: 14 },
           children: "Facturas (CFDI) generadas para tus pagos. Solo aparecen los cobros que ya fueron facturados."
