@@ -1,12 +1,14 @@
 <?php
 // tienda_buscar_alumno {q} — el vendedor localiza al alumno por matrícula o nombre (F6).
 //
-// Roles: tienda y admin. Solo alumnos ACTIVOS de la escuela de la sesión, máx. 20.
+// Roles: tienda y admin; también cajero, que la usa en "Recarga en caja" (los
+// alumnos de cargar_datos vienen paginados, y con más de 1000 no estarían todos).
+// Solo alumnos ACTIVOS de la escuela de la sesión, máx. 20.
 // Devuelve ÚNICAMENTE lo que la caja de la tiendita necesita: nada de datos
 // financieros de la familia (adeudos, CLABE, tarjeta, RFC) ni médicos ni de contacto.
 // Es una lectura: el vendedor ve el saldo aunque el módulo esté apagado (para
 // poder explicar por qué no puede cobrar), y `monedero_activo` viaja aparte.
-$ctx = monedero_ctx($pdo, $usuario_actual, $input, ['tienda', 'admin']);
+$ctx = monedero_ctx($pdo, $usuario_actual, $input, ['tienda', 'admin', 'cajero']);
 
 $q = trim(strval($input['q'] ?? ''));
 if (mb_strlen($q) < 2) {
