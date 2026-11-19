@@ -18,9 +18,15 @@ $escuela_id = intval($input['escuela_id'] ?? 0);
 if (!$escuela_id) respond(['success' => false, 'error' => 'escuela_id requerido']);
 requerir_escuela_propia($rol, $escuela_id, $usuario_actual, 'No tienes permiso sobre este colegio.');
 
+// [OF-3] Folio propio de cada abono. Los guardados salen de cobro_abonos.folio
+// (si la columna ya existe); a los anteriores a OF-3 se les calcula igual:
+// folio del cobro + número de abono por orden de id.
+$colFolioSc = abonos_col_folio($pdo) ? 'a.folio AS folio_guardado,' : 'NULL AS folio_guardado,';
 try {
     $stmt = $pdo->prepare(
         "SELECT a.id, a.cobro_id, a.monto, a.metodo, a.creado_en,
+                $colFolioSc
+                (SELECT COUNT(*) FROM cobro_abonos a2 WHERE a2.cobro_id = a.cobro_id AND a2.id <= a.id) AS num_abono,
                 c.folio AS cobro_folio, c.total AS cobro_total,
                 c.factura_uuid AS cobro_factura_uuid,
                 COALESCE(cl.nombre, 'Cliente general') AS cliente
@@ -55,6 +61,10 @@ try {
     $abonos = array_map(function ($a) {
         $a['monto'] = floatval($a['monto']);
         $a['cobro_total'] = floatval($a['cobro_total']);
+        $a['folio'] = !empty($a['folio_guardado'])
+            ? $a['folio_guardado']
+            : abono_folio_texto($a['cobro_folio'] ?? '', intval($a['num_abono']), intval($a['cobro_id']));
+        unset($a['folio_guardado'], $a['num_abono']);
         return $a;
     }, $stmt->fetchAll());
 } catch (\PDOException $e) {

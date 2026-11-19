@@ -830,7 +830,7 @@ function Facturacion({
                 children: complementos.map(ab => /*#__PURE__*/_jsxDEV("tr", {
                   children: [
                     /*#__PURE__*/_jsxDEV("td", { "data-label": "Fecha", style: { whiteSpace: 'nowrap' }, children: String(ab.creado_en || '').slice(0, 10) }, 'a', false),
-                    /*#__PURE__*/_jsxDEV("td", { "data-label": "Cobro", style: { fontFamily: 'var(--mono)', fontSize: 11.5 }, children: ab.cobro_folio }, 'b', false),
+                    /*#__PURE__*/_jsxDEV("td", { "data-label": "Cobro", style: { fontFamily: 'var(--mono)', fontSize: 11.5 }, children: ab.folio || ab.cobro_folio /* [OF-3] folio propio del abono */ }, 'b', false),
                     /*#__PURE__*/_jsxDEV("td", { "data-label": "Alumno", children: ab.cliente }, 'c', false),
                     /*#__PURE__*/_jsxDEV("td", { "data-label": "Método", children: ab.metodo || '—' }, 'd', false),
                     /*#__PURE__*/_jsxDEV("td", { "data-label": "Abono", style: { textAlign: 'right', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }, children: '$' + Number(ab.monto).toFixed(2) }, 'e', false),
@@ -1683,7 +1683,7 @@ function Facturacion({
               children: [/*#__PURE__*/_jsxDEV("div", {
                 children: [/*#__PURE__*/_jsxDEV("div", {
                   style: { fontSize: 13, fontWeight: 600 },
-                  children: [fmt(ab.monto), " · ", ab.metodo || '—']
+                  children: [ab.folio ? ab.folio + ' · ' : '', fmt(ab.monto), " · ", ab.metodo || '—'] // [OF-3] folio del abono
                 }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
                   style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 2 },
                   children: ab.cfdi_complemento_uuid

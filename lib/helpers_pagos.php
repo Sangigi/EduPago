@@ -113,7 +113,12 @@ function aplicar_abono_a_cobro(PDO $pdo, int $cobro_id, float $monto, array $d =
         }
     }
 
-    $stmt = $pdo->prepare("SELECT id, total, monto_pagado, cliente_id, escuela_id FROM cobros WHERE id = ?");
+    // [OF-3] FOR UPDATE: el llamador ya debe traer este cobro bloqueado (ver la
+    // nota de arriba); si lo tiene, volver a pedirlo en la misma transacción no
+    // cuesta nada, y si por algún camino no lo tenía, el número de abono de
+    // abajo (COUNT + 1) ya no puede repetirse entre dos abonos simultáneos.
+    // Trae además `folio` para el folio propio del abono.
+    $stmt = $pdo->prepare("SELECT id, total, monto_pagado, cliente_id, escuela_id, folio FROM cobros WHERE id = ? FOR UPDATE");
     $stmt->execute([$cobro_id]);
     $cobro = $stmt->fetch();
     if (!$cobro) return $vacio;
@@ -131,12 +136,24 @@ function aplicar_abono_a_cobro(PDO $pdo, int $cobro_id, float $monto, array $d =
         return $vacio;
     }
 
+    // [OF-3] Folio propio del abono: folio del cobro + '-' + número de abono con
+    // 2 dígitos ('COL-0123-01'). El número es cuántos abonos tiene ya el cobro
+    // + 1, calculado con el cobro bloqueado. Sin la columna (migración sin
+    // correr) el abono se guarda sin folio, como antes.
+    $folio_abono = null;
+    if (abonos_col_folio($pdo)) {
+        $stN = $pdo->prepare("SELECT COUNT(*) FROM cobro_abonos WHERE cobro_id = ?");
+        $stN->execute([$cobro_id]);
+        $folio_abono = abono_folio_texto($cobro['folio'] ?? '', intval($stN->fetchColumn()) + 1, $cobro_id);
+    }
+    $cols_folio = $folio_abono !== null ? ', folio' : '';
+    $val_folio  = $folio_abono !== null ? ', ?' : '';
     $pdo->prepare(
         "INSERT INTO cobro_abonos
             (cobro_id, cliente_id, escuela_id, monto, metodo, referencia, clabe,
-             transaccion_proveedor, auth_code, origen, registrado_por, notas, idem_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )->execute([
+             transaccion_proveedor, auth_code, origen, registrado_por, notas, idem_key{$cols_folio})
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$val_folio})"
+    )->execute(array_merge([
         $cobro_id,
         $cobro['cliente_id'] ?: null,
         $cobro['escuela_id'] ?: null,
@@ -153,7 +170,7 @@ function aplicar_abono_a_cobro(PDO $pdo, int $cobro_id, float $monto, array $d =
         // varios NULL no chocan en un UNIQUE, varias cadenas vacías sí — con
         // '' el segundo abono manual del sistema fallaría el INSERT.
         $idem_key !== '' ? $idem_key : null,
-    ]);
+    ], $folio_abono !== null ? [$folio_abono] : []));
 
     // monto_pagado se recalcula SIEMPRE desde el libro mayor, nunca se suma
     // sobre el valor anterior: así la columna cacheada no puede desviarse de
@@ -1113,6 +1130,58 @@ function cobros_col_recarga_monedero(PDO $pdo): bool
     try {
         $st = $pdo->query("SHOW COLUMNS FROM cobros LIKE 'es_recarga_monedero'");
         $existe = (bool) $st->fetch();
+    } catch (\Throwable $e) {
+        $existe = false;
+    }
+    return $existe;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// [OF-3] FOLIO PROPIO POR ABONO Y CANCELACIÓN DE COBROS CON MOTIVO
+// (migracion_2026_11_19_of3_cobranza.sql). Viven aquí porque
+// aplicar_abono_a_cobro() corre desde los webhooks de pago, que solo cargan
+// este archivo. Mismo patrón que cobros_col_recarga_monedero(): sin la
+// columna el código cae al comportamiento de antes en vez de tumbar el pago.
+// ════════════════════════════════════════════════════════════════════════
+
+/** ¿Existe cobro_abonos.folio? (una consulta por proceso) */
+function abonos_col_folio(PDO $pdo): bool
+{
+    static $existe = null;
+    if ($existe !== null) return $existe;
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM cobro_abonos LIKE 'folio'");
+        $existe = (bool) $st->fetch();
+    } catch (\Throwable $e) {
+        $existe = false;
+    }
+    return $existe;
+}
+
+/**
+ * Folio de un abono: folio del cobro + '-' + número con 2 dígitos
+ * ('COL-0123' + 3 → 'COL-0123-03'; del 100 en adelante crece: '-100').
+ * Cabe en VARCHAR(40): si el folio del cobro es larguísimo se recorta el cobro,
+ * nunca el número. Sin folio de cobro usa 'COB<id>'.
+ */
+function abono_folio_texto($folio_cobro, int $numero, int $cobro_id = 0): string
+{
+    $base = trim((string) $folio_cobro);
+    if ($base === '') $base = 'COB' . $cobro_id;
+    $suf = '-' . str_pad((string) max(1, $numero), 2, '0', STR_PAD_LEFT);
+    return substr($base, 0, 40 - strlen($suf)) . $suf;
+}
+
+/** ¿Ya existen las 4 columnas cancelado_* de cobros? (una consulta por proceso) */
+function cobros_cols_cancelacion(PDO $pdo): bool
+{
+    static $existe = null;
+    if ($existe !== null) return $existe;
+    try {
+        $tiene = [];
+        foreach ($pdo->query("SHOW COLUMNS FROM cobros")->fetchAll(PDO::FETCH_COLUMN) as $c) $tiene[$c] = true;
+        $existe = !empty($tiene['cancelado_motivo']) && !empty($tiene['cancelado_por'])
+               && !empty($tiene['cancelado_en']) && !empty($tiene['cancelado_monto_recibido']);
     } catch (\Throwable $e) {
         $existe = false;
     }

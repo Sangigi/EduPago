@@ -1,7 +1,7 @@
 <?php
         $cobro_id_det = intval($input['cobro_id'] ?? $_GET['cobro_id'] ?? 0);
         if (!$cobro_id_det) respond(['success' => false, 'error' => 'cobro_id requerido']);
-        $chk = $pdo->prepare("SELECT escuela_id, cliente_id FROM cobros WHERE id = ?");
+        $chk = $pdo->prepare("SELECT escuela_id, cliente_id, folio FROM cobros WHERE id = ?");
         $chk->execute([$cobro_id_det]);
         $cobroRow = $chk->fetch();
         if (!$cobroRow) respond(['success' => false, 'error' => 'Cobro no encontrado']);
@@ -34,9 +34,12 @@
         //
         // cobro_abonos es el libro mayor (la fuente de verdad); cobros.monto_pagado
         // es la columna cacheada que se recalcula desde aquí. Ver lib/helpers_pagos.php.
+        // [OF-3] `folio` solo si la columna ya existe; los abonos anteriores a OF-3
+        // (folio NULL) lo reciben calculado más abajo.
+        $colFolioAb = abonos_col_folio($pdo) ? 'folio, ' : '';
         try {
             $stmtAb = $pdo->prepare(
-                "SELECT id, monto, metodo, referencia, clabe, transaccion_proveedor,
+                "SELECT id, {$colFolioAb}monto, metodo, referencia, clabe, transaccion_proveedor,
                         auth_code, origen, notas, creado_en,
                         cfdi_complemento_id, cfdi_complemento_uuid, cfdi_complemento_en
                    FROM cobro_abonos
@@ -51,7 +54,7 @@
             // romper el detalle: se reintenta sin ellas antes de rendirse.
             try {
                 $stmtAb = $pdo->prepare(
-                    "SELECT id, monto, metodo, referencia, clabe, transaccion_proveedor,
+                    "SELECT id, {$colFolioAb}monto, metodo, referencia, clabe, transaccion_proveedor,
                             auth_code, origen, notas, creado_en
                        FROM cobro_abonos
                       WHERE cobro_id = ?
@@ -63,4 +66,32 @@
                 $abonos = [];
             }
         }
-        respond(['success' => true, 'items' => $items, 'abonos' => $abonos]);
+        // [OF-3] Folio de cada abono. Los nuevos ya lo traen guardado; a los viejos
+        // (NULL) se les calcula igual que los nuevos: folio del cobro + número de
+        // abono por orden de id (el mismo orden que usa el complemento de pago).
+        $ids_ab = array_map(function ($a) { return intval($a['id']); }, $abonos);
+        sort($ids_ab);
+        $numero_ab = array_flip($ids_ab); // id => posición (0 = primero)
+        foreach ($abonos as $k_ab => $a_ab) {
+            if (empty($a_ab['folio'])) {
+                $abonos[$k_ab]['folio'] = abono_folio_texto($cobroRow['folio'] ?? '', ($numero_ab[intval($a_ab['id'])] ?? 0) + 1, $cobro_id_det);
+            }
+        }
+        $resp_det = ['success' => true, 'items' => $items, 'abonos' => $abonos];
+        // [OF-3] Estado fresco del cobro + registro de cancelación, solo para el
+        // personal del colegio (la familia no ve quién ni por qué se canceló).
+        if (in_array($rolDet, ['superadmin', 'admin', 'cajero'], true)) {
+            try {
+                $conCan = cobros_cols_cancelacion($pdo)
+                    ? ", co.cancelado_motivo, co.cancelado_en, co.cancelado_monto_recibido, co.cancelado_por, u.nombre AS cancelado_por_nombre"
+                    : '';
+                $joinCan = $conCan ? " LEFT JOIN usuarios u ON u.id = co.cancelado_por" : '';
+                $stmtInfo = $pdo->prepare("SELECT co.id, co.folio, co.estado, co.total, co.monto_pagado, co.factura_uuid{$conCan} FROM cobros co{$joinCan} WHERE co.id = ?");
+                $stmtInfo->execute([$cobro_id_det]);
+                $info = $stmtInfo->fetch(PDO::FETCH_ASSOC);
+                if ($info) $resp_det['cobro'] = $info;
+            } catch (\PDOException $eInfo) {
+                // Sin la tabla usuarios.nombre o similar: el detalle sigue sin el bloque.
+            }
+        }
+        respond($resp_det);

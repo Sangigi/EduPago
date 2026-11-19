@@ -3019,7 +3019,7 @@ function PortalFamilia({
             children: complementosVisorFam.abonos.map(ab => _jsxDEV("div", {
               style: { ...card(), padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
               children: [_jsxDEV("div", {
-                children: [_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: [fmt(ab.monto), " · ", ab.metodo || '—'] }, void 0, true),
+                children: [_jsxDEV("div", { style: { fontSize: 13, fontWeight: 600, color: PLC.text }, children: [ab.folio ? ab.folio + ' · ' : '', fmt(ab.monto), " · ", ab.metodo || '—'] }, void 0, true), // [OF-3] folio del abono
                 _jsxDEV("div", {
                   style: { fontSize: 11, color: PLC.muted, marginTop: 2 },
                   children: ab.cfdi_complemento_uuid

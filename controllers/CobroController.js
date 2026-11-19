@@ -122,8 +122,10 @@ const CobroController = (() => {
     return resultado;
   }
 
-  async function cancelarCobro(cobroId) {
-    const resultado = await apiPost('cancelar_cobro', { cobro_id: cobroId });
+  // [OF-3] El motivo es obligatorio (mínimo 5 caracteres; lo valida el servidor).
+  // La respuesta trae `avisos` (dinero recibido que NO se devuelve, factura vigente).
+  async function cancelarCobro(cobroId, motivo) {
+    const resultado = await apiPost('cancelar_cobro', { cobro_id: cobroId, motivo });
     if (!resultado.success) throw new Error(resultado.error);
     return resultado;
   }

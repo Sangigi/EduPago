@@ -49,6 +49,14 @@ function Cobros({
   // Desglose de abonos del cobro abierto (24-sep-2026). Mismo ciclo de vida
   // que itemsDetalle: null = cargando, [] = ya cargó y no hay abonos.
   const [abonosDetalle, setAbonosDetalle] = useState(null);
+  // [OF-3] Estado fresco del cobro abierto (detalle_cobro → cobro: dinero recibido,
+  // factura vigente, registro de cancelación) y modal "Cancelar cobro".
+  const [infoCobro, setInfoCobro] = useState(null);
+  const [cancelModal, setCancelModal] = useState(null); // { cobro, resultado? }
+  const [motivoCancelar, setMotivoCancelar] = useState('');
+  const [cancelando, setCancelando] = useState(false);
+  const [errorCancelar, setErrorCancelar] = useState('');
+  const puedeCancelarCobro = rol === 'admin' || rol === 'cajero' || rol === 'superadmin';
   // Depósitos que llegaron por webhook pero no se pudieron aplicar a ningún
   // cobro (monto distinto, referencia desconocida, CLABE reciclada, cargo de
   // tarjeta huérfano). Antes se descartaban sin dejar rastro en BD; ahora se
@@ -81,10 +89,11 @@ function Cobros({
     : { desdeChart: desdeRango, hastaChart: hastaRango };
 
   React.useEffect(() => {
-    if (!detalle) { setItemsDetalle(null); setAbonosDetalle(null); return; }
+    if (!detalle) { setItemsDetalle(null); setAbonosDetalle(null); setInfoCobro(null); return; }
     let cancelado = false;
     setItemsDetalle(null);
     setAbonosDetalle(null);
+    setInfoCobro(null);
     (async () => {
       try {
         const params = new URLSearchParams({ action: 'detalle_cobro', cobro_id: detalle.id });
@@ -95,9 +104,10 @@ function Cobros({
         if (!cancelado) {
           setItemsDetalle(json.success ? (json.items || []) : []);
           setAbonosDetalle(json.success ? (json.abonos || []) : []);
+          setInfoCobro(json.success && json.cobro ? json.cobro : undefined); // [OF-3] undefined = sin datos (familia / error)
         }
       } catch (e) {
-        if (!cancelado) { setItemsDetalle([]); setAbonosDetalle([]); }
+        if (!cancelado) { setItemsDetalle([]); setAbonosDetalle([]); setInfoCobro(undefined); }
       }
     })();
     return () => { cancelado = true; };
@@ -215,6 +225,47 @@ function Cobros({
       alert('Error al marcar rebotado: ' + (e.message || 'Intenta de nuevo'));
     } finally {
       setLoadingId(null);
+    }
+  };
+  // ── [OF-3] Cancelar un cobro con motivo ────────────────────────────────
+  // Avisos que se muestran ANTES de cancelar (el servidor los repite en su
+  // respuesta): dinero ya recibido que NO se devuelve, y factura vigente.
+  const avisosCancelar = c => {
+    const info = infoCobro || {};
+    const total = Number(info.total !== undefined ? info.total : c.total) || 0;
+    const estado = info.estado || c.estado;
+    let recibido = Number(info.monto_pagado !== undefined ? info.monto_pagado : c.monto_pagado) || 0;
+    if (estado === 'pagado') recibido = Math.max(recibido, total);
+    const uuid = (info.factura_uuid !== undefined ? info.factura_uuid : c.factura_uuid) || '';
+    const out = [];
+    if (recibido > 0.004) out.push('Este cobro ya tiene ' + fmt(recibido) + ' recibidos. Cancelarlo NO devuelve el dinero: registra la devolución por fuera.');
+    if (uuid) out.push('Este cobro está facturado (folio fiscal ' + uuid + '): la factura seguirá vigente. Cancélala en Facturación → "Cancelar factura".');
+    return out;
+  };
+  const abrirCancelar = c => { setMotivoCancelar(''); setErrorCancelar(''); setCancelModal({ cobro: c }); };
+  const cerrarCancelar = () => { if (!cancelando) setCancelModal(null); };
+  const confirmarCancelar = async () => {
+    if (!cancelModal || cancelando) return;
+    const motivo = motivoCancelar.trim();
+    if (motivo.length < 5) { setErrorCancelar('Escribe el motivo de la cancelación (mínimo 5 caracteres).'); return; }
+    setCancelando(true);
+    setErrorCancelar('');
+    const id = cancelModal.cobro.id;
+    try {
+      const res = await CobroController.cancelarCobro(id, motivo);
+      const clientesUpd = (res && res.cliente_id != null)
+        ? data.clientes.map(c => c.id === res.cliente_id ? { ...c, saldo_pendiente: res.nuevo_saldo ?? 0 } : c)
+        : data.clientes;
+      const upd = { ...data, cobros: data.cobros.map(c => c.id === id ? { ...c, estado: 'cancelado' } : c), clientes: clientesUpd };
+      AppModel.save(upd);
+      setData(upd);
+      setDetalle(prev => prev ? { ...prev, estado: 'cancelado' } : null); // dispara la recarga del detalle (motivo, quién, cuándo)
+      setCancelModal(prev => prev ? { ...prev, resultado: { avisos: res.avisos || [], motivo_guardado: res.motivo_guardado } } : null);
+      if (paginaBackend) buscarEnServidor(pagina);
+    } catch (e) {
+      setErrorCancelar(e.message || 'No se pudo cancelar el cobro. Intenta de nuevo.');
+    } finally {
+      setCancelando(false);
     }
   };
   const exportarExcel = () => {
@@ -1104,6 +1155,23 @@ function Cobros({
               }, void 0, false)]
             }, void 0, true),
 
+            /* ── [OF-3] Registro de la cancelación: motivo, quién y cuándo ── */
+            detalle.estado === 'cancelado' ? _jsxDEV("div", {
+              style: { marginTop: 16, padding: '10px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--red-glow)', border: '1px solid rgba(220,38,38,.2)', fontSize: 12.5 },
+              children: [
+                _jsxDEV("div", { style: { fontWeight: 700, color: 'var(--red)', marginBottom: 4 }, children: "Cobro cancelado" }, 't', false),
+                (infoCobro && infoCobro.cancelado_motivo)
+                  ? _jsxDEV("div", { style: { color: 'var(--ink-2)' }, children: ["Motivo: ", infoCobro.cancelado_motivo] }, 'm', true)
+                  : _jsxDEV("div", { style: { color: 'var(--ink-3)' }, children: infoCobro === null ? "Cargando…" : "Sin motivo registrado (cancelado antes de que se pidiera el motivo)." }, 'm', false),
+                (infoCobro && infoCobro.cancelado_en)
+                  ? _jsxDEV("div", { style: { color: 'var(--ink-3)', marginTop: 2 }, children: ["Por ", infoCobro.cancelado_por_nombre || ('usuario #' + (infoCobro.cancelado_por || '?')), " · ", String(infoCobro.cancelado_en).slice(0, 16)] }, 'q', true)
+                  : null,
+                (infoCobro && Number(infoCobro.cancelado_monto_recibido) > 0)
+                  ? _jsxDEV("div", { style: { color: 'var(--amber)', marginTop: 4 }, children: "Tenía " + fmt(infoCobro.cancelado_monto_recibido) + " recibidos al cancelarse. Cancelar NO devuelve el dinero: la devolución se registra por fuera." }, 'r', false)
+                  : null
+              ]
+            }, 'of3-cancelado', true) : null,
+
             /* ── Desglose de abonos (24-sep-2026) ──
                Solo aparece cuando el cobro se pagó en más de una exhibición.
                Con un solo abono el desglose repetiría el total y sería ruido.
@@ -1136,6 +1204,7 @@ function Cobros({
                               // parte en el espacio en vez de usar new Date()
                               // para no depender de la zona horaria del
                               // navegador, que desplazaría el día.
+                              ab.folio ? ab.folio + ' · ' : '', // [OF-3] folio propio del abono
                               String(ab.creado_en || '').split(' ')[0],
                               ab.metodo ? ' · ' + ab.metodo : '',
                               ab.origen ? ' · ' + ab.origen : ''
@@ -1210,12 +1279,79 @@ function Cobros({
               size: 15,
               color: "currentColor"
             }, void 0, false), " Marcar cheque rebotado"]
-          }, void 0, true), detalle.estado !== 'pendiente' && _jsxDEV("button", {
+          }, void 0, true), puedeCancelarCobro && (detalle.estado === 'pendiente' || detalle.estado === 'pagado') && _jsxDEV("button", {
+            // [OF-3] Cancelar con motivo (acciones/cancelar_cobro.php).
+            className: "btn btn-danger",
+            onClick: () => abrirCancelar(detalle),
+            children: "Cancelar cobro"
+          }, 'of3-cancelar', false), (detalle.estado !== 'pendiente' || puedeCancelarCobro) && _jsxDEV("button", {
             className: "btn btn-secondary",
             onClick: () => setDetalle(null),
             children: "Cerrar"
           }, void 0, false)]
         }, void 0, true)]
+      }, void 0, true)
+    }, void 0, false), cancelModal && _jsxDEV("div", {
+      // [OF-3] Modal "Cancelar cobro": motivo obligatorio y avisos de dinero recibido / factura.
+      className: "modal-backdrop",
+      onClick: e => e.target === e.currentTarget && !cancelando && cerrarCancelar(),
+      children: _jsxDEV("div", {
+        className: "modal",
+        style: { maxWidth: 520 },
+        children: [_jsxDEV("div", {
+          className: "modal-header",
+          children: [_jsxDEV("div", {
+            children: [_jsxDEV("div", { className: "modal-title", children: cancelModal.resultado ? "Cobro cancelado" : "Cancelar cobro " + cancelModal.cobro.folio }, void 0, false),
+              _jsxDEV("div", { style: { fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }, children: [cancelModal.cobro.cliente, " · ", fmt(cancelModal.cobro.total)] }, void 0, true)]
+          }, void 0, true), _jsxDEV("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: cerrarCancelar,
+            disabled: cancelando,
+            children: _jsxDEV(Icon, { name: "close", size: 16, color: "currentColor" }, void 0, false)
+          }, void 0, false)]
+        }, void 0, true), _jsxDEV("div", {
+          className: "modal-body",
+          children: [
+            // Avisos: antes de cancelar salen de lo que sabemos del cobro; después, de la respuesta del servidor.
+            ...(cancelModal.resultado ? cancelModal.resultado.avisos : avisosCancelar(cancelModal.cobro)).map((t, i) => _jsxDEV("div", {
+              style: {
+                marginBottom: 10, padding: '9px 12px', fontSize: 12.5, lineHeight: 1.45, borderRadius: 'var(--radius-sm)',
+                color: 'var(--amber)', background: 'var(--amber-glow)', border: '1px solid rgba(245,158,11,.25)'
+              },
+              children: t
+            }, 'aviso' + i, false)),
+            cancelModal.resultado ? _jsxDEV("div", {
+              style: { fontSize: 13, color: 'var(--ink-2)' },
+              children: ["El cobro quedó cancelado y su saldo se actualizó.",
+                cancelModal.resultado.motivo_guardado === false ? " (El motivo solo quedó en la bitácora: falta correr la migración de OF-3.)" : ""]
+            }, 'ok', true) : _jsxDEV("div", {
+              className: "form-group",
+              children: [_jsxDEV("label", { className: "form-label", children: "Motivo de la cancelación (obligatorio)" }, 'l', false),
+                _jsxDEV("textarea", {
+                  className: "form-input",
+                  rows: 3,
+                  maxLength: 255,
+                  autoFocus: true,
+                  placeholder: "Ej. Cobro duplicado, concepto equivocado, el alumno causó baja…",
+                  value: motivoCancelar,
+                  onChange: e => setMotivoCancelar(e.target.value)
+                }, 'ta', false),
+                _jsxDEV("div", { style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }, children: "Mínimo 5 caracteres. Queda guardado con tu nombre y la fecha." }, 'h', false)]
+            }, 'motivo', true),
+            errorCancelar ? _jsxDEV("div", { style: { marginTop: 10, fontSize: 12.5, color: 'var(--red)' }, children: errorCancelar }, 'err', false) : null
+          ]
+        }, void 0, true), _jsxDEV("div", {
+          className: "modal-footer",
+          children: cancelModal.resultado
+            ? _jsxDEV("button", { className: "btn btn-secondary", onClick: cerrarCancelar, children: "Cerrar" }, 'c', false)
+            : [_jsxDEV("button", { className: "btn btn-secondary", disabled: cancelando, onClick: cerrarCancelar, children: "Volver" }, 'v', false),
+               _jsxDEV("button", {
+                 className: "btn btn-danger",
+                 disabled: cancelando || motivoCancelar.trim().length < 5,
+                 onClick: confirmarCancelar,
+                 children: cancelando ? 'Cancelando…' : 'Cancelar cobro'
+               }, 'x', false)]
+        }, void 0, false)]
       }, void 0, true)
     }, void 0, false)]
   }, void 0, true);
