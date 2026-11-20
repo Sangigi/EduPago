@@ -33,7 +33,7 @@ Los `.sql` de `migraciones/` se quedan como **documentación** (y para los backf
 
 ## 2. El registro
 
-`lib/migraciones.php` → `migraciones_registro()`: lista **ordenada** de pasos con id estable, p. ej. `2026_11_18_f1_01_clientes_estatus`. Cubre F1–F6, OF-2 y OF-3 (60 pasos). **No cambies nunca el id de un paso que ya salió a producción:** quedaría como pendiente y se volvería a intentar.
+`lib/migraciones.php` → `migraciones_registro()`: lista **ordenada** de pasos con id estable, p. ej. `2026_11_18_f1_01_clientes_estatus`. Cubre F1–F6, OF-2, OF-3 y OF-7a (67 pasos; los 60 de las fases anteriores más los 7 de soporte). **No cambies nunca el id de un paso que ya salió a producción:** quedaría como pendiente y se volvería a intentar.
 
 | tipo | qué hace | cómo decide que ya está |
 |---|---|---|
