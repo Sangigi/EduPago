@@ -836,6 +836,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // Alumnos y familias.
         'crear_cliente', 'editar_cliente', 'toggle_cliente_activo', 'importar_alumnos', 'subir_foto_cliente',
         'crear_familia', 'editar_familia',
+        // [OF-5] Importar adeudos y saldos iniciales (analizar, aplicar, historial, deshacer).
+        'importar_saldos_analizar', 'importar_saldos_aplicar', 'importar_saldos_listar', 'importar_saldos_deshacer',
         // Ciclo de vida del alumno, becas y expediente.
         'alumno_cambiar_estatus', 'alumno_cobros_pendientes', 'alumno_movimientos_listar',
         'alumno_beca_desactivar', 'alumno_beca_guardar', 'alumno_becas_listar',

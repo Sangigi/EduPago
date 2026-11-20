@@ -448,6 +448,51 @@ CREATE TABLE IF NOT EXISTS familia_notas (
         'tolerante' => true,
     ];
 
+    // ═══ OF-5 — importar adeudos y saldos iniciales (dos tablas nuevas; no toca cobros) ═══
+    $f = 'migracion_2026_11_20_of5_importar.sql';
+    $tabla('2026_11_20_of5_01_importaciones_saldos', 'Tabla importaciones_saldos (una fila por importación de adeudos)', 'importaciones_saldos', "
+CREATE TABLE IF NOT EXISTS importaciones_saldos (
+  id              INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  escuela_id      INT UNSIGNED  NOT NULL,
+  archivo_nombre  VARCHAR(255)  NULL DEFAULT NULL,
+  archivo_hash    CHAR(40)      NULL DEFAULT NULL,
+  usuario_id      INT UNSIGNED  NULL DEFAULT NULL,
+  creado_en       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  filas_total     INT UNSIGNED  NOT NULL DEFAULT 0,
+  cobros_creados  INT UNSIGNED  NOT NULL DEFAULT 0,
+  filas_omitidas  INT UNSIGNED  NOT NULL DEFAULT 0,
+  monto_total     DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  estado          VARCHAR(10)   NOT NULL DEFAULT 'aplicada',
+  deshecha_por    INT UNSIGNED  NULL DEFAULT NULL,
+  deshecha_en     DATETIME      NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_impsal_escuela (escuela_id, creado_en)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+    $tabla('2026_11_20_of5_02_importaciones_saldos_filas', 'Tabla importaciones_saldos_filas (cobro creado por renglón + huella de idempotencia)', 'importaciones_saldos_filas', "
+CREATE TABLE IF NOT EXISTS importaciones_saldos_filas (
+  id              INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  importacion_id  INT UNSIGNED  NOT NULL,
+  escuela_id      INT UNSIGNED  NOT NULL,
+  cobro_id        INT UNSIGNED  NOT NULL,
+  cliente_id      INT UNSIGNED  NOT NULL,
+  fila_archivo    INT UNSIGNED  NULL DEFAULT NULL,
+  huella          CHAR(40)      NULL DEFAULT NULL,
+  concepto        VARCHAR(190)  NULL DEFAULT NULL,
+  monto_original  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  abonado         DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  pendiente       DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  fecha_emision   DATE          NULL DEFAULT NULL,
+  fecha_vence     DATE          NULL DEFAULT NULL,
+  folio_externo   VARCHAR(60)   NULL DEFAULT NULL,
+  producto_id     INT UNSIGNED  NULL DEFAULT NULL,
+  nota            VARCHAR(255)  NULL DEFAULT NULL,
+  deshecha        TINYINT(1)    NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_impsalf_huella (escuela_id, huella),
+  KEY idx_impsalf_imp (importacion_id),
+  KEY idx_impsalf_cobro (cobro_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+
     $reg = $r;
     return $reg;
 }
