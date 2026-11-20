@@ -1,0 +1,7 @@
+# Nada de lo que se guarda aquí se versiona. Esta carpeta tiene los documentos fiscales del colegio,
+# los adjuntos de soporte y, desde OF-7b, la LLAVE PRIVADA de los avisos push (push_vapid.pem).
+# Solo se versionan los dos archivos de abajo: el .htaccess que niega todo acceso web y este mismo
+# archivo. Si alguna vez hace falta versionar algo más de aquí, que sea una decisión consciente.
+*
+!.gitignore
+!.htaccess

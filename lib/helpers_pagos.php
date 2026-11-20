@@ -9,6 +9,11 @@
 // de decremento en vez de recalcular desde la fuente, lo que la dejaba sin
 // forma de autocorregirse si el saldo alguna vez se desincronizaba.
 
+// [OF-7b] Avisos push. Los webhooks de pago, cobrar_via_token() y el cron cargan este archivo, y
+// de aquí cuelga el encolado (push_aviso_pago_cobros): un INSERT barato en try/catch, y el envío
+// real DESPUÉS de responder. Ver lib/helpers_push.php.
+require_once __DIR__ . '/helpers_push.php';
+
 /**
  * Recalcula clientes.saldo_pendiente desde la fuente de verdad (SUM de
  * cobros pendientes) y lo guarda. Debe llamarse después de cualquier cambio
@@ -717,6 +722,10 @@ function cobrar_via_token(PDO $pdo, int $cobroId, int $clienteId, float $total, 
     // la unica forma de saber si un cargo habia pasado era su ausencia en el
     // log. Ahora se registra igual que el fallo, con el codigo de autorizacion.
     log_api("cobrar_via_token OK -> cobro={$cobroId} cliente={$clienteId} total={$total} ref={$ref} auth=" . ($tx['auth'] ?? 'sin-auth'));
+
+    // [OF-7b] Aviso push a la familia (cargo con tarjeta guardada). Solo ENCOLA (try/catch, nunca lanza);
+    // el envío real va DESPUÉS de responder (o lo despacha el cron). Ver lib/helpers_push.php.
+    push_aviso_pago_cobros($pdo, [$cobroId]);
 
     // Correo de confirmación al titular — antes SOLO lo mandaba el cron de
     // cargos automáticos (cron_recordatorios.php), así que un cobro MANUAL

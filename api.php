@@ -285,7 +285,11 @@ $action = $_GET['action'] ?? '';
 // Acciones que NO requieren sesion. Se mantiene al minimo a proposito:
 // 'invitacion_ver' e 'invitacion_enviar' son el formulario de alta de colegios,
 // y su unica llave es el token de un solo uso que viaja en la liga.
-$acciones_publicas = ['login', 'invitacion_ver', 'invitacion_enviar', 'invitacion_generar_pago', 'activar_cuenta_ver', 'activar_cuenta_confirmar', 'recuperar_password_solicitar'];
+// [OF-7b] 'push_aviso' la llama el service worker (sw-edupago.js) al despertar por un aviso push, SIN
+// sesion (un service worker no tiene la sesion de la pagina). Se identifica con el SHA-256 de su propia
+// direccion de suscripcion; responde solo un texto generico de ESE dispositivo, limita su tasa por IP y
+// por hash, y no revela si el hash existe. Ver acciones/push_aviso.php.
+$acciones_publicas = ['login', 'invitacion_ver', 'invitacion_enviar', 'invitacion_generar_pago', 'activar_cuenta_ver', 'activar_cuenta_confirmar', 'recuperar_password_solicitar', 'push_aviso'];
 if (!in_array($action, $acciones_publicas)) {
     $usuario_actual = verificar_token_auth();
 }
@@ -698,6 +702,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'soporte_tickets_listar', 'soporte_ticket_ver', 'soporte_ticket_responder',
         'soporte_ticket_actualizar', 'soporte_adjunto_descargar', 'soporte_resumen',
         'ayuda_listar', 'ayuda_guardar',
+        // [OF-7b] Avisos push en este dispositivo (activar, quitar, probar); validan rol por dentro.
+        'push_llave_publica', 'push_suscribir', 'push_quitar', 'push_probar',
     ],
     // Captura el identificador del proveedor tras la aprobación del contador.
     //
@@ -788,6 +794,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // reconocida" igual que hoy.
         'alumno_aviso_privacidad_aceptar', 'escolar_kardex',
         'monedero_saldo', 'monedero_movimientos', 'monedero_recargar', 'monedero_config_guardar',
+        // [OF-7b] Avisos push en este dispositivo (activar, quitar, probar).
+        'push_llave_publica', 'push_suscribir', 'push_quitar', 'push_probar',
     ],
     // [OF-4b] admin, cajero, contador y distribuidor (19-nov-2026). Son los roles
     // más viejos y los que más pegan al hueco de las ~25 acciones sin
@@ -888,6 +896,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'soporte_ticket_crear', 'soporte_tickets_listar', 'soporte_ticket_ver',
         'soporte_ticket_responder', 'soporte_ticket_actualizar', 'soporte_adjunto_descargar',
         'soporte_resumen', 'ayuda_listar', 'ayuda_novedades_vistas',
+        // [OF-7b] Avisos push en este dispositivo (activar, quitar, probar).
+        'push_llave_publica', 'push_suscribir', 'push_quitar', 'push_probar',
     ],
     // Cajero: caja y cobro del día, más consultar/dar de alta alumnos. NO ve
     // gastos, facturación en lote, catálogos, equipo ni configuración. Cada
@@ -916,6 +926,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'soporte_ticket_crear', 'soporte_tickets_listar', 'soporte_ticket_ver',
         'soporte_ticket_responder', 'soporte_ticket_actualizar', 'soporte_adjunto_descargar',
         'soporte_resumen', 'ayuda_listar', 'ayuda_novedades_vistas',
+        // [OF-7b] Avisos push en este dispositivo (activar, quitar, probar).
+        'push_llave_publica', 'push_suscribir', 'push_quitar', 'push_probar',
     ],
     // Contador: revisa los documentos y datos de pago de CUALQUIER colegio
     // (views/Contador.js). Sin cargar_datos: su panel no lo pide (ROLES_SIN_CARGAR_DATOS).
@@ -951,6 +963,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'alumno_resumen', 'escolar_boleta', 'escolar_kardex',
         'monedero_saldo', 'monedero_movimientos', // F6: si esa fase aún no se integra, responde "Acción no reconocida"
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+        // [OF-7b] Avisos push en este dispositivo (activar, quitar, probar).
+        'push_llave_publica', 'push_suscribir', 'push_quitar', 'push_probar',
     ],
     // Coordinación académica: alumnos, familias, expediente y control escolar.
     // NADA de cobranza, caja, facturación, gastos ni productos; cargar_datos le

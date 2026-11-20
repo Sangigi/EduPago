@@ -651,6 +651,191 @@ prueba('ayuda: artículos sembrados con formato válido y sin retornos de carro'
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// [OF-7b] Avisos push: lo puro (base64url, JWT de VAPID, endpoints, texto), sin base de datos ni red
+// ════════════════════════════════════════════════════════════════════════
+
+/** PEM de una llave PÚBLICA P-256 a partir de los 65 bytes sin comprimir (para openssl_verify). */
+function push_prueba_pem_publica(string $punto65): string
+{
+    $spki = hex2bin('3059301306072a8648ce3d020106082a8648ce3d030107034200') . $punto65;
+    return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($spki), 64, "\n") . "-----END PUBLIC KEY-----\n";
+}
+
+prueba('push: base64url (vectores, ida y vuelta, entradas inválidas)', function () {
+    igual('', push_b64url_encode(''));
+    igual('Zg', push_b64url_encode('f'));
+    igual('Zm9vYmFy', push_b64url_encode('foobar'));
+    igual('-_8', push_b64url_encode("\xfb\xff"), 'usa - y _, sin relleno');
+    for ($i = 0; $i < 200; $i++) {
+        $bin = ($i % 70) > 0 ? random_bytes($i % 70) : '';
+        $enc = push_b64url_encode($bin);
+        afirmar(!preg_match('/[+\/=]/', $enc), 'sin + / =');
+        if ($bin !== '') igual($bin, push_b64url_decode($enc), "ida y vuelta $i");
+    }
+    igual(null, push_b64url_decode('abc+def'), 'el + no es base64url');
+    igual(null, push_b64url_decode(''));
+    igual(null, push_b64url_decode('ab cd'));
+});
+
+prueba('push: endpoints válidos (HTTPS de servicios conocidos) y rechazo de SSRF', function () {
+    $buenos = [
+        'https://fcm.googleapis.com/fcm/send/dX1abc:APA91bE',
+        'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABk',
+        'https://wns2-par02p.notify.windows.com/w/?token=BQYAAA',
+        'https://web.push.apple.com/QGzK3hx',
+        'https://fcm.googleapis.com:443/fcm/send/abc',
+    ];
+    foreach ($buenos as $e) afirmar(push_endpoint_valido($e), "debe valer: $e");
+    $malos = [
+        '', 'no es url', 'http://fcm.googleapis.com/fcm/send/x', 'ftp://fcm.googleapis.com/x',
+        'https://evil.com/fcm.googleapis.com/x', 'https://fcm.googleapis.com.evil.com/x',
+        'https://evilfcm.googleapis.com/x', 'https://notfcm.googleapis.com/x',
+        'https://fcm.googleapis.com@evil.com/x', 'https://user:pw@fcm.googleapis.com/x',
+        'https://evil.com#@fcm.googleapis.com/x', 'https://fcm.googleapis.com:8443/x',
+        'https://fcm.googleapis.com/', 'https://fcm.googleapis.com',
+        'https://localhost/x', 'https://127.0.0.1/x', 'https://169.254.169.254/latest/meta-data',
+        'https://10.0.0.1/x', 'https://[::1]/x', 'https://fcm.googleapis.com\\@evil.com/x',
+        "https://fcm.googleapis.com/x y", "https://fcm.googleapis.com/x\r\nHost: evil.com",
+        'HTTPS://fcm.googleapis.com/fcm/send/x', 'https://notify.windows.com/x', 'https://.notify.windows.com/x',
+        'https://fcm.googleapis.com./x', 'https://fcm.googleapis.com/x#frag',
+        'https://' . str_repeat('a', 50) . '.notify.windows.com.evil.com/x',
+        'https://fcm.googleapis.com/' . str_repeat('a', 2100),
+    ];
+    foreach ($malos as $e) afirmar(!push_endpoint_valido($e), 'debe rechazarse: ' . substr(json_encode($e), 0, 80));
+    afirmar(!push_endpoint_valido(null) && !push_endpoint_valido(['x']) && !push_endpoint_valido(123), 'solo cadenas');
+});
+
+prueba('push: dirección de suscripción en hexadecimal y hash del dispositivo', function () {
+    $ep = 'https://fcm.googleapis.com/fcm/send/abc:def-ghi_jkl';
+    igual($ep, push_decodificar_campo(bin2hex($ep)), 'hexadecimal');
+    igual($ep, push_decodificar_campo('  ' . $ep . ' '), 'tal cual, recortada');
+    igual('', push_decodificar_campo(null));
+    igual('AbC_-9', push_decodificar_campo('AbC_-9'), 'una llave base64url no hexadecimal queda igual');
+    igual(hash('sha256', $ep), push_endpoint_hash($ep));
+    igual(64, strlen(push_endpoint_hash($ep)));
+    igual('https://fcm.googleapis.com', push_aud_de_endpoint($ep));
+});
+
+prueba('push: firma ES256 DER <-> r||s (ida y vuelta y entradas inválidas)', function () {
+    $pem = push_generar_pem();
+    if ($pem === null) return;   // sin soporte de OpenSSL en esta máquina: no hay nada que probar
+    for ($i = 0; $i < 40; $i++) {
+        openssl_sign('mensaje ' . $i, $der, $pem, OPENSSL_ALGO_SHA256);
+        $raw = push_der_a_raw($der);
+        igual(64, strlen($raw), 'r||s de 64 bytes');
+        igual($der, push_raw_a_der($raw), "ida y vuelta $i");
+    }
+    igual(null, push_der_a_raw(''));
+    igual(null, push_der_a_raw("\x31\x06\x02\x01\x01\x02\x01\x01"));
+    igual(null, push_der_a_raw("\x30\x06\x03\x01\x01\x02\x01\x01"));
+    igual(null, push_raw_a_der('corto'));
+});
+
+prueba('push: JWT de VAPID verificado con openssl_verify (cabecera, claims y llave pública k)', function () {
+    $pem = push_generar_pem();
+    if ($pem === null) return;
+    $pub = push_publica_de_pem($pem);
+    igual(87, strlen($pub), '65 bytes en base64url');
+    $punto = push_b64url_decode($pub);
+    igual(65, strlen($punto));
+    igual("\x04", $punto[0], 'punto sin comprimir');
+
+    $aud = 'https://fcm.googleapis.com';
+    $exp = time() + 12 * 3600;
+    $jwt = push_jwt_vapid($aud, $pem, 'mailto:contacto@ejemplo.mx', $exp);
+    afirmar(is_string($jwt), 'debe firmar');
+    $partes = explode('.', $jwt);
+    igual(3, count($partes), 'tres partes');
+    $cab = json_decode(push_b64url_decode($partes[0]), true);
+    $dat = json_decode(push_b64url_decode($partes[1]), true);
+    igual(['typ' => 'JWT', 'alg' => 'ES256'], $cab);
+    igual($aud, $dat['aud']);
+    igual($exp, $dat['exp']);
+    igual('mailto:contacto@ejemplo.mx', $dat['sub']);
+    $firma = push_b64url_decode($partes[2]);
+    igual(64, strlen($firma), 'firma r||s de 64 bytes');
+
+    $der = push_raw_a_der($firma);
+    igual(1, openssl_verify($partes[0] . '.' . $partes[1], $der, push_prueba_pem_publica($punto), OPENSSL_ALGO_SHA256), 'la firma verifica con la llave pública VAPID');
+    // Cualquier cambio rompe la firma: otro mensaje, o otra llave.
+    igual(0, openssl_verify($partes[0] . '.' . $partes[1] . 'x', $der, push_prueba_pem_publica($punto), OPENSSL_ALGO_SHA256), 'otro mensaje');
+    $otra = push_publica_de_pem(push_generar_pem());
+    igual(0, openssl_verify($partes[0] . '.' . $partes[1], $der, push_prueba_pem_publica(push_b64url_decode($otra)), OPENSSL_ALGO_SHA256), 'otra llave');
+    igual(null, push_jwt_vapid($aud, 'esto no es una llave', 'mailto:x@y.mx'), 'sin llave válida no firma');
+});
+
+prueba('push: llaves VAPID se generan una vez, con permisos y sin pisarse', function () {
+    $dir = sys_get_temp_dir() . '/edupago_push_prueba_' . bin2hex(random_bytes(4));
+    mkdir($dir, 0700, true);
+    $ruta = $dir . '/push_vapid.pem';
+    try {
+        $a = push_llaves($ruta);
+        if ($a === null) return;   // OpenSSL sin curvas elípticas aquí
+        afirmar(is_file($ruta), 'se guardó el archivo');
+        afirmar(strpos($a['privada'], 'PRIVATE KEY') !== false);
+        igual(push_publica_de_pem($a['privada']), $a['publica']);
+        if (DIRECTORY_SEPARATOR === '/') igual('0600', substr(sprintf('%o', fileperms($ruta)), -4), 'permisos 0600');
+        // Con el archivo ya hecho, otra lectura (otra petición) devuelve la MISMA llave.
+        $contenido = file_get_contents($ruta);
+        $pub1 = $a['publica'];
+        $leida = push_publica_de_pem($contenido);
+        igual($pub1, $leida);
+        // Un archivo dañado no se sobrescribe a escondidas: queda apagado hasta que se borre.
+        $ruta2 = $dir . '/danada.pem';
+        file_put_contents($ruta2, 'basura');
+        igual(null, push_llaves($ruta2));
+        igual('basura', file_get_contents($ruta2), 'no se pisó');
+    } finally {
+        foreach (glob($dir . '/*') ?: [] as $f) @unlink($f);
+        @rmdir($dir);
+    }
+});
+
+prueba('push: texto de los avisos es genérico (sin montos, nombres ni folios) y los tipos existen', function () {
+    foreach (['pago_confirmado', 'recordatorio_pago', 'calificaciones', 'soporte_respuesta', 'soporte_nuevo', 'soporte_colegio', 'prueba'] as $tipo) {
+        $t = push_texto_tipo($tipo);
+        afirmar($t['titulo'] !== '' && $t['cuerpo'] !== '', "texto de $tipo");
+        afirmar(!preg_match('/[0-9$#]/', $t['titulo'] . $t['cuerpo']), "$tipo no debe llevar cifras, $ ni #");
+        afirmar(in_array($t['urgencia'], ['high', 'normal', 'low', 'very-low'], true), 'urgencia válida');
+        afirmar($t['url'] === '' || preg_match('/^\?ir=[a-z_]+$/', $t['url']), "$tipo: liga relativa ?ir=");
+        afirmar(strlen($t['titulo']) <= 120 && strlen($t['cuerpo']) <= 255, 'cabe en la tabla');
+    }
+    igual('Tu pago fue confirmado.', push_texto_tipo('pago_confirmado')['cuerpo']);
+    igual('Se publicaron calificaciones.', push_texto_tipo('calificaciones')['cuerpo']);
+    igual('Soporte respondió tu ticket.', push_texto_tipo('soporte_respuesta')['cuerpo']);
+    igual('Tienes un recordatorio de pago.', push_texto_tipo('recordatorio_pago')['cuerpo']);
+    igual(push_aviso_generico(), ['titulo' => 'EduPago', 'cuerpo' => 'Tienes un aviso nuevo.', 'url' => '', 'tag' => 'edupago-aviso']);
+    igual('EduPago', push_texto_tipo('inventado')['titulo'], 'un tipo desconocido cae en el genérico');
+});
+
+prueba('push: nombre del dispositivo a partir del User-Agent', function () {
+    igual('Chrome en Windows', push_dispositivo_desde_ua('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'));
+    igual('Edge en Windows', push_dispositivo_desde_ua('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0'));
+    igual('Chrome en Android', push_dispositivo_desde_ua('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'));
+    igual('Safari en iOS', push_dispositivo_desde_ua('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1'));
+    igual('Firefox en Linux', push_dispositivo_desde_ua('Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0'));
+    igual('Safari en macOS', push_dispositivo_desde_ua('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15'));
+    igual('Navegador', push_dispositivo_desde_ua(''));
+    igual('Navegador', push_dispositivo_desde_ua(null));
+});
+
+prueba('push: límite de tasa por ventana (y no bloquea si no puede escribir)', function () {
+    $dir = sys_get_temp_dir() . '/edupago_tasa_prueba_' . bin2hex(random_bytes(4));
+    try {
+        $t = 1000000;
+        for ($i = 1; $i <= 5; $i++) afirmar(push_tasa_permitir('ip-a', 5, 60, $dir, $t), "intento $i cabe");
+        afirmar(!push_tasa_permitir('ip-a', 5, 60, $dir, $t), 'el 6.º se corta');
+        afirmar(push_tasa_permitir('ip-b', 5, 60, $dir, $t), 'otra clave no se afecta');
+        afirmar(push_tasa_permitir('ip-a', 5, 60, $dir, $t + 60), 'la ventana siguiente empieza de cero');
+        // Una carpeta imposible de crear: deja pasar (un fallo del límite no bloquea a nadie).
+        afirmar(push_tasa_permitir('x', 1, 60, __FILE__ . '/no/se/puede', $t));
+    } finally {
+        foreach (glob($dir . '/*') ?: [] as $f) @unlink($f);
+        @rmdir($dir);
+    }
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // Corredor
 // ════════════════════════════════════════════════════════════════════════
 

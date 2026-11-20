@@ -548,6 +548,47 @@ CREATE TABLE IF NOT EXISTS ayuda_usuario (
         },
     ];
 
+    // ═══ OF-7b — avisos push en el navegador o el celular (Web Push) ═══════
+    // Sin FOREIGN KEY, InnoDB utf8mb4, como el resto del esquema. endpoint_hash (SHA-256 de la dirección
+    // de suscripción) es la identidad de un dispositivo: el service worker se identifica con él. Las
+    // llaves VAPID NO viven en la base: están en uploads_privados/push_vapid.pem (lib/helpers_push.php).
+    // Sin estas tablas nada de push aparece y nada falla.
+    $f = 'migracion_2026_11_20_of7b_push.sql';
+    $tabla('2026_11_20_of7b_01_push_suscripciones', 'Tabla push_suscripciones (un dispositivo con avisos activos por fila)', 'push_suscripciones', "
+CREATE TABLE IF NOT EXISTS push_suscripciones (
+  id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  usuario_id    INT UNSIGNED NOT NULL,
+  escuela_id    INT UNSIGNED NULL DEFAULT NULL,
+  endpoint      TEXT         NOT NULL,
+  endpoint_hash CHAR(64)     NOT NULL,
+  p256dh        VARCHAR(255) NULL DEFAULT NULL,
+  auth          VARCHAR(255) NULL DEFAULT NULL,
+  dispositivo   VARCHAR(80)  NULL DEFAULT NULL,
+  creado_en     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ultimo_ok     DATETIME     NULL DEFAULT NULL,
+  fallos        SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_push_endpoint (endpoint_hash),
+  KEY idx_push_usuario (usuario_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+    $tabla('2026_11_20_of7b_02_push_avisos', 'Tabla push_avisos (cola de avisos: pendiente, enviado, entregado)', 'push_avisos', "
+CREATE TABLE IF NOT EXISTS push_avisos (
+  id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  suscripcion_id INT UNSIGNED NOT NULL,
+  tipo           VARCHAR(30)  NOT NULL,
+  titulo         VARCHAR(120) NOT NULL,
+  cuerpo         VARCHAR(255) NOT NULL,
+  url            VARCHAR(255) NULL DEFAULT NULL,
+  creado_en      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  enviado_en     DATETIME     NULL DEFAULT NULL,
+  entregado_en   DATETIME     NULL DEFAULT NULL,
+  intentos       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_pushav_pendientes (enviado_en, id),
+  KEY idx_pushav_susc (suscripcion_id, entregado_en),
+  KEY idx_pushav_creado (creado_en)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+
     $reg = $r;
     return $reg;
 }
