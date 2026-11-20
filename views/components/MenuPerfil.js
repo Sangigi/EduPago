@@ -50,6 +50,17 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbaj
   const [modal, setModal] = useState(null);      // 'cuenta' | 'password'
   const caja = useRef(null);
 
+  // [OF-7b] "Avisos en este dispositivo" (avisos push). Solo se ofrece si el rol los usa y el servidor los
+  // tiene encendidos (migración + llaves); se consulta la primera vez que se abre el menú, no al cargar.
+  const [avisosOk, setAvisosOk] = useState(false);
+  const [avisosAbierto, setAvisosAbierto] = useState(false);
+  useEffect(() => {
+    if (!abierto || typeof avisosDispositivoDisponible !== 'function') return;
+    let vivo = true;
+    avisosDispositivoDisponible(user && user.rol).then(v => { if (vivo) setAvisosOk(!!v); });
+    return () => { vivo = false; };
+  }, [abierto]);
+
   // Cerrar al hacer clic fuera o con Escape
   useEffect(() => {
     if (!abierto) return;
@@ -98,6 +109,10 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbaj
   // ir a setModal(op.id).
   if (typeof onVerGuia === 'function') {
     opciones.push({ id: 'guia', icono: 'info', label: 'Ver la guía otra vez', accion: onVerGuia });
+  }
+  // [OF-7b] Abre un modal propio (AvisosDispositivoModal), como "accion", no como modal de perfil.
+  if (avisosOk) {
+    opciones.push({ id: 'avisos', icono: 'bell', label: 'Avisos en este dispositivo', accion: () => setAvisosAbierto(true) });
   }
 
   return _hMP('div', { ref: caja, style: { position: 'relative' } },
@@ -151,6 +166,10 @@ function MenuPerfil({ user, escuela, onLogout, onActualizado, apiPost, haciaAbaj
         ]
       })
     ) : null,
+
+    avisosAbierto && typeof AvisosDispositivoModal === 'function'
+      ? _hMP(AvisosDispositivoModal, { key: 'avisos', onCerrar: () => setAvisosAbierto(false) })
+      : null,
 
     modal ? _hMP(ModalPerfil, {
       key: 'modal',

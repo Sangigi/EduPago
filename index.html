@@ -36,6 +36,12 @@
      fonts.googleapis.com (style-src) y fonts.gstatic.com (font-src). -->
 <link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/logo_icon.png" sizes="32x32">
+<!-- [OF-7b] Manifiesto mínimo: nombre, ícono y display standalone. Hace falta para los avisos push en
+     iPhone/iPad, donde Web Push solo funciona con la app instalada en la pantalla de inicio (iOS 16.4+).
+     La CSP lo permite (manifest-src cae en default-src 'self'). El service worker de los avisos es
+     sw-edupago.js, en la raíz, y se registra solo cuando alguien pulsa "Activar avisos". -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/logo_icon.png">
 <!-- [OF-UI] Tema oscuro SIN parpadeo blanco. OF lo resuelve con un <script>
      en línea en el <head>; aquí la CSP prohíbe 'unsafe-inline' en scripts,
      así que es un archivo propio, SIN defer, que corre antes de que el
@@ -835,7 +841,11 @@
 
 
 
-<script defer src="views/components/MenuPerfil.js?v=1794600000"></script>
+<!-- [OF-7b] Avisos push: push_cliente.js (global EduPush) y AvisosDispositivo.js (tarjeta/modal "Avisos en este
+     dispositivo"), que usa MenuPerfil.js y PortalFamilia.js. -->
+<script defer src="assets/js/push_cliente.js?v=1796300000"></script>
+<script defer src="views/components/AvisosDispositivo.js?v=1796300000"></script>
+<script defer src="views/components/MenuPerfil.js?v=1796300000"></script>
 <script defer src="views/components/GuiaPrimerUso.js?v=1795600000"></script>
 
 
@@ -982,7 +992,7 @@
 <script defer src="views/EscolarFamilia.js?v=1795600000"></script>
 <script defer src="views/PortalDocente.js?v=1794600000"></script>
 <!-- [F4] Portal del alumno: usa los globales de ControlEscolar.js (cargado antes). -->
-<script defer src="views/PortalAlumno.js?v=1795500000"></script>
+<script defer src="views/PortalAlumno.js?v=1796300000"></script>
 <!-- [F6] Monedero del alumno y tiendita. Monedero.js PRIMERO: define los ayudantes
      mn* (mnApi, mnFmt, mnLlave...) que usan Tienda.js y MonederoFamilia.js; los
      tres usan EscModal/EscStat/... de ControlEscolar.js (cargado antes). -->
@@ -990,7 +1000,7 @@
 <script defer src="views/components/MonederoFamilia.js?v=1795600000"></script>
 <script defer src="views/Tienda.js?v=1795600000"></script>
 
-<script defer src="views/PortalFamilia.js?v=1795800000"></script>
+<script defer src="views/PortalFamilia.js?v=1796300000"></script>
 
 <script defer src="views/Distribuidor.js?v=1790373295"></script>
 
@@ -1004,7 +1014,7 @@
 
 
 
-<script defer src="assets/js/app.js?v=1796100000"></script>
+<script defer src="assets/js/app.js?v=1796300000"></script>
 
 
 

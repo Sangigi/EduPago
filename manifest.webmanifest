@@ -1,0 +1,14 @@
+{
+  "name": "EduPago",
+  "short_name": "EduPago",
+  "description": "Cobranza y control escolar para colegios",
+  "lang": "es-MX",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#272c64",
+  "icons": [
+    { "src": "assets/logo_icon.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any" }
+  ]
+}

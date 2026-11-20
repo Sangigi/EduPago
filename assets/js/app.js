@@ -733,6 +733,19 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user && user.id, user && user.rol]);
 
+  // [OF-7b] Al tocar un aviso push (sw-edupago.js) la app se abre con ?ir=<pantalla>; assets/js/push_cliente.js
+  // lo lee una vez al cargar y lo limpia de la barra. Aquí, ya con sesión, se abre la pantalla si ese rol la
+  // tiene: el colegio (admin/cajero) va a Ayuda; soporte y superadmin, a Tickets de soporte. Los portales de
+  // familia y alumno leen su propio ?ir= (calificaciones) al montarse.
+  useEffect(() => {
+    if (!user || typeof EduPush === 'undefined') return;
+    const permitidas = ['admin', 'cajero'].includes(user.rol) ? ['ayuda']
+      : (['soporte', 'superadmin'].includes(user.rol) ? ['soporte_tickets'] : []);
+    const ir = permitidas.length ? EduPush.tomarIr(permitidas) : '';
+    if (ir) setView(ir);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user && user.id]);
+
   // Guía de primer uso (23-sep-2026). Arranca en false y se enciende en el
   // login / al restaurar sesión, porque en el primer render `user` todavía es
   // null y leer user.guia_pendiente ahí tiraría la app entera.

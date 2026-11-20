@@ -159,7 +159,10 @@ function PaMonedero(props) {
 
 function PortalAlumno({ user, onLogout, menuPerfil }) {
   var R = React;
-  var st = R.useState('inicio'), tab = st[0], setTab = st[1];
+  // [OF-7b] Al tocar el aviso "Se publicaron calificaciones" se abre la pestaña Calificaciones.
+  var st = R.useState(function () {
+    return (typeof EduPush !== 'undefined' && EduPush.tomarIr(['calificaciones']) === 'calificaciones') ? 'calificaciones' : 'inicio';
+  }), tab = st[0], setTab = st[1];
   var s2 = R.useState(null), datos = s2[0], setDatos = s2[1];
   var s3 = R.useState(''), error = s3[0], setError = s3[1];
   // null = todavía no se sabe; false = no hay monedero (pestaña oculta); número = saldo.

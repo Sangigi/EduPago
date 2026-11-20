@@ -54,7 +54,10 @@ function PortalFamilia({
   // Efectivo desde Caja — el padre no tenía forma de pagar en efectivo un
   // cobro pendiente sin llamar a la escuela.
   const [generandoEfvId, setGenerandoEfvId] = useState(null);
-  const [tab, setTab] = useState('inicio');
+  // [OF-7b] Al tocar un aviso push el service worker abre la app con ?ir=: "calificaciones" abre la
+  // pestaña Escolar; "pagos" cae en Inicio, donde ya están el saldo pendiente y los pagos.
+  const [tab, setTab] = useState(() =>
+    (typeof EduPush !== 'undefined' && EduPush.tomarIr(['calificaciones']) === 'calificaciones') ? 'escolar' : 'inicio');
   // La barra de pestañas hace scroll horizontal en móvil (no caben las 6 en
   // pantalla) -- sin esto, al entrar directo a una pestaña de las últimas
   // (p.ej. "Pagar en línea" desde el banner de saldo pendiente) la píldora
@@ -2974,7 +2977,11 @@ function PortalFamilia({
               children: eliminandoTarjetaId === hijo.id ? 'Eliminando…' : 'Eliminar tarjeta'
             }, void 0, false)]
           }, hijo.id, true))]
-        }, void 0, true), _jsxDEV("div", {
+        }, void 0, true),
+        // [OF-7b] Avisos push en este dispositivo (views/components/AvisosDispositivo.js). Se pinta solo si
+        // el servidor los tiene encendidos; nunca pide permiso hasta que la persona pulsa "Activar".
+        typeof AvisosDispositivoTarjeta !== 'undefined' ? _jsxDEV(AvisosDispositivoTarjeta, { rol: 'familia' }, 'avisosDispositivo', false) : null,
+        _jsxDEV("div", {
           children: [_jsxDEV("div", { style: { fontSize: 14, fontWeight: 700, color: PLC.text, marginBottom: 10 }, children: "Cambiar contraseña" }, void 0, false),
           _jsxDEV("input", { className: "form-input", type: "password", placeholder: "Contraseña actual", value: formPass.actual, onChange: e => setFormPass(f => ({ ...f, actual: e.target.value })), style: { marginBottom: 8, width: '100%' } }, void 0, false),
           _jsxDEV("input", { className: "form-input", type: "password", placeholder: "Nueva contraseña (mín. 8 caracteres)", value: formPass.nueva, onChange: e => setFormPass(f => ({ ...f, nueva: e.target.value })), style: { marginBottom: 8, width: '100%' } }, void 0, false),
