@@ -29,6 +29,11 @@ require_once __DIR__ . '/lib/helpers_monedero.php';
 // [OF-6] Inventario con existencias (20-nov-2026): libro de movimientos y
 // existencia cacheada de lo que el colegio vende físicamente. No mueve dinero.
 require_once __DIR__ . '/lib/helpers_inventario.php';
+// [OF-7c] "Ver como" (20-nov-2026): token de suplantación, quién puede ver como quién y el
+// filtro de solo lectura. Bitácora de auditoría con antes y después. Agenda de citas.
+require_once __DIR__ . '/lib/helpers_suplantacion.php';
+require_once __DIR__ . '/lib/helpers_auditoria.php';
+require_once __DIR__ . '/lib/helpers_agenda.php';
 // ── Secciones del menú que el super admin puede habilitar/deshabilitar por
 // colegio — fuente única de verdad (debe reflejar el mismo listado de ids
 // que NAV_ITEMS en assets/js/app.js para las secciones de admin/cajero).
@@ -55,6 +60,8 @@ const SECCIONES_DISPONIBLES = [
     'monedero'      => 'Monedero y tiendita',
     // [OF-6] Inventario con existencias (uniformes, material, tiendita).
     'inventario'    => 'Inventario',
+    // [OF-7c] Agenda de citas (admisiones, entrevistas con padres).
+    'agenda'        => 'Agenda',
     // Control escolar (13-nov-2026). Ver lib/helpers_escolar.php.
     'escolar_grupos'         => 'Grupos y horarios',
     'escolar_asistencias'    => 'Asistencias',
@@ -212,6 +219,12 @@ function verificar_token_auth() {
         exit;
     }
     $decoded = base64_decode($matches[1], true);
+    // [OF-7c] Una sesión de "Ver como" lleva otro formato (7 partes, empieza con "sup.") y se
+    // valida aparte contra la base (usuario real + objetivo + regla vigente). Ver
+    // lib/helpers_suplantacion.php. Un token normal nunca entra por aquí.
+    if ($decoded !== false && strncmp($decoded, 'sup.', 4) === 0) {
+        return suplantacion_verificar_token($pdo, $matches[1], $accionLog);
+    }
     $partes  = $decoded !== false ? explode('.', $decoded) : [];
     if (count($partes) !== 3) {
         log_api("AUTH FALLÓ ({$accionLog}) -> token con formato inválido (no son 3 partes tras decodificar)");
@@ -299,6 +312,28 @@ if (!in_array($action, $acciones_publicas)) {
     $usuario_actual = verificar_token_auth();
 }
 
+// ── [OF-7c] "VER COMO": FILTRO DE LA SESIÓN DE SUPLANTACIÓN ─────────────────────
+// Corre ANTES de todo lo demás (vencimiento, allowlist, despacho). Si la sesión es una
+// suplantación: (1) deja una línea en api_log con el usuario real, el objetivo y la acción;
+// (2) bloquea con 403 lo que nunca se hace suplantando (SUPLANTACION_ACCIONES_NUNCA) y,
+// en modo lectura, todo lo que no esté en SUPLANTACION_ACCIONES_SOLO_LECTURA. Las listas
+// y su razón viven en lib/helpers_suplantacion.php y las valida revisar-permisos.php.
+$ctx_suplantacion = isset($usuario_actual) ? suplantacion_contexto($usuario_actual) : null;
+if ($ctx_suplantacion !== null) {
+    $bloqueo_suplantacion = suplantacion_accion_bloqueada($action, $ctx_suplantacion['modo']);
+    log_api("SUPLANTACION real={$ctx_suplantacion['real']} objetivo=" . intval($usuario_actual['user_id'] ?? 0)
+        . " modo={$ctx_suplantacion['modo']} accion={$action}" . ($bloqueo_suplantacion !== null ? " BLOQUEADA({$bloqueo_suplantacion})" : ''));
+    if ($bloqueo_suplantacion !== null) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'codigo'  => $bloqueo_suplantacion === 'lectura' ? 'suplantacion_solo_lectura' : 'suplantacion_prohibida',
+            'error'   => suplantacion_mensaje_bloqueo($bloqueo_suplantacion),
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 // ── CANDADO POR SUSCRIPCIÓN VENCIDA (25-sep-2026) ────────────────────────
 //
 // Hasta hoy el vencimiento NO SE VALIDABA EN NINGÚN LADO: `fecha_vencimiento_plan`
@@ -329,6 +364,8 @@ $ACCIONES_PERMITIDAS_VENCIDO = [
     'escuela_obtener_datos_pago',
     // Cuenta propia: que pueda entrar, cambiar su contraseña y salir.
     'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
+    // [OF-7c] Salir de "Ver como" nunca se bloquea, ni siquiera si el colegio vencio.
+    'suplantar_terminar',
 ];
 
 if (isset($usuario_actual) && $usuario_actual && !empty($usuario_actual['escuela_id'])
@@ -685,6 +722,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // [OF-4a] Detector de incoherencias (solo lectura; exige superadmin o
         // soporte por dentro). Pantalla views/Diagnostico.js.
         'diagnostico_incoherencias',
+        // [OF-7c] "Ver como" (siempre en solo lectura para soporte) y bitácora de auditoría de todos los colegios.
+        'suplantar_iniciar', 'auditoria_listar',
         // Para poder aclarar con el cliente AL MOMENTO (25-sep-2026). Sin
         // estas tres, soporte tenía que pedirle al superadmin que mirara por
         // él justo las tres preguntas más frecuentes: "¿qué pagué de mi
@@ -760,6 +799,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'escolar_asistencia_obtener', 'escolar_asistencia_guardar', 'escolar_asistencia_reporte',
         'escolar_calificaciones_obtener', 'escolar_calificaciones_guardar',
         'escolar_resumen_grupo', 'escolar_boleta',
+        // [OF-7c] Agenda: ve solo las citas donde es el responsable (lectura).
+        'agenda_listar',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
     // [F0] Familia (18-nov-2026). Rol que ya existía y que heredaba el hueco de
@@ -801,6 +842,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'monedero_saldo', 'monedero_movimientos', 'monedero_recargar', 'monedero_config_guardar',
         // [OF-7b] Avisos push en este dispositivo (activar, quitar, probar).
         'push_llave_publica', 'push_suscribir', 'push_quitar', 'push_probar',
+        // [OF-7c] Sus citas con el colegio (lectura; solo las ligadas a su familia).
+        'agenda_listar',
     ],
     // [OF-4b] admin, cajero, contador y distribuidor (19-nov-2026). Son los roles
     // más viejos y los que más pegan al hueco de las ~25 acciones sin
@@ -910,6 +953,9 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // tienda_productos_listar, que ya tienen en su lista.
         'inventario_listar', 'inventario_activar', 'inventario_minimo', 'inventario_entrada',
         'inventario_ajuste', 'inventario_conteo', 'inventario_movimientos', 'inventario_duplicar',
+        // [OF-7c] "Ver como" (cajero, control escolar, direccion, docente, tienda en modo normal; familia y
+        // alumno en solo lectura), bitacora de auditoria de su colegio y agenda de citas.
+        'suplantar_iniciar', 'auditoria_listar', 'agenda_listar', 'agenda_guardar', 'agenda_estado',
     ],
     // Cajero: caja y cobro del día, más consultar/dar de alta alumnos. NO ve
     // gastos, facturación en lote, catálogos, equipo ni configuración. Cada
@@ -994,6 +1040,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // validan crear_usuario / listar_usuarios / toggle_usuario /
         // reenviar_credenciales por dentro).
         'listar_usuarios', 'crear_usuario', 'toggle_usuario', 'reenviar_credenciales',
+        // [OF-7c] Agenda de citas: crea, edita y cancela las de su colegio.
+        'agenda_listar', 'agenda_guardar', 'agenda_estado',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
     // Dirección: SOLO LECTURA académica y de alumnos. Lista explícita a propósito
@@ -1005,6 +1053,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'escolar_resumen_grupo', 'escolar_boleta', 'escolar_kardex', 'escolar_horario_docente',
         'alumno_expediente_obtener', 'alumno_tutores_listar', 'alumno_documentos_listar',
         'alumno_documento_descargar', 'alumno_movimientos_listar',
+        // [OF-7c] Agenda: ve todas las citas del colegio, en lectura.
+        'agenda_listar',
         'cambiar_password_propio', 'editar_usuario', 'guia_marcar_vista',
     ],
 ];
@@ -1076,6 +1126,10 @@ $rol_plataforma_actual = $usuario_actual['rol'] ?? '';
 // ALLOWLIST_ROLES_ESTRICTA. Las listas aceptan 'prefijo_*' (accion_en_allowlist).
 $decision_allowlist = decision_allowlist_rol($rol_plataforma_actual, $action, $ACCIONES_POR_ROL_PLATAFORMA,
     ALLOWLIST_FAMILIA_ESTRICTA, $allowlist_roles_estricta);
+// [OF-7c] Salir de "Ver como" debe poder llamarse con el token de suplantacion sea cual sea el
+// rol del objetivo (docente, alumno, tienda...), cuyas listas no la traen. Solo aplica si la
+// sesion ES una suplantacion; con un token normal, 'suplantar_terminar' no existe para el rol.
+if ($action === 'suplantar_terminar' && $ctx_suplantacion !== null) $decision_allowlist = 'permitir';
 if ($decision_allowlist === 'registrar') {
     $uid_allowlist = $usuario_actual['user_id'] ?? '?';
     if ($rol_plataforma_actual === 'familia') {

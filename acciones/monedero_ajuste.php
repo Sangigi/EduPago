@@ -57,6 +57,10 @@ try {
     ]);
     $pdo->commit();
 
+    // [OF-7c] Auditoría: el saldo del monedero antes y después del ajuste (después del commit).
+    auditar($pdo, $usuario_actual, 'monedero.ajuste', 'monedero', $cliente_id,
+        ['saldo' => round(floatval($r['saldo_despues']) - $signo * $monto, 2), 'motivo' => null],
+        ['saldo' => round(floatval($r['saldo_despues']), 2), 'motivo' => $motivo], $ctx['escuela_id']);
     registrar_log($pdo, $usuario_actual, 'monedero_ajuste',
         "Ajuste " . ($signo > 0 ? '+' : '-') . "\${$monto} al monedero del alumno #{$cliente_id}: {$motivo}", $ctx['escuela_id']);
     respond(['success' => true, 'duplicado' => false, 'saldo_despues' => $r['saldo_despues']]);

@@ -61,6 +61,8 @@ if ($accion === 'desactivar') {
     _reactivar_secciones_de_pago_demo($pdo, $id);
     registrar_log($pdo, $usuario_actual, 'escuela_demo_desactivada',
         "Escuela #$id: modo demo desactivado manualmente, vencimiento -> $nuevoVencimiento", $id);
+    // [OF-7c] Auditoría: modo antes y después.
+    auditar($pdo, $usuario_actual, 'escuela.demo', 'escuela', $id, ['modo' => $escuela['modo']], ['modo' => 'activa'], $id);
     respond(['success' => true, 'modo' => 'activa', 'fecha_vencimiento_plan' => $nuevoVencimiento]);
 }
 
@@ -75,4 +77,5 @@ $fecha_fin = date('Y-m-d', strtotime("+{$dias} days"));
 $pdo->prepare("UPDATE escuelas SET modo = 'demo', fecha_fin_prueba = ?, ultimo_recordatorio_plan = NULL WHERE id = ?")->execute([$fecha_fin, $id]);
 _reactivar_secciones_de_pago_demo($pdo, $id);
 registrar_log($pdo, $usuario_actual, 'escuela_demo_activada', "Escuela #$id: modo demo activado, $dias días (vence $fecha_fin)", $id);
+auditar($pdo, $usuario_actual, 'escuela.demo', 'escuela', $id, ['modo' => $escuela['modo']], ['modo' => 'demo'], $id);
 respond(['success' => true, 'modo' => 'demo', 'fecha_fin_prueba' => $fecha_fin, 'dias' => $dias]);

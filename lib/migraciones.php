@@ -682,6 +682,54 @@ CREATE TABLE IF NOT EXISTS push_avisos (
   KEY idx_pushav_creado (creado_en)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
 
+    // ═══ OF-7c — "Ver como" (columna de rastro), bitácora de auditoría y agenda de citas ═══
+    // Sin backfill. Sin estos pasos el sistema funciona como antes: "Ver como" anota al usuario
+    // real dentro del detalle del log (registrar_log reintenta sin la columna), auditar() no
+    // escribe nada (auditoria_lista() = false) y la agenda responde que aún no está instalada.
+    // ALTER sobre logs_sistema: es una tabla de solo-agregar que puede ser grande; hazlo fuera de
+    // horario de cobro (ver docs/mejoras-of/of7c.md). Puede esperar: el código tolera su ausencia.
+    $f = 'migracion_2026_11_20_of7c.sql';
+    $columna('2026_11_20_of7c_01_logs_suplantado_por', 'logs_sistema.suplantado_por (quién hizo la acción en realidad, viendo como otro usuario)',
+        'logs_sistema', 'suplantado_por', 'INT UNSIGNED NULL DEFAULT NULL', $f);
+    $tabla('2026_11_20_of7c_02_auditoria', 'Tabla auditoria (bitácora de cambios con antes y después)', 'auditoria', "
+CREATE TABLE IF NOT EXISTS auditoria (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  escuela_id      INT UNSIGNED    NULL DEFAULT NULL,
+  usuario_id      INT UNSIGNED    NULL DEFAULT NULL,
+  suplantado_por  INT UNSIGNED    NULL DEFAULT NULL,
+  accion          VARCHAR(40)     NOT NULL,
+  entidad         VARCHAR(30)     NOT NULL,
+  entidad_id      INT UNSIGNED    NULL DEFAULT NULL,
+  antes           TEXT            NULL,
+  despues         TEXT            NULL,
+  ip              VARCHAR(45)     NULL DEFAULT NULL,
+  creado_en       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_aud_escuela_fecha (escuela_id, creado_en),
+  KEY idx_aud_entidad (entidad, entidad_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+    $tabla('2026_11_20_of7c_03_citas', 'Tabla citas (agenda: admisión, entrevistas con padres, reuniones)', 'citas', "
+CREATE TABLE IF NOT EXISTS citas (
+  id              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  escuela_id      INT UNSIGNED    NOT NULL,
+  titulo          VARCHAR(150)    NOT NULL,
+  tipo            VARCHAR(12)     NOT NULL DEFAULT 'otro',
+  inicio          DATETIME        NOT NULL,
+  fin             DATETIME        NOT NULL,
+  responsable_id  INT UNSIGNED    NOT NULL,
+  familia_id      INT UNSIGNED    NULL DEFAULT NULL,
+  cliente_id      INT UNSIGNED    NULL DEFAULT NULL,
+  lugar           VARCHAR(150)    NULL DEFAULT NULL,
+  notas           TEXT            NULL,
+  estado          VARCHAR(12)     NOT NULL DEFAULT 'programada',
+  creado_por      INT UNSIGNED    NULL DEFAULT NULL,
+  creado_en       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_citas_escuela_inicio (escuela_id, inicio),
+  KEY idx_citas_responsable (responsable_id, inicio),
+  KEY idx_citas_familia (familia_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+
     $reg = $r;
     return $reg;
 }

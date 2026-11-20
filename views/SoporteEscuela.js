@@ -45,6 +45,8 @@ function SoporteEscuela({ data }) {
   var e2 = _R.useState('');    var q = e2[0], setQ = e2[1];
   var e3 = _R.useState(null);  var detalle = e3[0], setDetalle = e3[1];
   var e4 = _R.useState(false); var cargando = e4[0], setCargando = e4[1];
+  var e5 = _R.useState(null);  var verComo = e5[0], setVerComo = e5[1]; // [OF-7c] usuario al que se quiere "ver como"
+  var yo = AuthController.getSession();
 
   var escuelas = (data && data.escuelas ? data.escuelas : []).filter(function (e) { return !e.es_plantel; });
   var resumen = (data && data.resumen_escuelas) || {};
@@ -72,6 +74,7 @@ function SoporteEscuela({ data }) {
       pedir('suscripcion_pagos_listar', { escuela_id: escId }),
       pedir('listar_documentos_escuela', { escuela_id: escId }),
       pedir('escuela_obtener_datos_pago', { escuela_id: escId }),
+      pedir('listar_usuarios', { escuela_id: escId }), // [OF-7c] para "Ver como"
     ]).then(function (r) {
       if (!vivo) return;
       setDetalle({
@@ -82,6 +85,7 @@ function SoporteEscuela({ data }) {
         adminEsc: (r[2] && r[2].admin) || null,
         formCompleto: !!(r[2] && r[2].formulario_completo),
         faltantes: (r[2] && r[2].campos_faltantes) || [],
+        usuarios: (r[3] && r[3].usuarios) || [],
       });
       setCargando(false);
     });
@@ -234,7 +238,28 @@ function SoporteEscuela({ data }) {
               ? _hSE('div', { key: 'f', style: { fontSize: 11.5, color: 'var(--amber)', marginTop: 8 } },
                   'Le faltan: ' + detalle.faltantes.join(', '))
               : null
-          ), 'pago')
+          ), 'pago'),
+
+        // ── [OF-7c] Ver como ──
+        tarjeta('Usuarios del colegio', 'Para ver el sistema como lo ve cada uno, SOLO LECTURA y con tu contraseña. Queda anotado.',
+          _hSE('div', { key: 'u' },
+            (!detalle || !detalle.usuarios || detalle.usuarios.length === 0)
+              ? _hSE('div', { style: { fontSize: 12.5, color: 'var(--ink-3)' } }, 'Sin usuarios que mostrar.')
+              : detalle.usuarios.map(function (u) {
+                  return _hSE('div', { key: u.id, style: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '7px 0', borderBottom: '1px solid var(--border-glow)', opacity: u.activo === false || u.activo === 0 || u.activo === '0' ? .55 : 1 } },
+                    _hSE('span', { key: 'n', style: { fontSize: 12.5, color: 'var(--ink)', flex: '1 1 180px' } }, u.nombre),
+                    _hSE('span', { key: 'r', className: 'badge badge-gray' }, u.rol),
+                    _hSE('span', { key: 'e', style: { fontSize: 11.5, color: 'var(--ink-4)' } }, u.email),
+                    AuthController.puedeVerComo(yo, u)
+                      ? _hSE('button', { key: 'b', className: 'btn btn-ghost btn-sm', onClick: function () { setVerComo(u); }, title: 'Ver como este usuario (solo lectura)' },
+                          _hSE(Icon, { name: 'eye', size: 14, color: 'currentColor' }), ' Ver como')
+                      : null
+                  );
+                })
+          ), 'vercomo'),
+        verComo && typeof VerComoModal !== 'undefined'
+          ? _hSE(VerComoModal, { key: 'vcm', user: yo, objetivo: verComo, onCerrar: function () { setVerComo(null); } })
+          : null
       ))
   );
 }

@@ -39,4 +39,7 @@ registrar_log(
     "Método '$metodo' " . ($yaDeshabilitado ? 'habilitado' : 'deshabilitado') . ' globalmente (todas las escuelas)'
 );
 
+// [OF-7c] Auditoría: interruptor global (sin colegio).
+auditar($pdo, $usuario_actual, 'global.metodo_pago', 'escuela', null,
+    ['metodo_' . $metodo => $yaDeshabilitado ? 'apagado' : 'encendido'], ['metodo_' . $metodo => $yaDeshabilitado ? 'encendido' : 'apagado'], null);
 respond(['success' => true, 'deshabilitados' => $nuevos]);

@@ -13,7 +13,9 @@ var _hPD = React.createElement;
 var PD_SECCIONES = [
   { id: 'grupos', label: 'Mis grupos', icon: 'alumnos' },
   { id: 'asistencias', label: 'Pasar lista', icon: 'check' },
-  { id: 'calificaciones', label: 'Calificaciones', icon: 'reportes' }
+  { id: 'calificaciones', label: 'Calificaciones', icon: 'reportes' },
+  // [OF-7c] Sus citas (solo las suyas, en lectura): views/Agenda.js.
+  { id: 'agenda', label: 'Agenda', icon: 'calendar' }
 ];
 
 function PortalDocente({ user, onLogout, menuPerfil }) {
@@ -50,9 +52,11 @@ function PortalDocente({ user, onLogout, menuPerfil }) {
         menuPerfil || _hPD('button', { className: 'btn btn-ghost btn-sm', onClick: onLogout }, 'Cerrar sesión'))
     ),
     _hPD('div', { style: { padding: 20, maxWidth: 1200, margin: '0 auto' } },
-      typeof ControlEscolar !== 'undefined'
-        ? _hPD(ControlEscolar, { escuela_id: user.escuela_id, user: user, seccion: seccion })
-        : _hPD('div', { className: 'card' }, 'No se pudo cargar el módulo escolar. Recarga la página.')
+      seccion === 'agenda'
+        ? (typeof Agenda !== 'undefined' ? _hPD(Agenda, { user: user }) : _hPD('div', { className: 'card' }, 'No se pudo cargar la agenda. Recarga la página.'))
+        : (typeof ControlEscolar !== 'undefined'
+          ? _hPD(ControlEscolar, { escuela_id: user.escuela_id, user: user, seccion: seccion })
+          : _hPD('div', { className: 'card' }, 'No se pudo cargar el módulo escolar. Recarga la página.'))
     )
   );
 }

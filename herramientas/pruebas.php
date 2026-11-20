@@ -32,6 +32,9 @@ require_once $RAIZ . '/lib/helpers_monedero.php';
 require_once $RAIZ . '/lib/helpers_soporte.php'; // [OF-7a] reglas puras de tickets y ayuda
 require_once $RAIZ . '/lib/helpers_importar_saldos.php'; // [OF-5]
 require_once $RAIZ . '/lib/helpers_inventario.php'; // [OF-6]
+require_once $RAIZ . '/lib/helpers_suplantacion.php'; // [OF-7c]
+require_once $RAIZ . '/lib/helpers_auditoria.php'; // [OF-7c]
+require_once $RAIZ . '/lib/helpers_agenda.php'; // [OF-7c]
 
 // ════════════════════════════════════════════════════════════════════════
 // Mini corredor
@@ -1329,6 +1332,319 @@ prueba('inventario: los enganches de venta son no-op sin la migración (la base 
     igual(['piezas' => 0, 'productos' => 0, 'errores' => 0], $r, 'sin pedidos no hace nada');
 });
 
+// ════════════════════════════════════════════════════════════════════════
+// [OF-7c] "Ver como", auditoría y agenda
+// ════════════════════════════════════════════════════════════════════════
+
+function _u($id, $rol, $esc = null, $activo = 1): array { return ['id' => $id, 'rol' => $rol, 'escuela_id' => $esc, 'activo' => $activo]; }
+
+prueba('ver como: quién puede ver como quién y en qué modo (tabla completa)', function () {
+    $sa = _u(1, 'superadmin'); $so = _u(2, 'soporte'); $ad = _u(3, 'admin', 10);
+    $casos = [
+        // [real, objetivo, ok, modo]
+        [$sa, _u(20, 'admin', 10), true, 'normal'],
+        [$sa, _u(21, 'cajero', 11), true, 'normal'],
+        [$sa, _u(22, 'soporte'), true, 'normal'],
+        [$sa, _u(23, 'distribuidor'), true, 'normal'],
+        [$sa, _u(24, 'familia', 10), true, 'lectura'],     // nadie paga ni consiente en nombre de una familia
+        [$sa, _u(25, 'alumno', 10), true, 'lectura'],
+        [$sa, _u(26, 'superadmin'), false, null],           // nunca otro superadmin
+        [$sa, $sa, false, null],                            // ni a sí mismo
+        [$sa, _u(27, 'cajero', 10, 0), false, null],        // ni a una cuenta apagada
+        [$so, _u(30, 'admin', 10), true, 'lectura'],        // soporte: siempre lectura
+        [$so, _u(31, 'cajero', 11), true, 'lectura'],
+        [$so, _u(32, 'familia', 10), true, 'lectura'],
+        [$so, _u(33, 'contador'), false, null],             // ni de plataforma
+        [$so, _u(34, 'superadmin'), false, null],
+        [$so, _u(35, 'cajero', null), false, null],         // usuario de colegio sin colegio: no
+        [$ad, _u(40, 'cajero', 10), true, 'normal'],
+        [$ad, _u(41, 'control_escolar', 10), true, 'normal'],
+        [$ad, _u(42, 'direccion', 10), true, 'normal'],
+        [$ad, _u(43, 'docente', 10), true, 'normal'],
+        [$ad, _u(44, 'tienda', 10), true, 'normal'],
+        [$ad, _u(45, 'familia', 10), true, 'lectura'],
+        [$ad, _u(46, 'alumno', 10), true, 'lectura'],
+        [$ad, _u(47, 'admin', 10), false, null],            // otro admin: no
+        [$ad, _u(48, 'cajero', 99), false, null],           // de OTRA escuela: no
+        [$ad, _u(49, 'familia', 99), false, null],
+        [$ad, _u(50, 'admin', 99), false, null],            // admin de otra escuela: no
+        [$ad, _u(51, 'superadmin'), false, null],
+        [$ad, _u(52, 'soporte'), false, null],
+        [$ad, _u(53, 'cajero', null), false, null],
+        [_u(3, 'admin', null), _u(54, 'cajero', null), false, null], // admin sin escuela
+        [_u(60, 'cajero', 10), _u(61, 'docente', 10), false, null],   // nadie más
+        [_u(62, 'control_escolar', 10), _u(63, 'docente', 10), false, null],
+        [_u(64, 'familia', 10), _u(65, 'alumno', 10), false, null],
+        [_u(66, 'contador'), _u(67, 'cajero', 10), false, null],
+        [_u(68, 'distribuidor'), _u(69, 'cajero', 10), false, null],
+        [_u(70, 'direccion', 10), _u(71, 'docente', 10), false, null],
+        [_u(3, 'admin', 10, 0), _u(72, 'cajero', 10), false, null],   // real apagado
+    ];
+    foreach ($casos as $i => [$real, $obj, $ok, $modo]) {
+        $d = suplantacion_decision($real, $obj);
+        igual($ok, $d['ok'], "caso #$i ({$real['rol']} → {$obj['rol']})");
+        igual($modo, $d['modo'], "modo del caso #$i ({$real['rol']} → {$obj['rol']})");
+    }
+    // El escuela_id puede llegar como texto desde PDO: se compara como número.
+    $d = suplantacion_decision(['id' => '3', 'rol' => 'admin', 'escuela_id' => '10', 'activo' => '1'], ['id' => '40', 'rol' => 'cajero', 'escuela_id' => 10, 'activo' => 1]);
+    igual(true, $d['ok']);
+});
+
+prueba('ver como: el modo pedido solo puede ser MÁS estricto', function () {
+    igual('lectura', suplantacion_modo_final('lectura', 'normal'));
+    igual('lectura', suplantacion_modo_final('lectura', ''));
+    igual('lectura', suplantacion_modo_final('normal', 'lectura'));
+    igual('normal', suplantacion_modo_final('normal', 'normal'));
+    igual('normal', suplantacion_modo_final('normal', 'cualquier cosa'));
+});
+
+prueba('ver como: filtro de acciones — nunca, solo lectura y la salida', function () {
+    // En modo lectura solo pasa lo explícito.
+    foreach (['cargar_datos', 'listar_cobros', 'detalle_cobro', 'escolar_catalogos', 'monedero_saldo', 'inventario_listar', 'agenda_listar', 'auditoria_listar'] as $a) {
+        igual(null, suplantacion_accion_bloqueada($a, 'lectura'), $a . ' pasa en lectura');
+    }
+    foreach (['crear_cobro', 'cancelar_cobro', 'editar_producto', 'crear_cliente', 'caja_abrir', 'caja_movimiento', 'tienda_vender',
+              'escolar_mapear_grados', 'importar_saldos_aplicar', 'agenda_guardar', 'accion_que_no_existe'] as $a) {
+        igual('lectura', suplantacion_accion_bloqueada($a, 'lectura'), $a . ' se bloquea en lectura');
+        igual(null, suplantacion_accion_bloqueada($a, 'normal'), $a . ' pasa en modo normal (si no está prohibida)');
+    }
+    // Lo prohibido, en CUALQUIER modo.
+    foreach (['cambiar_password_propio', 'editar_usuario', 'crear_usuario', 'eliminar_usuario', 'toggle_usuario', 'suplantar_iniciar',
+              'generar_liga', 'generar_referencia_efectivo', 'iniciar_pago_agrupado', 'monedero_recargar', 'cancelar_cfdi'] as $a) {
+        igual('prohibida', suplantacion_accion_bloqueada($a, 'normal'), $a . ' prohibida en normal');
+        igual('prohibida', suplantacion_accion_bloqueada($a, 'lectura'), $a . ' prohibida en lectura');
+    }
+    // Salir nunca se bloquea.
+    igual(null, suplantacion_accion_bloqueada('suplantar_terminar', 'lectura'));
+    igual(null, suplantacion_accion_bloqueada('suplantar_terminar', 'normal'));
+    // Los mensajes.
+    igual('Estás viendo como otro usuario en modo de solo lectura', suplantacion_mensaje_bloqueo('lectura'));
+    afirmar(suplantacion_mensaje_bloqueo('prohibida') !== suplantacion_mensaje_bloqueo('lectura'));
+});
+
+prueba('ver como: las listas son coherentes (sin traslape, sin nombres sospechosos de escribir)', function () {
+    igual([], array_values(array_intersect(SUPLANTACION_ACCIONES_SOLO_LECTURA, SUPLANTACION_ACCIONES_NUNCA)), 'nada en las dos listas');
+    igual(count(SUPLANTACION_ACCIONES_SOLO_LECTURA), count(array_unique(SUPLANTACION_ACCIONES_SOLO_LECTURA)), 'sin repetidas');
+    igual(count(SUPLANTACION_ACCIONES_NUNCA), count(array_unique(SUPLANTACION_ACCIONES_NUNCA)), 'sin repetidas en nunca');
+    // Una acción de solo lectura no debe llamarse como algo que escribe.
+    foreach (SUPLANTACION_ACCIONES_SOLO_LECTURA as $a) {
+        afirmar(!preg_match('/^(crear|editar|eliminar|cancelar|guardar|marcar|resolver|generar|enviar|subir|toggle|importar_saldos_(aplicar|deshacer)|asignar|liberar|renovar|reenviar)_/', $a)
+            && !preg_match('/_(guardar|crear|editar|eliminar|cancelar|aplicar|deshacer|ajuste|conteo|entrada|vender|recargar|activar|toggle)$/', $a), "$a no parece de solo lectura");
+    }
+    // Lo que el brief pide bloquear siempre está en NUNCA.
+    foreach (['cambiar_password_propio', 'editar_usuario', 'crear_usuario', 'eliminar_usuario', 'suplantar_iniciar', 'generar_liga',
+              'generar_referencia_efectivo', 'iniciar_pago_agrupado', 'monedero_recargar', 'cancelar_cfdi'] as $a) {
+        afirmar(in_array($a, SUPLANTACION_ACCIONES_NUNCA, true), "$a debe estar en NUNCA");
+    }
+    // Lo que el brief pide permitir en lectura.
+    foreach (['cargar_datos', 'escolar_catalogos'] as $a) afirmar(in_array($a, SUPLANTACION_ACCIONES_SOLO_LECTURA, true), "$a debe poder verse");
+    igual(['superadmin', 'distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'], SUPLANTACION_ROLES_PLATAFORMA);
+});
+
+prueba('ver como: token — ida y vuelta, vencimiento de 30 minutos y firma', function () {
+    $secreto = 'secreto-de-prueba-no-real';
+    $t0 = 1800000000;
+    $g = suplantacion_generar_token(40, 3, 'normal', $secreto, $t0);
+    igual($t0 + 1800, $g['vence']);
+    $l = suplantacion_leer_token($g['token'], $secreto, $t0 + 10);
+    igual(['objetivo_id' => 40, 'real_id' => 3, 'modo' => 'normal', 'emitido' => $t0, 'vence' => $t0 + 1800], $l);
+    // Justo antes de vencer sirve; un segundo después, no.
+    afirmar(suplantacion_leer_token($g['token'], $secreto, $t0 + 1800) !== null, 'al límite todavía sirve');
+    igual(null, suplantacion_leer_token($g['token'], $secreto, $t0 + 1801), 'vencido');
+    // Otro secreto o un texto cualquiera: nada.
+    igual(null, suplantacion_leer_token($g['token'], 'otro-secreto', $t0 + 10));
+    igual(null, suplantacion_leer_token('no-es-base64!!', $secreto, $t0 + 10));
+    igual(null, suplantacion_leer_token('', $secreto, $t0 + 10));
+    // Alterar cualquier campo rompe la firma (otro objetivo, otro real, de lectura a normal).
+    $dec = base64_decode($g['token']);
+    $p = explode('.', $dec);
+    igual(7, count($p));
+    igual('sup', $p[0]);
+    foreach ([1 => '41', 2 => '1', 3 => 'lectura', 5 => (string) ($t0 + 99999)] as $pos => $nuevo) {
+        $q = $p; $q[$pos] = $nuevo;
+        igual(null, suplantacion_leer_token(base64_encode(implode('.', $q)), $secreto, $t0 + 10), "campo $pos alterado");
+    }
+});
+
+prueba('ver como: un token de 1 hora o emitido en el futuro se rechaza aunque esté bien firmado', function () {
+    $secreto = 'secreto-de-prueba-no-real';
+    $t0 = 1800000000;
+    $payload = suplantacion_payload(40, 3, 'normal', $t0, $t0 + 3600);
+    $largo = base64_encode($payload . '.' . hash_hmac('sha256', $payload, $secreto));
+    igual(null, suplantacion_leer_token($largo, $secreto, $t0 + 10), 'duración mayor a 30 min');
+    $payload = suplantacion_payload(40, 3, 'normal', $t0 + 5000, $t0 + 6000);
+    $futuro = base64_encode($payload . '.' . hash_hmac('sha256', $payload, $secreto));
+    igual(null, suplantacion_leer_token($futuro, $secreto, $t0), 'emitido en el futuro');
+});
+
+prueba('ver como: un token NORMAL nunca se lee como suplantación (ni al revés)', function () {
+    $secreto = 'secreto-de-prueba-no-real';
+    // Token normal: base64("id.exp.firma") con 3 partes.
+    $normal = base64_encode('40.' . (time() + 3600) . '.' . hash_hmac('sha256', '40.' . (time() + 3600), $secreto));
+    igual(null, suplantacion_leer_token($normal, $secreto));
+    // Un token normal con id "sup" no tiene 7 partes.
+    $raro = base64_encode('sup.1.2.' . hash_hmac('sha256', 'sup.1.2', $secreto));
+    igual(null, suplantacion_leer_token($raro, $secreto));
+    // Y el de suplantación no pasa por el formato de 3 partes de verificar_token_auth().
+    $g = suplantacion_generar_token(40, 3, 'lectura', $secreto);
+    afirmar(count(explode('.', base64_decode($g['token']))) !== 3);
+    afirmar(strncmp(base64_decode($g['token']), 'sup.', 4) === 0, 'empieza con sup.');
+});
+
+prueba('ver como: minutos restantes para la barra y contexto de la sesión', function () {
+    igual(24, suplantacion_minutos_restantes(1000 + 24 * 60, 1000));
+    igual(24, suplantacion_minutos_restantes(1000 + 23 * 60 + 1, 1000), 'redondea hacia arriba');
+    igual(0, suplantacion_minutos_restantes(900, 1000));
+    igual(null, suplantacion_contexto(['user_id' => 5, 'rol' => 'cajero']));
+    igual(null, suplantacion_contexto(null));
+    igual(['real' => 3, 'modo' => 'lectura'], suplantacion_contexto(['suplantado_por' => 3, 'suplantacion_modo' => 'lectura']));
+    igual(['real' => 3, 'modo' => 'normal'], suplantacion_contexto(['suplantado_por' => '3', 'suplantacion_modo' => 'normal']));
+    igual(['real' => 3, 'modo' => 'lectura'], suplantacion_contexto(['suplantado_por' => 3]), 'sin modo: el más estricto');
+});
+
+prueba('auditoría: solo se guardan los campos que cambiaron (y 12.00 = 12, null = vacío)', function () {
+    [$a, $d] = auditoria_diferencia(
+        ['precio' => '1500.00', 'nombre' => 'Colegiatura', 'activo' => 1, 'iva_tasa' => null, 'lugar' => ''],
+        ['precio' => '1600.00', 'nombre' => 'Colegiatura', 'activo' => true, 'iva_tasa' => '', 'lugar' => null]);
+    igual(['precio' => '1500.00'], $a);
+    igual(['precio' => '1600.00'], $d);
+    [$a, $d] = auditoria_diferencia(['x' => '12.00'], ['x' => 12]);
+    igual([[], []], [$a, $d], 'numéricamente iguales no cuentan');
+    [$a, $d] = auditoria_diferencia(['activo' => 1], ['activo' => 0]);
+    igual([['activo' => 1], ['activo' => 0]], [$a, $d]);
+});
+
+prueba('auditoría: altas y bajas (campo que solo existe de un lado)', function () {
+    [$a, $d] = auditoria_diferencia([], ['nombre' => 'Ana', 'rol' => 'cajero']);
+    igual(['nombre' => null, 'rol' => null], $a);
+    igual(['nombre' => 'Ana', 'rol' => 'cajero'], $d);
+    [$a, $d] = auditoria_diferencia(['rol' => 'cajero'], []);
+    igual(['rol' => 'cajero'], $a);
+    igual(['rol' => null], $d);
+    [$a, $d] = auditoria_diferencia(['a' => 1, 'b' => 2, 'c' => 3], ['a' => 9, 'b' => 8, 'c' => 7], ['b']);
+    igual([['b' => 2], ['b' => 8]], [$a, $d], 'solo las llaves pedidas');
+});
+
+prueba('auditoría: nunca guarda secretos (contraseña, NIP, tokens), enmascara la CLABE y oculta lo médico', function () {
+    [$a, $d] = auditoria_diferencia(
+        ['password_hash' => '$2y$10$viejoviejoviejo', 'nip_hash' => 'abc', 'token_tarjeta' => 'tok_1', 'api_key' => 'k1',
+         'clabe' => '012345678901234567', 'clabe_stp' => '', 'alergias' => 'penicilina', 'condicion_medica' => null, 'nombre' => 'Ana'],
+        ['password_hash' => '$2y$10$nuevonuevonuevo', 'nip_hash' => 'abc', 'token_tarjeta' => 'tok_2', 'api_key' => 'k2',
+         'clabe' => '012345678901234999', 'clabe_stp' => '', 'alergias' => 'polen', 'condicion_medica' => 'asma', 'nombre' => 'Ana']);
+    $json = auditoria_json($a) . auditoria_json($d);
+    foreach (['$2y$', 'viejo', 'nuevo', 'tok_1', 'tok_2', 'penicilina', 'polen', 'asma', 'k1', 'k2', '0123456789', '0123456789'] as $prohibido) {
+        afirmar(strpos($json, $prohibido) === false, "no debe aparecer «{$prohibido}» en la bitácora");
+    }
+    igual('[oculto]', $d['password_hash']);
+    afirmar(!array_key_exists('nip_hash', $d), 'el NIP no cambió: no aparece');
+    igual('[oculto]', $d['token_tarjeta']);
+    igual('[oculto]', $d['api_key']);
+    igual('••••••••••••••4567', $a['clabe']);
+    igual('••••••••••••••4999', $d['clabe']);
+    igual('[dato médico]', $d['alergias']);
+    igual(null, $a['condicion_medica'], 'antes vacío sigue vacío');
+    igual('[dato médico]', $d['condicion_medica']);
+    afirmar(!array_key_exists('nombre', $a), 'lo que no cambió no aparece');
+    // La fecha de firma del contrato NO es un secreto.
+    [$a, $d] = auditoria_diferencia(['contrato_fecha_firma' => null], ['contrato_fecha_firma' => '2026-11-20']);
+    igual('2026-11-20', $d['contrato_fecha_firma']);
+});
+
+prueba('auditoría: valores largos se recortan, JSON válido y vacío = null', function () {
+    [$a, $d] = auditoria_diferencia(['notas' => ''], ['notas' => str_repeat('á', 1000)]);
+    igual(300, mb_strlen($d['notas']));
+    $j = auditoria_json($d);
+    igual($d, json_decode($j, true));
+    igual(null, auditoria_json([]));
+    afirmar(strpos(auditoria_json(['k' => 'Ñandú']), 'Ñandú') !== false, 'sin escapar acentos');
+});
+
+prueba('auditoría: auditar() NUNCA lanza (sin base, sin tabla, sin conexión)', function () {
+    // log_api() (api.php la carga) necesita estas constantes de config.php; aquí no hay config.php.
+    if (!defined('API_LOG_ENABLED')) define('API_LOG_ENABLED', false);
+    $pdo = (new ReflectionClass('PDO'))->newInstanceWithoutConstructor();
+    igual(false, @auditar($pdo, ['user_id' => 1], 'cobro.cancelar', 'cobro', 5, ['estado' => 'pendiente'], ['estado' => 'cancelado'], 1));
+    igual(false, @auditar(null, [], 'x', 'y', 1, [], []));
+    igual(false, @auditar('no-es-pdo', [], 'x', 'y', 1, ['a' => 1], ['a' => 2]));
+    igual([], @auditoria_fila($pdo, 'usuarios', ['rol'], 1), 'leer la fila tampoco lanza');
+});
+
+prueba('auditoría: las acciones y entidades que pide el brief están declaradas', function () {
+    foreach (['cobro.cancelar', 'cfdi.cancelar', 'alumno.estatus', 'producto.editar', 'beca.guardar', 'beca.estado', 'monedero.ajuste',
+              'inventario.ajuste', 'inventario.conteo', 'usuario.crear', 'usuario.editar', 'usuario.activo', 'escuela.editar',
+              'escuela.seccion', 'escuela.metodo_pago', 'escuela.contrato', 'importacion.aplicar', 'importacion.deshacer',
+              'suplantar.inicio', 'suplantar.fin'] as $a) {
+        afirmar(isset(AUDITORIA_ACCIONES[$a]), "falta la acción $a");
+        afirmar(isset(AUDITORIA_ENTIDADES[explode('.', $a)[0]]) || in_array(explode('.', $a)[0], ['suplantar', 'global'], true), "entidad de $a");
+        afirmar(strlen($a) <= 40, 'cabe en VARCHAR(40)');
+    }
+});
+
+prueba('agenda: fechas y validación de la entrada', function () {
+    igual('2026-11-25 10:30:00', agenda_fecha_hora('2026-11-25T10:30'));
+    igual('2026-11-25 10:30:45', agenda_fecha_hora('2026-11-25 10:30:45'));
+    igual(null, agenda_fecha_hora('2026-02-30 10:00'));
+    igual(null, agenda_fecha_hora('2026-11-25 25:00'));
+    igual(null, agenda_fecha_hora('mañana'));
+    igual(null, agenda_fecha_hora(''));
+    $ok = ['titulo' => 'Entrevista', 'tipo' => 'padres', 'inicio' => '2026-11-25T10:00', 'fin' => '2026-11-25T10:30', 'responsable_id' => 7, 'familia_id' => 3];
+    $r = agenda_validar_input($ok);
+    igual(true, $r['ok']);
+    igual('2026-11-25 10:00:00', $r['datos']['inicio']);
+    igual(3, $r['datos']['familia_id']);
+    igual(null, $r['datos']['cliente_id']);
+    igual(null, $r['datos']['lugar']);
+    foreach ([
+        ['titulo' => ''], ['titulo' => str_repeat('x', 151)], ['tipo' => 'fiesta'], ['fin' => '2026-11-25T10:00'], ['fin' => '2026-11-25T09:00'],
+        ['fin' => '2026-11-25T22:01'], ['inicio' => 'x'], ['responsable_id' => 0], ['lugar' => str_repeat('x', 151)], ['notas' => str_repeat('x', 1001)],
+    ] as $i => $cambio) {
+        $r = agenda_validar_input(array_merge($ok, $cambio));
+        igual(false, $r['ok'], 'caso inválido #' . $i);
+        afirmar($r['error'] !== '', 'trae mensaje');
+    }
+    igual(true, agenda_validar_input(array_merge($ok, ['fin' => '2026-11-25T22:00']))['ok'], '12 horas justas sí');
+});
+
+prueba('agenda: empalmes — extremos que se tocan no chocan; canceladas y otros responsables no cuentan', function () {
+    igual(true, agenda_se_empalman('2026-11-25 10:00', '2026-11-25 11:00', '2026-11-25 10:30', '2026-11-25 11:30'));
+    igual(true, agenda_se_empalman('2026-11-25 10:00', '2026-11-25 11:00', '2026-11-25 09:00', '2026-11-25 12:00'), 'una contiene a la otra');
+    igual(true, agenda_se_empalman('2026-11-25 10:00', '2026-11-25 11:00', '2026-11-25 10:00', '2026-11-25 11:00'), 'idénticas');
+    igual(false, agenda_se_empalman('2026-11-25 10:00', '2026-11-25 11:00', '2026-11-25 11:00', '2026-11-25 12:00'), 'una acaba cuando empieza la otra');
+    igual(false, agenda_se_empalman('2026-11-25 10:00', '2026-11-25 11:00', '2026-11-25 09:00', '2026-11-25 10:00'));
+    igual(false, agenda_se_empalman('2026-11-25 10:00', '2026-11-25 11:00', '2026-11-26 10:00', '2026-11-26 11:00'), 'otro día');
+    $citas = [
+        ['id' => 1, 'responsable_id' => 7, 'inicio' => '2026-11-25 10:00:00', 'fin' => '2026-11-25 11:00:00', 'estado' => 'programada'],
+        ['id' => 2, 'responsable_id' => 7, 'inicio' => '2026-11-25 12:00:00', 'fin' => '2026-11-25 13:00:00', 'estado' => 'cancelada'],
+        ['id' => 3, 'responsable_id' => 8, 'inicio' => '2026-11-25 14:00:00', 'fin' => '2026-11-25 15:00:00', 'estado' => 'programada'],
+        ['id' => 4, 'responsable_id' => 7, 'inicio' => '2026-11-25 16:00:00', 'fin' => '2026-11-25 17:00:00', 'estado' => 'realizada'],
+        ['id' => 5, 'responsable_id' => 7, 'inicio' => '2026-11-25 18:00:00', 'fin' => '2026-11-25 19:00:00', 'estado' => 'no_asistio'],
+    ];
+    igual(1, agenda_buscar_empalme($citas, 7, '2026-11-25 10:30:00', '2026-11-25 11:30:00')['id']);
+    igual(null, agenda_buscar_empalme($citas, 7, '2026-11-25 10:30:00', '2026-11-25 11:30:00', 1), 'al editar la misma cita no choca consigo misma');
+    igual(null, agenda_buscar_empalme($citas, 7, '2026-11-25 12:00:00', '2026-11-25 13:00:00'), 'la cancelada no ocupa lugar');
+    igual(null, agenda_buscar_empalme($citas, 7, '2026-11-25 14:00:00', '2026-11-25 15:00:00'), 'es de otro responsable');
+    igual(8, agenda_buscar_empalme($citas, 8, '2026-11-25 14:30:00', '2026-11-25 15:30:00')['responsable_id']);
+    igual(null, agenda_buscar_empalme($citas, 7, '2026-11-25 16:00:00', '2026-11-25 17:00:00'), 'la realizada tampoco');
+    igual(null, agenda_buscar_empalme($citas, 7, '2026-11-25 18:00:00', '2026-11-25 19:00:00'), 'ni la de "no asistió"');
+    igual(null, agenda_buscar_empalme($citas, 7, '2026-11-25 11:00:00', '2026-11-25 12:00:00'), 'justo entre dos');
+});
+
+prueba('agenda: el correo a la familia no lleva notas, alumno ni datos sensibles y escapa el HTML', function () {
+    $cita = ['tipo' => 'padres', 'inicio' => '2026-11-25 10:30:00', 'fin' => '2026-11-25 11:00:00', 'lugar' => 'Sala <b>1</b>',
+             'notas' => 'SECRETO-NOTA-INTERNA', 'cliente_nombre' => 'ALUMNO-SECRETO', 'responsable_id' => 7];
+    $c = agenda_correo_cuerpo($cita, 'Colegio "Uno" & Cía', 'creada', 'Mtra. Pérez');
+    afirmar(strpos($c['asunto'], 'Se agendó una cita') === 0, $c['asunto']);
+    foreach (['SECRETO-NOTA-INTERNA', 'ALUMNO-SECRETO'] as $x) afirmar(strpos($c['html'], $x) === false, "no debe llevar $x");
+    afirmar(strpos($c['html'], 'Sala <b>1</b>') === false, 'el lugar va escapado');
+    afirmar(strpos($c['html'], 'Sala &lt;b&gt;1&lt;/b&gt;') !== false);
+    afirmar(strpos($c['html'], 'Colegio &quot;Uno&quot; &amp; Cía') !== false);
+    afirmar(strpos($c['html'], 'mié 25 nov 2026, 10:30 a 11:00') !== false, 'horario en español');
+    afirmar(strpos($c['html'], 'Mtra. Pérez') !== false);
+    $x = agenda_correo_cuerpo($cita, 'Colegio', 'cancelada');
+    afirmar(strpos($x['asunto'], 'Se canceló una cita') === 0);
+    afirmar(strpos($x['html'], 'reprogramarla') !== false);
+    igual('mié 25 nov 2026, 10:30 a 11:00', agenda_texto_horario('2026-11-25 10:30:00', '2026-11-25 11:00:00'));
+});
 // ════════════════════════════════════════════════════════════════════════
 // Corredor
 // ════════════════════════════════════════════════════════════════════════

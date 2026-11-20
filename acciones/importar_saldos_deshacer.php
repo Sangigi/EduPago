@@ -128,4 +128,8 @@ registrar_log($pdo, $usuario_actual, 'importacion_saldos_deshecha',
     . ($cols_cancelacion ? '' : '. [sin migración OF-3: motivo solo en bitácora]'),
     $escuela_id);
 
+// [OF-7c] Auditoría: la importación pasó de aplicada a deshecha.
+auditar($pdo, $usuario_actual, 'importacion.deshacer', 'importacion', $imp_id,
+    ['estado' => 'aplicada', 'cobros_cancelados' => 0, 'monto_cancelado' => 0],
+    ['estado' => 'deshecha', 'cobros_cancelados' => $cancelados, 'monto_cancelado' => importar_pesos($monto_c)], $escuela_id);
 respond(['success' => true, 'importacion_id' => $imp_id, 'cobros_cancelados' => $cancelados, 'monto' => importar_pesos($monto_c), 'ya_cancelados' => $ya_cancelados]);

@@ -82,6 +82,10 @@ if ($existente_bg) {
                 $d['vigente_desde'], $d['vigente_hasta'], $d['notas'], $beca_id_bg, $escuela_bg]);
     registrar_log($pdo, $usuario_actual, 'beca_editada',
         "Beca #{$beca_id_bg} de {$cli_bg['nombre']} (alumno #{$cliente_id_bg}) editada: {$resumen_bg}", $escuela_bg);
+    // [OF-7c] Auditoría: la beca antes y después.
+    $campos_aud_bg = ['nombre', 'tipo', 'valor', 'alcance', 'alcance_ids', 'vigente_desde', 'vigente_hasta', 'notas', 'activo'];
+    auditar($pdo, $usuario_actual, 'beca.guardar', 'beca', $beca_id_bg, array_intersect_key($existente_bg, array_flip($campos_aud_bg)),
+        auditoria_fila($pdo, 'alumno_becas', $campos_aud_bg, $beca_id_bg), $escuela_bg);
     respond(['success' => true, 'id' => $beca_id_bg]);
 }
 
@@ -94,4 +98,7 @@ $pdo->prepare(
 $nuevo_id_bg = intval($pdo->lastInsertId());
 registrar_log($pdo, $usuario_actual, 'beca_creada',
     "Beca #{$nuevo_id_bg} para {$cli_bg['nombre']} (alumno #{$cliente_id_bg}): {$resumen_bg}", $escuela_bg);
+// [OF-7c] Auditoría: alta de beca (antes vacío).
+auditar($pdo, $usuario_actual, 'beca.guardar', 'beca', $nuevo_id_bg, [],
+    auditoria_fila($pdo, 'alumno_becas', ['nombre', 'tipo', 'valor', 'alcance', 'alcance_ids', 'vigente_desde', 'vigente_hasta', 'notas', 'activo'], $nuevo_id_bg), $escuela_bg);
 respond(['success' => true, 'id' => $nuevo_id_bg]);

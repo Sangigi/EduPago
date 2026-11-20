@@ -33,4 +33,7 @@ registrar_log(
     "Escuela #$id: método '$metodo' " . ($yaDeshabilitado ? 'habilitado' : 'deshabilitado'),
     $id
 );
+// [OF-7c] Auditoría: el método pasó de habilitado a deshabilitado o al revés.
+auditar($pdo, $usuario_actual, 'escuela.metodo_pago', 'escuela', $id,
+    ['metodo_' . $metodo => $yaDeshabilitado ? 'apagado' : 'encendido'], ['metodo_' . $metodo => $yaDeshabilitado ? 'encendido' : 'apagado'], $id);
 respond(['success' => true, 'metodos_pago_deshabilitados' => $deshabilitados]);

@@ -48,7 +48,7 @@
      navegador pinte nada. Aplica la misma regla que app.js y PortalFamilia.js
      (preferencia guardada en 'edupago_theme'; sin ella, el sistema). -->
 <script src="assets/js/tema-temprano.js?v=1795700000"></script>
-<link rel="stylesheet" href="assets/css/main.css?v=1795700000">
+<link rel="stylesheet" href="assets/css/main.css?v=1796400000">
 
 
 
@@ -774,7 +774,7 @@
 
 
 <!-- Cliente HTTP compartido: fetch + header de auth + logout en 401 -->
-<script defer src="assets/js/ApiClient.js?v=1790375168"></script>
+<script defer src="assets/js/ApiClient.js?v=1796400000"></script>
 <script defer src="assets/js/CSVExport.js?v=1787360000"></script>
 <script defer src="assets/js/ExcelExport.js?v=1790351208"></script>
 
@@ -791,7 +791,9 @@
 
 
 
-<script defer src="controllers/AuthController.js?v=1795600000"></script>
+<script defer src="controllers/AuthController.js?v=1796400000"></script>
+<!-- [OF-7c] Barra fija de "Ver como" (lee AuthController.getSuplantacion, asi que va despues del controller). -->
+<script defer src="assets/js/suplantacion.js?v=1796400000"></script>
 
 
 
@@ -821,7 +823,7 @@
 
 
 
-<script defer src="views/components/Icons.js?v=1787360000"></script>
+<script defer src="views/components/Icons.js?v=1796400000"></script>
 
 
 
@@ -872,6 +874,8 @@
 
 
 <script defer src="views/components/ConfirmModal.js?v=1787290000"></script>
+<!-- [OF-7c] Modal de "Ver como" (contrasena propia). Usa Esc* de ControlEscolar.js en tiempo de ejecucion. -->
+<script defer src="views/components/VerComoModal.js?v=1796400000"></script>
 <!-- [F2] Expediente del alumno: modal de Alumnos (datos, tutores, documentos)
      y aviso de privacidad del portal de familia. Va después de ConfirmModal,
      que usa para confirmar bajas. -->
@@ -954,11 +958,11 @@
 
 
 
-<script defer src="views/Escuelas.js?v=1796200000"></script>
+<script defer src="views/Escuelas.js?v=1796400000"></script>
 
 
 
-<script defer src="views/Usuarios.js?v=1795600000"></script>
+<script defer src="views/Usuarios.js?v=1796400000"></script>
 
 
 
@@ -974,10 +978,10 @@
 
 
 
-<script defer src="views/Logs.js?v=1790600000"></script>
+<script defer src="views/Logs.js?v=1796400000"></script>
 
 <script defer src="views/BusquedaGlobal.js?v=1790600000"></script>
-<script defer src="views/SoporteEscuela.js?v=1790600000"></script>
+<script defer src="views/SoporteEscuela.js?v=1796400000"></script>
 <!-- [OF-4a] Diagnostico: incoherencias de datos y migraciones (aviso para el superadmin). -->
 <script defer src="views/Diagnostico.js?v=1795900000"></script>
 <!-- [OF-7a] Ayuda del colegio (tickets, artículos, novedades) y bandeja de soporte. Ayuda.js ANTES que
@@ -992,7 +996,7 @@
      escApi, ESC_ESTADOS…). -->
 <script defer src="views/ControlEscolar.js?v=1795500000"></script>
 <script defer src="views/EscolarFamilia.js?v=1795600000"></script>
-<script defer src="views/PortalDocente.js?v=1794600000"></script>
+<script defer src="views/PortalDocente.js?v=1796400000"></script>
 <!-- [F4] Portal del alumno: usa los globales de ControlEscolar.js (cargado antes). -->
 <script defer src="views/PortalAlumno.js?v=1796300000"></script>
 <!-- [F6] Monedero del alumno y tiendita. Monedero.js PRIMERO: define los ayudantes
@@ -1003,8 +1007,11 @@
 <script defer src="views/Tienda.js?v=1796200000"></script>
 <!-- [OF-6] Inventario con existencias (admin). Usa mn* de Monedero.js y Esc* de ControlEscolar.js (cargados antes). -->
 <script defer src="views/Inventario.js?v=1796200000"></script>
+<!-- [OF-7c] Agenda de citas (admin, control escolar, direccion y el panel del docente) y la pestana Citas del portal de familia. Usan Esc* de ControlEscolar.js. -->
+<script defer src="views/Agenda.js?v=1796400000"></script>
+<script defer src="views/components/CitasFamilia.js?v=1796400000"></script>
 
-<script defer src="views/PortalFamilia.js?v=1796300000"></script>
+<script defer src="views/PortalFamilia.js?v=1796400000"></script>
 
 <script defer src="views/Distribuidor.js?v=1790373295"></script>
 
@@ -1018,7 +1025,7 @@
 
 
 
-<script defer src="assets/js/app.js?v=1796300000"></script>
+<script defer src="assets/js/app.js?v=1796400000"></script>
 
 
 

@@ -91,6 +91,15 @@ if ($aplicados) {
     foreach (array_slice($aplicados, 0, 15) as $a) $r[] = "{$a['nombre']} {$a['antes']}→{$a['contado']}";
     registrar_log($pdo, $usuario_actual, 'inventario_conteo',
         'Conteo físico (' . $motivo . '): ' . count($aplicados) . ' ajustados, ' . $iguales . ' sin diferencia. ' . implode('; ', $r) . (count($aplicados) > 15 ? '…' : ''), $esc);
+    // [OF-7c] Auditoría: una fila con la existencia de cada producto ajustado, antes y después (hasta 50).
+    $antes_aud_ic = []; $despues_aud_ic = ['motivo' => $motivo];
+    $antes_aud_ic['motivo'] = null;
+    foreach (array_slice($aplicados, 0, 50) as $a) {
+        $clave_aud = $a['tipo'] . ':' . $a['item_id'] . ' ' . $a['nombre'];
+        $antes_aud_ic[$clave_aud] = $a['antes'];
+        $despues_aud_ic[$clave_aud] = $a['contado'];
+    }
+    auditar($pdo, $usuario_actual, 'inventario.conteo', 'inventario', null, $antes_aud_ic, $despues_aud_ic, $esc);
 }
 respond(['success' => true, 'aplicados' => $aplicados, 'sin_diferencia' => $iguales, 'cambiaron' => $cambiaron,
     'alertas' => inventario_alertas_contar($pdo, $esc)]);

@@ -19,7 +19,9 @@
         // real y la lista siempre venía vacía. Se autoprovisiona una única
         // sucursal "Principal" la primera vez, transparente para escuelas de
         // un solo punto de venta (la inmensa mayoría).
-        if (empty($sucursales)) {
+        // [OF-7c] Viendo como otro usuario en modo lectura esta rama (que ESCRIBE) se omite: la lista
+        // sale vacia y el colegio la creara cuando alguien la use de verdad.
+        if (empty($sucursales) && ($usuario_actual['suplantacion_modo'] ?? '') !== 'lectura') {
             $pdo->prepare("INSERT INTO sucursales (escuela_id, nombre, activa) VALUES (?, 'Principal', 1)")->execute([$escuela_id]);
             $stmt->execute([$escuela_id]);
             $sucursales = $stmt->fetchAll();

@@ -31,6 +31,17 @@ const ApiClient = (() => {
       err.codigo = (j402 && j402.codigo) || 'suscripcion_vencida';
       throw err;
     }
+    // [OF-7c] Un 403 POR "VER COMO" se enseña con su mensaje ("Estás viendo como otro usuario en
+    // modo de solo lectura") en vez de "HTTP 403". `codigo` permite saber que fue por eso
+    // (suplantacion_solo_lectura / suplantacion_prohibida). Los demas 403 siguen como siempre.
+    if (res.status === 403) {
+      const j403 = await res.json().catch(() => null);
+      if (j403 && j403.error && String(j403.codigo || "").indexOf("suplantacion_") === 0) {
+        const err403 = new Error(j403.error);
+        err403.codigo = j403.codigo;
+        throw err403;
+      }
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }

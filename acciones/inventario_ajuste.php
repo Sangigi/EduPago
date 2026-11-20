@@ -41,6 +41,10 @@ try {
 if (!$m['duplicado']) {
     registrar_log($pdo, $usuario_actual, 'inventario_ajuste',
         "Ajuste de {$tipo} #{$item['id']} ({$item['nombre']}): " . ($cant > 0 ? '+' : '') . $cant . ". Motivo: {$motivo}", $esc);
+    // [OF-7c] Auditoría: la existencia antes y después del ajuste.
+    auditar($pdo, $usuario_actual, 'inventario.ajuste', 'inventario', intval($item['id']),
+        ['existencia' => intval($m['existencia_despues']) - $cant, 'motivo' => null, 'producto' => null],
+        ['existencia' => intval($m['existencia_despues']), 'motivo' => $motivo, 'producto' => $tipo . ': ' . $item['nombre']], $esc);
 }
 respond(['success' => true, 'duplicado' => $m['duplicado'], 'existencia' => $m['existencia_despues'],
     'alertas' => inventario_alertas_contar($pdo, $esc)]);

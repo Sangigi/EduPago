@@ -44,12 +44,94 @@ const AuthController = (() => {
     }
   }
 
+  // ── [OF-7c] "VER COMO": sesión de suplantación ──────────────────────────
+  // El que entra como otro usuario NO pierde su sesión: la de suplantación vive aparte, en
+  // sessionStorage (solo ESTA pestaña; no se hereda a otras ni sobrevive al cierre) bajo
+  // SUP_KEY, con su propio token de 30 minutos como máximo. Mientras exista y no haya vencido,
+  // getSession() devuelve al usuario OBJETIVO con ese token, así que todas las pantallas y
+  // todos los fetch (que leen getSession/getToken) trabajan como el objetivo sin saberlo.
+  // Volver = borrar SUP_KEY y recargar: la sesión propia sigue ahí, intacta.
+  const SUP_KEY = 'edupago_suplanta_v1';
+
+  // { user (con token), modo: 'normal'|'lectura', emitido, vence (segundos unix), real: {id, nombre, rol} } o null.
+  function getSuplantacion() {
+    try {
+      const s = sessionStorage.getItem(SUP_KEY);
+      if (!s) return null;
+      const o = JSON.parse(s);
+      if (!o || !o.user || !o.user.token || !o.vence || o.vence * 1000 <= Date.now()) {
+        sessionStorage.removeItem(SUP_KEY);
+        return null;
+      }
+      return o;
+    } catch(e) { return null; }
+  }
+
+  // Espejo EXACTO de suplantacion_decision() en lib/helpers_suplantacion.php. Solo decide si se
+  // ofrece el botón; el servidor valida SIEMPRE (un botón de más no abre nada).
+  const ROLES_PLATAFORMA = ['superadmin', 'distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor'];
+  function puedeVerComo(user, o) {
+    // activo llega como 1/0 (o booleano) segun la accion que listo al usuario.
+    if (!user || !o || o.activo === false || o.activo === 0 || o.activo === '0' || Number(o.id) === Number(user.id)) return false;
+    if (getSuplantacion()) return false;                  // no se encadenan suplantaciones
+    if (o.rol === 'superadmin') return false;
+    if (user.rol === 'superadmin') return true;
+    if (user.rol === 'soporte') return !ROLES_PLATAFORMA.includes(o.rol) && !!o.escuela_id;
+    if (user.rol === 'admin') {
+      return !!user.escuela_id && Number(o.escuela_id) === Number(user.escuela_id) &&
+        ['cajero', 'control_escolar', 'direccion', 'docente', 'tienda', 'familia', 'alumno'].includes(o.rol);
+    }
+    return false;
+  }
+  // El modo que le tocará (para avisarlo antes de entrar). Soporte y familia/alumno: siempre lectura.
+  function modoVerComo(user, o) {
+    return (user?.rol === 'soporte' || o?.rol === 'familia' || o?.rol === 'alumno') ? 'lectura' : 'normal';
+  }
+
+  // Entra como otro usuario con LA CONTRASEÑA PROPIA. Lanza Error con un mensaje para mostrar.
+  async function iniciarSuplantacion(usuarioId, password, soloLectura) {
+    const res = await ApiClient.post('suplantar_iniciar', {
+      usuario_id: usuarioId, password: password, modo: soloLectura ? 'lectura' : 'normal'
+    });
+    if (!res || !res.success) throw new Error((res && res.error) || 'No se pudo entrar como ese usuario.');
+    sessionStorage.setItem(SUP_KEY, JSON.stringify({
+      user: res.user, modo: res.suplantacion.modo, emitido: res.suplantacion.emitido,
+      vence: res.suplantacion.vence, real: res.suplantacion.real
+    }));
+    return res;
+  }
+
+  // Vuelve a la cuenta propia. Avisa al servidor (queda anotado el fin) pero NUNCA depende de él:
+  // si falla, igual se suelta el token de suplantación y se vuelve a la sesión propia.
+  async function terminarSuplantacion() {
+    const sup = getSuplantacion();
+    if (sup) {
+      try {
+        await fetch('api.php?action=suplantar_terminar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sup.user.token },
+          body: '{}'
+        });
+      } catch (e) { /* sin conexión o ya vencido: igual se vuelve */ }
+    }
+    sessionStorage.removeItem(SUP_KEY);
+  }
+
   function logout() {
+    // [OF-7c] "Cerrar sesión" (o un 401 por vencimiento) estando en "Ver como" NO cierra la sesión
+    // propia: solo suelta la de suplantación y recarga, y se regresa a la cuenta de siempre.
+    if (sessionStorage.getItem(SUP_KEY)) {
+      sessionStorage.removeItem(SUP_KEY);
+      try { window.location.reload(); } catch (e) { /* sin ventana (pruebas) */ }
+      return;
+    }
     sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_KEY);
   }
   function getSession() {
     try {
+      const sup = getSuplantacion(); // [OF-7c]
+      if (sup) return sup.user;
       const s = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
       return s ? JSON.parse(s) : null;
     } catch(e) { return null; }
@@ -152,5 +234,5 @@ const AuthController = (() => {
     return res.activa;
   }
 
-  return { login, logout, recuperarPassword, getSession, getToken, isSuperAdmin, isAdmin, isDistribuidor, alcanceGlobal, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela, cerrarSesionesUsuario };
+  return { login, logout, recuperarPassword, getSession, getToken, getSuplantacion, puedeVerComo, modoVerComo, iniciarSuplantacion, terminarSuplantacion, isSuperAdmin, isAdmin, isDistribuidor, alcanceGlobal, DEMO_USERS, getUsuarios, rolesQuePuedeCriar, escuelasDisponibles, crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario, toggleEscuela, cerrarSesionesUsuario };
 })();

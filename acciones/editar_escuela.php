@@ -22,11 +22,15 @@
         $vals = [$nombre, $clave, $rfc, $rvoe, $telefono, $email, $direccion, $logo_emoji];
         if ($plan !== '') { $sets[] = "plan = ?"; $vals[] = $plan; }
         $vals[] = $id;
+        // [OF-7c] Auditoría: los datos del colegio antes de editar.
+        $campos_aud_e = ['nombre', 'clave', 'rfc', 'rvoe', 'telefono', 'email', 'direccion', 'logo_emoji', 'plan'];
+        $antes_aud_e = auditoria_fila($pdo, 'escuelas', $campos_aud_e, $id);
         $pdo->prepare("UPDATE escuelas SET " . implode(', ', $sets) . " WHERE id = ?")->execute($vals);
         registrar_log($pdo, $usuario_actual, 'escuela_editada', "Colegio #$id: '$nombre'" . ($plan !== '' ? " (plan → $plan)" : ''), $id);
         $stmt = $pdo->prepare("SELECT * FROM escuelas WHERE id = ?");
         $stmt->execute([$id]);
         $esc = $stmt->fetch();
+        auditar($pdo, $usuario_actual, 'escuela.editar', 'escuela', $id, $antes_aud_e, array_intersect_key($esc, array_flip($campos_aud_e)), $id);
         $esc['activa'] = (bool) $esc['activa'];
         $esc['es_plantel'] = (bool) $esc['es_plantel'];
         $esc['secciones_deshabilitadas'] = json_decode($esc['secciones_deshabilitadas'] ?? '', true) ?: [];

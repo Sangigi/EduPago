@@ -18,6 +18,9 @@ $st = $pdo->prepare("SELECT id FROM escuelas WHERE id = ?");
 $st->execute([$id]);
 if (!$st->fetch()) respond(['success' => false, 'error' => 'Colegio no encontrado']);
 
+// [OF-7c] Auditoría: el contrato antes de cambiarlo.
+$campos_aud_ct = ['contrato_estado', 'contrato_fecha_envio', 'contrato_fecha_firma'];
+$antes_aud_ct = auditoria_fila($pdo, 'escuelas', $campos_aud_ct, $id);
 $pdo->prepare(
     "UPDATE escuelas SET contrato_estado = ?,
         contrato_fecha_envio = CASE WHEN ? = 'enviado' AND contrato_fecha_envio IS NULL THEN CURDATE() ELSE contrato_fecha_envio END,
@@ -27,6 +30,7 @@ $pdo->prepare(
 
 registrar_log($pdo, $usuario_actual, 'contrato_estado', "Colegio #$id: contrato -> $estado", $id);
 
+auditar($pdo, $usuario_actual, 'escuela.contrato', 'escuela', $id, $antes_aud_ct, auditoria_fila($pdo, 'escuelas', $campos_aud_ct, $id), $id);
 $st = $pdo->prepare("SELECT contrato_estado, contrato_fecha_envio, contrato_fecha_firma FROM escuelas WHERE id = ?");
 $st->execute([$id]);
 respond(['success' => true, 'escuela' => $st->fetch()]);
