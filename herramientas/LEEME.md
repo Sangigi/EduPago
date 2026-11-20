@@ -43,7 +43,7 @@ Para los `.js` busca `node` solo (argumento `--node=RUTA`, variable `NODE`, PATH
 **Por qué:** el frontend es JavaScript precompilado y sin build; un error de sintaxis no se nota hasta que alguien abre esa pantalla.
 
 ### `pruebas.php`
-Pruebas de la lógica de dinero, **sin base de datos ni red**: reparto de IVA en facturas (`cfdi_armar_renglones`, residuos de redondeo, becas, recargos), complemento de pago, cálculo de becas (incluye 2000 casos aleatorios con semilla fija), folios de abono, centavos del monedero y la decisión de origen de los webhooks. `php herramientas/pruebas.php becas` corre solo las que contengan "becas"; `--lista` las enumera.
+Pruebas de la lógica de dinero, **sin base de datos ni red**: reparto de IVA en facturas (`cfdi_armar_renglones`, residuos de redondeo, becas, recargos), complemento de pago, cálculo de becas (incluye 2000 casos aleatorios con semilla fija), folios de abono, centavos del monedero y la decisión de origen de los webhooks; y, de OF-7b, lo puro de los avisos push (base64url, JWT de VAPID verificado con `openssl_verify`, validación de endpoints contra SSRF, textos genéricos, límite de tasa; `pruebas.php push`). `php herramientas/pruebas.php becas` corre solo las que contengan "becas"; `--lista` las enumera.
 No modifica las funciones que prueba. Si una falla, léela antes de concluir: puede estar mal el supuesto de la prueba. Un fallo real se reporta con el caso exacto y se corrige en la función, no aquí.
 
 ### `revisar-acciones.php`
