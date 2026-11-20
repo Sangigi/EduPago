@@ -511,6 +511,10 @@ try {
                 responder_liga(false, 'Error de sistema');
             }
 
+            // [OF-7b] Aviso push a la familia (pago agrupado). Solo ENCOLA, después del commit y en
+            // try/catch; el envío real va DESPUÉS de responder al proveedor (lib/helpers_push.php).
+            push_aviso_pago_cobros($pdo, $idsDetalle);
+
             log_api_liga("LIGA AGRUPADA confirmada -> agrupado_id:{$grp['id']} ref:{$refBuscarGrp} auth:{$auth} cobros:" . implode(',', $idsDetalle) . ($sobranteGrpTC > 0.004 ? " SOBRANTE:{$sobranteGrpTC}" : ''));
 
             // Sobrante: se cobró más de lo que los cobros del grupo debían hoy,
@@ -702,6 +706,10 @@ try {
     }
 
     $pdo->commit();
+
+    // [OF-7b] Aviso push a la familia (abono aplicado / pago confirmado). Solo ENCOLA, después del
+    // commit y en try/catch; el envío real va DESPUÉS de responder al proveedor (lib/helpers_push.php).
+    if (($resAbono['aplicado'] ?? 0) > 0) push_aviso_pago_cobros($pdo, [$cobro['id']]);
 
     log_api_liga(
         "LIGA confirmada -> cobro_id:{$cobro['id']} ref:{$reference} auth:{$auth}"

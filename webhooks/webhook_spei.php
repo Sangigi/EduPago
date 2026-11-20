@@ -125,6 +125,10 @@ try {
         recalcular_saldo_pendiente($pdo, intval($cobro['cliente_id']));
     }
 
+    // [OF-7b] Aviso push a la familia. Solo ENCOLA (try/catch, nunca lanza); el envío real va DESPUÉS de
+    // responder al proveedor (lib/helpers_push.php).
+    push_aviso_pago_cobros($pdo, [$cobro['id']]);
+
     $log_msg = "✓ SPEI CONFIRMADO en DB | cobro_id:{$cobro['id']} rastreo:{$clave_rastreo} monto:{$monto_pesos}";
     if (API_LOG_ENABLED) webhook_log(API_LOG_FILE, $log_msg);
     responder(0, 'Pago procesado correctamente', $clave_rastreo);

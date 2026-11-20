@@ -112,6 +112,11 @@ if (!$interno) {
             'El colegio ' . ($ticket['escuela_nombre'] ?: '#' . $ticket['escuela_id']) . ' respondió en su ticket de soporte.',
             $ticket['id']);
     }
+    // [OF-7b] Aviso push (texto genérico, nunca el contenido), solo en mensajes PÚBLICOS: la nota interna
+    // no avisa a nadie. Soporte contestó -> admin y cajero de ESE colegio; el colegio contestó -> soporte y
+    // superadmin. Solo ENCOLA (try/catch, nunca lanza); el envío va DESPUÉS de responder.
+    if ($esPlataforma) push_aviso_soporte_respondio($pdo, intval($ticket['escuela_id']));
+    else push_aviso_a_plataforma($pdo, 'soporte_colegio');
 }
 
 respond([

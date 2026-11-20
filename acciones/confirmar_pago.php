@@ -46,6 +46,16 @@
             }
         }
         $extra_auth = $auth_code ?: $transaccion ?: null;
+        // [OF-7b] Solo se avisa a la familia si confirma el PERSONAL (la familia llama a esta acción para
+        // refrescar un pago que el webhook ya confirmó, y ese ya avisó) y el cobro estaba pendiente.
+        $push_avisar_familia = false;
+        if ($rol_actual_confirmar !== 'familia') {
+            try {
+                $stPushPrev = $pdo->prepare("SELECT estado FROM cobros WHERE id = ?");
+                $stPushPrev->execute([$cobro_id]);
+                $push_avisar_familia = ($stPushPrev->fetchColumn() === 'pendiente');
+            } catch (\Throwable $e) { /* sin aviso push; la confirmación sigue igual */ }
+        }
         // monto_pagado = total (21-sep-2026): esta acción declara el cobro
         // cubierto por completo, así que hay que sostener el invariante
         // estado='pagado' <=> monto_pagado >= total. Sin esto, un cobro
@@ -78,6 +88,8 @@
             $rs->execute([$cliente_id_afectado]);
             $nuevo_saldo = floatval($rs->fetchColumn());
         }
+        // [OF-7b] Aviso push a la familia: solo ENCOLA (try/catch, nunca lanza); el envío va DESPUÉS de responder.
+        if ($push_avisar_familia) push_aviso_pago_cobros($pdo, [$cobro_id]);
         registrar_log($pdo, $usuario_actual, 'pago_confirmado_manual', "Cobro #{$cobro_id} confirmado como pagado a mano" . ($extra_auth ? " (auth/transacción: {$extra_auth})" : ''));
         respond(['success' => true, 'cobro_id' => $cobro_id, 'estado' => 'pagado',
                  'cliente_id' => $cliente_id_afectado, 'nuevo_saldo' => $nuevo_saldo]);

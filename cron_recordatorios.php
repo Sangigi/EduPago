@@ -209,6 +209,7 @@ try {
                             "INSERT INTO recordatorios (escuela_id, cobro_id, cliente, fecha, canal) VALUES (?, ?, ?, ?, 'email_automatico') ON DUPLICATE KEY UPDATE canal = canal"
                         )->execute([$prod['escuela_id'], $cobroId, $al['nombre'], $hoyStr]);
                         $resumen[] = "OK cobro recurrente generado #$cobroId ({$prod['nombre']}) -> $emailAl";
+                        push_aviso_pago_cobros($pdo, [$cobroId], 'recordatorio_pago'); // [OF-7b] solo encola; el cron despacha al final
                     } else {
                         $resumen[] = "ERROR correo de cobro recurrente #$cobroId: " . $r['error'];
                     }
@@ -259,6 +260,7 @@ try {
             $pdo->prepare("INSERT INTO recordatorios (escuela_id, cobro_id, cliente, fecha, canal) VALUES (?, ?, ?, ?, 'email_automatico') ON DUPLICATE KEY UPDATE canal = canal")
                 ->execute([$c['escuela_id'], $c['id'], $c['cliente_nombre'], $hoyStr]);
             $resumen[] = "OK aviso pre-vencimiento cobro #{$c['id']} -> $emailDestino";
+            push_aviso_pago_cobros($pdo, [$c['id']], 'recordatorio_pago'); // [OF-7b] solo encola; el cron despacha al final
         } else {
             $resumen[] = "ERROR aviso pre-vencimiento cobro #{$c['id']}: " . $r['error'];
         }
@@ -347,6 +349,7 @@ try {
             if ($r['success']) {
                 $pdo->prepare("INSERT INTO recordatorios (escuela_id, cobro_id, cliente, fecha, canal) VALUES (?, ?, ?, ?, 'email_automatico') ON DUPLICATE KEY UPDATE canal = canal")
                     ->execute([$row['escuela_id'], $row['id'], $row['cliente_nombre'], $hoyStr]);
+                push_aviso_pago_cobros($pdo, [$row['id']], 'recordatorio_pago'); // [OF-7b] solo encola; el cron despacha al final
             }
         }
         $resumen[] = "Recargo aplicado a cobro #{$row['id']}: +\$" . number_format($recargo, 2);
@@ -757,6 +760,7 @@ try {
                 $resumen[] = "AVISO: correo de cobro #{$c['id']} enviado pero no se pudo registrar en `recordatorios`: " . $e->getMessage();
             }
             $resumen[] = "OK cobro #{$c['id']} ({$dias}d) -> $emailDestino";
+            push_aviso_pago_cobros($pdo, [$c['id']], 'recordatorio_pago'); // [OF-7b] solo encola; el cron despacha al final
         } else {
             $resumen[] = "ERROR cobro #{$c['id']}: " . $r['error'];
         }
@@ -883,6 +887,19 @@ try {
     }
 } catch (\Throwable $e) {
     $resumen[] = 'Monedero: no se pudo procesar (' . $e->getMessage() . ')';
+}
+// [OF-7b] AVISOS PUSH. Va en su propio try/catch, al final: un fallo aquí no debe frenar nada de lo demás
+// (el cron manda correos de dinero). Despacha lo que los eventos encolaron y no alcanzó a salir al
+// responder (y los recordatorios de arriba, que solo encolan), y limpia lo viejo. CLI: sin tope de tiempo
+// de petición, pero se acota a 5 minutos.
+try {
+    $pushDesp = push_despachar($pdo, 300.0, 50);
+    $pushLimp = push_mantenimiento($pdo);
+    if ($pushDesp['enviados'] || $pushDesp['fallidos'] || $pushDesp['eliminadas'] || $pushLimp['avisos'] || $pushLimp['suscripciones']) {
+        $resumen[] = "Push: {$pushDesp['enviados']} enviado(s), {$pushDesp['fallidos']} fallido(s), {$pushDesp['eliminadas']} suscripción(es) muerta(s) borrada(s); limpieza: {$pushLimp['avisos']} aviso(s) viejo(s), {$pushLimp['suscripciones']} suscripción(es) desactivada(s)";
+    }
+} catch (\Throwable $e) {
+    $resumen[] = 'Push: no se pudo despachar (' . $e->getMessage() . ')';
 }
 $lineaLog = date('Y-m-d H:i:s') . " | Cron recordatorios:\n  " . (empty($resumen) ? '(sin novedades)' : implode("\n  ", $resumen)) . "\n\n";
 file_put_contents(CORREOS_LOG_FILE, $lineaLog, FILE_APPEND);

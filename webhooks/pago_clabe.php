@@ -265,6 +265,12 @@ try {
 
     $pdo->commit();
 
+    // [OF-7b] Aviso push a la familia: abono aplicado / pago confirmado. SOLO encola (un INSERT barato,
+    // todo en try/catch, nunca lanza); el envío real a los servicios de push ocurre DESPUÉS de que
+    // webhook_responder() conteste al proveedor (register_shutdown_function + fastcgi_finish_request),
+    // y lo que no alcance lo despacha el cron. Va después del commit: no toca el flujo del dinero.
+    if (($resAbono['aplicado'] ?? 0) > 0) push_aviso_pago_cobros($pdo, $resAbono['cobros'] ?? []);
+
     log_pago_clabe(
         "OK: clabe:{$clabe} cliente:{$cliente['id']}"
         . " recibido:{$monto_cent} esperado:{$monto_esperado_cent}"

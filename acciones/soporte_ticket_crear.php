@@ -87,4 +87,8 @@ $correo_enviado = soporte_enviar_aviso($pdo, soporte_correos_plataforma($pdo),
     "El colegio " . ($nombreEsc !== '' ? $nombreEsc : "#{$escuela_id}") . " abrió un ticket de soporte (" . SOPORTE_CATEGORIAS[$categoria] . ").",
     $ticket_id);
 
+// [OF-7b] Aviso push a soporte y superadmin (texto genérico; nada del contenido). Solo ENCOLA (try/catch,
+// nunca lanza); el envío va DESPUÉS de responder.
+push_aviso_a_plataforma($pdo, 'soporte_nuevo');
+
 respond(['success' => true, 'ticket_id' => $ticket_id, 'adjuntos' => count($guardados), 'aviso_enviado' => $correo_enviado]);

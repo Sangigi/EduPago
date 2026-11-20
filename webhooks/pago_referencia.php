@@ -351,6 +351,9 @@ try {
             if (!empty($grp['cliente_id'])) recalcular_saldo_pendiente($pdo, intval($grp['cliente_id']));
 
             $pdo->commit();
+            // [OF-7b] Aviso push a la familia (pago agrupado). Solo ENCOLA, después del commit y en try/catch;
+            // el envío real va DESPUÉS de responder al proveedor (ver lib/helpers_push.php).
+            push_aviso_pago_cobros($pdo, $idsDetalle);
             log_ref_pago("OK agrupado: {$referencia} agrupado_id:{$grp['id']} auth:{$autorizacionGrp} cobros:" . implode(',', $idsDetalle) . ($sobranteGrp > 0.004 ? " SOBRANTE:{$sobranteGrp}" : ''));
 
             // Sobrante: llegó más de lo que los cobros del grupo debían hoy
@@ -724,6 +727,10 @@ try {
 
 
     $pdo->commit();
+
+    // [OF-7b] Aviso push a la familia (abono aplicado / pago confirmado). Solo ENCOLA, después del
+    // commit y en try/catch; el envío real va DESPUÉS de responder al proveedor (lib/helpers_push.php).
+    if (($resAbono['aplicado'] ?? 0) > 0) push_aviso_pago_cobros($pdo, [$cobro['id']]);
 
 
 
