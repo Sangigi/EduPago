@@ -692,6 +692,12 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // exponer el archivo.
         'suscripcion_pagos_listar', 'listar_documentos_escuela',
         'escuela_obtener_datos_pago',
+        // [OF-7a] Tickets de soporte y Ayuda. Aquí soporte SÍ escribe (responde, nota
+        // interna, asigna, edita artículos), pero solo en estas acciones, que validan
+        // rol por dentro (soporte_* / ayuda_*). Lista explícita, sin comodines.
+        'soporte_tickets_listar', 'soporte_ticket_ver', 'soporte_ticket_responder',
+        'soporte_ticket_actualizar', 'soporte_adjunto_descargar', 'soporte_resumen',
+        'ayuda_listar', 'ayuda_guardar',
     ],
     // Captura el identificador del proveedor tras la aprobación del contador.
     //
@@ -878,6 +884,10 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'monedero_saldo', 'monedero_movimientos', 'monedero_recargar', 'monedero_config_guardar',
         'tienda_buscar_alumno', 'tienda_cancelar_venta', 'tienda_producto_guardar',
         'tienda_productos_listar', 'tienda_vender', 'tienda_ventas_dia',
+        // [OF-7a] Ayuda: tickets de soporte de SU colegio, artículos y novedades.
+        'soporte_ticket_crear', 'soporte_tickets_listar', 'soporte_ticket_ver',
+        'soporte_ticket_responder', 'soporte_ticket_actualizar', 'soporte_adjunto_descargar',
+        'soporte_resumen', 'ayuda_listar', 'ayuda_novedades_vistas',
     ],
     // Cajero: caja y cobro del día, más consultar/dar de alta alumnos. NO ve
     // gastos, facturación en lote, catálogos, equipo ni configuración. Cada
@@ -902,6 +912,10 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'familia_nota_guardar', 'familia_notas_listar',
         // Monedero: recarga en ventanilla y búsqueda de alumno.
         'monedero_recarga_caja', 'tienda_buscar_alumno',
+        // [OF-7a] Ayuda: tickets de soporte de SU colegio, artículos y novedades.
+        'soporte_ticket_crear', 'soporte_tickets_listar', 'soporte_ticket_ver',
+        'soporte_ticket_responder', 'soporte_ticket_actualizar', 'soporte_adjunto_descargar',
+        'soporte_resumen', 'ayuda_listar', 'ayuda_novedades_vistas',
     ],
     // Contador: revisa los documentos y datos de pago de CUALQUIER colegio
     // (views/Contador.js). Sin cargar_datos: su panel no lo pide (ROLES_SIN_CARGAR_DATOS).

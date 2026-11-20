@@ -29,6 +29,7 @@ require_once $RAIZ . '/lib/helpers_impuestos.php';
 require_once $RAIZ . '/lib/helpers_becas.php';
 require_once $RAIZ . '/lib/helpers_pagos.php';
 require_once $RAIZ . '/lib/helpers_monedero.php';
+require_once $RAIZ . '/lib/helpers_soporte.php'; // [OF-7a] reglas puras de tickets y ayuda
 
 // ════════════════════════════════════════════════════════════════════════
 // Mini corredor
@@ -579,6 +580,74 @@ prueba('webhook: el resultado se memoriza por proceso (por eso las pruebas van e
     igual([true, true], [$r['pasa'], $r['segunda']]);
     $r = origen_webhook(['ip_ok' => false]);
     igual([false, false], [$r['pasa'], $r['segunda']]);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// [OF-7a] Soporte: reglas puras (sin base de datos)
+// ════════════════════════════════════════════════════════════════════════
+
+prueba('soporte: las notas internas se filtran en SQL para el colegio y no para la plataforma', function () {
+    igual(' AND m.interno = 0', soporte_condicion_interno('admin'));
+    igual(' AND x.interno = 0', soporte_condicion_interno('cajero', 'x'));
+    igual(' AND m.interno = 0', soporte_condicion_interno('familia'), 'cualquier rol que no sea plataforma');
+    igual('', soporte_condicion_interno('soporte'));
+    igual('', soporte_condicion_interno('superadmin'));
+});
+
+prueba('soporte: estado tras un mensaje (colegio reabre, soporte espera al colegio)', function () {
+    igual('abierto', soporte_estado_tras_mensaje('resuelto', 'colegio'));
+    igual('en_proceso', soporte_estado_tras_mensaje('esperando_cliente', 'colegio'));
+    igual('en_proceso', soporte_estado_tras_mensaje('en_proceso', 'colegio'));
+    igual('abierto', soporte_estado_tras_mensaje('abierto', 'colegio'));
+    igual('esperando_cliente', soporte_estado_tras_mensaje('abierto', 'soporte'));
+    igual('en_proceso', soporte_estado_tras_mensaje('abierto', 'soporte', 'en_proceso'));
+    igual('resuelto', soporte_estado_tras_mensaje('en_proceso', 'soporte', 'resuelto'));
+    igual('resuelto', soporte_estado_tras_mensaje('resuelto', 'soporte'), 'una aclaración no reabre');
+    igual('esperando_cliente', soporte_estado_tras_mensaje('abierto', 'soporte', 'inventado'), 'estado inválido se ignora');
+});
+
+prueba('soporte: transiciones permitidas por lado', function () {
+    afirmar(soporte_transicion_permitida('soporte', 'abierto', 'esperando_cliente'));
+    afirmar(!soporte_transicion_permitida('soporte', 'abierto', 'inventado'));
+    afirmar(soporte_transicion_permitida('colegio', 'abierto', 'resuelto'));
+    afirmar(soporte_transicion_permitida('colegio', 'resuelto', 'abierto'), 'reabrir');
+    afirmar(!soporte_transicion_permitida('colegio', 'abierto', 'en_proceso'));
+    afirmar(!soporte_transicion_permitida('colegio', 'en_proceso', 'esperando_cliente'));
+    afirmar(!soporte_transicion_permitida('colegio', 'en_proceso', 'abierto'), 'solo se reabre un resuelto');
+});
+
+prueba('soporte: tipo de adjunto por firma de bytes, no por nombre', function () {
+    igual('jpg', soporte_extension_por_firma('', "\xFF\xD8\xFF\xE0\x00\x10JFIF"));
+    igual('png', soporte_extension_por_firma('', "\x89PNG\r\n\x1A\n\x00\x00\x00\x0D"));
+    igual('pdf', soporte_extension_por_firma('', "%PDF-1.7\n"));
+    igual('webp', soporte_extension_por_firma('', "RIFF\x24\x00\x00\x00WEBPVP8 "));
+    igual(null, soporte_extension_por_firma('', '<' . '?php system(1);'), 'un script no es imagen');
+    igual(null, soporte_extension_por_firma('', "GIF89a......."), 'gif no se acepta');
+    igual(null, soporte_extension_por_firma('', 'RIFF....WAVEfmt '), 'RIFF que no es webp');
+    igual(null, soporte_extension_por_firma('', ''));
+});
+
+prueba('ayuda: roles visibles (JSON o texto) y visibilidad por rol', function () {
+    igual(['admin', 'cajero'], ayuda_roles_normalizar('["admin","cajero"]'));
+    igual(['admin', 'cajero'], ayuda_roles_normalizar('admin, cajero'));
+    igual(['admin'], ayuda_roles_normalizar(['admin', 'familia', 'ADMIN', 'superadmin']), 'solo roles con menú Ayuda, sin repetidos');
+    igual([], ayuda_roles_normalizar(null));
+    igual([], ayuda_roles_normalizar('basura {'));
+    afirmar(ayuda_visible_para(['publicado' => 1, 'roles_visibles' => '["admin"]'], 'admin'));
+    afirmar(!ayuda_visible_para(['publicado' => 1, 'roles_visibles' => '["admin"]'], 'cajero'));
+    afirmar(!ayuda_visible_para(['publicado' => 0, 'roles_visibles' => '["admin","cajero"]'], 'admin'), 'borrador');
+    afirmar(!ayuda_visible_para(['publicado' => 1, 'roles_visibles' => '["admin","cajero"]'], 'familia'));
+});
+
+prueba('ayuda: artículos sembrados con formato válido y sin retornos de carro', function () {
+    require_once dirname(__DIR__) . '/lib/migraciones.php';
+    $a = migraciones_of7a_articulos_semilla();
+    igual(4, count($a));
+    foreach ($a as $art) {
+        afirmar(strpos($art['cuerpo'], "\r") === false, 'sin \\r: ' . $art['titulo']);
+        afirmar(mb_strlen($art['cuerpo'], 'UTF-8') < AYUDA_MAX_CUERPO && mb_strlen($art['titulo'], 'UTF-8') < AYUDA_MAX_TITULO);
+        afirmar(ayuda_roles_normalizar($art['roles']) === $art['roles'] && $art['roles'], 'roles válidos');
+    }
 });
 
 // ════════════════════════════════════════════════════════════════════════
