@@ -528,6 +528,7 @@ function Usuarios({ user, data }) {
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [reenviando, setReenviando] = useState(null);
+  const [verComo, setVerComo] = useState(null); // [OF-7c] usuario al que se quiere "ver como" (abre el modal)
   const [ligaActivacion, setLigaActivacion] = useState(null); // { liga } — solo si falló el correo
   // Familias creadas desde el propio modal de "nuevo usuario" (ver
   // crearFamiliaInline) — Usuarios.js no recibe setData (a diferencia de
@@ -985,7 +986,15 @@ function Usuarios({ user, data }) {
                                     }, void 0, false)
                                   ]
                                 }, void 0, true),
-                                !puedeAcc && !esUnoMismo && _jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', padding: '0 4px' }, children: "—" }, void 0, false)
+                                // [OF-7c] "Ver como": entrar como este usuario con TU contraseña (el servidor decide quién puede y en qué modo).
+                                AuthController.puedeVerComo(user, u) && _jsxDEV("button", {
+                                  className: "btn btn-ghost btn-sm",
+                                  onClick: () => setVerComo(u),
+                                  title: "Ver como este usuario (con tu contraseña; sin pedirle la suya)",
+                                  "aria-label": "Ver como " + u.nombre,
+                                  children: _jsxDEV(Icon, { name: "eye", size: 14, color: "currentColor" }, void 0, false)
+                                }, void 0, false),
+                                !puedeAcc && !esUnoMismo && !AuthController.puedeVerComo(user, u) && _jsxDEV("span", { style: { fontSize: 11, color: 'var(--ink-4)', padding: '0 4px' }, children: "—" }, void 0, false)
                               ]
                             }, void 0, true)
                           }, void 0, false)
@@ -1053,6 +1062,11 @@ function Usuarios({ user, data }) {
         onConfirmar: confirmarAccion,
         onCancelar: () => setConfirm(null),
       }, void 0, false),
+
+      /* [OF-7c] Modal de "Ver como": pide LA CONTRASEÑA PROPIA. Componente de views/components/VerComoModal.js. */
+      verComo && typeof VerComoModal !== 'undefined' && _jsxDEV(VerComoModal, {
+        user: user, objetivo: verComo, onCerrar: () => setVerComo(null)
+      }, 'vercomo', false),
 
       /* Fallback cuando "Reenviar credenciales" no pudo mandar el correo —
          componente compartido con PanelInvitaciones.js (ya se carga antes). */

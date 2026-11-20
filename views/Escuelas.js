@@ -402,6 +402,7 @@ function Escuelas({
     { id: 'reportes', label: 'Reportes' },
     { id: 'miequipo', label: 'Mi equipo' },
     { id: 'inventario', label: 'Inventario' }, // [OF-6]
+    { id: 'agenda', label: 'Agenda' }, // [OF-7c]
     { id: 'escolar_grupos', label: 'Grupos y horarios' },
     { id: 'escolar_asistencias', label: 'Asistencias' },
     { id: 'escolar_calificaciones', label: 'Calificaciones' },

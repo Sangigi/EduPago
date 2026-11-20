@@ -40,6 +40,11 @@
                 } elseif ($rol_actual === 'control_escolar') {
                     $where = " WHERE u.escuela_id = ? AND u.rol = ?";
                     $params = [$esc_actual, $solo_alumnos ? 'alumno' : 'docente'];
+                } elseif ($rol_actual === 'soporte') {
+                    // [OF-7c] Soporte no tiene colegio propio: lista el del escuela_id que mande (solo lectura, es
+                    // para "Ver como" en la Ficha de colegio). Sin escuela_id, un listado vacio como siempre.
+                    $where = " WHERE u.escuela_id = ? AND u.rol NOT IN ('superadmin', 'alumno')";
+                    $params = [intval($input['escuela_id'] ?? 0)];
                 } else {
                     $where = " WHERE u.escuela_id = ? AND u.rol != 'superadmin' AND u.rol " . ($solo_alumnos ? "= 'alumno'" : "!= 'alumno'");
                     $params = [$esc_actual];

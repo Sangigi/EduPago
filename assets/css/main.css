@@ -2077,3 +2077,35 @@ input[type="checkbox"], input[type="radio"] { accent-color:var(--lf-brand-d); }
 @media (max-width: 640px) {
   .pf-brand-text { display: none !important; }
 }
+
+/* ═══ [OF-7c] "VER COMO": barra fija arriba (assets/js/suplantacion.js) ═══════════
+   Fuera de React y por encima de todo (modales z-index <= 1000). La app se corre hacia abajo lo
+   que mida la barra (--sup-h, medida por el script: en celular puede ocupar dos renglones).
+   Los portales (familia, alumno, docente...) fijan su alto en 100vh por estilo en línea o con
+   !important, así que aquí se les resta la barra con selectores MÁS específicos. */
+.sup-barra {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100000;
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 14px;
+  min-height: 38px; padding: 6px 16px; box-sizing: border-box;
+  font: 600 13px/1.35 var(--font, system-ui, sans-serif); color: #fff; text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+.sup-barra.sup-normal  { background: #b45309; }   /* ámbar: puedes cambiar cosas como ese usuario */
+.sup-barra.sup-lectura { background: #1e40af; }   /* azul: solo mirar */
+.sup-barra .sup-volver {
+  font: 700 12.5px/1 var(--font, system-ui, sans-serif); color: #1f2937; background: #fff;
+  border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; white-space: nowrap;
+}
+.sup-barra .sup-volver:hover { background: #f3f4f6; }
+.sup-barra .sup-volver:disabled { opacity: .7; cursor: default; }
+.sup-barra .sup-volver:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+body.sup-activa { padding-top: var(--sup-h, 40px); box-sizing: border-box; }
+body.sup-activa #root { height: calc(100vh - var(--sup-h, 40px)); height: calc(100dvh - var(--sup-h, 40px)); }
+body.sup-activa #root > .app,
+body.sup-activa #root > .pf-root,
+body.sup-activa #root > [style*="100vh"] { height: 100% !important; max-height: 100% !important; }
+@media (max-width: 768px) {
+  /* El drawer del menú arranca debajo de la barra. */
+  body.sup-activa .sidebar { top: var(--sup-h, 40px); height: calc(100% - var(--sup-h, 40px)); }
+  .sup-barra { font-size: 12px; padding: 6px 10px; }
+}

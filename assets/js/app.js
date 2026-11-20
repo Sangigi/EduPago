@@ -202,6 +202,15 @@ const NAV_ITEMS = [{
   section: 'principal',
   roles: ['admin']
 }, {
+  // [OF-7c] Agenda de citas (views/Agenda.js): admisiones, entrevistas con padres. Admin y control escolar
+  // crean y editan; direccion la ve en lectura. El docente la tiene dentro de su propio panel
+  // (views/PortalDocente.js) y la familia ve sus citas en su portal.
+  id: 'agenda',
+  label: 'Agenda',
+  icon: 'calendar',
+  section: 'principal',
+  roles: ['admin', 'control_escolar', 'direccion']
+}, {
 
   id: 'productos',
 
@@ -354,6 +363,14 @@ const NAV_ITEMS = [{
   roles: ['admin', 'control_escolar'] /* [F4] la coordinación da de alta docentes y activa/desactiva docentes y alumnos */
 
 }, {
+  // [OF-7c] Bitacora de auditoria de SU colegio, con antes y despues (views/Logs.js → AuditoriaPanel).
+  // Soporte y superadmin la ven en "Logs del Sistema" → pestaña Auditoria, de todos los colegios.
+  id: 'auditoria',
+  label: 'Auditoría',
+  icon: 'shield',
+  section: 'configuración',
+  roles: ['admin']
+}, {
 
   id: 'mi_suscripcion',
 
@@ -438,6 +455,8 @@ const TITLES = {
   monedero: 'Monedero',
   tienda: 'Tiendita',
   inventario: 'Inventario', // [OF-6]
+  agenda: 'Agenda', // [OF-7c]
+  auditoria: 'Auditoría', // [OF-7c]
 
   facturacion: 'Facturación',
 
@@ -2630,6 +2649,11 @@ function App() {
           false
         );
 
+      // [OF-7c] Agenda de citas y bitacora de auditoria del colegio (admin).
+      case 'agenda':
+        return _jsxDEV(Agenda, { user: user, data: dataScopeed }, 'agenda', false);
+      case 'auditoria':
+        return _jsxDEV(AuditoriaPanel, { data: dataScopeed, global: false }, 'auditoria', false);
       case 'proveedores':
 
         return _jsxDEV(

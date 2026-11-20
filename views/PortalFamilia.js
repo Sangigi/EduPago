@@ -1101,6 +1101,8 @@ function PortalFamilia({
               escolarHabilitado ? tabBtn('escolar', 'Escolar', 'reportes') : null,
               // [F6] Monedero de la tiendita del colegio.
               (monederoVisible && typeof MonederoFamilia !== 'undefined') ? tabBtn('monedero', 'Monedero', 'pay') : null,
+              // [OF-7c] Sus citas con el colegio (solo lectura). Se esconde si el colegio apagó la Agenda.
+              (!_seccOff.includes('agenda') && typeof CitasFamilia !== 'undefined') ? tabBtn('citas', 'Citas', 'calendar') : null,
               tabBtn('historial', 'Historial', 'history'),
               tabBtn('pagar', 'Pagar en línea', 'card'),
               tabBtn('facturas', 'Facturas', 'facturacion2'),
@@ -2779,7 +2781,9 @@ function PortalFamilia({
         hijos: misHijos,
         escuela: escuela,
         familia: miFamilia
-      }, 'monedero', false), tab === 'facturas' && _jsxDEV("div", {
+      }, 'monedero', false), tab === 'citas' && typeof CitasFamilia !== 'undefined' && _jsxDEV(CitasFamilia, {
+        escuela: escuela
+      }, 'citas', false), tab === 'facturas' && _jsxDEV("div", {
         children: [_jsxDEV("div", {
           style: { fontSize: 13, color: PLC.muted, marginBottom: 14 },
           children: "Facturas (CFDI) generadas para tus pagos. Solo aparecen los cobros que ya fueron facturados."
