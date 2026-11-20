@@ -399,6 +399,21 @@ const NAV_ITEMS = [{
   // [OF-4a] Incoherencias de datos (superadmin y soporte, solo lectura) y, solo
   // para superadmin, el estado/aplicacion de migraciones de la base de datos.
   roles: ['superadmin', 'soporte']
+}, {
+  // [OF-7] Bandeja de tickets de soporte de todos los colegios, y edición de la Ayuda.
+  id: 'soporte_tickets',
+  label: 'Tickets de soporte',
+  icon: 'emails',
+  section: 'superadmin',
+  roles: ['superadmin', 'soporte']
+}, {
+  // [OF-7] Ayuda del colegio: tickets, artículos y novedades. Siempre visible para admin y
+  // cajero (no está en SECCIONES_DISPONIBLES: el super admin no la apaga por colegio).
+  id: 'ayuda',
+  label: 'Ayuda',
+  icon: 'info',
+  section: 'configuración',
+  roles: ['admin', 'cajero']
 }];
 
 
@@ -451,6 +466,8 @@ const TITLES = {
 
   superreportes: 'Métricas Globales',
   diagnostico: 'Diagnóstico',
+  soporte_tickets: 'Tickets de soporte', // [OF-7]
+  ayuda: 'Ayuda', // [OF-7]
 
   usuarios: 'Gestión de Usuarios',
 
@@ -697,6 +714,24 @@ function App() {
 
 
   const [view, setView] = useState('dashboard');
+
+  // [OF-7] Contadores del menú de Ayuda / Tickets de soporte: lo que dice soporte_resumen
+  // (no_leidos y novedades_sin_ver para el colegio; sin_respuesta para soporte). Si falla o la
+  // migración no corrió, quedan en cero y el menú sigue igual: nunca rompe nada.
+  const [ayudaResumen, setAyudaResumen] = useState({ no_leidos: 0, sin_respuesta: 0, novedades_sin_ver: 0 });
+  const refrescarAyudaResumen = () => {
+    if (!user || !['admin', 'cajero', 'soporte', 'superadmin'].includes(user.rol)) return;
+    ApiClient.post('soporte_resumen', {}).then(r => {
+      if (r && r.success) setAyudaResumen({ no_leidos: r.no_leidos || 0, sin_respuesta: r.sin_respuesta || 0, novedades_sin_ver: r.novedades_sin_ver || 0 });
+    }).catch(() => { /* sin contador: no pasa nada */ });
+  };
+  useEffect(() => {
+    if (!user) return;
+    refrescarAyudaResumen();
+    const t = setInterval(refrescarAyudaResumen, 120000); // cada 2 min
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user && user.id, user && user.rol]);
 
   // Guía de primer uso (23-sep-2026). Arranca en false y se enciende en el
   // login / al restaurar sesión, porque en el primer render `user` todavía es
@@ -2784,6 +2819,14 @@ function App() {
       // [OF-4a] Diagnostico: incoherencias (superadmin y soporte) y base de datos (superadmin).
       case 'diagnostico':
         return _jsxDEV(Diagnostico, { data: data, user: user }, void 0, false);
+      // [OF-7] Tickets de soporte (soporte y superadmin) y Ayuda del colegio (admin y cajero).
+      // El servidor valida el rol en cada acción; esto solo decide qué se pinta.
+      case 'soporte_tickets':
+        return ['superadmin', 'soporte'].includes(user.rol)
+          ? _jsxDEV(SoporteTickets, { data: data, onResumen: refrescarAyudaResumen }, void 0, false) : null;
+      case 'ayuda':
+        return ['admin', 'cajero'].includes(user.rol)
+          ? _jsxDEV(Ayuda, { user: user, onResumen: refrescarAyudaResumen }, void 0, false) : null;
       case 'superreportes':
 
 
@@ -4457,9 +4500,30 @@ function App() {
 
                                               false
 
-                                            )
+                                            ),
 
-
+                                          // [OF-7] Ayuda: respuestas de soporte sin leer (número) o, si no hay,
+                                          // un punto "nuevo" mientras haya novedades sin ver.
+                                          n.id === 'ayuda' && ayudaResumen.no_leidos > 0 &&
+                                            _jsxDEV("span", {
+                                              className: "nav-badge",
+                                              title: `${ayudaResumen.no_leidos} ticket(s) con respuesta de soporte sin leer`,
+                                              children: ayudaResumen.no_leidos
+                                            }, 'ay-n', false),
+                                          n.id === 'ayuda' && ayudaResumen.no_leidos === 0 && ayudaResumen.novedades_sin_ver > 0 &&
+                                            _jsxDEV("span", {
+                                              className: "nav-badge",
+                                              style: { background: 'var(--green)', minWidth: 8, width: 8, height: 8, padding: 0 },
+                                              title: "Hay novedades sin leer",
+                                              children: ''
+                                            }, 'ay-d', false),
+                                          // [OF-7] Tickets de soporte: tickets sin respuesta.
+                                          n.id === 'soporte_tickets' && ayudaResumen.sin_respuesta > 0 &&
+                                            _jsxDEV("span", {
+                                              className: "nav-badge",
+                                              title: `${ayudaResumen.sin_respuesta} ticket(s) sin respuesta`,
+                                              children: ayudaResumen.sin_respuesta
+                                            }, 'st-n', false)
 
                                         ]
 
