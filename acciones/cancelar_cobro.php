@@ -135,6 +135,11 @@
         if ($cancel_res['facturado']) {
             $avisos_cancelar[] = 'El cobro está facturado (folio fiscal ' . $cancel_res['factura_uuid'] . '): la factura sigue vigente. Cancélala desde Facturación → "Cancelar factura".';
         }
+        // [OF-7c] Bitácora de auditoría: cómo estaba el cobro y cómo quedó (después del commit; nunca lo tumba).
+        auditar($pdo, $usuario_actual, 'cobro.cancelar', 'cobro', $cobro_id,
+            ['estado' => $cob_row['estado'], 'cancelado_motivo' => null, 'cancelado_monto_recibido' => null],
+            ['estado' => 'cancelado', 'cancelado_motivo' => $motivo_cancelar, 'cancelado_monto_recibido' => $cancel_res['recibido']],
+            $escCancel['escuela_id']);
         registrar_log($pdo, $usuario_actual, 'cobro_cancelado',
             "Cobro #{$cobro_id} ({$cancel_res['folio']}) cancelado. Motivo: {$motivo_cancelar}"
             . ($cancel_res['recibido'] > 0 ? '. Dinero recibido al cancelar: $' . number_format($cancel_res['recibido'], 2) . ' (NO devuelto)' : '')

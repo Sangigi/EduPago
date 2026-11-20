@@ -25,7 +25,11 @@
         } catch (\PDOException $e) {
             // migracion_2026_11_18_f4_roles.sql sin correr: no hay cuentas de alumno que revisar.
         }
+        // [OF-7c] Auditoría: activo antes y después (y rol/escuela, para saber a quién se le tocó).
+        $antes_aud_t = auditoria_fila($pdo, 'usuarios', ['activo', 'rol', 'escuela_id'], $id);
         $stmt = $pdo->prepare("UPDATE usuarios SET activo = NOT activo WHERE id = ?");
         $stmt->execute([$id]);
         registrar_log($pdo, $usuario_actual, 'usuario_activo_toggle', "Usuario #$id");
+        auditar($pdo, $usuario_actual, 'usuario.activo', 'usuario', $id, $antes_aud_t,
+            auditoria_fila($pdo, 'usuarios', ['activo', 'rol', 'escuela_id'], $id), $antes_aud_t['escuela_id'] ?? null);
         respond(['success' => true]);

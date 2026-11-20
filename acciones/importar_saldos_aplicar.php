@@ -80,6 +80,11 @@ registrar_log($pdo, $usuario_actual, 'importacion_saldos_aplicada',
     . ($res['error'] ? ' [INCOMPLETA: ' . $res['error'] . ']' : ''),
     $escuela_id);
 
+// [OF-7c] Auditoría: la importación (antes vacío).
+auditar($pdo, $usuario_actual, 'importacion.aplicar', 'importacion', $res['importacion_id'],
+    ['estado' => null, 'archivo' => null, 'cobros_creados' => null, 'monto_total' => null],
+    ['estado' => $res['error'] === null ? 'aplicada' : 'incompleta', 'archivo' => $nombre, 'cobros_creados' => $res['cobros_creados'], 'monto_total' => importar_pesos($res['monto_total_c'])],
+    $escuela_id);
 respond([
     'success'        => $res['error'] === null,
     'parcial'        => $res['error'] !== null && $res['cobros_creados'] > 0,

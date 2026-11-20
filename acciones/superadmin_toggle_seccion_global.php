@@ -40,4 +40,7 @@ registrar_log(
     "Sección '$seccion' " . ($yaDeshabilitada ? 'habilitada' : 'deshabilitada') . ' globalmente (todas las escuelas)'
 );
 
+// [OF-7c] Auditoría: interruptor global (sin colegio).
+auditar($pdo, $usuario_actual, 'global.seccion', 'escuela', null,
+    ['seccion_' . $seccion => $yaDeshabilitada ? 'apagada' : 'encendida'], ['seccion_' . $seccion => $yaDeshabilitada ? 'encendida' : 'apagada'], null);
 respond(['success' => true, 'deshabilitadas' => $nuevas]);

@@ -51,6 +51,9 @@
                 'La sección de cobros está deshabilitada para tu colegio: no puedes cancelar adeudos desde aquí.');
         }
 
+        // [OF-7c] Auditoría: el estatus antes y después.
+        $campos_aud_ce = ['estatus', 'estatus_fecha', 'estatus_motivo', 'activo'];
+        $antes_aud_ce = auditoria_fila($pdo, 'clientes', $campos_aud_ce, $cliente_id_ce);
         $res_ce = alumno_cambiar_estatus(
             $pdo,
             $cliente_id_ce,
@@ -59,6 +62,10 @@
             $usuario_actual,
             $opciones_ce
         );
+        if (!empty($res_ce['success'])) {
+            auditar($pdo, $usuario_actual, 'alumno.estatus', 'alumno', $cliente_id_ce, $antes_aud_ce,
+                auditoria_fila($pdo, 'clientes', $campos_aud_ce, $cliente_id_ce), $fila_ce['escuela_id']);
+        }
         if (empty($res_ce['success'])) {
             log_api("alumno_cambiar_estatus RECHAZADO cliente #{$cliente_id_ce} -> " . ($input['estatus'] ?? '?') . ': ' . ($res_ce['error'] ?? ''));
         }

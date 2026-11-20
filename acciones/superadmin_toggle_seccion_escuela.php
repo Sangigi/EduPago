@@ -23,4 +23,7 @@
             "Escuela #$id: sección '$seccion' " . ($yaDeshabilitada ? 'habilitada' : 'deshabilitada'),
             $id
         );
+        // [OF-7c] Auditoría: la sección pasó de encendida a apagada o al revés.
+        auditar($pdo, $usuario_actual, 'escuela.seccion', 'escuela', $id,
+            ['seccion_' . $seccion => $yaDeshabilitada ? 'apagada' : 'encendida'], ['seccion_' . $seccion => $yaDeshabilitada ? 'encendida' : 'apagada'], $id);
         respond(['success' => true, 'secciones_deshabilitadas' => $deshabilitadas]);

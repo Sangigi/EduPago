@@ -37,4 +37,7 @@ $pdo->prepare("UPDATE alumno_becas SET activo = ? WHERE id = ? AND escuela_id = 
 registrar_log($pdo, $usuario_actual, $activar_bd ? 'beca_reactivada' : 'beca_desactivada',
     "Beca #{$beca_id_bd} \"{$fila_bd['nombre']}\" del alumno #{$fila_bd['cliente_id']} " . ($activar_bd ? 'reactivada' : 'dada de baja'),
     intval($fila_bd['escuela_id']));
+// [OF-7c] Auditoría: activa/inactiva antes y después.
+auditar($pdo, $usuario_actual, 'beca.estado', 'beca', $beca_id_bd,
+    ['activo' => $fila_bd['activo']], ['activo' => $activar_bd], intval($fila_bd['escuela_id']));
 respond(['success' => true, 'id' => $beca_id_bd, 'activo' => (bool) $activar_bd]);

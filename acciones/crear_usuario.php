@@ -147,6 +147,9 @@
         }
         $id = intval($pdo->lastInsertId());
         registrar_log($pdo, $usuario_actual, 'usuario_creado', "Nuevo usuario '$nombre' ($email) con rol '$rol'", $esc_id);
+        // [OF-7c] Auditoría: alta de usuario (antes vacío). Sin contraseña ni enlace de activación.
+        auditar($pdo, $usuario_actual, 'usuario.crear', 'usuario', $id, [],
+            ['nombre' => $nombre, 'email' => $email, 'rol' => $rol, 'escuela_id' => $esc_id, 'familia_id' => $fam_id, 'activo' => 1], $esc_id);
 
         $baseUrl = (defined('APP_URL') && APP_URL
                 ? rtrim(APP_URL, '/')

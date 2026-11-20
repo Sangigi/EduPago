@@ -32,6 +32,8 @@
  */
 
 $raiz = dirname(__DIR__);
+// [OF-7c] Las listas de "Ver como" (solo lectura / nunca) viven en este archivo puro.
+require_once $raiz . '/lib/helpers_suplantacion.php';
 $roles_estricta   = in_array('--roles-estricta', $argv ?? [], true);
 $familia_estricta = in_array('--familia-estricta', $argv ?? [], true);
 
@@ -85,7 +87,10 @@ $errores = 0; $avisos = 0;
 $sin_declarar = [];
 foreach ($acciones as $a) {
     if (in_array($a, $acciones_publicas, true) || in_array($a, SOLO_SUPERADMIN, true)
-        || in_array($a, SUPERADMIN_POR_ALLOWLIST, true)) continue;
+        || in_array($a, SUPERADMIN_POR_ALLOWLIST, true)
+        // [OF-7c] 'suplantar_terminar' no va en ninguna lista de rol: api.php la deja pasar con un
+        // token de suplantación sea cual sea el rol del objetivo (ver el bloque [OF-7c] de api.php).
+        || in_array($a, SUPLANTACION_ACCIONES_PROPIAS, true)) continue;
     $en = false;
     foreach ($ACCIONES_POR_ROL_PLATAFORMA as $lista) if (accion_en_allowlist($a, $lista)) { $en = true; break; }
     if (!$en) $sin_declarar[] = $a;
@@ -130,10 +135,65 @@ foreach (SOLO_SUPERADMIN as $a) {
 if (!$abiertas) echo "   (todas lo exigen)\n";
 $errores += $abiertas;
 
+// ── 5. [OF-7c] "Ver como": las listas de solo lectura y de nunca ────────────
+// Las dos listas viven en lib/helpers_suplantacion.php. Aquí se valida que sean coherentes
+// con el código real, para que una acción nueva o renombrada no deje un hueco:
+//   a. toda acción nombrada en ellas existe en acciones/ (un nombre mal escrito en NUNCA
+//      deja SIN bloquear justo la acción que se quería prohibir);
+//   b. ninguna acción de solo lectura está también en NUNCA;
+//   c. ninguna acción de solo lectura ESCRIBE en la base (INSERT/UPDATE/DELETE/REPLACE,
+//      ->exec(, archivos, correo), salvo las excepciones documentadas abajo;
+//   d. la lista de roles de plataforma de la suplantación es rol_sin_escuela() + 'superadmin';
+//   e. 'suplantar_iniciar' y 'suplantar_terminar' existen.
+echo "\n== 5. [OF-7c] \"Ver como\": listas de solo lectura y de nunca\n";
+$fallas_sup = 0;
+// Excepciones al punto c, cada una con su razón (y verificada abajo):
+//   caja_sucursales: crea la sucursal "Principal" si el colegio no tiene ninguna; en modo lectura
+//   esa rama se omite ([OF-7c] en el archivo, verificado con 'suplantacion_modo').
+$excepciones_escritura = ['caja_sucursales' => 'suplantacion_modo'];
+foreach (['SOLO_LECTURA' => SUPLANTACION_ACCIONES_SOLO_LECTURA, 'NUNCA' => SUPLANTACION_ACCIONES_NUNCA,
+          'PROPIAS' => SUPLANTACION_ACCIONES_PROPIAS] as $nombre => $lista) {
+    $vistas = [];
+    foreach ($lista as $a) {
+        if (isset($vistas[$a])) { echo "   REPETIDA      [$nombre] $a\n"; $avisos++; }
+        $vistas[$a] = true;
+        if (!isset($existe[$a])) { echo "   SIN ARCHIVO   [$nombre] $a\n"; $fallas_sup++; }
+    }
+}
+foreach (array_intersect(SUPLANTACION_ACCIONES_SOLO_LECTURA, SUPLANTACION_ACCIONES_NUNCA) as $a) {
+    echo "   EN LAS DOS    $a (solo lectura y nunca a la vez)\n"; $fallas_sup++;
+}
+$patron_escritura = '/\b(INSERT\s+INTO|UPDATE\s+[`\w]+\s+SET|DELETE\s+FROM|REPLACE\s+INTO)\b|->exec\s*\(|file_put_contents\s*\(|\bunlink\s*\(|move_uploaded_file|\benviar_correo\s*\(/i';
+foreach (SUPLANTACION_ACCIONES_SOLO_LECTURA as $a) {
+    if (!isset($existe[$a])) continue;
+    $src = file_get_contents($raiz . '/acciones/' . $a . '.php');
+    $limpio = preg_replace('~/\*.*?\*/~s', '', $src);
+    $limpio = preg_replace('~^\s*(//|#).*$~m', '', $limpio);
+    if (preg_match($patron_escritura, $limpio, $mm)) {
+        if (isset($excepciones_escritura[$a]) && strpos($limpio, $excepciones_escritura[$a]) !== false) continue;
+        echo "   ESCRIBE       $a (solo lectura, pero contiene: " . trim(preg_replace('/\s+/', ' ', $mm[0])) . ")\n"; $fallas_sup++;
+    }
+}
+$fn_sin = null;
+if (preg_match('/^function rol_sin_escuela\(.*?^}/ms', $api, $mf)) { eval($mf[0]); $fn_sin = true; }
+if ($fn_sin) {
+    $esperados = SUPLANTACION_ROLES_PLATAFORMA;
+    $reales = array_merge(['superadmin'], array_values(array_filter(
+        ['distribuidor', 'contador', 'soporte', 'provision', 'tesoreria', 'promotor', 'superadmin', 'admin', 'cajero', 'docente', 'familia', 'alumno', 'tienda', 'control_escolar', 'direccion'],
+        function ($r) { return $r !== 'superadmin' && rol_sin_escuela($r); })));
+    sort($esperados); sort($reales);
+    if ($esperados !== $reales) { echo "   ROLES DE PLATAFORMA distintos de rol_sin_escuela(): suplantacion=" . implode(',', $esperados) . " api=" . implode(',', $reales) . "\n"; $fallas_sup++; }
+}
+foreach (SUPLANTACION_ACCIONES_PROPIAS as $a) if (!isset($existe[$a])) { echo "   FALTA acción propia: $a\n"; $fallas_sup++; }
+if (!$fallas_sup) echo "   (todo coherente: " . count(SUPLANTACION_ACCIONES_SOLO_LECTURA) . " de solo lectura, " . count(SUPLANTACION_ACCIONES_NUNCA) . " prohibidas siempre)\n";
+$errores += $fallas_sup;
+
 // ── 3. Acciones sin requerir_rol y quién las alcanza ────────────────────────
 // Un helper de contexto que llama requerir_rol() por dentro cuenta como guardia.
 $helpers_con_guardia = ['requerir_rol(', 'escolar_ctx(', 'monedero_ctx(', 'expediente_alumno(', 'notas_familia_autorizada(',
-    'inventario_ctx(' /* [OF-6] llama requerir_rol() como lo primero (lib/helpers_inventario.php) */];
+    'inventario_ctx(' /* [OF-6] llama requerir_rol() como lo primero (lib/helpers_inventario.php) */,
+    'agenda_ctx(' /* [OF-7c] llama requerir_rol() como lo primero (lib/helpers_agenda.php) */,
+    'suplantacion_contexto(' /* [OF-7c] suplantar_terminar solo responde si la sesión ES una suplantación */];
 $roles_con_registro = ['admin', 'cajero', 'contador', 'distribuidor'];
 $sin_guardia = [];
 foreach ($acciones as $a) {
@@ -183,6 +243,7 @@ echo "   Solo superadmin:             " . count(SOLO_SUPERADMIN) . "\n";
 echo "   Sin declarar:                " . count($sin_declarar) . "\n";
 echo "   Entradas muertas:            $muertas\n";
 echo "   Solo-superadmin sin exigirlo: $abiertas\n";
+echo "   Ver como (incoherencias):    $fallas_sup\n";
 echo "   Sin requerir_rol:            " . count($sin_guardia) . " (informativo)\n";
 echo "   Avisos:                      $avisos\n";
 echo "   Modo simulado:               roles " . ($roles_estricta ? 'ESTRICTO' : 'registro') . ', familia ' . ($familia_estricta ? 'ESTRICTO' : 'registro') . "\n";

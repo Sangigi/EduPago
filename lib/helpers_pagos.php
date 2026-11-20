@@ -784,6 +784,27 @@ function siguiente_vencimiento_mensual($fechaBase) {
 }
 
 function registrar_log($pdo, $usuario_actual, $accion, $detalle = null, $escuela_id = null) {
+    // [OF-7c] Sesión de "Ver como": el renglón queda a nombre del OBJETIVO (que es
+    // $usuario_actual) y guarda también quién lo hizo en realidad (suplantado_por). Si la
+    // migración de OF-7c todavía no agregó la columna, se reintenta SIN ella y el id real
+    // se anota dentro del detalle: nunca se pierde el rastro ni el log.
+    $suplanta_por = (is_array($usuario_actual) && !empty($usuario_actual['suplantado_por'])) ? intval($usuario_actual['suplantado_por']) : null;
+    if ($suplanta_por !== null) {
+        try {
+            $pdo->prepare(
+                "INSERT INTO logs_sistema (usuario_id, usuario_nombre, escuela_id, accion, detalle, ip, suplantado_por)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+            )->execute([
+                $usuario_actual['user_id'] ?? null,
+                $usuario_actual['nombre'] ?? ($usuario_actual['email'] ?? null),
+                $escuela_id ?? ($usuario_actual['escuela_id'] ?? null),
+                $accion, $detalle, $_SERVER['REMOTE_ADDR'] ?? null, $suplanta_por,
+            ]);
+            return;
+        } catch (\PDOException $e) {
+            $detalle = '[hecho por el usuario #' . $suplanta_por . ' viendo como este usuario] ' . (string) $detalle;
+        }
+    }
     try {
         $stmt = $pdo->prepare(
             "INSERT INTO logs_sistema (usuario_id, usuario_nombre, escuela_id, accion, detalle, ip)

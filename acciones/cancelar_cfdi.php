@@ -124,6 +124,11 @@ try {
     respond(['success' => false, 'error' => 'La solicitud llegó al PAC pero no se pudo guardar en el sistema. Avisa a soporte con el folio fiscal ' . $co['factura_uuid'] . '.']);
 }
 
+// [OF-7c] Bitácora de auditoría (después del commit; nunca tumba la cancelación).
+auditar($pdo, $usuario_actual, 'cfdi.cancelar', 'cfdi', $cobro_id,
+    ['estado_cancelacion' => null, 'motivo' => null, 'uuid_sustitucion' => null],
+    ['estado_cancelacion' => $estado, 'motivo' => $motivo, 'uuid_sustitucion' => $sustit !== '' ? $sustit : null],
+    $co['escuela_id']);
 registrar_log($pdo, $usuario_actual, 'cfdi_cancelacion',
     "Cobro {$co['folio']} (#{$cobro_id}): cancelación de factura {$co['factura_uuid']} motivo {$motivo}" . ($sustit !== '' ? " sustituta {$sustit}" : '') . " -> {$estado}",
     $co['escuela_id']);

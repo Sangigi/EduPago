@@ -125,6 +125,9 @@
                 }
             }
         }
+        // [OF-7c] Auditoría: la fila ANTES de editar (rol, escuela, activo, etc.; nunca la contraseña).
+        $campos_aud_u = ['nombre', 'email', 'rol', 'escuela_id', 'familia_id', 'activo', 'zona', 'foto_url'];
+        $antes_aud_u = auditoria_fila($pdo, 'usuarios', $campos_aud_u, $id);
         $sets = []; $vals = [];
         if ($nombre)   { $sets[] = 'nombre = ?';         $vals[] = $nombre; }
         if ($email)    { $sets[] = 'email = ?';          $vals[] = $email; }
@@ -189,4 +192,11 @@
             $stmt->execute([$id]);
         }
         $usuarioActualizado = $stmt->fetch();
+        // [OF-7c] Auditoría: solo lo que cambió. Si se restableció la contraseña, queda el hecho ("[oculto]"), nunca el valor.
+        if ($sets) {
+            $despues_aud_u = auditoria_fila($pdo, 'usuarios', $campos_aud_u, $id);
+            if ($password) { $antes_aud_u['contrasena'] = null; $despues_aud_u['contrasena'] = 'restablecida'; }
+            auditar($pdo, $usuario_actual, 'usuario.editar', 'usuario', $id, $antes_aud_u, $despues_aud_u,
+                $despues_aud_u['escuela_id'] ?? ($antes_aud_u['escuela_id'] ?? null));
+        }
         respond(['success' => true, 'usuario' => $usuarioActualizado]);

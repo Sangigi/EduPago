@@ -116,6 +116,12 @@
         $stmt2->execute([$id]);
         $productoActualizado = $stmt2->fetch(PDO::FETCH_ASSOC);
         if (!$productoActualizado) respond(['success' => false, 'error' => 'Producto no encontrado']);
+        // [OF-7c] Auditoría: precio, IVA, alcance, etc. Antes = la fila leída al inicio; después = la ya actualizada.
+        $campos_aud_prod = array_flip(['nombre', 'categoria', 'precio', 'activo', 'tipo', 'periodicidad_meses', 'fecha_inicio',
+            'dia_ventana_inicio', 'dia_ventana_fin', 'penalizacion_tipo', 'penalizacion_valor', 'alcance', 'alcance_ids',
+            'iva_tasa', 'clave_sat', 'clave_unidad', 'maneja_existencias']);
+        auditar($pdo, $usuario_actual, 'producto.editar', 'producto', $id,
+            array_intersect_key($filaEscuela, $campos_aud_prod), array_intersect_key($productoActualizado, $campos_aud_prod), $escuela_id);
         $productoActualizado['activo'] = (bool)$productoActualizado['activo'];
         $productoActualizado['precio'] = floatval($productoActualizado['precio']);
         // [OF-6] maneja_existencias como entero y la existencia actual (null si no maneja).

@@ -33,4 +33,18 @@
         } catch (\PDOException $e) {
             respond(['success' => false, 'error' => 'La tabla logs_sistema aún no existe. Corre la migración (optimizacion_bd.sql, Bloque 0b).']);
         }
+        // [OF-7c] Acciones hechas viendo como otro usuario: el renglon va a nombre del objetivo y
+        // suplantado_por trae a quien lo hizo en realidad; se agrega su nombre para mostrarlo.
+        if ($logs && array_key_exists('suplantado_por', $logs[0])) {
+            $ids_sup = array_values(array_unique(array_filter(array_map('intval', array_column($logs, 'suplantado_por')))));
+            if ($ids_sup) {
+                $stSup = $pdo->prepare('SELECT id, nombre FROM usuarios WHERE id IN (' . implode(',', array_fill(0, count($ids_sup), '?')) . ')');
+                $stSup->execute($ids_sup);
+                $nombres_sup = array_column($stSup->fetchAll(), 'nombre', 'id');
+                foreach ($logs as &$lg_sup) {
+                    $lg_sup['suplantado_por_nombre'] = $lg_sup['suplantado_por'] ? ($nombres_sup[$lg_sup['suplantado_por']] ?? null) : null;
+                }
+                unset($lg_sup);
+            }
+        }
         respond(['success' => true, 'logs' => $logs, 'total' => $total_lg, 'pagina' => $pagina_lg, 'por_pagina' => $por_pagina_lg]);
