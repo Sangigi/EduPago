@@ -194,6 +194,14 @@ const NAV_ITEMS = [{
   section: 'principal',
   roles: ['admin']
 }, {
+  // [OF-6] Inventario con existencias (views/Inventario.js): uniformes, material y
+  // tiendita. El contador rojo del ítem sale de data.inventario_alertas (cargar_datos).
+  id: 'inventario',
+  label: 'Inventario',
+  icon: 'productos',
+  section: 'principal',
+  roles: ['admin']
+}, {
 
   id: 'productos',
 
@@ -429,6 +437,7 @@ const TITLES = {
   escolar_config: 'Ciclos, materias y aulas',
   monedero: 'Monedero',
   tienda: 'Tiendita',
+  inventario: 'Inventario', // [OF-6]
 
   facturacion: 'Facturación',
 
@@ -881,6 +890,8 @@ function App() {
           // Igual que `planes`, sin esta linea el filtro de arriba lo tiraria y
           // la pantalla de bloqueo nunca se enteraria.
           suscripcion: json.suscripcion || null,
+          // [OF-6] Aviso de inventario del admin: {agotados, bajos, negativos} o null.
+          inventario_alertas: json.inventario_alertas || null,
         };
 
         return datosApi;
@@ -1805,6 +1816,10 @@ function App() {
 
       data.resumen_escuelas || {},
 
+    // [OF-6] Aviso de inventario ({agotados, bajos, negativos} o null).
+    inventario_alertas:
+      data.inventario_alertas || null,
+
 
 
     // clientes_total/activos_total/pagina/por_pagina: cargar_datos.php ya los
@@ -2597,6 +2612,23 @@ function App() {
 
       case 'tienda':
         return _jsxDEV(Tienda, { user: user, embebido: true }, 'tienda', false);
+
+      // [OF-6] Inventario con existencias (admin). setData = el de los demás catálogos
+      // (mantiene al día la existencia que Caja lee de data.productos); onAlertas
+      // actualiza el contador del menú y el aviso del Dashboard sin recargar.
+      case 'inventario':
+        return _jsxDEV(
+          Inventario,
+          {
+            data: dataScopeed,
+            setData: d => setData(mergeScoped(data, typeof d === 'function' ? d(dataScopeed) : d, escuelaActiva)),
+            onAlertas: a => setData(prev => (prev ? { ...prev, inventario_alertas: a } : prev)),
+            user: user,
+            escuela: escuela
+          },
+          'inventario',
+          false
+        );
 
       case 'proveedores':
 
@@ -4366,6 +4398,9 @@ function App() {
 
 
 
+
+                                          // [OF-6] Contador de Inventario: productos agotados o con queda poco.
+                                          n.id === 'inventario' && ((dataScopeed.inventario_alertas?.agotados || 0) + (dataScopeed.inventario_alertas?.bajos || 0)) > 0 && _jsxDEV("span", { className: "nav-badge", style: { background: 'var(--red)' }, title: `${dataScopeed.inventario_alertas.agotados} agotado(s), ${dataScopeed.inventario_alertas.bajos} con queda poco`, children: (dataScopeed.inventario_alertas.agotados || 0) + (dataScopeed.inventario_alertas.bajos || 0) }, void 0, false),
 
                                           // * Badge de cobros.
 
