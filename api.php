@@ -26,6 +26,9 @@ require_once __DIR__ . '/lib/planes.php';
 // [F6] Monedero del alumno y tiendita (18-nov-2026). Libro mayor, acceso y
 // barrido de recargas pagadas: ver la cabecera de ese archivo.
 require_once __DIR__ . '/lib/helpers_monedero.php';
+// [OF-6] Inventario con existencias (20-nov-2026): libro de movimientos y
+// existencia cacheada de lo que el colegio vende físicamente. No mueve dinero.
+require_once __DIR__ . '/lib/helpers_inventario.php';
 // ── Secciones del menú que el super admin puede habilitar/deshabilitar por
 // colegio — fuente única de verdad (debe reflejar el mismo listado de ids
 // que NAV_ITEMS en assets/js/app.js para las secciones de admin/cajero).
@@ -50,6 +53,8 @@ const SECCIONES_DISPONIBLES = [
     // pestaña del portal de familia, y bloquea recargas y ventas (no las
     // consultas de saldo: apagar el módulo no le esconde a nadie su dinero).
     'monedero'      => 'Monedero y tiendita',
+    // [OF-6] Inventario con existencias (uniformes, material, tiendita).
+    'inventario'    => 'Inventario',
     // Control escolar (13-nov-2026). Ver lib/helpers_escolar.php.
     'escolar_grupos'         => 'Grupos y horarios',
     'escolar_asistencias'    => 'Asistencias',
@@ -850,6 +855,8 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         // Alumnos y familias.
         'crear_cliente', 'editar_cliente', 'toggle_cliente_activo', 'importar_alumnos', 'subir_foto_cliente',
         'crear_familia', 'editar_familia',
+        // [OF-5] Importar adeudos y saldos iniciales (analizar, aplicar, historial, deshacer).
+        'importar_saldos_analizar', 'importar_saldos_aplicar', 'importar_saldos_listar', 'importar_saldos_deshacer',
         // Ciclo de vida del alumno, becas y expediente.
         'alumno_cambiar_estatus', 'alumno_cobros_pendientes', 'alumno_movimientos_listar',
         'alumno_beca_desactivar', 'alumno_beca_guardar', 'alumno_becas_listar',
@@ -898,6 +905,11 @@ $ACCIONES_POR_ROL_PLATAFORMA = [
         'soporte_resumen', 'ayuda_listar', 'ayuda_novedades_vistas',
         // [OF-7b] Avisos push en este dispositivo (activar, quitar, probar).
         'push_llave_publica', 'push_suscribir', 'push_quitar', 'push_probar',
+        // [OF-6] Inventario con existencias (views/Inventario.js; solo admin). El
+        // cajero y la tienda ven las existencias dentro de cargar_datos y de
+        // tienda_productos_listar, que ya tienen en su lista.
+        'inventario_listar', 'inventario_activar', 'inventario_minimo', 'inventario_entrada',
+        'inventario_ajuste', 'inventario_conteo', 'inventario_movimientos', 'inventario_duplicar',
     ],
     // Cajero: caja y cobro del día, más consultar/dar de alta alumnos. NO ve
     // gastos, facturación en lote, catálogos, equipo ni configuración. Cada

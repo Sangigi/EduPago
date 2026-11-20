@@ -57,6 +57,16 @@
             // la migración): se guarda el concepto y se avisa.
             $avisoImp = 'El concepto se guardó, pero el IVA, la clave SAT y la unidad NO: falta correr la migración migracion_2026_11_19_of2_impuestos.sql.';
         }
+        // [OF-6] "Maneja existencias" (inventario). Se valida ANTES del INSERT, igual que el
+        // alcance: si no procede (categoría de servicio, recurrente, descuento o falta la
+        // migración) se corta sin dejar el concepto a medias. Solo se mira si el formulario
+        // lo manda en verdadero; un Productos.js viejo en caché no lo manda y no cambia nada.
+        $manejaInv = !empty($input['maneja_existencias']) && strval($input['maneja_existencias']) !== '0';
+        if ($manejaInv) {
+            if (!inventario_listo($pdo)) respond(['success' => false, 'error' => 'Para manejar existencias falta aplicar la migración de inventario (migracion_2026_11_20_of6_inventario.sql). Guarda el concepto sin esa casilla.']);
+            $razonInv = inventario_concepto_elegible($categoria, $rec['tipo'], $precio);
+            if ($razonInv !== null) respond(['success' => false, 'error' => $razonInv]);
+        }
         $stmt = $pdo->prepare(
             "INSERT INTO productos (escuela_id, nombre, categoria, precio, emoji, activo, tipo, periodicidad_meses, fecha_inicio, dia_ventana_inicio, dia_ventana_fin, penalizacion_tipo, penalizacion_valor$colsAlcance)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" . str_repeat(', ?', count($valsAlcance)) . ")"
@@ -67,9 +77,20 @@
             $rec['dia_ventana_inicio'], $rec['dia_ventana_fin'], $rec['penalizacion_tipo'], $rec['penalizacion_valor'],
         ], $valsAlcance));
         $id = intval($pdo->lastInsertId());
+        // [OF-6] Activa el control y deja listo su renglón de existencias (0).
+        if ($manejaInv) {
+            try {
+                inventario_fijar_control($pdo, $escuela_id, 'concepto', $id, true);
+            } catch (\Throwable $eInv) {
+                log_api("crear_producto: no se pudo activar el inventario del concepto #{$id}: " . $eInv->getMessage());
+                $manejaInv = false;
+                $avisoImp = trim(($avisoImp ? $avisoImp . ' ' : '') . 'El concepto se guardó, pero no se pudo activar el control de existencias: actívalo desde Inventario.');
+            }
+        }
         respond(['success' => true, 'producto' => array_merge([
             'id' => $id, 'escuela_id' => $escuela_id, 'nombre' => $nombre,
             'categoria' => $categoria, 'precio' => $precio, 'emoji' => $emoji, 'activo' => $activo,
+            'maneja_existencias' => $manejaInv ? 1 : 0, 'existencia' => $manejaInv ? 0 : null, // [OF-6]
         ], $rec, [
             // [F5] Ya como arreglo de enteros (cargar_datos lo manda como texto JSON;
             // Productos.js entiende las dos formas).

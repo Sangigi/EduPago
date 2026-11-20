@@ -63,7 +63,8 @@ function Productos({
     clave_sat: _CLAVE_SAT_DEFECTO,
     clave_unidad: 'E48',
     _impTocado: false,
-    _unidadOtra: false
+    _unidadOtra: false,
+    maneja_existencias: false // [OF-6]
   };
   const rolSesion = (typeof AuthController !== 'undefined' && AuthController.getSession && (AuthController.getSession() || {}).rol) || '';
   const [avisoCerrado, setAvisoCerrado] = useState(() => _prodAvisoCerrado(escuela_id));
@@ -151,6 +152,10 @@ function Productos({
     _impTocado: true,
     _unidadOtra: !!p.clave_unidad && !_UNIDADES_COMUNES.some(u => u.value === p.clave_unidad)
   });
+  // [OF-6] "Maneja existencias" solo para conceptos físicos y únicos (el servidor lo exige igual:
+  // inventario_concepto_elegible en lib/helpers_inventario.php). Una colegiatura o un servicio nunca.
+  const _CATS_FISICAS_INV = ['uniforme', 'material', 'comedor', 'otro'];
+  const elegibleInv = _CATS_FISICAS_INV.includes(form.categoria) && form.tipo !== 'recurrente' && !(Number(form.precio) < 0);
   const lista = data.productos.filter(p => !q || p.nombre.toLowerCase().includes(q.toLowerCase()) || p.categoria.toLowerCase().includes(q.toLowerCase()));
   const guardar = async () => {
     setErrForm('');
@@ -173,7 +178,10 @@ function Productos({
     if (!/^[0-9]{8}$/.test(claveSat)) return setErrForm('La clave SAT debe tener exactamente 8 dígitos (por ejemplo 86101800).');
     if (!/^[A-Z0-9]{2,3}$/.test(unidad)) return setErrForm('La unidad debe ser una clave SAT de 2 o 3 caracteres (por ejemplo E48 o H87).');
     const { _impTocado, _unidadOtra, ...formLimpio } = form;
-    const payload = { ...formLimpio, clave_sat: claveSat, clave_unidad: unidad, alcance: alcanceEnvio, alcance_ids: alcanceEnvio === 'todos' ? [] : idsForm };
+    // [OF-6] Solo se manda la casilla si el concepto es físico (o ya la traía): un concepto que no
+    // es elegible nunca queda con existencias, y un formulario sin la clave no toca el control.
+    const payloadInv = (form.maneja_existencias === undefined && !elegibleInv) ? {} : { maneja_existencias: elegibleInv ? !!form.maneja_existencias : false };
+    const payload = { ...formLimpio, clave_sat: claveSat, clave_unidad: unidad, alcance: alcanceEnvio, alcance_ids: alcanceEnvio === 'todos' ? [] : idsForm, ...payloadInv };
     setGuardando(true);
     let lastAviso = ''; // [OF-2] aviso del servidor (p. ej. falta correr la migración)
     try {
@@ -538,7 +546,21 @@ function Productos({
                 }
               }, void 0, false)]
             }, void 0, true)]
-          }, void 0, true), /*#__PURE__*/_jsxDEV("div", {
+          }, void 0, true), elegibleInv && /*#__PURE__*/_jsxDEV("div", {
+            // [OF-6] Inventario: solo conceptos físicos (uniforme, material, comedor, otro) y únicos.
+            style: { marginTop: 12, padding: 12, border: '1px solid var(--border, #e5e7eb)', borderRadius: 'var(--radius-sm)' },
+            children: [/*#__PURE__*/_jsxDEV("label", {
+              style: { display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' },
+              children: [/*#__PURE__*/_jsxDEV("input", {
+                type: "checkbox",
+                checked: !!form.maneja_existencias,
+                onChange: e => setForm(f => ({ ...f, maneja_existencias: e.target.checked }))
+              }, 'c', false), "Maneja existencias (inventario)"]
+            }, 'l', true), /*#__PURE__*/_jsxDEV("div", {
+              style: { fontSize: 11, color: 'var(--ink-4)', marginTop: 6, lineHeight: 1.4 },
+              children: "Las ventas en Caja descuentan piezas y verás \"Agotado\" en rojo (sin bloquear la venta). Cada talla es su propio concepto (\"Playera deportiva T8\"). La existencia se captura y se cuenta en Inventario; el concepto de una colegiatura o un servicio nunca la maneja."
+            }, 'n', false)]
+          }, 'inv', true), /*#__PURE__*/_jsxDEV("div", {
             // [OF-2] Datos fiscales del concepto (cómo se desglosa en la factura).
             style: { marginTop: 12, padding: 12, border: '1px solid var(--border, #e5e7eb)', borderRadius: 'var(--radius-sm)' },
             children: [/*#__PURE__*/_jsxDEV("div", {

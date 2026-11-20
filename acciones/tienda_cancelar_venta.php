@@ -56,6 +56,10 @@ try {
         ->execute([$ctx['user_id'], $venta_id]);
     $pdo->commit();
 
+    // [OF-6] Inventario: lo que esa venta descontó regresa a la existencia (movimiento
+    // 'devolucion', idem 'devol_tienda:<venta>:<producto>'). Después del commit; nunca lanza.
+    inventario_devolver_documento($pdo, $ctx['escuela_id'], 'tienda', $venta_id, $ctx['user_id'], $motivo);
+
     registrar_log($pdo, $usuario_actual, 'tienda_venta_cancelada',
         "Venta #{$venta_id} cancelada (\$" . number_format(floatval($v['total']), 2) . ")" . ($motivo !== '' ? ": {$motivo}" : ''), $ctx['escuela_id']);
     respond(['success' => true, 'venta' => ['id' => $venta_id, 'estado' => 'cancelada'], 'saldo_despues' => $mov['saldo_despues']]);

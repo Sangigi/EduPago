@@ -30,6 +30,8 @@ require_once $RAIZ . '/lib/helpers_becas.php';
 require_once $RAIZ . '/lib/helpers_pagos.php';
 require_once $RAIZ . '/lib/helpers_monedero.php';
 require_once $RAIZ . '/lib/helpers_soporte.php'; // [OF-7a] reglas puras de tickets y ayuda
+require_once $RAIZ . '/lib/helpers_importar_saldos.php'; // [OF-5]
+require_once $RAIZ . '/lib/helpers_inventario.php'; // [OF-6]
 
 // ════════════════════════════════════════════════════════════════════════
 // Mini corredor
@@ -833,6 +835,498 @@ prueba('push: límite de tasa por ventana (y no bloquea si no puede escribir)', 
         foreach (glob($dir . '/*') ?: [] as $f) @unlink($f);
         @rmdir($dir);
     }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// [OF-5] Importar adeudos y saldos iniciales (lib/helpers_importar_saldos.php)
+// ════════════════════════════════════════════════════════════════════════
+
+prueba('importar: codificación — UTF-8, UTF-8 con BOM, Windows-1252 y UTF-16', function () {
+    [$t, $c] = importar_a_utf8("Matrícula;Monto\nA1;100");
+    igual(['Matrícula;Monto' . "\n" . 'A1;100', 'UTF-8'], [$t, $c]);
+    [$t, $c] = importar_a_utf8("\xEF\xBB\xBFMatrícula");
+    igual(['Matrícula', 'UTF-8'], [$t, $c], 'el BOM se quita');
+    // "Matrícula" y "Niño" guardados por Excel en Windows (Windows-1252): í = 0xED, ñ = 0xF1 — no es UTF-8 válido.
+    [$t, $c] = importar_a_utf8("Matr\xEDcula Ni\xF1o");
+    igual(['Matrícula Niño', 'Windows-1252'], [$t, $c]);
+    [$t, $c] = importar_a_utf8("\xFF\xFE" . mb_convert_encoding("Año", 'UTF-16LE', 'UTF-8'));
+    igual(['Año', 'UTF-16LE'], [$t, $c]);
+});
+
+prueba('importar: separador — coma, punto y coma, tabulador, e ignora lo que está entre comillas', function () {
+    igual(',',  importar_detectar_separador("matricula,monto,concepto\nA1,100,Colegiatura"));
+    igual(';',  importar_detectar_separador("matricula;monto;concepto\nA1;100,50;Colegiatura"), 'la coma decimal no debe ganar');
+    igual("\t", importar_detectar_separador("matricula\tmonto\nA1\t100"));
+    igual(',',  importar_detectar_separador("\"a;b;c\",monto\nx,1"), 'los ; entre comillas no cuentan');
+    igual(',',  importar_detectar_separador("solo_una_columna\nA1"), 'sin separador: coma');
+    igual(';',  importar_detectar_separador("\n\n  \nmatricula;monto"), 'salta líneas en blanco');
+});
+
+prueba('importar: CSV — comillas, saltos de línea dentro de una celda, filas en blanco conservadas', function () {
+    [$f, $sep, $cod, $exc] = importar_parsear_csv("matricula;concepto;monto\r\nA1;\"Colegiatura; septiembre\";\"1,500.00\"\r\n\r\nA2;\"Uni\nforme\";200\r\n");
+    igual(';', $sep); igual(false, $exc);
+    igual(['matricula', 'concepto', 'monto'], $f[0]);
+    igual(['A1', 'Colegiatura; septiembre', '1,500.00'], $f[1]);
+    igual([], $f[2], 'la línea en blanco conserva su lugar');
+    igual('Uni Forme', str_replace('Uni forme', 'Uni Forme', $f[3][1]), 'el salto dentro de comillas se vuelve espacio');
+});
+
+prueba('importar: encabezados — sin importar mayúsculas, acentos ni signos', function () {
+    igual('matricula', importar_normalizar_encabezado('  MATRÍCULA  '));
+    igual('fecha de emision', importar_normalizar_encabezado('Fecha_de-Emisión'));
+    igual('matricula', importar_campo_de_encabezado('Matrícula'));
+    igual('matricula', importar_campo_de_encabezado('NÚMERO DE MATRÍCULA'));
+    igual('monto',   importar_campo_de_encabezado('Importe'));
+    igual('abonado', importar_campo_de_encabezado('Pagado'));
+    igual('vence',   importar_campo_de_encabezado('Fecha de vencimiento'));
+    igual('folio',   importar_campo_de_encabezado('Folio externo'));
+    igual(null,      importar_campo_de_encabezado('Teléfono'));
+    igual(null,      importar_campo_de_encabezado(''));
+});
+
+prueba('importar: detectar columnas por nombre (no por posición) y una columna no sirve para dos campos', function () {
+    $m = importar_detectar_columnas(['Folio', 'Fecha', 'Concepto', 'MONTO', 'Abonado', 'Matrícula', 'Vence', 'Teléfono']);
+    igual(5, $m['matricula']); igual(2, $m['concepto']); igual(3, $m['monto']); igual(4, $m['abonado']);
+    igual(1, $m['fecha']); igual(6, $m['vence']); igual(0, $m['folio']); igual(null, $m['alumno']);
+    // "Total" gana sobre "Saldo" para el monto; "Saldo" queda sin mapear (el admin lo ajusta a mano).
+    $m = importar_detectar_columnas(['Alumno', 'Saldo', 'Total']);
+    igual(2, $m['monto']); igual(0, $m['alumno']);
+    // El mapeo manual rechaza columnas fuera de rango y repetidas.
+    [$mm, $e] = importar_limpiar_mapeo(['matricula' => 0, 'monto' => 9], 3);
+    afirmar($e !== null, 'columna inexistente');
+    [$mm, $e] = importar_limpiar_mapeo(['matricula' => 1, 'monto' => 1], 3);
+    afirmar($e !== null, 'misma columna dos veces');
+    [$mm, $e] = importar_limpiar_mapeo(['matricula' => '0', 'monto' => '2', 'abonado' => '', 'fecha' => '-1', 'falso' => 1], 3);
+    igual(null, $e); igual([0, 2, null, null], [$mm['matricula'], $mm['monto'], $mm['abonado'], $mm['fecha']]);
+});
+
+prueba('importar: montos → centavos (formatos de miles y decimales, y lo que NO es dinero)', function () {
+    foreach ([['1500', 150000], ['1500.5', 150050], ['$1,500.00', 150000], ['1,500', 150000], ['1.500', 150000],
+              ['1.500,50', 150050], ['1,500.50', 150050], ['1500,50', 150050], ['0.50', 50], ['0,5', 50],
+              ['1 500', 150000], ['MXN 2,000.00', 200000], ['12,345,678.90', 1234567890], ['  800 ', 80000], ['100.000', 10000000]] as [$txt, $c]) {
+        igual($c, importar_monto_a_centavos($txt), "'$txt'");
+    }
+    foreach (['', 'abc', '-100', '1,2,3x', '12.3456', '$', '.', '1e5', '(100)'] as $mal) {
+        igual(null, importar_monto_a_centavos($mal), "'$mal' no es un monto");
+    }
+    igual(150000, importar_monto_a_centavos(1500));
+    igual(150050, importar_monto_a_centavos(1500.5));
+    igual(null, importar_monto_a_centavos(-1.0));
+    igual(null, importar_monto_a_centavos(12.345), 'un número de Excel con 3 decimales no se redondea en silencio');
+    igual(1999, importar_monto_a_centavos(19.99), 'sin error de coma flotante');
+});
+
+prueba('importar: fechas — día primero, ISO, 2 dígitos de año y fecha-hora de XLSX', function () {
+    igual('2026-09-05', importar_fecha_iso('05/09/2026'));
+    igual('2026-09-05', importar_fecha_iso('5-9-26'));
+    igual('2026-09-05', importar_fecha_iso('2026-09-05'));
+    igual('2026-09-05', importar_fecha_iso('2026/9/5'));
+    igual('2026-09-05', importar_fecha_iso('2026-09-05 00:00:00'));
+    igual(null, importar_fecha_iso('31/02/2026'), '31 de febrero');
+    igual(null, importar_fecha_iso('13/13/2026'));
+    igual(null, importar_fecha_iso('septiembre'));
+    igual(null, importar_fecha_iso(''));
+});
+
+prueba('importar: pendiente = monto − abonado, y sus casos límite', function () {
+    igual([150000, null], importar_pendiente_centavos(150000, 0));
+    igual([50000, null], importar_pendiente_centavos(150000, 100000));
+    igual([0, null], importar_pendiente_centavos(150000, 150000), 'saldo 0: no es error, se omite');
+    igual([0, 'abonado_mayor'], importar_pendiente_centavos(100000, 100001));
+});
+
+prueba('importar: huella — estable, sensible a cada dato, insensible a mayúsculas/acentos y a la fecha de "hoy"', function () {
+    $h = importar_huella(7, 42, 'Colegiatura Septiembre', 150000, '2026-09-01', 'F-1');
+    igual(40, strlen($h));
+    igual($h, importar_huella(7, 42, '  colegiatura SEPTIEMBRE ', 150000, '2026-09-01', ' f-1 '), 'mismo renglón escrito distinto');
+    afirmar($h !== importar_huella(8, 42, 'Colegiatura Septiembre', 150000, '2026-09-01', 'F-1'), 'otra escuela');
+    afirmar($h !== importar_huella(7, 43, 'Colegiatura Septiembre', 150000, '2026-09-01', 'F-1'), 'otro alumno');
+    afirmar($h !== importar_huella(7, 42, 'Colegiatura Octubre', 150000, '2026-09-01', 'F-1'), 'otro concepto');
+    afirmar($h !== importar_huella(7, 42, 'Colegiatura Septiembre', 150001, '2026-09-01', 'F-1'), 'otro monto');
+    afirmar($h !== importar_huella(7, 42, 'Colegiatura Septiembre', 150000, '2026-09-02', 'F-1'), 'otra fecha');
+    afirmar($h !== importar_huella(7, 42, 'Colegiatura Septiembre', 150000, '2026-09-01', 'F-2'), 'otro folio');
+});
+
+// Tabla de ejemplo: [numero_en_archivo, celdas...] con encabezados Matricula, Alumno, Concepto, Monto, Abonado, Fecha, Vence, Folio
+function _of5_tabla(array $filas): array
+{
+    $t = ['encabezados' => ['Matrícula', 'Alumno', 'Concepto', 'Monto', 'Abonado', 'Fecha', 'Vence', 'Folio'], 'filas' => []];
+    foreach ($filas as $i => $celdas) $t['filas'][] = [$i + 2, $celdas];
+    return $t;
+}
+function _of5_plan(array $filas, array $opc = []): array
+{
+    $alumnos = $opc['alumnos'] ?? [
+        ['id' => 1, 'nombre' => 'Ana López Pérez', 'matricula' => '0123', 'activo' => 1],
+        ['id' => 2, 'nombre' => 'Beto Ruiz', 'matricula' => 'B-77', 'activo' => 0],
+        ['id' => 3, 'nombre' => 'Carla Soto', 'matricula' => '', 'activo' => 1],
+        ['id' => 4, 'nombre' => 'Dani Gil', 'matricula' => 'X1', 'activo' => 1],
+        ['id' => 5, 'nombre' => 'Dani Gil', 'matricula' => 'X2', 'activo' => 1],
+    ];
+    $productos = $opc['productos'] ?? [
+        ['id' => 10, 'nombre' => 'Colegiatura', 'categoria' => 'colegiatura', 'activo' => 1],
+        ['id' => 11, 'nombre' => 'Uniforme deportivo', 'categoria' => 'uniforme', 'activo' => 1],
+        ['id' => 12, 'nombre' => 'Inscripción', 'categoria' => 'inscripcion', 'activo' => 0],
+    ];
+    $tabla = _of5_tabla($filas);
+    $mapeo = $opc['mapeo'] ?? importar_detectar_columnas($tabla['encabezados']);
+    $ya = $opc['ya'] ?? [];
+    return importar_construir_plan($tabla, $mapeo, 7, $alumnos, $productos, $opc['eleccion'] ?? [],
+        function (array $hs) use ($ya) { $o = []; foreach ($hs as $h) if (isset($ya[$h])) $o[$h] = true; return $o; }, '2026-11-19');
+}
+
+prueba('importar: plan — renglón correcto (por matrícula sin ceros, abonado, fechas) y totales', function () {
+    $p = _of5_plan([['123', '', 'Colegiatura septiembre', '1,500.00', '500', '01/09/2026', '10/09/2026', 'F-9']]);
+    igual(null, $p['error']);
+    $f = $p['filas'][0];
+    igual('ok', $f['estado']);
+    igual(1, $f['alumno_id'], 'la matrícula 0123 se encontró aunque Excel le quitó el cero');
+    igual([150000, 50000, 100000], [$f['monto_original_c'], $f['abonado_c'], $f['pendiente_c']]);
+    igual(['2026-09-01', '2026-09-10', 'F-9'], [$f['fecha_emision'], $f['vence'], $f['folio_externo']]);
+    igual(1, $p['totales']['a_importar']); igual(100000, $p['totales']['monto_c']); igual(50000, $p['totales']['abonado_c']);
+});
+
+prueba('importar: plan — alumno por nombre, inactivo con advertencia, y alumno no encontrado', function () {
+    $p = _of5_plan([
+        ['', 'Carla Soto', 'Colegiatura', '800', '', '', '', ''],
+        ['B-77', '', 'Colegiatura', '800', '', '', '', ''],
+        ['ZZZ', '', 'Colegiatura', '800', '', '', '', ''],
+        ['', 'Dani Gil', 'Colegiatura', '800', '', '', '', ''],
+        ['', '', 'Colegiatura', '800', '', '', '', ''],
+        ['0123', 'Otra Persona', 'Colegiatura', '800', '', '', '', ''],
+        ['NOEXISTE', 'carla  SOTO', 'Colegiatura', '801', '', '', '', ''],
+    ]);
+    $f = $p['filas'];
+    igual(['ok', 3], [$f[0]['estado'], $f[0]['alumno_id']]);
+    igual('ok', $f[1]['estado']); igual(false, $f[1]['alumno_activo']);
+    afirmar(strpos(implode(' ', $f[1]['advertencias']), 'inactivo') !== false, 'advertencia de inactivo');
+    igual('error', $f[2]['estado']);
+    afirmar(strpos($f[2]['errores'][0], 'no encontrado') !== false);
+    igual('error', $f[3]['estado'], 'dos alumnos con el mismo nombre: ambiguo');
+    igual('error', $f[4]['estado'], 'sin matrícula ni nombre');
+    igual('ok', $f[5]['estado']); afirmar($f[5]['advertencias'] !== [], 'el nombre del archivo no coincide con el de la matrícula');
+    igual(['ok', 3], [$f[6]['estado'], $f[6]['alumno_id']], 'matrícula inexistente: se ubica por nombre y avisa');
+    afirmar($f[6]['advertencias'] !== []);
+});
+
+prueba('importar: plan — montos inválidos, abonado mayor, saldo 0 y renglones en blanco', function () {
+    $p = _of5_plan([
+        ['0123', '', 'A', 'mucho', '', '', '', ''],
+        ['0123', '', 'B', '', '', '', '', ''],
+        ['0123', '', 'C', '-50', '', '', '', ''],
+        ['0123', '', 'D', '100', '150', '', '', ''],
+        ['0123', '', 'E', '100', '100', '', '', ''],
+        ['', '', '', '', '', '', '', ''],
+        ['0123', '', 'F', '100', 'x', '', '', ''],
+        ['0123', '', 'G', '100', '', '31/02/2026', '', ''],
+        ['0123', '', 'H', '100', '', '', 'no-fecha', ''],
+    ]);
+    $e = array_column($p['filas'], 'estado');
+    igual(['error', 'error', 'error', 'error', 'omitida', 'error', 'error', 'ok'], $e, 'el renglón en blanco ni aparece');
+    igual('saldo_cero', $p['filas'][4]['motivo']);
+    igual(1, $p['totales']['saldo_cero']); igual(6, $p['totales']['errores']); igual(1, $p['totales']['a_importar']);
+    igual(null, $p['filas'][7]['vence'], 'un vencimiento ilegible solo avisa');
+    afirmar($p['filas'][7]['advertencias'] !== []);
+});
+
+prueba('importar: plan — repetidos del mismo archivo y "ya importado" por huella; el default de fecha no cambia la huella', function () {
+    $fila = ['0123', '', 'Colegiatura', '1500', '', '', '', ''];
+    $p = _of5_plan([$fila, $fila, ['0123', '', 'Colegiatura', '1500', '', '', '', 'F-2']]);
+    igual(['ok', 'omitida', 'ok'], array_column($p['filas'], 'estado'));
+    igual('repetida', $p['filas'][1]['motivo']); igual(2, $p['filas'][1]['duplicada_de'], 'apunta al renglón del archivo');
+    igual(1, $p['totales']['repetidas']);
+    // Con folio distinto ya no es repetido.
+    // Ya importado: se simula con la huella del primer renglón.
+    $h = $p['filas'][0]['huella'];
+    $p2 = _of5_plan([$fila, ['0123', '', 'Otro', '10', '', '', '', '']], ['ya' => [$h => true]]);
+    igual(['omitida', 'ok'], array_column($p2['filas'], 'estado'));
+    igual('ya_importada', $p2['filas'][0]['motivo']); igual(1, $p2['totales']['ya_importadas']);
+    // Subir el mismo archivo "mañana" (sin columna fecha) da la MISMA huella.
+    $p3 = importar_construir_plan(_of5_tabla([$fila]), importar_detectar_columnas(_of5_tabla([])['encabezados']), 7,
+        [['id' => 1, 'nombre' => 'Ana', 'matricula' => '0123', 'activo' => 1]], [], [], function () { return []; }, '2026-11-20');
+    igual($h, $p3['filas'][0]['huella']);
+});
+
+prueba('importar: plan — faltan columnas obligatorias', function () {
+    $t = ['encabezados' => ['Concepto', 'Algo'], 'filas' => [[2, ['x', 'y']]]];
+    $p = importar_construir_plan($t, importar_detectar_columnas($t['encabezados']), 7, [], [], [], function () { return []; }, '2026-11-19');
+    afirmar($p['error'] !== null); igual(['matricula', 'monto'], $p['columnas_faltantes']); igual([], $p['filas']);
+});
+
+prueba('importar: sugerencia de producto — nombre, parecido, categoría, activos y sin coincidencia', function () {
+    $prods = [
+        ['id' => 10, 'nombre' => 'Colegiatura', 'categoria' => 'colegiatura', 'activo' => 1],
+        ['id' => 11, 'nombre' => 'Uniforme deportivo', 'categoria' => 'uniforme', 'activo' => 1],
+        ['id' => 12, 'nombre' => 'Inscripción', 'categoria' => 'inscripcion', 'activo' => 0],
+        ['id' => 13, 'nombre' => 'Material escolar', 'categoria' => 'material', 'activo' => 1],
+    ];
+    igual(10, importar_sugerir_producto('COLEGIATURA', $prods)['producto_id']);
+    igual('mismo nombre', importar_sugerir_producto('colegiatura', $prods)['motivo']);
+    igual(10, importar_sugerir_producto('Colegiatura septiembre 2026', $prods)['producto_id']);
+    igual(11, importar_sugerir_producto('Uniforme', $prods)['producto_id']);
+    igual(13, importar_sugerir_producto('Materiales', $prods)['producto_id'] ?? 13, 'palabra distinta no debe romper');
+    igual(null, importar_sugerir_producto('Inscripción 2026', $prods), 'un concepto dado de baja no se sugiere');
+    igual(null, importar_sugerir_producto('Excursión al museo', $prods));
+    igual(null, importar_sugerir_producto('Saldo inicial', $prods), 'el concepto genérico no se liga solo');
+    igual(null, importar_sugerir_producto('', $prods));
+    // Por categoría con varios candidatos: avisa que revise.
+    $dos = [['id' => 1, 'nombre' => 'Colegiatura Primaria', 'categoria' => 'colegiatura', 'activo' => 1],
+            ['id' => 2, 'nombre' => 'Colegiatura Secundaria', 'categoria' => 'colegiatura', 'activo' => 1]];
+    $s = importar_sugerir_producto('Pago de colegiatura sep', $dos);
+    igual(1, $s['producto_id']); afirmar(strpos($s['motivo'], 'revisa') !== false, $s['motivo']);
+});
+
+prueba('importar: plan — conceptos distintos, sugerencia y elección (solo productos de la escuela; 0 = sin ligar)', function () {
+    $filas = [
+        ['0123', '', 'Colegiatura septiembre', '1000', '', '', '', ''],
+        ['B-77', '', 'colegiatura  SEPTIEMBRE', '1000', '', '', '', ''],
+        ['X1', '', 'Excursión', '300', '', '', '', ''],
+    ];
+    $p = _of5_plan($filas);
+    igual(2, count($p['conceptos']));
+    igual(2, $p['conceptos'][0]['filas']); igual(200000, $p['conceptos'][0]['monto_c']);
+    igual(10, $p['conceptos'][0]['sugerencia']['producto_id']);
+    igual(null, $p['conceptos'][0]['producto_id'], 'sin elección explícita no se liga solo');
+    $clave = $p['conceptos'][0]['clave'];
+    $p = _of5_plan($filas, ['eleccion' => [$clave => 10, 'excursion' => 999]]);
+    igual([10, 10, null], array_column($p['filas'], 'producto_id'), 'el producto 999 no es de la escuela: se ignora');
+    $p = _of5_plan($filas, ['eleccion' => [$clave => 0]]);
+    igual([null, null, null], array_column($p['filas'], 'producto_id'));
+});
+
+prueba('importar: nota del cobro importado', function () {
+    igual('Saldo inicial importado (original $1,500.00, abonado $500.00)', importar_nota_saldo_inicial(150000, 50000));
+});
+
+prueba('importar: archivo CSV completo (Windows-1252, punto y coma) hasta el plan', function () {
+    $csv = "Matr\xEDcula;Concepto;Monto;Abonado;Fecha\r\n0123;Colegiatura;\"1,500.00\";500;01/09/2026\r\nB-77;Uniforme;800;;\r\n";
+    $tmp = tempnam(sys_get_temp_dir(), 'of5');
+    file_put_contents($tmp, $csv);
+    $r = importar_leer_archivo($tmp, 'saldos.csv');
+    unlink($tmp);
+    igual(true, $r['ok'], (string) $r['error']);
+    igual([';', 'Windows-1252', 'csv'], [$r['separador'], $r['codificacion'], $r['formato']]);
+    igual('Matrícula', $r['tabla']['encabezados'][0]);
+    igual(2, count($r['tabla']['filas'])); igual(2, $r['tabla']['filas'][0][0], 'el número de fila es el del archivo');
+    $m = importar_detectar_columnas($r['tabla']['encabezados']);
+    igual([0, 1, 2, 3, 4], [$m['matricula'], $m['concepto'], $m['monto'], $m['abonado'], $m['fecha']]);
+});
+
+prueba('importar: archivo — extensión, firma y límites', function () {
+    $tmp = tempnam(sys_get_temp_dir(), 'of5');
+    file_put_contents($tmp, "a,b\n1,2\n");
+    $r = importar_leer_archivo($tmp, 'x.pdf'); igual(false, $r['ok']);
+    $r = importar_leer_archivo($tmp, 'x.xls'); igual(false, $r['ok']); afirmar(strpos($r['error'], '.xlsx') !== false);
+    $r = importar_leer_archivo($tmp, 'x.xlsx'); igual(false, $r['ok'], 'un CSV renombrado a xlsx no pasa');
+    file_put_contents($tmp, "\x00\x01\x02binario");
+    $r = importar_leer_archivo($tmp, 'x.csv'); igual(false, $r['ok'], 'binario con extensión csv');
+    file_put_contents($tmp, '');
+    $r = importar_leer_archivo($tmp, 'x.csv'); igual(false, $r['ok']);
+    file_put_contents($tmp, "matricula,monto\n" . str_repeat("A,1\n", IMPORTAR_MAX_FILAS + 1));
+    $r = importar_leer_archivo($tmp, 'x.csv'); igual(false, $r['ok'], 'más de 5,000 renglones'); afirmar(strpos($r['error'], '5,000') !== false);
+    file_put_contents($tmp, "matricula,monto\n" . str_repeat("A,1\n", IMPORTAR_MAX_FILAS));
+    $r = importar_leer_archivo($tmp, 'x.csv'); igual(true, $r['ok'], 'exactamente 5,000 renglones sí');
+    file_put_contents($tmp, "\n\n,,\n");
+    $r = importar_leer_archivo($tmp, 'x.csv'); igual(false, $r['ok'], 'sin datos');
+    unlink($tmp);
+});
+
+prueba('importar: XLSX mínimo (solo si PHP trae zip): celdas vacías, texto compartido, fecha y número', function () {
+    if (!importar_puede_xlsx()) return; // sin ZipArchive el servidor responde "guárdalo como CSV": ya lo prueba la de arriba
+    $tmp = tempnam(sys_get_temp_dir(), 'of5') . '.xlsx';
+    $z = new ZipArchive();
+    $z->open($tmp, ZipArchive::CREATE);
+    $z->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>');
+    $z->addFromString('xl/workbook.xml', '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Datos" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $z->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>');
+    $z->addFromString('xl/sharedStrings.xml', '<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t>Matrícula</t></si><si><t>Monto</t></si><si><t>Fecha</t></si><si><t>Colegiatura</t></si></sst>');
+    $z->addFromString('xl/styles.xml', '<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>');
+    // Fila 1 encabezados; fila 3 (la 2 en blanco); la celda B3 vacía (Excel la omite); fecha serie 46266 = 2026-09-01.
+    $z->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+        . '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c></row>'
+        . '<row r="3"><c r="A3"><v>20240001</v></c><c r="C3" s="1"><v>46266</v></c><c r="D3" t="s"><v>3</v></c></row>'
+        . '<row r="4"><c r="A4" t="inlineStr"><is><t>B-77</t></is></c><c r="B4"><v>1500.5</v></c></row>'
+        . '</sheetData></worksheet>');
+    $z->close();
+    $r = importar_leer_archivo($tmp, 'x.xlsx');
+    unlink($tmp);
+    igual(true, $r['ok'], (string) $r['error']);
+    igual(['Matrícula', 'Monto', 'Fecha', 'Colegiatura'], $r['tabla']['encabezados']);
+    igual(3, count($r['tabla']['filas']), 'la fila 2 en blanco conserva su lugar');
+    igual([2, []], $r['tabla']['filas'][0]);
+    igual(3, $r['tabla']['filas'][1][0], 'número de fila del archivo');
+    igual('20240001', importar_celda_texto($r['tabla']['filas'][1][1][0]));
+    igual('2026-09-01', importar_fecha_iso($r['tabla']['filas'][1][1][2]));
+    igual(150050, importar_monto_a_centavos($r['tabla']['filas'][2][1][1]));
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// [OF-6] Inventario con existencias (lib/helpers_inventario.php) — funciones puras
+// ════════════════════════════════════════════════════════════════════════
+
+prueba('inventario: cantidad de entrada válida (entero positivo, con tope)', function () {
+    igual(5, inventario_cantidad_valida(5));
+    igual(5, inventario_cantidad_valida('5'));
+    igual(12, inventario_cantidad_valida(' 12 '));
+    igual(null, inventario_cantidad_valida(0), 'cero no es una entrada');
+    igual(null, inventario_cantidad_valida(-3));
+    igual(null, inventario_cantidad_valida('2.5'), 'sin decimales: son piezas');
+    igual(null, inventario_cantidad_valida('abc'));
+    igual(null, inventario_cantidad_valida(null));
+    igual(null, inventario_cantidad_valida(INVENTARIO_CANTIDAD_MAX + 1));
+    igual(INVENTARIO_CANTIDAD_MAX, inventario_cantidad_valida(INVENTARIO_CANTIDAD_MAX));
+});
+
+prueba('inventario: lo contado admite cero pero no negativos ni vacíos', function () {
+    igual(0, inventario_contado_valido(0));
+    igual(0, inventario_contado_valido('0'));
+    igual(37, inventario_contado_valido('37'));
+    igual(null, inventario_contado_valido(''), 'vacío = no se contó');
+    igual(null, inventario_contado_valido(null));
+    igual(null, inventario_contado_valido(-1));
+    igual(null, inventario_contado_valido('1.5'));
+    igual(null, inventario_contado_valido(INVENTARIO_CONTADO_MAX + 1));
+});
+
+prueba('inventario: el ajuste lleva signo y no puede ser cero', function () {
+    igual(3, inventario_ajuste_valido(3));
+    igual(-2, inventario_ajuste_valido('-2'));
+    igual(null, inventario_ajuste_valido(0));
+    igual(null, inventario_ajuste_valido('x'));
+    igual(null, inventario_ajuste_valido(INVENTARIO_CANTIDAD_MAX + 1));
+    igual(-INVENTARIO_CANTIDAD_MAX, inventario_ajuste_valido(-INVENTARIO_CANTIDAD_MAX));
+});
+
+prueba('inventario: costo unitario opcional, en centavos', function () {
+    igual([true, null], inventario_costo_valido(null));
+    igual([true, null], inventario_costo_valido(''));
+    igual([true, 12050], inventario_costo_valido('120.50'));
+    igual([true, 12050], inventario_costo_valido(120.5));
+    igual([true, 0], inventario_costo_valido(0), 'costo cero es un costo (regalo, donación)');
+    igual([true, 123456], inventario_costo_valido('1,234.56'));
+    igual([false, null], inventario_costo_valido(-1));
+    igual([false, null], inventario_costo_valido('mucho'));
+    igual([false, null], inventario_costo_valido(1000000));
+    igual([true, 1999], inventario_costo_valido('19.99'), 'sin error de float');
+});
+
+prueba('inventario: cambio de existencia con signo por tipo de movimiento', function () {
+    igual(5, inventario_delta('entrada', 5));
+    igual(-4, inventario_delta('venta', 4));
+    igual(-4, inventario_delta('venta', -4), 'la venta siempre resta aunque llegue con signo');
+    igual(3, inventario_delta('devolucion', 3));
+    igual(-2, inventario_delta('ajuste', -2));
+    igual(7, inventario_delta('ajuste', 7));
+    igual(-9, inventario_delta('conteo', -9));
+    $lanzo = false;
+    try { inventario_delta('regalo', 1); } catch (InventarioError $e) { $lanzo = true; }
+    afirmar($lanzo, 'un movimiento desconocido debe lanzar');
+});
+
+prueba('inventario: estado agotado / bajo / ok (los negativos cuentan como agotado)', function () {
+    igual('agotado', inventario_estado(0, 5));
+    igual('agotado', inventario_estado(-3, 0), 'negativo = agotado');
+    igual('agotado', inventario_estado(0, 0));
+    igual('bajo', inventario_estado(5, 5), 'igual al mínimo ya es poco');
+    igual('bajo', inventario_estado(2, 5));
+    igual('ok', inventario_estado(6, 5));
+    igual('ok', inventario_estado(1, 0), 'sin mínimo (0) no avisa de poco');
+});
+
+prueba('inventario: el carrito de Caja se junta por producto', function () {
+    igual([10 => 3, 11 => 1], inventario_agrupar_carrito([
+        ['id' => 10, 'qty' => 2, 'nombre' => 'Playera T8'], ['id' => 11, 'qty' => 1], ['id' => 10, 'qty' => 1],
+    ]));
+    igual([], inventario_agrupar_carrito([['id' => 0, 'qty' => 2], ['id' => 5, 'qty' => 0], ['qty' => 3], 'basura']), 'renglones sin id o sin piezas se ignoran');
+    igual([7 => 1], inventario_agrupar_carrito([['id' => '7']]), 'sin qty cuenta como una pieza (igual que crear_cobro)');
+    igual([], inventario_agrupar_carrito(null));
+    igual([], inventario_agrupar_carrito([['id' => 3, 'qty' => -2]]), 'cantidades negativas no suman piezas');
+});
+
+prueba('inventario: qué conceptos pueden manejar existencias', function () {
+    igual(null, inventario_concepto_elegible('uniforme', 'unico', 450));
+    igual(null, inventario_concepto_elegible('material', 'unico', 0));
+    igual(null, inventario_concepto_elegible('otro', 'unico', 20));
+    afirmar(inventario_concepto_elegible('colegiatura', 'unico', 1500) !== null, 'la colegiatura nunca');
+    afirmar(inventario_concepto_elegible('inscripcion', 'unico', 800) !== null);
+    afirmar(inventario_concepto_elegible('beca', 'unico', 100) !== null);
+    afirmar(inventario_concepto_elegible('transporte', 'unico', 100) !== null);
+    afirmar(inventario_concepto_elegible('uniforme', 'recurrente', 450) !== null, 'un recurrente no maneja existencias');
+    afirmar(inventario_concepto_elegible('uniforme', 'unico', -50) !== null, 'un descuento no maneja existencias');
+    afirmar(inventario_concepto_elegible('', 'unico', 5) !== null);
+});
+
+prueba('inventario: llaves de idempotencia determinísticas y dentro de 80 caracteres', function () {
+    igual('venta_cobro:123:45', inventario_idem_documento('venta', 'concepto', 123, 45));
+    igual('devol_cobro:123:45', inventario_idem_documento('devolucion', 'concepto', 123, 45));
+    igual('venta_tienda:9:3', inventario_idem_documento('venta', 'tienda', 9, 3));
+    igual('devol_tienda:9:3', inventario_idem_documento('devolucion', 'tienda', 9, 3));
+    $lanzo = false;
+    try { inventario_idem_documento('entrada', 'tienda', 1, 1); } catch (InventarioError $e) { $lanzo = true; }
+    afirmar($lanzo, 'una entrada no es un movimiento de documento');
+    $llave64 = str_repeat('a', 64);
+    $k = inventario_idem_lote('entrada', 123456, $llave64, 29);
+    afirmar(strlen($k) <= 80, 'cabe en idem_key (80): ' . strlen($k));
+    igual($k, inventario_idem_lote('entrada', 123456, $llave64, 29), 'misma entrada, misma llave');
+    afirmar($k !== inventario_idem_lote('entrada', 123456, $llave64, 28), 'distinto renglón, distinta llave');
+    afirmar($k !== inventario_idem_lote('entrada', 7, $llave64, 29), 'otro colegio, otra llave');
+    afirmar(inventario_idem_lote('entrada', 1, 'abcdefgh', 0) !== inventario_idem_lote('conteo', 1, 'abcdefgh', 0), 'otra operación, otra llave');
+});
+
+prueba('inventario: el plan de conteo solo trae las diferencias, con signo', function () {
+    $plan = inventario_conteo_plan(
+        ['concepto:1' => 10, 'concepto:2' => 4, 'tienda:3' => 0, 'tienda:4' => -2],
+        ['concepto:1' => 10, 'concepto:2' => 7, 'tienda:3' => 5, 'tienda:4' => 0]
+    );
+    igual(3, count($plan), 'el que coincide no genera movimiento');
+    igual(['clave' => 'concepto:2', 'actual' => 4, 'contado' => 7, 'diferencia' => 3], $plan[0]);
+    igual(5, $plan[1]['diferencia']);
+    igual(2, $plan[2]['diferencia'], 'de -2 a 0 es +2: el negativo se corrige');
+    igual([], inventario_conteo_plan(['a' => 3], ['a' => null]), 'lo no contado no se toca');
+    igual([], inventario_conteo_plan(['a' => 3], ['b' => 9]), 'un producto sin renglón no se inventa');
+    igual(-3, inventario_conteo_plan(['a' => 3], ['a' => 0])[0]['diferencia'], 'contar cero cuando había 3');
+});
+
+prueba('inventario: la existencia después de una secuencia de movimientos sale del libro', function () {
+    $e = 0;
+    $e += inventario_delta('entrada', 20);      // 20
+    $e += inventario_delta('venta', 3);         // 17
+    $e += inventario_delta('venta', 2);         // 15
+    $e += inventario_delta('devolucion', 3);    // 18  (se canceló el cobro de 3)
+    $e += inventario_delta('ajuste', -1);       // 17  (se rompió una)
+    $plan = inventario_conteo_plan(['p' => $e], ['p' => 15]);
+    $e += $plan[0]['diferencia'];               // 15  (el conteo encontró 15)
+    igual(15, $e);
+    // Vender de más: puede quedar negativa y se muestra como agotado, sin lanzar.
+    $e += inventario_delta('venta', 20);
+    igual(-5, $e);
+    igual('agotado', inventario_estado($e, 3));
+});
+
+prueba('inventario: el total de una entrada exige costo en todos los renglones', function () {
+    igual(12050 * 3 + 500 * 10, inventario_total_entrada_c([
+        ['cantidad' => 3, 'costo_c' => 12050], ['cantidad' => 10, 'costo_c' => 500],
+    ]));
+    igual(null, inventario_total_entrada_c([['cantidad' => 3, 'costo_c' => 12050], ['cantidad' => 1, 'costo_c' => null]]));
+    igual(0, inventario_total_entrada_c([]));
+});
+
+prueba('inventario: los tipos y movimientos del brief siguen siendo esos', function () {
+    igual(['concepto', 'tienda'], INVENTARIO_TIPOS);
+    igual(['entrada', 'venta', 'devolucion', 'ajuste', 'conteo'], INVENTARIO_MOVIMIENTOS);
+    igual('productos', inventario_tabla_item('concepto'));
+    igual('tienda_productos', inventario_tabla_item('tienda'));
+});
+
+prueba('inventario: los enganches de venta son no-op sin la migración (la base falla en todo)', function () {
+    // PDO que lanza en todo: simula la base sin las tablas de inventario.
+    $pdo = (new ReflectionClass('PDO'))->newInstanceWithoutConstructor();
+    $r = @inventario_registrar_ventas($pdo, 1, 'concepto', [10 => 2], ['cobro_id' => 5], 1);
+    afirmar($r['piezas'] === 0 && $r['productos'] === 0, 'no descontó nada');
+    igual(null, @inventario_alertas_contar($pdo, 1), 'sin migración no hay avisos');
+    igual([], @inventario_existencias_de($pdo, 1, 'concepto'));
+    $r = @inventario_registrar_ventas($pdo, 1, 'concepto', [], ['cobro_id' => 5], 1);
+    igual(['piezas' => 0, 'productos' => 0, 'errores' => 0], $r, 'sin pedidos no hace nada');
 });
 
 // ════════════════════════════════════════════════════════════════════════

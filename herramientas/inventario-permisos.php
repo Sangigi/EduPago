@@ -77,6 +77,7 @@ $FILE_ROLES = [
     'views/Suscripciones.js'  => ['superadmin'],
     'views/Tesoreria.js'      => ['tesoreria'],
     'views/Tienda.js'         => ['tienda', 'admin'],
+    'views/Inventario.js'     => ['admin'], // [OF-6]
     'views/Usuarios.js'       => ['superadmin', 'admin', 'control_escolar'], // 'usuarios' y 'miequipo'
     'views/components/BecasAlumno.js'       => ['admin', 'cajero'],
     'views/components/ExpedienteAlumno.js'  => ['admin', 'control_escolar', 'direccion', 'familia'],
@@ -221,7 +222,7 @@ function argumentosLlamada($src, $posAbre)
 function rolesDuros($src, $constantes)
 {
     $roles = []; $hay = false;
-    foreach (['requerir_rol', 'escolar_ctx', 'monedero_ctx', 'expediente_alumno'] as $fn) {
+    foreach (['requerir_rol', 'escolar_ctx', 'monedero_ctx', 'inventario_ctx', 'expediente_alumno'] as $fn) {
         $off = 0;
         while (($p = strpos($src, $fn . '(', $off)) !== false) {
             $off = $p + 1;
@@ -248,7 +249,7 @@ function rolesDuros($src, $constantes)
                 $lista = substr($resto, 0, $fin);
                 $roles = array_merge($roles, rolesEnTexto($lista, $constantes));
                 $hay = true;
-            } elseif ($fn === 'escolar_ctx' || $fn === 'monedero_ctx') {
+            } elseif ($fn === 'escolar_ctx' || $fn === 'monedero_ctx' || $fn === 'inventario_ctx') {
                 // 4.º argumento: $pdo, $usuario_actual, $input, <roles>[, secciones]
                 $partes = []; $nivel = 0; $act = '';
                 for ($i = 0; $i < strlen($args); $i++) {

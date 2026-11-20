@@ -45,6 +45,15 @@ function diagnostico_reglas(PDO $pdo): array
     // pendiente NO es adeudo de la familia.
     $sin_recargas = $con_recargas ? ' AND es_recarga_monedero = 0' : '';
 
+    // [OF-6] Los cobros de una importación de saldos (OF-5) no descuentan inventario
+    // por diseño: se excluyen de la regla de ventas sin movimiento si esa tabla existe.
+    $sin_importados = '';
+    try {
+        if ($pdo->query("SHOW TABLES LIKE 'importaciones_saldos_filas'")->fetch()) {
+            $sin_importados = ' AND NOT EXISTS (SELECT 1 FROM importaciones_saldos_filas isf WHERE isf.cobro_id = c.id)';
+        }
+    } catch (Throwable $e) { /* sin esa tabla: no hay nada que excluir */ }
+
     return [
         [
             'id' => 'saldo_pendiente_cliente',
@@ -191,6 +200,54 @@ function diagnostico_reglas(PDO $pdo): array
                          AND (a.cfdi_complemento_uuid IS NULL OR a.cfdi_complemento_uuid = '')
                          AND a.creado_en < (NOW() - INTERVAL 30 DAY) %ESC%",
             'nota' => 'Igual que la lista de Facturación > complementos pendientes: no cuenta facturas PUE.',
+        ],
+        // [OF-6] Inventario. Cada regla corre en su propio try/catch: sin la migración
+        // de inventario dicen "no disponible" y no afectan a las demás.
+        [
+            'id' => 'inventario_vs_libro',
+            'titulo' => 'Existencia de inventario distinta de la suma de su libro de movimientos',
+            'problema' => 'La pantalla de Inventario (y los avisos "se acabó / queda poco") muestran una existencia que no es la del libro. El libro es la fuente de verdad: el siguiente movimiento del producto la corrige, o un conteo físico la fija.',
+            'severidad' => 'media',
+            'esc' => 'e.escuela_id',
+            'sql' => "SELECT e.id, e.escuela_id, e.tipo, e.item_id, e.existencia AS registrado, COALESCE(l.s, 0) AS esperado
+                        FROM inventario_existencias e
+                   LEFT JOIN (SELECT tipo, item_id, SUM(cantidad) AS s FROM inventario_movimientos GROUP BY tipo, item_id) l
+                          ON l.tipo = e.tipo AND l.item_id = e.item_id
+                       WHERE e.existencia <> COALESCE(l.s, 0) %ESC%",
+            'nota' => 'En este listado `id` es el id del renglón de existencias; `tipo` = concepto o tienda, `item_id` = el producto.',
+        ],
+        [
+            'id' => 'inventario_venta_sin_movimiento',
+            'titulo' => 'Ventas de productos con existencias que NO movieron el inventario',
+            'problema' => 'Se vendió (cobro en Caja o venta de la tiendita) un producto que maneja existencias después de que empezó a moverse, pero no hay su movimiento de venta: el inventario falló en ese momento (ver el log, líneas INVENTARIO) y la existencia quedó de más. Se corrige con un ajuste o con el siguiente conteo físico.',
+            'severidad' => 'media',
+            'esc' => 'u.escuela_id',
+            'sql' => "SELECT * FROM (
+                        SELECT ci.cobro_id AS id, c.escuela_id, 'cobro' AS origen, c.folio AS documento,
+                               ci.producto_id AS item_id, SUM(ci.cantidad) AS piezas
+                          FROM cobro_items ci
+                          JOIN cobros c ON c.id = ci.cobro_id
+                          JOIN productos p ON p.id = ci.producto_id AND p.escuela_id = c.escuela_id AND p.maneja_existencias = 1
+                          JOIN (SELECT item_id, MIN(creado_en) AS desde FROM inventario_movimientos WHERE tipo = 'concepto' GROUP BY item_id) f
+                            ON f.item_id = p.id
+                         WHERE c.fecha >= DATE(f.desde)
+                           AND NOT EXISTS (SELECT 1 FROM inventario_movimientos m
+                                            WHERE m.idem_key = CONCAT('venta_cobro:', ci.cobro_id, ':', ci.producto_id)){$sin_importados}
+                      GROUP BY ci.cobro_id, c.escuela_id, c.folio, ci.producto_id
+                        UNION ALL
+                        SELECT tv.id, tv.escuela_id, 'tienda' AS origen, CONCAT('Venta #', tv.id) AS documento,
+                               tvi.producto_id AS item_id, SUM(tvi.cantidad) AS piezas
+                          FROM tienda_venta_items tvi
+                          JOIN tienda_ventas tv ON tv.id = tvi.venta_id
+                          JOIN tienda_productos tp ON tp.id = tvi.producto_id AND tp.escuela_id = tv.escuela_id AND tp.maneja_existencias = 1
+                          JOIN (SELECT item_id, MIN(creado_en) AS desde FROM inventario_movimientos WHERE tipo = 'tienda' GROUP BY item_id) f
+                            ON f.item_id = tp.id
+                         WHERE tv.creado_en >= f.desde
+                           AND NOT EXISTS (SELECT 1 FROM inventario_movimientos m
+                                            WHERE m.idem_key = CONCAT('venta_tienda:', tv.id, ':', tvi.producto_id))
+                      GROUP BY tv.id, tv.escuela_id, tvi.producto_id
+                      ) u WHERE 1 = 1 %ESC%",
+            'nota' => 'Solo cuenta ventas desde el primer movimiento del producto (el día que empezó a controlarse); los cobros de importaciones de saldos no descuentan inventario y se excluyen. En ese primer día puede haber un falso positivo (un cobro de la mañana, anterior a la entrada de la tarde). `id` = cobro o venta; `item_id` = el producto.',
         ],
     ];
 }

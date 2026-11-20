@@ -746,6 +746,15 @@ function Dashboard({
     
 
     MOSTRAR_CONTRATO_DASH && escuela && user.rol === 'admin' && escuela.contrato_estado === 'enviado' && _jsxDEV("div", { key: 'aviso-contrato', className: "card", style: { marginBottom: 22, padding: '14px 18px', borderLeft: '4px solid var(--amber)' }, children: [_jsxDEV("div", { style: { fontWeight: 700, fontSize: 14, color: 'var(--ink)' }, children: "Tu contrato está listo para firmar" }, "t", false), _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: "Te lo enviamos por correo. Fírmalo y súbelo en la sección Mi cuenta de la plataforma." }, "d", false)] }, "aviso-contrato", false),
+    // [OF-6] Aviso de inventario (solo admin): productos agotados o con queda poco. Sale de
+    // data.inventario_alertas (cargar_datos, una consulta agregada); sin migración llega null y no se pinta.
+    user.rol === 'admin' && data.inventario_alertas && ((data.inventario_alertas.agotados || 0) + (data.inventario_alertas.bajos || 0)) > 0 && (() => {
+      const al = data.inventario_alertas;
+      const partes = [];
+      if (al.agotados) partes.push(al.agotados + (al.agotados === 1 ? ' producto agotado' : ' productos agotados'));
+      if (al.bajos) partes.push(al.bajos + ' con queda poco');
+      return _jsxDEV("div", { key: 'aviso-inventario', className: "card", style: { marginBottom: 22, padding: '14px 18px', borderLeft: '4px solid var(' + (al.negativos ? '--red' : '--amber') + ')' }, children: [_jsxDEV("div", { style: { fontWeight: 700, fontSize: 14, color: 'var(--ink)' }, children: "Inventario: " + partes.join(' y ') }, "t", false), _jsxDEV("div", { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }, children: (al.negativos ? al.negativos + ' con existencia negativa (se vendió más de lo registrado). ' : '') + "Entra a Inventario en el menú para registrar una entrada de mercancía o hacer un conteo." }, "d", false)] }, "aviso-inventario", false);
+    })(),
     escuela && !esCajero && (() => {
 
       const planKey = (escuela.plan || '').toLowerCase();

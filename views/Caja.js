@@ -92,6 +92,12 @@ function Caja({
     transporte: 'Transporte', comedor: 'Comedor', extracurricular: 'Extracurricular',
     beca: 'Beca / Descuento', otro: 'Otro'
   };
+  // [OF-6] Existencia junto al producto, solo lectura: "Agotado" en rojo cuando es <= 0.
+  // NO bloquea la venta (el producto puede estar en el anaquel aunque el conteo esté mal).
+  // Solo los conceptos con "maneja existencias" traen `existencia` (cargar_datos).
+  const existenciaTagCaja = p => p.maneja_existencias && p.existencia !== null && p.existencia !== undefined
+    ? /*#__PURE__*/_jsxDEV("div", { style: { fontSize: 11, fontWeight: 700, marginTop: 2, color: p.existencia <= 0 ? 'var(--red)' : 'var(--ink-4)' }, children: p.existencia <= 0 ? 'Agotado' : p.existencia + ' en existencia' }, void 0, false)
+    : null;
   const productosBase = data.productos.filter(p =>
     p.activo && p.tipo !== 'recurrente' && (!q || p.nombre.toLowerCase().includes(q.toLowerCase()))
   );
@@ -901,7 +907,8 @@ function Caja({
             children: [/*#__PURE__*/_jsxDEV("div", { className: "product-emoji", children: p.emoji }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { className: "product-name", children: p.nombre }, void 0, false),
               /*#__PURE__*/_jsxDEV("div", { className: "product-type", children: CAT_LABELS_CAJA[p.categoria] || p.categoria }, void 0, false),
-              /*#__PURE__*/_jsxDEV("div", { className: "product-price", style: { color: p.precio < 0 ? 'var(--green)' : 'var(--accent)' }, children: fmt(p.precio) }, void 0, false)]
+              /*#__PURE__*/_jsxDEV("div", { className: "product-price", style: { color: p.precio < 0 ? 'var(--green)' : 'var(--accent)' }, children: fmt(p.precio) }, void 0, false),
+              existenciaTagCaja(p)]
           }, p.id, true))]
         }, cat, true)) : productosFiltrados.length === 0 ? /*#__PURE__*/_jsxDEV("div", {
           className: "empty-state",
@@ -926,7 +933,7 @@ function Caja({
               color: p.precio < 0 ? 'var(--green)' : 'var(--accent)'
             },
             children: fmt(p.precio)
-          }, void 0, false)]
+          }, void 0, false), existenciaTagCaja(p)]
         }, p.id, true))]
       }, void 0, true)]
     }, void 0, true), /*#__PURE__*/_jsxDEV("div", {

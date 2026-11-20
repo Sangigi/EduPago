@@ -12,8 +12,12 @@ $st = $pdo->prepare(
       ORDER BY activo DESC, nombre"
 );
 $st->execute([$ctx['escuela_id']]);
-$productos = array_map(function ($p) {
+// [OF-6] Existencia junto al producto (solo lectura; null = no maneja existencias).
+// Una consulta; sin la migración de inventario queda todo en null, como antes.
+$existencias = inventario_existencias_de($pdo, $ctx['escuela_id'], 'tienda');
+$productos = array_map(function ($p) use ($existencias) {
     return ['id' => intval($p['id']), 'nombre' => $p['nombre'],
-            'precio' => round(floatval($p['precio']), 2), 'activo' => (bool) intval($p['activo'])];
+            'precio' => round(floatval($p['precio']), 2), 'activo' => (bool) intval($p['activo']),
+            'existencia' => $existencias[intval($p['id'])] ?? null];
 }, $st->fetchAll());
 respond(['success' => true, 'productos' => $productos]);

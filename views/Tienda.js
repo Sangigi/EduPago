@@ -135,6 +135,11 @@ function TdVender(props) {
                     },
                       _hTd('div', { style: { fontWeight: 700, fontSize: 14 } }, p.nombre),
                       _hTd('div', { style: { fontSize: 13, color: 'var(--ink-3)', marginTop: 2 } }, mnFmt(p.precio)),
+                      // [OF-6] Existencia junto al producto (solo lectura; null = no maneja existencias).
+                      // "Agotado" en rojo cuando es <= 0; NO bloquea la venta.
+                      (p.existencia !== null && p.existencia !== undefined)
+                        ? _hTd('div', { style: { fontSize: 11.5, fontWeight: 700, marginTop: 2, color: p.existencia <= 0 ? 'var(--red)' : 'var(--ink-4)' } }, p.existencia <= 0 ? 'Agotado' : p.existencia + ' en existencia')
+                        : null,
                       carrito[p.id] ? _hTd('div', { style: { fontSize: 12, fontWeight: 700, marginTop: 2 } }, '× ' + carrito[p.id]) : null);
                   })))),
           // Columna derecha: cuenta

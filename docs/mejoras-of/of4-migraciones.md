@@ -102,7 +102,7 @@ Bases de prueba creadas ex profeso (`edupago_prueba_of4*`) con un esquema base m
 
 ## 5. Detector de incoherencias
 
-`acciones/diagnostico_incoherencias.php` (superadmin y soporte; `escuela_id` opcional) + `lib/helpers_diagnostico.php`. **Solo lectura.** 12 reglas, cada una en su propio `try/catch` (si falta una tabla o columna dice "no disponible" y las demás siguen), con conteo, hasta 20 ejemplos con id y una frase de qué problema causa. Cada consulta lleva `max_execution_time` de 20 s. La pantalla (Diagnóstico → Incoherencias) corre a petición, no al abrirse.
+`acciones/diagnostico_incoherencias.php` (superadmin y soporte; `escuela_id` opcional) + `lib/helpers_diagnostico.php`. **Solo lectura.** 14 reglas (12 de OF-4a + 2 de inventario de OF-6), cada una en su propio `try/catch` (si falta una tabla o columna dice "no disponible" y las demás siguen), con conteo, hasta 20 ejemplos con id y una frase de qué problema causa. Cada consulta lleva `max_execution_time` de 20 s. La pantalla (Diagnóstico → Incoherencias) corre a petición, no al abrirse.
 
 Notas de criterio:
 - "Pagados con monto menor al total" se separa en **posteriores** y **anteriores** al libro de abonos (la frontera es la fecha del primer abono en `cobro_abonos`).

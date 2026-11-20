@@ -401,6 +401,7 @@ function Escuelas({
     { id: 'recordatorios', label: 'Recordatorios' },
     { id: 'reportes', label: 'Reportes' },
     { id: 'miequipo', label: 'Mi equipo' },
+    { id: 'inventario', label: 'Inventario' }, // [OF-6]
     { id: 'escolar_grupos', label: 'Grupos y horarios' },
     { id: 'escolar_asistencias', label: 'Asistencias' },
     { id: 'escolar_calificaciones', label: 'Calificaciones' },

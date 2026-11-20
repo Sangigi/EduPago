@@ -173,6 +173,11 @@ try {
     $creado = $st->fetchColumn();
     $pdo->commit();
 
+    // [OF-6] Inventario: las piezas de los productos que manejan existencias se descuentan
+    // DESPUÉS del commit (movimiento 'venta', idem 'venta_tienda:<venta>:<producto>'). Nunca
+    // lanza ni bloquea la venta: no es dinero y la existencia puede quedar negativa.
+    inventario_registrar_ventas($pdo, $ctx['escuela_id'], 'tienda', $pedidos, ['venta_id' => $venta_id], $ctx['user_id']);
+
     respond(['success' => true, 'duplicado' => false,
         'venta' => ['id' => $venta_id, 'total' => monedero_p($total_c), 'creado_en' => $creado],
         'saldo_despues' => $mov['saldo_despues']]);
