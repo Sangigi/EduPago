@@ -28,6 +28,7 @@ function Alumnos({
   const puedeBecas = (rol === 'admin' || rol === 'superadmin') && !soloLectura;
   const [becasAlumno, setBecasAlumno] = useState(null);   // [OF-3] alumno cuyas becas se editan
   const [becasColegioAbierto, setBecasColegioAbierto] = useState(false); // [OF-3] vista "Becas del colegio"
+  const [importarSaldosAbierto, setImportarSaldosAbierto] = useState(false); // [OF-5] asistente "Importar adeudos"
   const EMPTY = {
     tipo: 'alumno',
     nombre: '',
@@ -478,6 +479,11 @@ function Alumnos({
       escuelaId: escuela_id,
       onCerrar: () => setBecasColegioAbierto(false)
     }, 'of3-becas-colegio', false),
+    // [OF-5] Importar adeudos y saldos iniciales (views/components/ImportarSaldos.js). Solo admin y superadmin.
+    puedeBecas && importarSaldosAbierto && typeof ImportarSaldos !== 'undefined' && _jsxDEV(ImportarSaldos, {
+      escuelaId: escuela_id,
+      onCerrar: () => setImportarSaldosAbierto(false)
+    }, 'of5-importar-saldos', false),
     // [F4] Modal "Acceso del alumno" (crear la cuenta del portal, reenviar activación, desactivar).
     modalAcceso && _jsxDEV(AlumnoAccesoModalF4, {
       alumno: modalAcceso,
@@ -536,7 +542,13 @@ function Alumnos({
             title: !escuela_id ? 'Selecciona una escuela arriba' : 'Todas las becas activas del colegio y el descuento mensual estimado', // [OF-3]
             onClick: () => setBecasColegioAbierto(true),
             children: "Becas del colegio"
-          }, 'of3-becas-colegio-btn', false), !soloLectura && _jsxDEV("button", {
+          }, 'of3-becas-colegio-btn', false), puedeBecas && typeof ImportarSaldos !== 'undefined' && _jsxDEV("button", { // [OF-5]
+            className: "btn btn-secondary",
+            disabled: !escuela_id,
+            title: !escuela_id ? 'Selecciona una escuela arriba' : 'Carga de un archivo lo que las familias ya deben al empezar a usar la plataforma',
+            onClick: () => setImportarSaldosAbierto(true),
+            children: "Importar adeudos"
+          }, 'of5-importar-saldos-btn', false), !soloLectura && _jsxDEV("button", {
             className: "btn btn-secondary",
             disabled: !escuela_id,
             title: !escuela_id ? 'Selecciona una escuela arriba antes de importar' : undefined,
