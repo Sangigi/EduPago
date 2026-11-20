@@ -30,6 +30,7 @@ require_once $RAIZ . '/lib/helpers_becas.php';
 require_once $RAIZ . '/lib/helpers_pagos.php';
 require_once $RAIZ . '/lib/helpers_monedero.php';
 require_once $RAIZ . '/lib/helpers_importar_saldos.php'; // [OF-5]
+require_once $RAIZ . '/lib/helpers_inventario.php'; // [OF-6]
 
 // ════════════════════════════════════════════════════════════════════════
 // Mini corredor
@@ -903,6 +904,175 @@ prueba('importar: XLSX mínimo (solo si PHP trae zip): celdas vacías, texto com
     igual('20240001', importar_celda_texto($r['tabla']['filas'][1][1][0]));
     igual('2026-09-01', importar_fecha_iso($r['tabla']['filas'][1][1][2]));
     igual(150050, importar_monto_a_centavos($r['tabla']['filas'][2][1][1]));
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// [OF-6] Inventario con existencias (lib/helpers_inventario.php) — funciones puras
+// ════════════════════════════════════════════════════════════════════════
+
+prueba('inventario: cantidad de entrada válida (entero positivo, con tope)', function () {
+    igual(5, inventario_cantidad_valida(5));
+    igual(5, inventario_cantidad_valida('5'));
+    igual(12, inventario_cantidad_valida(' 12 '));
+    igual(null, inventario_cantidad_valida(0), 'cero no es una entrada');
+    igual(null, inventario_cantidad_valida(-3));
+    igual(null, inventario_cantidad_valida('2.5'), 'sin decimales: son piezas');
+    igual(null, inventario_cantidad_valida('abc'));
+    igual(null, inventario_cantidad_valida(null));
+    igual(null, inventario_cantidad_valida(INVENTARIO_CANTIDAD_MAX + 1));
+    igual(INVENTARIO_CANTIDAD_MAX, inventario_cantidad_valida(INVENTARIO_CANTIDAD_MAX));
+});
+
+prueba('inventario: lo contado admite cero pero no negativos ni vacíos', function () {
+    igual(0, inventario_contado_valido(0));
+    igual(0, inventario_contado_valido('0'));
+    igual(37, inventario_contado_valido('37'));
+    igual(null, inventario_contado_valido(''), 'vacío = no se contó');
+    igual(null, inventario_contado_valido(null));
+    igual(null, inventario_contado_valido(-1));
+    igual(null, inventario_contado_valido('1.5'));
+    igual(null, inventario_contado_valido(INVENTARIO_CONTADO_MAX + 1));
+});
+
+prueba('inventario: el ajuste lleva signo y no puede ser cero', function () {
+    igual(3, inventario_ajuste_valido(3));
+    igual(-2, inventario_ajuste_valido('-2'));
+    igual(null, inventario_ajuste_valido(0));
+    igual(null, inventario_ajuste_valido('x'));
+    igual(null, inventario_ajuste_valido(INVENTARIO_CANTIDAD_MAX + 1));
+    igual(-INVENTARIO_CANTIDAD_MAX, inventario_ajuste_valido(-INVENTARIO_CANTIDAD_MAX));
+});
+
+prueba('inventario: costo unitario opcional, en centavos', function () {
+    igual([true, null], inventario_costo_valido(null));
+    igual([true, null], inventario_costo_valido(''));
+    igual([true, 12050], inventario_costo_valido('120.50'));
+    igual([true, 12050], inventario_costo_valido(120.5));
+    igual([true, 0], inventario_costo_valido(0), 'costo cero es un costo (regalo, donación)');
+    igual([true, 123456], inventario_costo_valido('1,234.56'));
+    igual([false, null], inventario_costo_valido(-1));
+    igual([false, null], inventario_costo_valido('mucho'));
+    igual([false, null], inventario_costo_valido(1000000));
+    igual([true, 1999], inventario_costo_valido('19.99'), 'sin error de float');
+});
+
+prueba('inventario: cambio de existencia con signo por tipo de movimiento', function () {
+    igual(5, inventario_delta('entrada', 5));
+    igual(-4, inventario_delta('venta', 4));
+    igual(-4, inventario_delta('venta', -4), 'la venta siempre resta aunque llegue con signo');
+    igual(3, inventario_delta('devolucion', 3));
+    igual(-2, inventario_delta('ajuste', -2));
+    igual(7, inventario_delta('ajuste', 7));
+    igual(-9, inventario_delta('conteo', -9));
+    $lanzo = false;
+    try { inventario_delta('regalo', 1); } catch (InventarioError $e) { $lanzo = true; }
+    afirmar($lanzo, 'un movimiento desconocido debe lanzar');
+});
+
+prueba('inventario: estado agotado / bajo / ok (los negativos cuentan como agotado)', function () {
+    igual('agotado', inventario_estado(0, 5));
+    igual('agotado', inventario_estado(-3, 0), 'negativo = agotado');
+    igual('agotado', inventario_estado(0, 0));
+    igual('bajo', inventario_estado(5, 5), 'igual al mínimo ya es poco');
+    igual('bajo', inventario_estado(2, 5));
+    igual('ok', inventario_estado(6, 5));
+    igual('ok', inventario_estado(1, 0), 'sin mínimo (0) no avisa de poco');
+});
+
+prueba('inventario: el carrito de Caja se junta por producto', function () {
+    igual([10 => 3, 11 => 1], inventario_agrupar_carrito([
+        ['id' => 10, 'qty' => 2, 'nombre' => 'Playera T8'], ['id' => 11, 'qty' => 1], ['id' => 10, 'qty' => 1],
+    ]));
+    igual([], inventario_agrupar_carrito([['id' => 0, 'qty' => 2], ['id' => 5, 'qty' => 0], ['qty' => 3], 'basura']), 'renglones sin id o sin piezas se ignoran');
+    igual([7 => 1], inventario_agrupar_carrito([['id' => '7']]), 'sin qty cuenta como una pieza (igual que crear_cobro)');
+    igual([], inventario_agrupar_carrito(null));
+    igual([], inventario_agrupar_carrito([['id' => 3, 'qty' => -2]]), 'cantidades negativas no suman piezas');
+});
+
+prueba('inventario: qué conceptos pueden manejar existencias', function () {
+    igual(null, inventario_concepto_elegible('uniforme', 'unico', 450));
+    igual(null, inventario_concepto_elegible('material', 'unico', 0));
+    igual(null, inventario_concepto_elegible('otro', 'unico', 20));
+    afirmar(inventario_concepto_elegible('colegiatura', 'unico', 1500) !== null, 'la colegiatura nunca');
+    afirmar(inventario_concepto_elegible('inscripcion', 'unico', 800) !== null);
+    afirmar(inventario_concepto_elegible('beca', 'unico', 100) !== null);
+    afirmar(inventario_concepto_elegible('transporte', 'unico', 100) !== null);
+    afirmar(inventario_concepto_elegible('uniforme', 'recurrente', 450) !== null, 'un recurrente no maneja existencias');
+    afirmar(inventario_concepto_elegible('uniforme', 'unico', -50) !== null, 'un descuento no maneja existencias');
+    afirmar(inventario_concepto_elegible('', 'unico', 5) !== null);
+});
+
+prueba('inventario: llaves de idempotencia determinísticas y dentro de 80 caracteres', function () {
+    igual('venta_cobro:123:45', inventario_idem_documento('venta', 'concepto', 123, 45));
+    igual('devol_cobro:123:45', inventario_idem_documento('devolucion', 'concepto', 123, 45));
+    igual('venta_tienda:9:3', inventario_idem_documento('venta', 'tienda', 9, 3));
+    igual('devol_tienda:9:3', inventario_idem_documento('devolucion', 'tienda', 9, 3));
+    $lanzo = false;
+    try { inventario_idem_documento('entrada', 'tienda', 1, 1); } catch (InventarioError $e) { $lanzo = true; }
+    afirmar($lanzo, 'una entrada no es un movimiento de documento');
+    $llave64 = str_repeat('a', 64);
+    $k = inventario_idem_lote('entrada', 123456, $llave64, 29);
+    afirmar(strlen($k) <= 80, 'cabe en idem_key (80): ' . strlen($k));
+    igual($k, inventario_idem_lote('entrada', 123456, $llave64, 29), 'misma entrada, misma llave');
+    afirmar($k !== inventario_idem_lote('entrada', 123456, $llave64, 28), 'distinto renglón, distinta llave');
+    afirmar($k !== inventario_idem_lote('entrada', 7, $llave64, 29), 'otro colegio, otra llave');
+    afirmar(inventario_idem_lote('entrada', 1, 'abcdefgh', 0) !== inventario_idem_lote('conteo', 1, 'abcdefgh', 0), 'otra operación, otra llave');
+});
+
+prueba('inventario: el plan de conteo solo trae las diferencias, con signo', function () {
+    $plan = inventario_conteo_plan(
+        ['concepto:1' => 10, 'concepto:2' => 4, 'tienda:3' => 0, 'tienda:4' => -2],
+        ['concepto:1' => 10, 'concepto:2' => 7, 'tienda:3' => 5, 'tienda:4' => 0]
+    );
+    igual(3, count($plan), 'el que coincide no genera movimiento');
+    igual(['clave' => 'concepto:2', 'actual' => 4, 'contado' => 7, 'diferencia' => 3], $plan[0]);
+    igual(5, $plan[1]['diferencia']);
+    igual(2, $plan[2]['diferencia'], 'de -2 a 0 es +2: el negativo se corrige');
+    igual([], inventario_conteo_plan(['a' => 3], ['a' => null]), 'lo no contado no se toca');
+    igual([], inventario_conteo_plan(['a' => 3], ['b' => 9]), 'un producto sin renglón no se inventa');
+    igual(-3, inventario_conteo_plan(['a' => 3], ['a' => 0])[0]['diferencia'], 'contar cero cuando había 3');
+});
+
+prueba('inventario: la existencia después de una secuencia de movimientos sale del libro', function () {
+    $e = 0;
+    $e += inventario_delta('entrada', 20);      // 20
+    $e += inventario_delta('venta', 3);         // 17
+    $e += inventario_delta('venta', 2);         // 15
+    $e += inventario_delta('devolucion', 3);    // 18  (se canceló el cobro de 3)
+    $e += inventario_delta('ajuste', -1);       // 17  (se rompió una)
+    $plan = inventario_conteo_plan(['p' => $e], ['p' => 15]);
+    $e += $plan[0]['diferencia'];               // 15  (el conteo encontró 15)
+    igual(15, $e);
+    // Vender de más: puede quedar negativa y se muestra como agotado, sin lanzar.
+    $e += inventario_delta('venta', 20);
+    igual(-5, $e);
+    igual('agotado', inventario_estado($e, 3));
+});
+
+prueba('inventario: el total de una entrada exige costo en todos los renglones', function () {
+    igual(12050 * 3 + 500 * 10, inventario_total_entrada_c([
+        ['cantidad' => 3, 'costo_c' => 12050], ['cantidad' => 10, 'costo_c' => 500],
+    ]));
+    igual(null, inventario_total_entrada_c([['cantidad' => 3, 'costo_c' => 12050], ['cantidad' => 1, 'costo_c' => null]]));
+    igual(0, inventario_total_entrada_c([]));
+});
+
+prueba('inventario: los tipos y movimientos del brief siguen siendo esos', function () {
+    igual(['concepto', 'tienda'], INVENTARIO_TIPOS);
+    igual(['entrada', 'venta', 'devolucion', 'ajuste', 'conteo'], INVENTARIO_MOVIMIENTOS);
+    igual('productos', inventario_tabla_item('concepto'));
+    igual('tienda_productos', inventario_tabla_item('tienda'));
+});
+
+prueba('inventario: los enganches de venta son no-op sin la migración (la base falla en todo)', function () {
+    // PDO que lanza en todo: simula la base sin las tablas de inventario.
+    $pdo = (new ReflectionClass('PDO'))->newInstanceWithoutConstructor();
+    $r = @inventario_registrar_ventas($pdo, 1, 'concepto', [10 => 2], ['cobro_id' => 5], 1);
+    afirmar($r['piezas'] === 0 && $r['productos'] === 0, 'no descontó nada');
+    igual(null, @inventario_alertas_contar($pdo, 1), 'sin migración no hay avisos');
+    igual([], @inventario_existencias_de($pdo, 1, 'concepto'));
+    $r = @inventario_registrar_ventas($pdo, 1, 'concepto', [], ['cobro_id' => 5], 1);
+    igual(['piezas' => 0, 'productos' => 0, 'errores' => 0], $r, 'sin pedidos no hace nada');
 });
 
 // ════════════════════════════════════════════════════════════════════════

@@ -320,11 +320,23 @@
             $stmt->execute([$escuela_id_ver]);
             $productos_raw = $stmt->fetchAll();
         }
-        $productos = array_map(function($p) {
+        // [OF-6] Existencia junto al producto para Caja (solo lectura; el cajero la ve
+        // pero no la cambia). Una consulta por colegio; null = no maneja existencias.
+        // Sin la migración de inventario queda todo como antes (sin la clave).
+        // Las familias no ven existencias (no las necesitan): solo admin, cajero y superadmin.
+        $existencias_inv = ($productos_raw && $escuela_id_ver && in_array($rol, ['admin', 'cajero', 'superadmin'], true)) ? inventario_existencias_de($pdo, intval($escuela_id_ver), 'concepto') : [];
+        $productos = array_map(function($p) use ($existencias_inv) {
             $p['activo'] = (bool)$p['activo'];
             $p['precio'] = floatval($p['precio']);
+            if (array_key_exists('maneja_existencias', $p)) {
+                $p['maneja_existencias'] = intval($p['maneja_existencias']);
+                $p['existencia'] = $existencias_inv[intval($p['id'])] ?? null;
+            }
             return $p;
         }, $productos_raw);
+        // [OF-6] Aviso del Dashboard y contador del menú Inventario: UNA consulta agregada
+        // (no una por producto), solo para el admin. null si el inventario no está instalado.
+        $inventario_alertas = ($rol === 'admin' && $escuela_id_ver) ? inventario_alertas_contar($pdo, intval($escuela_id_ver)) : null;
         // ── Proveedores ── (catálogo chico, igual patrón que Productos;
         // los Gastos en sí se consultan bajo demanda vía listar_gastos.php)
         // [F4] Sin finanzas no se consulta (los proveedores son de gastos).
@@ -498,4 +510,5 @@
             'cobros_resumen'    => $cobros_resumen,
             'recordatorios'     => $recordatorios,
             'escuela_id_ver'    => $escuela_id_ver,
+            'inventario_alertas' => $inventario_alertas, // [OF-6]
         ]);

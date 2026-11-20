@@ -132,7 +132,8 @@ $errores += $abiertas;
 
 // ── 3. Acciones sin requerir_rol y quién las alcanza ────────────────────────
 // Un helper de contexto que llama requerir_rol() por dentro cuenta como guardia.
-$helpers_con_guardia = ['requerir_rol(', 'escolar_ctx(', 'monedero_ctx(', 'expediente_alumno(', 'notas_familia_autorizada('];
+$helpers_con_guardia = ['requerir_rol(', 'escolar_ctx(', 'monedero_ctx(', 'expediente_alumno(', 'notas_familia_autorizada(',
+    'inventario_ctx(' /* [OF-6] llama requerir_rol() como lo primero (lib/helpers_inventario.php) */];
 $roles_con_registro = ['admin', 'cajero', 'contador', 'distribuidor'];
 $sin_guardia = [];
 foreach ($acciones as $a) {

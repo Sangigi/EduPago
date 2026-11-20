@@ -182,6 +182,18 @@
             // Ver la nota en acciones/cargar_datos.php: __DIR__ aqui es acciones/.
             log_api("crear_cobro: cobro_items no disponible (¿falta migrar tabla?): " . $e->getMessage());
         }
+        // [OF-6] Inventario: cada renglón que sea un concepto con "maneja existencias"
+        // descuenta sus piezas (movimiento 'venta', idem 'venta_cobro:<cobro>:<producto>').
+        // inventario_registrar_ventas() nunca lanza y el producto se busca solo dentro de
+        // $escuela_id: si el inventario falla o no está instalado, el cobro sigue igual.
+        // Va aquí (y no en el cron de recurrentes ni en las importaciones, que no pasan
+        // por esta acción): solo lo que se cobra en Caja o desde el portal descuenta.
+        try {
+            inventario_registrar_ventas($pdo, $escuela_id, 'concepto', inventario_agrupar_carrito($carrito),
+                ['cobro_id' => intval($cobro_id)], intval($usuario_actual['user_id'] ?? 0));
+        } catch (\Throwable $eInv) {
+            log_api("crear_cobro: inventario falló cobro #{$cobro_id}: " . $eInv->getMessage());
+        }
         // Obtener nombre del cliente y recalcular su saldo_pendiente
         $cliente_nombre = 'Cliente general';
         if ($cliente_id) {

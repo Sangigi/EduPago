@@ -112,8 +112,23 @@
         }
         if ($cancel_error !== null) respond(['success' => false, 'error' => $cancel_error]);
 
+        // [OF-6] Inventario: lo que este cobro descontó al crearse regresa a la existencia
+        // (movimiento 'devolucion', idem 'devol_cobro:<cobro>:<producto>'). Va DESPUÉS del
+        // commit de la cancelación y nunca lanza: si falla, el cobro ya quedó cancelado y
+        // el detalle queda en el log. Si el cobro no descontó nada, no devuelve nada.
+        $inv_devuelto = ['piezas' => 0, 'productos' => 0, 'errores' => 0];
+        try {
+            $inv_devuelto = inventario_devolver_documento($pdo, intval($escCancel['escuela_id']), 'concepto', $cobro_id,
+                intval($usuario_actual['user_id'] ?? 0), $motivo_cancelar);
+        } catch (\Throwable $eInv) {
+            log_api("cancelar_cobro: inventario falló cobro #{$cobro_id}: " . $eInv->getMessage());
+        }
+
         // Avisos que el modal y la respuesta muestran tal cual.
         $avisos_cancelar = [];
+        if ($inv_devuelto['piezas'] > 0) {
+            $avisos_cancelar[] = 'Se regresaron ' . $inv_devuelto['piezas'] . ' pieza(s) al inventario (' . $inv_devuelto['productos'] . ' producto(s)).';
+        }
         if ($cancel_res['recibido'] > 0) {
             $avisos_cancelar[] = 'Este cobro ya tenía $' . number_format($cancel_res['recibido'], 2) . ' recibidos. Cancelarlo NO devuelve el dinero: registra la devolución por fuera.';
         }

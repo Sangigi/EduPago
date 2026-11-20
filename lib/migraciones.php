@@ -493,6 +493,54 @@ CREATE TABLE IF NOT EXISTS importaciones_saldos_filas (
   KEY idx_impsalf_cobro (cobro_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
 
+    // ═══ OF-6 — inventario con existencias (dos columnas "maneja_existencias" y dos tablas) ═══
+    // Sin backfill: nada se controla hasta que el admin lo marque. Sin estos pasos el
+    // código funciona como siempre (inventario_listo() = false), sin inventario.
+    $f = 'migracion_2026_11_20_of6_inventario.sql';
+    $columna('2026_11_20_of6_01_productos_maneja_existencias', 'productos.maneja_existencias (el concepto lleva existencias)',
+        'productos', 'maneja_existencias', 'TINYINT(1) NOT NULL DEFAULT 0', $f);
+    $columna('2026_11_20_of6_02_tienda_productos_maneja_existencias', 'tienda_productos.maneja_existencias (el producto de la tiendita lleva existencias)',
+        'tienda_productos', 'maneja_existencias', 'TINYINT(1) NOT NULL DEFAULT 0', $f);
+    $tabla('2026_11_20_of6_03_inventario_existencias', 'Tabla inventario_existencias (existencia cacheada y mínimo por producto)', 'inventario_existencias', "
+CREATE TABLE IF NOT EXISTS inventario_existencias (
+  id              INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  escuela_id      INT UNSIGNED  NOT NULL,
+  tipo            VARCHAR(10)   NOT NULL,
+  item_id         INT UNSIGNED  NOT NULL,
+  existencia      INT           NOT NULL DEFAULT 0,
+  minimo          INT           NOT NULL DEFAULT 0,
+  ultimo_costo    DECIMAL(12,2) NULL DEFAULT NULL,
+  actualizado_en  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_invex_item (tipo, item_id),
+  KEY idx_invex_escuela (escuela_id, tipo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+    $tabla('2026_11_20_of6_04_inventario_movimientos', 'Tabla inventario_movimientos (libro de movimientos: la verdad de la existencia)', 'inventario_movimientos', "
+CREATE TABLE IF NOT EXISTS inventario_movimientos (
+  id                  INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  escuela_id          INT UNSIGNED  NOT NULL,
+  tipo                VARCHAR(10)   NOT NULL,
+  item_id             INT UNSIGNED  NOT NULL,
+  movimiento          VARCHAR(12)   NOT NULL,
+  cantidad            INT           NOT NULL,
+  existencia_despues  INT           NOT NULL,
+  costo_unitario      DECIMAL(12,2) NULL DEFAULT NULL,
+  proveedor_id        INT UNSIGNED  NULL DEFAULT NULL,
+  cobro_id            INT UNSIGNED  NULL DEFAULT NULL,
+  venta_id            INT UNSIGNED  NULL DEFAULT NULL,
+  gasto_id            INT UNSIGNED  NULL DEFAULT NULL,
+  motivo              VARCHAR(255)  NULL DEFAULT NULL,
+  usuario_id          INT UNSIGNED  NULL DEFAULT NULL,
+  idem_key            VARCHAR(80)   NOT NULL,
+  creado_en           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_invmov_idem (idem_key),
+  KEY idx_invmov_item (tipo, item_id, id),
+  KEY idx_invmov_escuela (escuela_id, creado_en),
+  KEY idx_invmov_cobro (cobro_id),
+  KEY idx_invmov_venta (venta_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", $f);
+
     $reg = $r;
     return $reg;
 }
